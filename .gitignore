@@ -1,0 +1,53 @@
+# ─── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ─── Virtual envs ──────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ─── Django ────────────────────────────────────────────────
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# ─── Env / secrets ─────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ─── Editors / OS ──────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Docker ────────────────────────────────────────────────
+.docker/
+
+# ─── Project ───────────────────────────────────────────────
+backend/staticfiles/
+backend/mediafiles/
+migration/sources/
+!migration/sources/.gitkeep

@@ -1,0 +1,64 @@
+# Local development stack for Syskern Pricing Platform.
+# Production uses Supabase (managed Postgres + Auth + Storage); locally we run
+# a plain Postgres + Redis pair and the Django dev server.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: syskern-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-syskern}
+      POSTGRES_USER: ${POSTGRES_USER:-syskern}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-syskern}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-syskern} -d ${POSTGRES_DB:-syskern}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: syskern-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: syskern-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DATABASE_URL: postgres://${POSTGRES_USER:-syskern}:${POSTGRES_PASSWORD:-syskern}@postgres:5432/${POSTGRES_DB:-syskern}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  postgres_data:
+    name: syskern_postgres_data
