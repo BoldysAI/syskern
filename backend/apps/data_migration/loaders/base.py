@@ -20,17 +20,20 @@ Optional hooks (override when needed):
 
 Transaction strategy
 --------------------
-The pipeline uses a two-level transaction model suited for Postgres / Supabase:
+The pipeline uses nested ``transaction.atomic()`` blocks (Postgres / Supabase):
 
-  outer BATCH transaction  (≤ batch_size rows, default 500)
-    └── per-ROW savepoint
+  outer BATCH ``atomic()``  (≤ batch_size rows, default 500)
+    └── per-ROW inner ``atomic()`` → Django opens a savepoint automatically
 
-If apply_update() raises, only that row's savepoint is rolled back; the rest
-of the batch — including quarantine entries — is committed normally.
+If ``_process_row_inner()`` raises, the inner block rolls back that row's ORM
+work only; ``MigrationUnmatched`` rows created in the ``except`` path run in
+the batch scope and commit with the rest of the batch.  We avoid mixing
+``atomic()`` with manual ``savepoint_*`` APIs so behaviour matches Django's
+contract.
 
-If the entire batch raises an unexpected error outside a savepoint (e.g. a DB
-connection drop), Django rolls back the whole batch.  The loader logs the
-batch number; re-running with --dry-run shows which rows would be affected.
+If the entire batch hits an unexpected error outside the per-row handlers
+(e.g. a DB connection drop), Django rolls back the whole batch.  Re-running
+with ``--dry-run`` previews which rows would be affected.
 
 dry_run
 -------
@@ -129,8 +132,9 @@ class BaseExcelLoader(abc.ABC):
         """Write enriched data from `row` onto `product` and save to DB.
 
         Called only when the matcher found exactly one product.
-        Must return a RowOutcome.  Must NOT commit — the surrounding savepoint
-        handles commit/rollback.
+        Must return a RowOutcome.  Must NOT start or commit outer transactions —
+        the per-row nested ``atomic()`` in ``_process_row`` handles rollback on
+        failure.
 
         Raise InvalidRowError for data that passes normalize_row() but fails
         at write-time (e.g. a Decimal overflow), so the row goes to quarantine
@@ -302,12 +306,10 @@ class BaseExcelLoader(abc.ABC):
         config: LoaderConfig,
     ) -> None:
         report.rows_total += 1
-        sid = transaction.savepoint()
         try:
-            self._process_row_inner(raw_row, excel_row, matcher, report, source_name, config)
-            transaction.savepoint_commit(sid)
+            with transaction.atomic():
+                self._process_row_inner(raw_row, excel_row, matcher, report, source_name, config)
         except Exception as exc:
-            transaction.savepoint_rollback(sid)
             reason = self._classify_exception(exc)
             logger.warning(
                 "Row %d of %s → quarantined (%s): %s",

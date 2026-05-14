@@ -212,7 +212,7 @@ class TestDummyLoaderSavepointRollback:
         # Row 1 failed → quarantined as INVALID_FORMAT
         assert report.rows_unmatched.get(UnmatchedReason.INVALID_FORMAT, 0) == 1
 
-        # Rows 2 and 3 still matched and updated (savepoint isolated the failure)
+        # Rows 2 and 3 still matched and updated (per-row atomic isolated the failure)
         assert report.rows_matched >= 2
         assert report.rows_updated >= 2
 
