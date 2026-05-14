@@ -174,15 +174,22 @@ class BaseExcelLoader(abc.ABC):
 
     # ── Public entry point ────────────────────────────────────────────────────
 
-    def run(self, config: LoaderConfig) -> LoaderReport:
-        """Execute the full load pipeline and return a LoaderReport.
+    def pre_run(self, config: LoaderConfig) -> None:  # noqa: B027
+        """Optional hook called once before the main row-processing loop.
 
-        This method is NOT meant to be overridden.
+        Override to read per-file metadata (header rows, lookup sheets, etc.)
+        that must be available when normalize_row() / apply_update() are called.
+        The default implementation does nothing.
         """
+
+    def run(self, config: LoaderConfig) -> LoaderReport:
+        """Execute the full load pipeline and return a LoaderReport."""
         start = time.monotonic()
         source_name = Path(config.file_path).name
 
         logger.info("Starting %s on %s (dry_run=%s)", type(self).__name__, source_name, config.dry_run)
+
+        self.pre_run(config)
 
         df, sheet_name = read_sheet(config.file_path, config.sheet_name, config.header_row)
         df = self._apply_column_mapping(df)
@@ -190,11 +197,28 @@ class BaseExcelLoader(abc.ABC):
 
         report = LoaderReport(source_file=source_name, sheet_name=sheet_name, dry_run=config.dry_run)
 
-        # Deduplication pass (optional, driven by dedup_key hook)
-        df, report = self._dedup(df, report)
-
-        # Build matcher indexes once for the whole file
         matcher = ProductMatcher()
+        self._run_dataframe(df, config, matcher, report, source_name)
+
+        report.duration_seconds = time.monotonic() - start
+        logger.info("Finished %s:\n%s", type(self).__name__, report)
+        return report
+
+    def _run_dataframe(
+        self,
+        df: pd.DataFrame,
+        config: LoaderConfig,
+        matcher: ProductMatcher,
+        report: LoaderReport,
+        source_name: str,
+    ) -> None:
+        """Process an already-mapped DataFrame through dedup + batch loop.
+
+        Extracted from ``run()`` so that loaders spanning multiple sheets
+        (e.g. ``MirsanLoader``) can call it once per sheet with the same
+        matcher and aggregate into a single ``report``.
+        """
+        df, report = self._dedup(df, report)
 
         if config.dry_run:
             with transaction.atomic():
@@ -202,10 +226,6 @@ class BaseExcelLoader(abc.ABC):
                 transaction.set_rollback(True)
         else:
             self._process_all(df, config, matcher, report, source_name)
-
-        report.duration_seconds = time.monotonic() - start
-        logger.info("Finished %s:\n%s", type(self).__name__, report)
-        return report
 
     # ── Internal pipeline ─────────────────────────────────────────────────────
 
