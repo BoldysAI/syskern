@@ -32,6 +32,11 @@ Excel error string (so existing good data from Odoo is never overwritten with
 #N/A / #ERROR!).
 
 ProductSupplier is upserted via get_or_create(product=…, factory_code=…).
+Rows without an Internal Code suffix use a synthetic factory_code
+``?`` + Supplier (max 15 chars) so distinct suppliers never share the empty
+``factory_code`` key.  Rows with neither suffix nor Supplier column are
+quarantined (InvalidRowError).
+
 is_active is left at its current DB value — Olivier activates the preferred
 supplier manually after migration (or the derivation step does it).
 """
@@ -304,10 +309,38 @@ class POFournisseursLoader(BaseExcelLoader):
         if changed:
             product.save()
 
+    @staticmethod
+    def _storage_factory_key(d: dict[str, object]) -> str:
+        """Key for get_or_create(product, factory_code=…).
+
+        Real suffixes from Internal Code are used as-is.  When the suffix is
+        missing, ``?`` + trimmed Supplier column keeps rows disjoint; bare
+        ``""`` would merge unrelated suppliers on the same product.
+        """
+        raw = d.get("factory_code")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        sup = d.get("supplier_code")
+        sup_s = sup.strip() if isinstance(sup, str) else ""
+        if not sup_s:
+            raise InvalidRowError(
+                "factory_code is missing (Internal Code has no factory suffix) and "
+                "Supplier is empty — cannot upsert supplier without a disambiguating key"
+            )
+        return f"?{sup_s[:15]}"
+
     def _upsert_supplier(self, product: Product, row: NormalizedRow) -> None:
         d = row.data
-        factory_code = d.get("factory_code") or ""
-        supplier_code = d.get("supplier_code") or self._factory_to_name.get(factory_code, "")
+        factory_key = self._storage_factory_key(d)
+        raw_fc = d.get("factory_code")
+        parsed_factory = raw_fc.strip() if isinstance(raw_fc, str) and raw_fc.strip() else None
+        supplier_code = d.get("supplier_code") or ""
+        if isinstance(supplier_code, str):
+            supplier_code = supplier_code.strip()
+        else:
+            supplier_code = ""
+        if not supplier_code and parsed_factory:
+            supplier_code = self._factory_to_name.get(parsed_factory, "")
 
         fob_price = d.get("fob_price_usd")
         if fob_price is None:
@@ -317,6 +350,10 @@ class POFournisseursLoader(BaseExcelLoader):
         is_copper = copper_weight is not None and copper_weight > 0
 
         supplier_notes_parts = []
+        if parsed_factory is None:
+            supplier_notes_parts.append(
+                "factory_code: derived from Supplier column (Internal Code suffix missing)"
+            )
         if d.get("payment_term"):
             supplier_notes_parts.append(f"Payment: {d['payment_term']}")
         if d.get("moq"):
@@ -327,7 +364,7 @@ class POFournisseursLoader(BaseExcelLoader):
 
         supplier, created = ProductSupplier.objects.get_or_create(
             product=product,
-            factory_code=factory_code,
+            factory_code=factory_key,
             defaults={
                 "supplier_name": supplier_code or _TRADING_COMPANY,
                 "is_active": False,
@@ -352,7 +389,7 @@ class POFournisseursLoader(BaseExcelLoader):
             "ProductSupplier %s: product=%s factory=%s supplier=%s fob=%s",
             action,
             product.sku_code,
-            factory_code,
+            factory_key,
             supplier.supplier_name,
             fob_price,
         )

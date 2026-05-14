@@ -18,8 +18,9 @@ import openpyxl
 import pandas as pd
 import pytest
 
+from apps.data_migration.loaders.exceptions import InvalidRowError
 from apps.data_migration.loaders.loader_po_fournisseurs import POFournisseursLoader
-from apps.data_migration.loaders.types import LoaderConfig
+from apps.data_migration.loaders.types import LoaderConfig, NormalizedRow
 from apps.data_migration.models import MigrationUnmatched, UnmatchedReason
 from apps.products.models import (
     Currency,
@@ -362,6 +363,12 @@ class TestPONormalizeRow:
         norm = loader.normalize_row(row)
         assert norm.data["factory_code"] == "E02"
 
+    def test_factory_code_none_when_internal_code_has_no_hyphen(self) -> None:
+        loader = POFournisseursLoader()
+        row = self._make_raw(internal_code="KCFU64PZHDGR5")
+        norm = loader.normalize_row(row)
+        assert norm.data["factory_code"] is None
+
     def test_gtin_excel_error_is_none(self) -> None:
         loader = POFournisseursLoader()
         row = self._make_raw(gtin="#N/A")
@@ -397,3 +404,46 @@ class TestPONormalizeRow:
         row = self._make_raw(copper_weight="17.5")
         norm = loader.normalize_row(row)
         assert norm.data["copper_weight"] == Decimal("17.5")
+
+
+class TestPOStorageFactoryKey:
+    """Regression: missing Internal Code suffix must not collapse suppliers on ``factory_code=""``."""
+
+    def test_uses_real_suffix_when_present(self) -> None:
+        assert POFournisseursLoader._storage_factory_key({"factory_code": "21", "supplier_code": "HT"}) == "21"
+
+    def test_synthetic_prefix_when_suffix_missing(self) -> None:
+        assert POFournisseursLoader._storage_factory_key({"factory_code": None, "supplier_code": "HT"}) == "?HT"
+
+    def test_raises_when_suffix_and_supplier_missing(self) -> None:
+        with pytest.raises(InvalidRowError):
+            POFournisseursLoader._storage_factory_key({"factory_code": None, "supplier_code": None})
+
+
+@pytest.mark.django_db(transaction=True)
+class TestPOMissingFactorySuffixSuppliers:
+    """Same product, no Internal Code suffix, different Supplier → two ProductSupplier rows."""
+
+    def test_two_distinct_rows_not_merged(self) -> None:
+        p = make_product("KMERGE1")
+        loader = POFournisseursLoader()
+        loader._copper_base_price = Decimal("97000")
+        loader._factory_to_name = {}
+        base = {
+            "sku_code": "KMERGE1",
+            "factory_code": None,
+            "fob_price_usd": Decimal("100"),
+            "copper_weight": None,
+            "origin": "China",
+        }
+        loader.apply_update(p, NormalizedRow(data={**base, "supplier_code": "HT"}, raw={}))
+        loader.apply_update(
+            p,
+            NormalizedRow(
+                data={**base, "supplier_code": "ZD", "fob_price_usd": Decimal("200"), "origin": "Turkey"},
+                raw={},
+            ),
+        )
+        assert ProductSupplier.objects.filter(product=p).count() == 2
+        assert ProductSupplier.objects.get(product=p, factory_code="?HT").po_base_price == Decimal("100")
+        assert ProductSupplier.objects.get(product=p, factory_code="?ZD").po_base_price == Decimal("200")
