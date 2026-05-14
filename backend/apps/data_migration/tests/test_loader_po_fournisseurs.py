@@ -248,9 +248,22 @@ class TestPOProductEnrichment:
         assert p.description_marketing.get("fr") == "CÂBLE CAT6 F/UTP gris 500m"
 
     def test_product_is_active_true_when_active_france(self) -> None:
-        POFournisseursLoader().run(default_config())
         p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        p.is_active = False
+        p.save(update_fields=["is_active"])
+        POFournisseursLoader().run(default_config())
+        p.refresh_from_db()
         assert p.is_active is True
+
+    def test_update_product_writes_is_active_false(self) -> None:
+        """Regression: ``is_active`` must persist ``False``, not only truthy values."""
+        p = make_product("KISACT1", is_active=True)
+        POFournisseursLoader()._update_product(
+            p,
+            NormalizedRow(data={"is_active": False}, raw={}),
+        )
+        p.refresh_from_db()
+        assert p.is_active is False
 
 
 @pytest.mark.django_db(transaction=True)

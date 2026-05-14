@@ -120,8 +120,23 @@ class INFOKSLoader(BaseExcelLoader):
         # More robustly: access by positional index directly from raw.
         # raw is a pd.Series with column-name keys.  For duplicates, pandas
         # appends ".N" suffixes starting at ".1" for the second occurrence.
+        def _missing_price_cell(v: object) -> bool:
+            """True when the cell has no usable value (do not treat 0 as missing)."""
+            if v is None:
+                return True
+            try:
+                if pd.isna(v):
+                    return True
+            except (TypeError, ValueError):
+                pass
+            if isinstance(v, str) and not str(v).strip():
+                return True
+            return False
+
         def _price_by_pos(pos_name: str, fallback: str | None = None) -> Decimal | None:
-            v = raw.get(pos_name) or (raw.get(fallback) if fallback else None)
+            v = raw.get(pos_name)
+            if _missing_price_cell(v) and fallback:
+                v = raw.get(fallback)
             s = coerce_decimal(v)
             return Decimal(s) if s else None
 

@@ -271,6 +271,7 @@ class POFournisseursLoader(BaseExcelLoader):
 
         _set("brand", d.get("brand"))
         _set("item_code", d.get("item_code"))
+        _set("is_active", d.get("is_active"))
 
         # Hierarchy: only fill if currently empty
         for field in ("universe", "range", "sub_range"):

@@ -74,6 +74,13 @@ class TestINFOKSNormalizeRow:
         row = INFOKSLoader().normalize_row(self._make_raw(**{"Ex Works Istanbul EUR/KM.4": None}))
         assert row.data["exw_price"] == Decimal("230.0")
 
+    def test_exw_price_zero_does_not_use_fallback(self) -> None:
+        """0 is a valid price; it must not be treated as missing (truthiness bug)."""
+        row = INFOKSLoader().normalize_row(
+            self._make_raw(**{"Ex Works Istanbul EUR/KM.4": 0, "Ex Works Istanbul EUR/KM.3": 999.0})
+        )
+        assert row.data["exw_price"] == Decimal("0")
+
     def test_exw_price_none_when_all_missing(self) -> None:
         row = INFOKSLoader().normalize_row(self._make_raw(
             **{"Ex Works Istanbul EUR/KM.4": None, "Ex Works Istanbul EUR/KM.3": None}
