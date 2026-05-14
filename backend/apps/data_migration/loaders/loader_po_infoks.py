@@ -129,9 +129,7 @@ class INFOKSLoader(BaseExcelLoader):
                     return True
             except (TypeError, ValueError):
                 pass
-            if isinstance(v, str) and not str(v).strip():
-                return True
-            return False
+            return bool(isinstance(v, str) and not str(v).strip())
 
         def _price_by_pos(pos_name: str, fallback: str | None = None) -> Decimal | None:
             v = raw.get(pos_name)

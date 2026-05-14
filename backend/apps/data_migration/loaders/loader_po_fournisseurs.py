@@ -336,10 +336,7 @@ class POFournisseursLoader(BaseExcelLoader):
         raw_fc = d.get("factory_code")
         parsed_factory = raw_fc.strip() if isinstance(raw_fc, str) and raw_fc.strip() else None
         supplier_code = d.get("supplier_code") or ""
-        if isinstance(supplier_code, str):
-            supplier_code = supplier_code.strip()
-        else:
-            supplier_code = ""
+        supplier_code = supplier_code.strip() if isinstance(supplier_code, str) else ""
         if not supplier_code and parsed_factory:
             supplier_code = self._factory_to_name.get(parsed_factory, "")
 
