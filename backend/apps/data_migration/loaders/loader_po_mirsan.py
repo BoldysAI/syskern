@@ -157,10 +157,10 @@ def _read_sheet_as_df(wb: openpyxl.Workbook, profile: _SheetProfile) -> pd.DataF
         if isinstance(price_raw, str):
             price_raw = price_raw.replace("$", "").replace(",", ".").strip() or None
 
-        item_raw = row[profile.item_code_col] if profile.item_code_col >= 0 < n else None
+        item_raw = row[profile.item_code_col] if 0 <= profile.item_code_col < n else None
         desc_raw = row[profile.desc_col] if profile.desc_col < n else None
         mirsan_raw = row[profile.mirsan_col] if profile.mirsan_col < n else None
-        dim_raw = row[profile.dim_col] if profile.dim_col >= 0 < n else None
+        dim_raw = row[profile.dim_col] if 0 <= profile.dim_col < n else None
 
         records.append(
             {

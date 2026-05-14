@@ -241,6 +241,7 @@ class TestDummyLoaderDryRun:
         report = DummyLoader().run(default_config(dry_run=True))
         assert report.rows_total == 5
         assert report.rows_matched == 3
+        assert report.rows_updated == 0
         assert report.dry_run is True
 
 

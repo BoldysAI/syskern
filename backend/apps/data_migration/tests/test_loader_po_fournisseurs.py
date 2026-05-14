@@ -319,6 +319,7 @@ class TestPODryRun:
     def test_dry_run_report_matched(self) -> None:
         report = POFournisseursLoader().run(default_config(dry_run=True))
         assert report.rows_matched == 2
+        assert report.rows_updated == 0
         assert report.dry_run is True
 
 

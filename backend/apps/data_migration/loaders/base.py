@@ -39,7 +39,8 @@ dry_run
 -------
 In dry-run mode, run() wraps the entire execution in a transaction and rolls
 it back at the end.  No data is written.  The LoaderReport is still populated
-so callers can preview results.
+so callers can preview results; ``rows_updated`` stays at zero because
+``apply_update()`` is not invoked.
 """
 from __future__ import annotations
 
@@ -351,7 +352,7 @@ class BaseExcelLoader(abc.ABC):
         product = Product.objects.get(pk=result.product_id)
         if not config.dry_run:
             self.apply_update(product, norm)
-        report.rows_updated += 1
+            report.rows_updated += 1
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
