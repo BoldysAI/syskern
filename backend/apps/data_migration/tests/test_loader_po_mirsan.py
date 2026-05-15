@@ -18,6 +18,7 @@ from apps.data_migration.loaders.loader_po_mirsan import (
     MirsanLoader,
     _is_valid_ukn_code,
     _read_sheet_as_df,
+    _row_cell,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -174,6 +175,22 @@ class TestReadSheetAsDf:
         )
         df = _read_sheet_as_df(wb, missing)
         assert df.empty
+
+
+class TestRowCellBounds:
+    """Regression: col index -1 means absent, not Python row[-1]."""
+
+    def test_negative_index_returns_none(self) -> None:
+        row = ("sku", "last")
+        assert _row_cell(row, -1, len(row)) is None
+
+    def test_valid_index(self) -> None:
+        row = ("a", "b", "c")
+        assert _row_cell(row, 1, len(row)) == "b"
+
+    def test_out_of_range_returns_none(self) -> None:
+        row = ("a", "b")
+        assert _row_cell(row, 10, len(row)) is None
 
 
 class TestMirsanNormalizeRow:

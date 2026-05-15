@@ -71,8 +71,8 @@ class _SheetProfile:
     header_row: int      # 0-based
     sku_col: int         # UKN product code column index
     item_code_col: int   # UKN number code column index (−1 = absent)
-    desc_col: int        # Designation / Description column index
-    mirsan_col: int      # Mirsan product code column index
+    desc_col: int        # Designation / Description column index (−1 = absent)
+    mirsan_col: int      # Mirsan product code column index (−1 = absent)
     dim_col: int         # Dimensions column index (−1 = absent)
     price_col: int       # Best price column index (SYSKERN DDP or TG fallback)
 
@@ -137,6 +137,13 @@ def _is_valid_ukn_code(value: object) -> bool:
     return bool(s and len(s) >= 4 and s[0] == "K" and s[1:3].isupper())
 
 
+def _row_cell(row: tuple[object, ...], col: int, n: int) -> object | None:
+    """Return ``row[col]`` when *col* is in range; ``None`` if *col* is -1 (absent) or OOB."""
+    if col < 0 or col >= n:
+        return None
+    return row[col]
+
+
 def _read_sheet_as_df(wb: openpyxl.Workbook, profile: _SheetProfile) -> pd.DataFrame:
     """Read one sheet into a normalised DataFrame using the profile's column positions."""
     if profile.sheet_name not in wb.sheetnames:
@@ -148,20 +155,20 @@ def _read_sheet_as_df(wb: openpyxl.Workbook, profile: _SheetProfile) -> pd.DataF
 
     records = []
     for row in all_rows[profile.header_row + 1 :]:
-        sku = coerce_str(row[profile.sku_col] if profile.sku_col < len(row) else None)
+        n = len(row)
+        sku = coerce_str(_row_cell(row, profile.sku_col, n))
         if not _is_valid_ukn_code(sku):
             continue  # skip header repeats, section titles, empty rows
 
-        n = len(row)
-        price_raw = row[profile.price_col] if profile.price_col < n else None
+        price_raw = _row_cell(row, profile.price_col, n)
         # RACKS sheet stores TG as "$120,00" string — strip to numeric
         if isinstance(price_raw, str):
             price_raw = price_raw.replace("$", "").replace(",", ".").strip() or None
 
-        item_raw = row[profile.item_code_col] if 0 <= profile.item_code_col < n else None
-        desc_raw = row[profile.desc_col] if profile.desc_col < n else None
-        mirsan_raw = row[profile.mirsan_col] if profile.mirsan_col < n else None
-        dim_raw = row[profile.dim_col] if 0 <= profile.dim_col < n else None
+        item_raw = _row_cell(row, profile.item_code_col, n)
+        desc_raw = _row_cell(row, profile.desc_col, n)
+        mirsan_raw = _row_cell(row, profile.mirsan_col, n)
+        dim_raw = _row_cell(row, profile.dim_col, n)
 
         records.append(
             {
