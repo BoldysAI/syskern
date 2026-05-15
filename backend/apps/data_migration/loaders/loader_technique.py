@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pandas as pd
+from django.db import connection
 
 from apps.attributes.models import (
     AttributeCategory,
@@ -70,7 +71,7 @@ from apps.attributes.models import (
 from apps.products.models import MigrationSource, Product
 
 from .base import BaseExcelLoader
-from .exceptions import HeaderValidationError
+from .exceptions import HeaderValidationError, LoaderError
 from .io import coerce_decimal, coerce_int, coerce_str, read_sheet, row_to_raw
 from .matching import ProductMatcher
 from .types import LoaderConfig, LoaderReport, MatchHint, NormalizedRow, RowOutcome
@@ -320,6 +321,11 @@ class TechniqueLoader(BaseExcelLoader):
 
     def pre_run(self, config: LoaderConfig) -> None:
         """Ensure the 3 EAV AttributeRegistry entries exist before row processing."""
+        if "attribute_registry" not in connection.introspection.table_names():
+            raise LoaderError(
+                "Table attribute_registry does not exist. "
+                "Apply migrations first: python manage.py migrate"
+            )
         for eav in _EAV_ATTRS:
             obj, created = AttributeRegistry.objects.get_or_create(
                 code=eav.code,

@@ -11,6 +11,10 @@ Usage:
 
 All 3 brand sheets (UKN, NEXKERN, ORSEAN) are always processed.
 ``--sheet`` / ``--header-row`` are ignored (fixed multi-sheet strategy).
+
+Requires the attributes app schema (EAV). On a fresh database, run migrate first::
+
+    docker compose run --rm backend python manage.py migrate
 """
 from apps.data_migration.loaders.loader_technique import TechniqueLoader
 

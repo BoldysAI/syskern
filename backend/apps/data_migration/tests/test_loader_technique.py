@@ -484,7 +484,7 @@ class TestTechProductEnrichment:
     def test_sticker_en_description(self) -> None:
         TechniqueLoader().run(default_config())
         p = Product.objects.get(sku_code="KTEST001")
-        assert p.description_marketing.get("en") == "CAT6 TEST 500M ENG"
+        assert p.description_marketing.get("en") == "CAT6 TEST CABLE 500M ENG"
 
     def test_sticker_fr_description(self) -> None:
         TechniqueLoader().run(default_config())
