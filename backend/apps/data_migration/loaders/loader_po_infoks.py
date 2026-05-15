@@ -42,7 +42,8 @@ from decimal import Decimal
 
 import pandas as pd
 
-from apps.products.models import Currency, Incoterm, MigrationSource, Product, ProductSupplier
+from apps.core.models import Currency
+from apps.products.models import Incoterm, MigrationSource, Product, ProductSupplier
 
 from .base import BaseExcelLoader
 from .exceptions import InvalidRowError
