@@ -209,15 +209,16 @@ class TestDummyLoaderSavepointRollback:
         loader._raise_on_sku = "KCFU64PZHDGR5"  # row 1 will fail
         report = loader.run(default_config())
 
-        # Row 1 failed → quarantined as INVALID_FORMAT
-        assert report.rows_unmatched.get(UnmatchedReason.INVALID_FORMAT, 0) == 1
+        # Rows 1 & 2 both resolve to KCFU64PZHDGR5 → apply_update fails, not counted as matched
+        assert report.rows_unmatched.get(UnmatchedReason.INVALID_FORMAT, 0) == 2
 
-        # Rows 2 and 3 still matched and updated (per-row atomic isolated the failure)
-        assert report.rows_matched >= 2
-        assert report.rows_updated >= 2
+        # Row 3 (factory+category) still succeeds; per-row atomic isolates failures
+        assert report.rows_matched == 1
+        assert report.rows_updated == 1
+        assert report.rows_matched == report.rows_updated
 
-        # Total quarantined = INVALID_FORMAT(1) + NO_SKU(1) + DUPLICATE_MATCH(1)
-        assert report.rows_quarantined == 3
+        # Total quarantined = INVALID_FORMAT(2) + NO_SKU(1) + DUPLICATE_MATCH(1)
+        assert report.rows_quarantined == 4
 
 
 class TestDummyLoaderDryRun:

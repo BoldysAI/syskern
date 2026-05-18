@@ -111,6 +111,11 @@ class TestINFOKSNormalizeRow:
         row = INFOKSLoader().normalize_row(self._make_raw())
         assert "4000 km" in row.data["notes"]
 
+    def test_moq_nan_omitted_from_notes(self) -> None:
+        row = INFOKSLoader().normalize_row(self._make_raw(moq_km=float("nan")))
+        assert "MOQ" not in row.data["notes"]
+        assert "nan" not in row.data["notes"].lower()
+
 
 class TestINFOKSMatchHint:
     def _make_row(self) -> pd.Series:

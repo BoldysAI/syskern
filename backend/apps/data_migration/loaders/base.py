@@ -346,12 +346,13 @@ class BaseExcelLoader(abc.ABC):
             report.increment_unmatched(reason)
             return
 
-        report.rows_matched += 1
-
-        # Step 3: apply update (skip actual DB write in dry-run)
+        # Step 3: apply update (dry-run previews matches without writing)
         product = Product.objects.get(pk=result.product_id)
-        if not config.dry_run:
+        if config.dry_run:
+            report.rows_matched += 1
+        else:
             self.apply_update(product, norm)
+            report.rows_matched += 1
             report.rows_updated += 1
 
     # ── Helpers ───────────────────────────────────────────────────────────────

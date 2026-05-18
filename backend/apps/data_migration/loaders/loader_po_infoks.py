@@ -47,7 +47,7 @@ from apps.products.models import Incoterm, MigrationSource, Product, ProductSupp
 
 from .base import BaseExcelLoader
 from .exceptions import InvalidRowError
-from .io import coerce_decimal, coerce_str, row_to_raw
+from .io import coerce_decimal, coerce_int, coerce_str, row_to_raw
 from .types import MatchHint, NormalizedRow, RowOutcome
 
 logger = logging.getLogger(__name__)
@@ -160,8 +160,8 @@ class INFOKSLoader(BaseExcelLoader):
         pay = coerce_str(raw.get("payment_term"))
         if pay:
             notes_parts.append(f"Payment: {pay}")
-        moq = raw.get("moq_km")
-        if moq:
+        moq = coerce_int(raw.get("moq_km"))
+        if moq is not None:
             notes_parts.append(f"MOQ: {moq} km")
 
         data = {
