@@ -1,18 +1,22 @@
 """DRF views for the PIM (CDC §4.4)."""
 from __future__ import annotations
 
-from django.db.models import Q
-from django.utils.dateparse import parse_date
+import uuid as _uuid_module
+from datetime import timedelta
+
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from apps.simulations.models import (
-    Simulation,
-    SimulationLine,
-    SimulationStatus,
-)
+from apps.attributes.models import AttributeRegistry, ProductAttributeValue
+from apps.attributes.serializers import ProductAttributeValueSerializer
+from apps.simulations.models import SimulationLine, SimulationStatus
 
+from .exports import build_products_xlsx
 from .filters import ProductFilter
 from .models import Product, ProductSupplier
 from .serializers import (
@@ -47,6 +51,22 @@ class ProductViewSet(viewsets.ModelViewSet):
     ordering_fields = ("sku_code", "name", "pamp_eur", "stock_quantity", "updated_at")
     ordering = ("sku_code",)
 
+    # ── 1.A — Lookup by UUID or SKU (CDC §4.4) ───────────────────────────────
+
+    def get_object(self):
+        """Allow detail endpoints to be accessed by UUID *or* sku_code.
+
+        If the `pk` URL segment is not a valid UUID, it is treated as a
+        sku_code lookup.  Returns 404 when neither matches.
+        """
+        pk = self.kwargs["pk"]
+        try:
+            _uuid_module.UUID(pk)
+        except ValueError:
+            obj = get_object_or_404(Product, sku_code=pk)
+            self.kwargs["pk"] = str(obj.pk)
+        return super().get_object()
+
     def get_serializer_class(self):
         if self.action == "list":
             return ProductListSerializer
@@ -59,22 +79,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
 
-    # ─── /api/products/{id}/price-history ─────────────────────────────────
+    # ── /api/products/{id}/price-history ─────────────────────────────────────
+
     @action(detail=True, methods=["get"], url_path="price-history")
     def price_history(self, request, pk=None):
         """Trailing PA/PR/PV chart on the product detail page (CDC §4.1.6).
 
         Returns one point per `simulation_line` belonging to a *finalized*
-        simulation within the requested window.  No caching; the volume
-        stays modest even with hundreds of simulations.
+        simulation within the requested window.
         """
         product = self.get_object()
         period = request.query_params.get("period", "6m")
         days_map = {"3m": 90, "6m": 180, "12m": 365}
         days = days_map.get(period, 180)
-
-        from django.utils import timezone
-        from datetime import timedelta
 
         cutoff = timezone.now() - timedelta(days=days)
 
@@ -102,17 +119,148 @@ class ProductViewSet(viewsets.ModelViewSet):
         ]
         return Response({"period": period, "points": points})
 
-    # ─── /api/products/{id}/suppliers ────────────────────────────────────
-    @action(detail=True, methods=["get"], url_path="suppliers")
-    def list_suppliers(self, request, pk=None):
+    # ── 1.C — /api/products/{id}/attributes (CDC §4.4) ───────────────────────
+
+    @action(detail=True, methods=["get"], url_path="attributes")
+    def list_attributes(self, request, pk=None):
+        """List all attribute values set on a product."""
         product = self.get_object()
-        ser = ProductSupplierSerializer(product.suppliers.all(), many=True)
+        values = (
+            ProductAttributeValue.objects.filter(product=product)
+            .select_related("attribute")
+        )
+        ser = ProductAttributeValueSerializer(values, many=True)
         return Response(ser.data)
+
+    @action(
+        detail=True,
+        methods=["put", "delete"],
+        url_path=r"attributes/(?P<attribute_id>[^/.]+)",
+    )
+    def attribute_detail(self, request, pk=None, attribute_id=None):
+        """Upsert (PUT) or remove (DELETE) a single attribute value on a product.
+
+        PUT body: `{"value": <typed value>}`.  Value is validated against
+        the attribute's data_type (CDC §4.5).
+        """
+        product = self.get_object()
+
+        if request.method == "DELETE":
+            pav = get_object_or_404(
+                ProductAttributeValue, product=product, attribute_id=attribute_id
+            )
+            pav.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # PUT — upsert
+        attribute = get_object_or_404(AttributeRegistry, pk=attribute_id)
+        pav, _ = ProductAttributeValue.objects.get_or_create(
+            product=product, attribute=attribute
+        )
+        data = {
+            "product": str(product.pk),
+            "attribute": str(attribute.pk),
+            "value": request.data.get("value"),
+        }
+        ser = ProductAttributeValueSerializer(pav, data=data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data, status=status.HTTP_200_OK)
+
+    # ── 1.D — /api/products/{id}/suppliers (CDC §4.4) ────────────────────────
+
+    @action(detail=True, methods=["get", "post"], url_path="suppliers")
+    def suppliers(self, request, pk=None):
+        """List (GET) or create (POST) a supplier for this product."""
+        product = self.get_object()
+
+        if request.method == "GET":
+            ser = ProductSupplierSerializer(product.suppliers.all(), many=True)
+            return Response(ser.data)
+
+        # POST — create new supplier scoped to this product
+        data = {**request.data, "product": str(product.pk)}
+        ser = ProductSupplierSerializer(data=data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        url_path=r"suppliers/(?P<supplier_pk>[^/.]+)",
+    )
+    def supplier_detail(self, request, pk=None, supplier_pk=None):
+        """Partial-update (PATCH) or delete (DELETE) a supplier by its UUID."""
+        product = self.get_object()
+        supplier = self._get_supplier(product, supplier_pk)
+
+        if request.method == "DELETE":
+            supplier.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # PATCH
+        ser = ProductSupplierSerializer(supplier, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"suppliers/(?P<supplier_pk>[^/.]+)/activate",
+    )
+    def activate_supplier(self, request, pk=None, supplier_pk=None):
+        """Activate this supplier and deactivate all others for the same product."""
+        product = self.get_object()
+        supplier = self._get_supplier(product, supplier_pk)
+
+        ProductSupplier.objects.filter(product=product).exclude(pk=supplier.pk).update(
+            is_active=False
+        )
+        supplier.is_active = True
+        supplier.save(update_fields=["is_active", "updated_at"])
+        return Response(ProductSupplierSerializer(supplier).data)
+
+    @staticmethod
+    def _get_supplier(product: Product, supplier_pk: str) -> ProductSupplier:
+        return get_object_or_404(ProductSupplier, pk=supplier_pk, product=product)
+
+    # ── 1.E — /api/products/export (CDC §4.1.1) ──────────────────────────────
+
+    @action(detail=False, methods=["post"], url_path="export")
+    def export(self, request):
+        """Export a filtered product list as an Excel workbook.
+
+        Accepts the same query-parameter filters as `GET /api/products`.
+        Filters can also be supplied in the POST body (JSON) for convenience.
+        """
+        qs = Product.objects.all().prefetch_related("suppliers")
+
+        # Allow filters via both query params and request body.
+        filter_data = {**request.query_params.dict(), **request.data}
+        filterset = ProductFilter(data=filter_data, queryset=qs)
+        if filterset.is_valid():
+            qs = filterset.qs
+
+        xlsx_bytes = build_products_xlsx(qs)
+        response = HttpResponse(
+            xlsx_bytes,
+            content_type=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+        )
+        response["Content-Disposition"] = 'attachment; filename="catalog_export.xlsx"'
+        return response
 
 
 class ProductSupplierViewSet(viewsets.ModelViewSet):
     """CRUD over product sources.  Activation is mutually exclusive per
-    product — see the dedicated `activate` action."""
+    product — see the dedicated `activate` action.
+
+    The flat `/api/product-suppliers/` route is kept for backwards-compatibility.
+    Prefer the nested `/api/products/{id}/suppliers/` endpoints for new clients.
+    """
 
     queryset = ProductSupplier.objects.select_related("product").all()
     serializer_class = ProductSupplierSerializer
@@ -136,10 +284,7 @@ class ProductSupplierViewSet(viewsets.ModelViewSet):
         return Response(ProductSupplierSerializer(supplier).data)
 
 
-# ─── Reference lookups for filter cascades (CDC §4.4) ────────────────────
-
-
-from rest_framework.views import APIView
+# ─── Reference lookups for filter cascades (CDC §4.4) ────────────────────────
 
 
 class DistinctHierarchyView(APIView):
