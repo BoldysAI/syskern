@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import Product, ProductSupplier
+from .models import MigrationSource, Product, ProductSupplier
 
 
 class ProductSupplierSerializer(serializers.ModelSerializer):
@@ -85,6 +85,12 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         model = Product
         exclude = ("created_at", "updated_at", "odoo_last_sync_at", "pamp_synced_at")
         read_only_fields = ("id",)
+
+    def create(self, validated_data: dict) -> Product:
+        """Default migration_source to 'manual' when the API caller omits it."""
+        if not validated_data.get("migration_source"):
+            validated_data["migration_source"] = MigrationSource.MANUAL
+        return super().create(validated_data)
 
     def validate(self, attrs: dict) -> dict:
         """Cross-field rules from CDC §4.5."""

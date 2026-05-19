@@ -49,6 +49,7 @@ import openpyxl
 import pandas as pd
 
 from apps.core.models import Currency
+from apps.data_migration.derivations import derive_factory_code, derive_parent_reference
 from apps.products.models import Incoterm, MigrationSource, Product, ProductSupplier
 
 from .base import BaseExcelLoader
@@ -182,10 +183,11 @@ class POFournisseursLoader(BaseExcelLoader):
         sku = _clean(raw.get("sku_code"))
         internal_code = _clean(raw.get("internal_code"))
 
-        # Derive factory_code from Internal Code suffix (e.g. "KCFF6A4-21" → "21")
-        factory_code: str | None = None
-        if internal_code and "-" in internal_code:
-            factory_code = internal_code.rsplit("-", 1)[-1].strip() or None
+        # Derive factory_code from Internal Code suffix using the CDC-standard
+        # pattern (-NN / -ENN).  internal_code carries the suffix in this file
+        # (sku_code often lacks it); derive_factory_code() is stricter than
+        # rsplit — it only matches numeric or E+numeric suffixes.
+        factory_code = derive_factory_code(internal_code) if internal_code else None
 
         fob_str = coerce_decimal(raw.get("fob_price_usd"))
 
@@ -245,9 +247,13 @@ class POFournisseursLoader(BaseExcelLoader):
         sub = row.data.get("sub_range") or ""
         category = f"{universe.upper()}|{rng.upper()}|{sub.upper()}|" if any([universe, rng, sub]) else None
 
+        # derive_parent_reference returns None when sku has no factory suffix,
+        # so fall back to the full sku_code (conservative — preserves rule 2
+        # matching behaviour for SKUs without a detectable suffix).
+        parent = derive_parent_reference(sku) if sku else None
         return MatchHint(
             sku_code=sku,
-            parent_reference=sku,  # for this file, sku_code == parent_reference
+            parent_reference=parent or sku,
             factory_code=factory,
             category=category,
         )

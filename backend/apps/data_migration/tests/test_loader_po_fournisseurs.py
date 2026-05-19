@@ -247,6 +247,20 @@ class TestPOProductEnrichment:
         p = Product.objects.get(sku_code="KCFU64PZHDGR5")
         assert p.description_marketing.get("fr") == "CÂBLE CAT6 F/UTP gris 500m"
 
+    def test_migration_source_stamped_when_empty(self) -> None:
+        """Products with no migration_source get stamped EXCEL_PRICING by the PO loader."""
+        Product.objects.filter(sku_code="KCFU64PZHDGR5").update(migration_source="")
+        POFournisseursLoader().run(default_config())
+        p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        assert p.migration_source == MigrationSource.EXCEL_PRICING
+
+    def test_migration_source_preserved_when_set(self) -> None:
+        """Products already stamped (e.g. 'odoo') must not be overwritten."""
+        # make_product sets migration_source=MANUAL; loader must preserve it
+        POFournisseursLoader().run(default_config())
+        p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        assert p.migration_source == MigrationSource.MANUAL
+
     def test_product_is_active_true_when_active_france(self) -> None:
         p = Product.objects.get(sku_code="KCFU64PZHDGR5")
         p.is_active = False

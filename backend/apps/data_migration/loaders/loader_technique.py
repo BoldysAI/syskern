@@ -62,6 +62,7 @@ from typing import ClassVar
 import pandas as pd
 from django.db import connection
 
+from apps.data_migration.derivations import derive_factory_code, derive_parent_reference
 from apps.attributes.models import (
     AttributeCategory,
     AttributeDataType,
@@ -423,11 +424,11 @@ class TechniqueLoader(BaseExcelLoader):
         dop = _clean(raw.get("dop_number"))
         gtin = _clean(raw.get("gtin"))
 
-        # factory_code hint from internal_code suffix (UKN only)
+        # factory_code hint from internal_code suffix (UKN only).
+        # derive_factory_code() enforces the -NN/-ENN pattern from CDC §8.5,
+        # replacing the previous rsplit which accepted any alphabetic suffix.
         internal = _clean(raw.get("internal_code"))
-        factory_code: str | None = None
-        if internal and "-" in internal:
-            factory_code = internal.rsplit("-", 1)[-1].strip() or None
+        factory_code = derive_factory_code(internal) if internal else None
 
         data: dict[str, object] = {
             "sku_code": sku,
@@ -452,9 +453,13 @@ class TechniqueLoader(BaseExcelLoader):
         d = row.data
         sku = (d.get("sku_code") or "").strip().upper() or None
         factory = d.get("factory_code")
+        # For the technical file, sku_code may carry a factory suffix
+        # (e.g. "KCFF6A4-21").  derive_parent_reference strips it; fall back
+        # to the full sku when no suffix is present.
+        parent = derive_parent_reference(sku) if sku else None
         return MatchHint(
             sku_code=sku,
-            parent_reference=sku,  # sku_code IS the parent_reference for technical file
+            parent_reference=parent or sku,
             factory_code=factory,
             category=None,
         )

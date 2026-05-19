@@ -351,6 +351,11 @@ class BaseExcelLoader(abc.ABC):
         if config.dry_run:
             report.rows_matched += 1
         else:
+            # Stamp migration lineage — preserve existing source so that an
+            # Odoo product enriched by Excel keeps its original 'odoo' trace.
+            if not product.migration_source:
+                product.migration_source = self.migration_source
+                product.save(update_fields=["migration_source", "updated_at"])
             self.apply_update(product, norm)
             report.rows_matched += 1
             report.rows_updated += 1

@@ -246,6 +246,56 @@ class TestDummyLoaderDryRun:
         assert report.dry_run is True
 
 
+class TestMigrationSourceStamping:
+    """Base pipeline stamps migration_source on matched products (CDC §8.4 criterion 3)."""
+
+    def setup_method(self) -> None:
+        # Product with empty source — should receive EXCEL_PRICING after the loader runs
+        Product.objects.create(
+            sku_code="KCFU64PZHDGR5",
+            name="Unstamped product",
+            parent_reference="KCFU64PZHDGR5",
+            factory_code="21",
+            universe="COPPER",
+            family="DATA CABLES",
+            range="SOLID CABLE CAT6",
+            migration_source="",
+        )
+        # Product already stamped MANUAL — source must be preserved, not overwritten
+        Product.objects.create(
+            sku_code="OEFU64PXSDWHT5",
+            name="Pre-stamped product",
+            factory_code="91",
+            universe="COPPER",
+            family="DATA CABLES",
+            range="SOLID CABLE CAT6",
+            sub_range="F/UTP",
+            migration_source=MigrationSource.MANUAL,
+        )
+        # Two ambiguous products to satisfy fixture row 5 (won't be matched)
+        make_product("AMBIG1", factory_code="E02",
+                     universe="COPPER", family="DATA CABLES",
+                     range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
+        make_product("AMBIG2", factory_code="E02",
+                     universe="COPPER", family="DATA CABLES",
+                     range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
+
+    def test_empty_source_is_stamped_to_loader_source(self) -> None:
+        DummyLoader().run(default_config())
+        p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        assert p.migration_source == MigrationSource.EXCEL_PRICING
+
+    def test_existing_source_is_preserved(self) -> None:
+        DummyLoader().run(default_config())
+        p = Product.objects.get(sku_code="OEFU64PXSDWHT5")
+        assert p.migration_source == MigrationSource.MANUAL
+
+    def test_dry_run_does_not_stamp(self) -> None:
+        DummyLoader().run(default_config(dry_run=True))
+        p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        assert p.migration_source == ""
+
+
 class TestIoHelpers:
     """Pure-unit tests for io.py (no DB, no Django required)."""
 
