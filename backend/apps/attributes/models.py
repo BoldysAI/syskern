@@ -42,7 +42,7 @@ class AttributeRegistry(BaseModel):
     drives how `ProductAttributeValue.value` is interpreted.
     """
 
-    code = models.TextField(unique=True, validators=[CODE_VALIDATOR])
+    code = models.CharField(max_length=64, unique=True, validators=[CODE_VALIDATOR])
     label = models.JSONField(help_text='Multilingual {"fr": "...", "en": "...", "es": "..."}')
     category = models.CharField(max_length=20, choices=AttributeCategory.choices)
     data_type = models.CharField(max_length=20, choices=AttributeDataType.choices)
