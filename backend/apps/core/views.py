@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from django.contrib.auth import authenticate, login, logout as auth_logout
 from django.contrib.auth.models import User
+from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -34,6 +35,10 @@ def login_view(request: Request) -> Response:
         return Response({"detail": "Identifiants incorrects."}, status=status.HTTP_401_UNAUTHORIZED)
 
     login(request, user)
+    # Force Django to emit the csrftoken cookie in this response.
+    # Without this, @api_view (csrf_exempt) never triggers get_token() and the
+    # browser has no cookie to send as X-CSRFToken on subsequent mutations.
+    get_token(request)
     return Response({"user": UserInfoSerializer(user).data}, status=status.HTTP_200_OK)
 
 
@@ -47,6 +52,8 @@ def logout_view(request: Request) -> Response:
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def session_view(request: Request) -> Response:
+    # Always ensure the csrftoken cookie is present so the frontend can read it.
+    get_token(request)
     if request.user.is_authenticated:
         return Response({
             "authenticated": True,
