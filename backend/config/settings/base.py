@@ -173,6 +173,13 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 1 week
 CORS_ALLOWED_ORIGINS = env.list("DJANGO_CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True  # required for cross-origin session cookies
 
+# Django checks Origin header against this list for CSRF validation.
+# Must include the frontend origin (Next.js dev server or production domain).
+CSRF_TRUSTED_ORIGINS = env.list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:3000"],
+)
+
 # ─── External services ───────────────────────────────────────────────────────
 
 ODOO = {
