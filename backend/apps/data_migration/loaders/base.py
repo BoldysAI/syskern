@@ -346,9 +346,12 @@ class BaseExcelLoader(abc.ABC):
             report.increment_unmatched(reason)
             return
 
-        # Step 3: apply update (dry-run previews matches without writing)
+        # Step 3: apply update (dry-run runs inside a rolled-back transaction so
+        # validation still fires — rows_updated stays 0 but rows_matched only
+        # counts rows that would actually succeed)
         product = Product.objects.get(pk=result.product_id)
         if config.dry_run:
+            self.apply_update(product, norm)
             report.rows_matched += 1
         else:
             self.apply_update(product, norm)

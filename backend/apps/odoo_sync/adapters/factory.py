@@ -20,7 +20,8 @@ def get_odoo_adapter() -> OdooAdapter:
         "db_name": cfg.get("DB_NAME", ""),
         "user": cfg.get("API_USER", ""),
         "password": cfg.get("API_PASSWORD", ""),
-        "timeout": cfg.get("TIMEOUT_SECONDS", 30),
+        "timeout": float(cfg.get("TIMEOUT_SECONDS", 60)),
+        "verify_tls": str(cfg.get("VERIFY_TLS", "true")).lower() not in ("false", "0", "no"),
     }
     if version == "v16":
         return OdooAdapterV16(**kwargs)
