@@ -13,6 +13,12 @@ export interface SessionResponse {
   user: AuthUser | null;
 }
 
+function getCsrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : "";
+}
+
 export async function getSession(): Promise<SessionResponse> {
   const res = await fetch("/api/auth/session", { credentials: "include" });
   if (!res.ok) return { authenticated: false, user: null };
@@ -37,6 +43,7 @@ export async function loginApi(email: string, password: string): Promise<AuthUse
 export async function logoutApi(): Promise<void> {
   await fetch("/api/auth/logout", {
     method: "POST",
+    headers: { "X-CSRFToken": getCsrfToken() },
     credentials: "include",
   });
 }

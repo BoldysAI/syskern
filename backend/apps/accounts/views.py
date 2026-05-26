@@ -24,6 +24,7 @@ def create_user(request: Request) -> Response:
     ser = UserWriteSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     user = ser.save()
+    user = User.objects.select_related("profile").get(pk=user.pk)
     return Response(UserListSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -44,6 +45,7 @@ def user_detail(request: Request, user_id: int) -> Response:
     ser = UserWriteSerializer(user, data=request.data, partial=True)
     ser.is_valid(raise_exception=True)
     user = ser.save()
+    user = User.objects.select_related("profile").get(pk=user.pk)
     return Response(UserListSerializer(user).data)
 
 

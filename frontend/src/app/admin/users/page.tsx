@@ -31,6 +31,12 @@ const ROLE_COLORS: Record<Role, string> = {
   viewer: "bg-slate-100 text-slate-600",
 };
 
+function getCsrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : "";
+}
+
 async function fetchUsers(): Promise<PlatformUser[]> {
   const res = await fetch("/api/users/", { credentials: "include" });
   if (!res.ok) throw new Error("Erreur de chargement");
@@ -41,7 +47,7 @@ async function apiCall(url: string, method: string, body?: unknown) {
   const res = await fetch(url, {
     method,
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {

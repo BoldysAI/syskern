@@ -1,6 +1,18 @@
+function getCsrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : "";
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = options?.method ?? "GET";
+  const needsCsrf = !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase());
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(needsCsrf ? { "X-CSRFToken": getCsrfToken() } : {}),
+      ...options?.headers,
+    },
     credentials: "include",
     ...options,
   });
