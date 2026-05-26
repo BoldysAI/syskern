@@ -295,13 +295,13 @@ class POFournisseursLoader(BaseExcelLoader):
         _set("gtin", d.get("gtin"))
         _set("hs_code", d.get("hs_code"))
 
-        # Multilingual descriptions: merge into existing JSONB dict
+        # Multilingual descriptions: merge into existing JSONB dict (first-wins)
         desc = dict(product.description_marketing or {})
         updated_desc = False
-        if d.get("description_en"):
+        if d.get("description_en") and not desc.get("en"):
             desc["en"] = d["description_en"]
             updated_desc = True
-        if d.get("description_fr"):
+        if d.get("description_fr") and not desc.get("fr"):
             desc["fr"] = d["description_fr"]
             updated_desc = True
         if updated_desc and desc != product.description_marketing:

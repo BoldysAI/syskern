@@ -18,8 +18,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     ODOO_SYNC_ENABLED=(bool, False),
-    ODOO_TIMEOUT_SECONDS=(int, 30),
+    ODOO_TIMEOUT_SECONDS=(int, 60),
     ODOO_SYNC_HOUR_UTC=(int, 3),
+    ODOO_VERIFY_TLS=(bool, True),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -175,6 +176,9 @@ ODOO = {
     "TIMEOUT_SECONDS": env("ODOO_TIMEOUT_SECONDS"),
     "SYNC_HOUR_UTC": env("ODOO_SYNC_HOUR_UTC"),
     "SYNC_ENABLED": env("ODOO_SYNC_ENABLED"),
+    # TLS verification — set to False only on dev/staging instances with mismatched certs.
+    # Production v19 MUST present a valid cert.
+    "VERIFY_TLS": env("ODOO_VERIFY_TLS"),
 }
 
 GAMMA = {
