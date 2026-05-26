@@ -9,10 +9,11 @@ import {
   FileText,
   Settings,
   Menu,
-  X,
-  User,
+  LogOut,
   ChevronRight,
+  Users,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -22,6 +23,13 @@ const NAV_ITEMS = [
 ] as const;
 
 const SETTINGS_ITEM = { label: "Paramètres", href: "/settings", icon: Settings } as const;
+const USERS_ITEM = { label: "Utilisateurs", href: "/admin/users", icon: Users } as const;
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  commercial: "Commercial",
+  viewer: "Lecteur",
+};
 
 function NavItem({
   href,
@@ -60,6 +68,8 @@ function Sidebar({
   pathname: string;
   onClose?: () => void;
 }) {
+  const { user, role, logout } = useAuth();
+
   return (
     <div className="flex flex-col h-full bg-[#0F2137] w-60">
       <div className="px-5 py-5 border-b border-white/10">
@@ -90,10 +100,44 @@ function Sidebar({
           active={pathname.startsWith(SETTINGS_ITEM.href)}
           onClick={onClose}
         />
+
+        {role === "admin" && (
+          <NavItem
+            href={USERS_ITEM.href}
+            icon={USERS_ITEM.icon}
+            label={USERS_ITEM.label}
+            active={pathname.startsWith(USERS_ITEM.href)}
+            onClick={onClose}
+          />
+        )}
       </nav>
 
-      <div className="px-5 py-4 border-t border-white/10">
-        <div className="text-white/30 text-xs">v1.0.0</div>
+      {/* User footer */}
+      <div className="px-4 py-4 border-t border-white/10">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-full bg-[#E07200] flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-bold">
+              {user?.first_name?.[0] ?? user?.email?.[0]?.toUpperCase() ?? "?"}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-white text-sm font-medium truncate">
+              {user?.first_name && user?.last_name
+                ? `${user.first_name} ${user.last_name}`
+                : user?.email}
+            </div>
+            <div className="text-white/40 text-xs">
+              {role ? ROLE_LABELS[role] : "—"}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <LogOut size={13} />
+          Déconnexion
+        </button>
       </div>
     </div>
   );
@@ -106,7 +150,8 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     simulator: "Simulations",
     offers: "Offres",
     settings: "Paramètres",
-    login: "Connexion",
+    admin: "Admin",
+    users: "Utilisateurs",
   };
 
   return (
@@ -117,7 +162,13 @@ function Breadcrumb({ pathname }: { pathname: string }) {
       {segments.map((seg, i) => (
         <span key={i} className="flex items-center gap-1.5">
           <ChevronRight size={14} className="text-slate-400" />
-          <span className={i === segments.length - 1 ? "text-slate-800 font-medium" : "hover:text-slate-700"}>
+          <span
+            className={
+              i === segments.length - 1
+                ? "text-slate-800 font-medium"
+                : "hover:text-slate-700"
+            }
+          >
             {labels[seg] ?? seg}
           </span>
         </span>
@@ -129,6 +180,15 @@ function Breadcrumb({ pathname }: { pathname: string }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#F5F7FA]">
+        <div className="w-8 h-8 border-2 border-[#E07200]/30 border-t-[#E07200] rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">
@@ -157,7 +217,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content area */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Top header */}
         <header className="flex-shrink-0 h-14 bg-white border-b border-[#E2E8F0] flex items-center px-6 gap-4">
           <button
             className="md:hidden p-1 text-slate-600 hover:text-slate-900 transition-colors"
@@ -170,16 +229,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1">
             <Breadcrumb pathname={pathname} />
           </div>
-
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <div className="w-7 h-7 rounded-full bg-[#0F2137] flex items-center justify-center">
-              <User size={14} className="text-white" />
-            </div>
-            <span className="hidden sm:block font-medium">Admin</span>
-          </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto bg-[#F5F7FA]">{children}</main>
       </div>
     </div>

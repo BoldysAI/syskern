@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
 export default function LoginPage() {
-  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,19 +18,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data?.detail ?? data?.non_field_errors?.[0] ?? "Identifiants incorrects."
-        );
-      }
-      router.push("/catalog");
+      await login(email, password);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur de connexion.");
     } finally {
@@ -46,10 +32,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex flex-col items-center">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-              style={{ background: "#0F2137" }}
-            >
+            <div className="w-12 h-12 rounded-xl bg-[#0F2137] flex items-center justify-center mb-3">
               <span className="text-white font-bold text-lg">S</span>
             </div>
             <span className="text-2xl font-bold text-[#0F2137] tracking-wide">SYSKERN</span>
@@ -74,7 +57,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Adresse email
+                Adresse e-mail
               </label>
               <input
                 type="email"

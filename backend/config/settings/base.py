@@ -49,6 +49,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.accounts",
     "apps.attributes",
     "apps.products",
     "apps.clients",
@@ -161,9 +162,16 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
+# ─── Session ──────────────────────────────────────────────────────────────────
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 1 week
+
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 
 CORS_ALLOWED_ORIGINS = env.list("DJANGO_CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = True  # required for cross-origin session cookies
 
 # ─── External services ───────────────────────────────────────────────────────
 
