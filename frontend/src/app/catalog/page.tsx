@@ -12,11 +12,11 @@ import {
   Package,
 } from "lucide-react";
 import { getProducts, type Product, type PaginatedProducts } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
 }
-import { cn } from "@/lib/utils";
 
 const UNIVERSES = ["COPPER", "OPTICAL FIBER", "OEM", "RACKS", "ACCESSORIES"];
 

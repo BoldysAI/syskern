@@ -27,16 +27,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getSession().then(({ authenticated, user: u }) => {
-      if (authenticated && u) {
-        setUser(u);
-      } else {
+    getSession()
+      .then(({ authenticated, user: u }) => {
+        if (authenticated && u) {
+          setUser(u);
+        } else {
+          setUser(null);
+          const path = window.location.pathname;
+          if (path !== "/login") router.replace("/login");
+        }
+      })
+      .catch(() => {
+        // Network error (e.g. backend temporarily down): treat as unauthenticated.
         setUser(null);
         const path = window.location.pathname;
         if (path !== "/login") router.replace("/login");
-      }
-      setIsLoading(false);
-    });
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [router]);
 
   const login = useCallback(async (email: string, password: string) => {
