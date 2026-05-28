@@ -33,5 +33,12 @@ CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=CORS_ALLO
 # (apps.core.auth.SupabaseJWTAuthentication).
 
 # ─── Database SSL ─────────────────────────────────────────────────────────────
+# Default: "disable" so Coolify's internal Docker network (no TLS on the
+# Postgres pod) works out of the box. Override via env when behind a
+# managed Postgres that requires SSL (Supabase, RDS, etc.):
+#   DJANGO_DB_SSLMODE=require
+# Accepted values: disable | allow | prefer | require | verify-ca | verify-full
 
-DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}  # noqa: F405
+_sslmode = env("DJANGO_DB_SSLMODE", default="disable")
+if _sslmode and _sslmode != "disable":
+    DATABASES["default"]["OPTIONS"] = {"sslmode": _sslmode}  # noqa: F405

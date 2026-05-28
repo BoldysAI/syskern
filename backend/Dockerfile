@@ -68,7 +68,8 @@ ENV GUNICORN_WORKERS=3 \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
 
-CMD ["sh", "-c", "gunicorn config.wsgi:application \
+CMD ["sh", "-c", "python manage.py migrate --noinput && \
+     gunicorn config.wsgi:application \
      --bind 0.0.0.0:8000 \
      --workers ${GUNICORN_WORKERS} \
      --timeout ${GUNICORN_TIMEOUT} \
