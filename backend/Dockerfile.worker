@@ -52,6 +52,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD celery -A config inspect ping -d "celery@$(hostname)" --timeout=5 \
       | grep -q pong || exit 1
 
-CMD ["sh", "-c", "celery -A config worker \
+CMD ["sh", "-c", "python manage.py migrate --noinput && \
+     celery -A config worker \
      --loglevel=${CELERY_WORKER_LOGLEVEL} \
      --concurrency=${CELERY_WORKER_CONCURRENCY}"]
