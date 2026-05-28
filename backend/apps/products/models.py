@@ -40,6 +40,8 @@ class Product(BaseModel):
 
     # ─── Odoo / external linkage ──────────────────────────────────────────
     odoo_id = models.IntegerField(unique=True, null=True, blank=True)
+    odoo_v16_id = models.IntegerField(unique=True, null=True, blank=True)
+    odoo_v19_id = models.IntegerField(unique=True, null=True, blank=True)
     sku_code = models.CharField(max_length=64, unique=True, validators=[SKU_VALIDATOR])
     item_code = models.CharField(max_length=128, blank=True, default="")
     parent_reference = models.CharField(max_length=64, blank=True, default="")
@@ -114,6 +116,8 @@ class Product(BaseModel):
         indexes = [
             models.Index(fields=["sku_code"], name="idx_products_sku"),
             models.Index(fields=["odoo_id"], name="idx_products_odoo"),
+            models.Index(fields=["odoo_v16_id"], name="idx_products_odoo_v16"),
+            models.Index(fields=["odoo_v19_id"], name="idx_products_odoo_v19"),
             models.Index(
                 fields=["universe", "family", "range", "sub_range"],
                 name="idx_products_hierarchy",

@@ -3,6 +3,12 @@
 Each pull is wrapped in a ``SyncLog`` row (CDC §5.4.3).
 The runner is tolerant: a single failed item does not abort the whole sync;
 failures are accumulated and surfaced through the log.
+
+Dual-instance support (v16 + v19):
+  - ``api_version`` param selects which Odoo instance to pull from.
+  - Products are matched by ``sku_code`` — no doublons.
+  - ``odoo_v16_id`` / ``odoo_v19_id`` are set independently; syncing v19
+    never overwrites ``odoo_v16_id`` and vice-versa.
 """
 from __future__ import annotations
 
@@ -15,7 +21,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.odoo_sync.adapters.base import OdooAdapter
-from apps.odoo_sync.adapters.factory import get_odoo_adapter
+from apps.odoo_sync.adapters.factory import get_odoo_adapter_for
 from apps.odoo_sync.models import SyncLog, SyncScope, SyncStatus, SyncType
 from apps.odoo_sync.schemas import OdooClient, OdooProduct
 
@@ -34,17 +40,20 @@ def sync(
     scope: SyncScope,
     sync_type: SyncType,
     triggered_by: str = "system",
+    api_version: str | None = None,
     adapter: OdooAdapter | None = None,
 ) -> SyncLog:
     """Entry-point for any sync (manual, cron, on-demand).
 
-    Returns the persisted ``SyncLog`` row.
+    ``api_version`` selects the Odoo instance ("v16" or "v19").
+    If ``None``, falls back to the default from settings.
     """
-    adapter = adapter or get_odoo_adapter()
+    version = (api_version or settings.ODOO.get("API_VERSION", "v19")).lower()
+    adapter = adapter or get_odoo_adapter_for(version)
     log = SyncLog.objects.create(
         sync_type=sync_type,
         scope=scope,
-        odoo_api_version=settings.ODOO.get("API_VERSION", "v19"),
+        odoo_api_version=version,
         started_at=timezone.now(),
         status=SyncStatus.RUNNING,
         triggered_by=triggered_by,
@@ -52,15 +61,14 @@ def sync(
 
     try:
         adapter.authenticate()
-        last_run_at = _last_successful_sync_at(scope)
+        last_run_at = _last_successful_sync_at(scope, version)
 
         if scope in {SyncScope.ALL, SyncScope.PRODUCTS}:
-            _sync_products(adapter, log, modified_since=last_run_at)
+            _sync_products(adapter, log, version, modified_since=last_run_at)
         if scope in {SyncScope.ALL, SyncScope.STOCK}:
-            _sync_stock(adapter, log)
+            _sync_stock(adapter, log, version)
         if scope in {SyncScope.ALL, SyncScope.CLIENTS}:
             _sync_clients(adapter, log, modified_since=last_run_at)
-        # purchases / sales are fetched lazily per-simulation by the runner.
 
         log.status = (
             SyncStatus.SUCCESS if log.items_failed == 0 else SyncStatus.PARTIAL_FAILURE
@@ -76,11 +84,12 @@ def sync(
     return log
 
 
-def _last_successful_sync_at(scope: SyncScope) -> datetime | None:
+def _last_successful_sync_at(scope: SyncScope, version: str) -> datetime | None:
     last = (
         SyncLog.objects.filter(
             scope__in=[scope, SyncScope.ALL],
             status=SyncStatus.SUCCESS,
+            odoo_api_version=version,
         )
         .order_by("-completed_at")
         .first()
@@ -93,19 +102,20 @@ def _last_successful_sync_at(scope: SyncScope) -> datetime | None:
 def _sync_products(
     adapter: OdooAdapter,
     log: SyncLog,
+    version: str,
     modified_since: datetime | None = None,
 ) -> None:
     """Pull products + suppliers from Odoo and upsert into the platform.
 
     Strategy:
     - Paginate through all active product.templates from Odoo.
-    - Upsert by odoo_id (update if exists, create otherwise).
+    - Upsert by sku_code (update if exists, create otherwise).
     - SKU validation: only products whose Odoo name matches [A-Z0-9-] are
-      synced; others are skipped with a warning (typical for service products).
-    - Suppliers: upsert the first active supplier per product (one-supplier
-      constraint in Syskern; arbitration with Olivier pending for multi-supplier).
+      synced; others are skipped with a warning.
+    - odoo_v16_id / odoo_v19_id: set based on which instance we're pulling from.
+      The other version's ID is never overwritten.
+    - Suppliers: upsert the first active supplier per product.
     """
-    # Late import to avoid circular dependency at module load time.
     from apps.products.models import Product, ProductSupplier
 
     offset = 0
@@ -126,21 +136,22 @@ def _sync_products(
             break
 
         for op in records:
-            _upsert_product(op, log, Product, ProductSupplier)
+            _upsert_product(op, log, version, Product, ProductSupplier)
 
         if len(records) < _PAGE_SIZE:
             break
         offset += _PAGE_SIZE
 
     logger.info(
-        "Product sync done: created=%d updated=%d failed=%d",
-        log.items_created, log.items_updated, log.items_failed,
+        "Product sync done (%s): created=%d updated=%d failed=%d",
+        version, log.items_created, log.items_updated, log.items_failed,
     )
 
 
 def _upsert_product(
     op: OdooProduct,
     log: SyncLog,
+    version: str,
     Product,
     ProductSupplier,
 ) -> None:
@@ -152,7 +163,6 @@ def _upsert_product(
     try:
         now = timezone.now()
         defaults = {
-            "sku_code": op.sku_code,
             "name": op.name,
             "universe": op.universe,
             "family": op.family,
@@ -165,12 +175,22 @@ def _upsert_product(
             "is_active": op.is_active,
             "odoo_last_sync_at": now,
         }
+
+        # Set the version-specific odoo_id field.
+        # The other version's ID field is NOT in defaults → never overwritten.
+        if version == "v16":
+            defaults["odoo_v16_id"] = op.odoo_id
+            defaults["odoo_id"] = op.odoo_id  # legacy compat
+        else:
+            defaults["odoo_v19_id"] = op.odoo_id
+            defaults["odoo_id"] = op.odoo_id  # legacy compat
+
         if op.standard_price_eur is not None:
             defaults["pamp_eur"] = op.standard_price_eur
             defaults["pamp_synced_at"] = now
 
         product, created = Product.objects.update_or_create(
-            odoo_id=op.odoo_id,
+            sku_code=op.sku_code,
             defaults=defaults,
         )
 
@@ -224,22 +244,25 @@ def _upsert_supplier(product, supplier_link, ProductSupplier) -> None:
 
 # ── Stock ─────────────────────────────────────────────────────────────────────
 
-def _sync_stock(adapter: OdooAdapter, log: SyncLog) -> None:
+def _sync_stock(adapter: OdooAdapter, log: SyncLog, version: str) -> None:
     """Refresh stock_quantity and pamp_eur for all Odoo-linked products."""
     from apps.products.models import Product
 
-    # Collect all synced products in batches of _PAGE_SIZE
-    synced_qs = Product.objects.filter(odoo_id__isnull=False, is_active=True)
+    # Select products linked to this Odoo version.
+    version_field = "odoo_v16_id" if version == "v16" else "odoo_v19_id"
+    synced_qs = Product.objects.filter(
+        **{f"{version_field}__isnull": False},
+        is_active=True,
+    )
     total = synced_qs.count()
     if total == 0:
-        logger.info("Stock sync: no Odoo-linked products found")
+        logger.info("Stock sync (%s): no Odoo-linked products found", version)
         return
 
     now = timezone.now()
-    processed = 0
     for batch_start in range(0, total, _PAGE_SIZE):
         batch = list(synced_qs[batch_start: batch_start + _PAGE_SIZE])
-        odoo_ids = [p.odoo_id for p in batch if p.odoo_id]
+        odoo_ids = [getattr(p, version_field) for p in batch if getattr(p, version_field)]
 
         try:
             stock_map = adapter.get_stock_quantities(odoo_ids)
@@ -253,9 +276,10 @@ def _sync_stock(adapter: OdooAdapter, log: SyncLog) -> None:
             continue
 
         for product in batch:
-            if product.odoo_id not in stock_map:
+            oid = getattr(product, version_field)
+            if oid not in stock_map:
                 continue
-            stock = stock_map[product.odoo_id]
+            stock = stock_map[oid]
             update_fields: dict = {
                 "stock_quantity": stock.quantity,
                 "odoo_last_sync_at": now,
@@ -268,13 +292,12 @@ def _sync_stock(adapter: OdooAdapter, log: SyncLog) -> None:
                 Product.objects.filter(pk=product.pk).update(**update_fields)
                 log.items_updated += 1
             except Exception as exc:
-                log.errors.append({"item_id": str(product.odoo_id), "error_message": str(exc)})
+                log.errors.append({"item_id": str(oid), "error_message": str(exc)})
                 log.items_failed += 1
 
-        processed += len(batch)
         log.save(update_fields=["items_updated", "items_failed", "errors"])
 
-    logger.info("Stock sync done: updated=%d failed=%d", log.items_updated, log.items_failed)
+    logger.info("Stock sync done (%s): updated=%d failed=%d", version, log.items_updated, log.items_failed)
 
 
 # ── Clients ───────────────────────────────────────────────────────────────────

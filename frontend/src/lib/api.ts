@@ -338,3 +338,48 @@ export function getMarketParameters(): Promise<MarketParameter[]> {
     "/api/market-parameters/?limit=1&ordering=-created_at"
   ).then((r) => r.results);
 }
+
+// ── Odoo Sync ────────────────────────────────────────────────────────────────
+
+export type SyncScope = "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales";
+export type SyncStatus = "running" | "success" | "partial_failure" | "failed";
+
+export interface SyncLog {
+  id: string;
+  sync_type: string;
+  scope: SyncScope;
+  odoo_api_version: string;
+  started_at: string;
+  completed_at: string | null;
+  status: SyncStatus;
+  items_created: number;
+  items_updated: number;
+  items_failed: number;
+  errors: { item_id: string | null; error_message: string }[];
+  triggered_by: string;
+}
+
+export interface SyncStatusResponse {
+  last: SyncLog | null;
+  running: SyncLog | null;
+}
+
+export function triggerSync(scope: SyncScope = "all", apiVersion: string = "v19"): Promise<SyncLog> {
+  return apiFetch<SyncLog>("/api/odoo/sync/trigger", {
+    method: "POST",
+    body: JSON.stringify({ scope, api_version: apiVersion }),
+  });
+}
+
+export function getSyncStatus(): Promise<SyncStatusResponse> {
+  return apiFetch<SyncStatusResponse>("/api/odoo/sync/status");
+}
+
+export function getSyncLogs(params?: { scope?: SyncScope; limit?: number }): Promise<SyncLog[]> {
+  const q = new URLSearchParams();
+  if (params?.scope) q.set("scope", params.scope);
+  q.set("limit", String(params?.limit ?? 20));
+  return apiFetch<{ count: number; results: SyncLog[] }>(
+    `/api/odoo/sync/logs?${q.toString()}`
+  ).then((r) => r.results);
+}

@@ -21,6 +21,8 @@ env = environ.Env(
     ODOO_TIMEOUT_SECONDS=(int, 60),
     ODOO_SYNC_HOUR_UTC=(int, 3),
     ODOO_VERIFY_TLS=(bool, True),
+    ODOO_V16_VERIFY_TLS=(bool, True),
+    ODOO_V19_VERIFY_TLS=(bool, True),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -194,6 +196,18 @@ ODOO = {
     # TLS verification — set to False only on dev/staging instances with mismatched certs.
     # Production v19 MUST present a valid cert.
     "VERIFY_TLS": env("ODOO_VERIFY_TLS"),
+    # ─── v16 instance (investigation / dual-sync) ────────────────────────
+    "V16_BASE_URL": env("ODOO_V16_BASE_URL", default=""),
+    "V16_DB_NAME": env("ODOO_V16_DB_NAME", default=""),
+    "V16_API_USER": env("ODOO_V16_API_USER", default=""),
+    "V16_API_PASSWORD": env("ODOO_V16_API_PASSWORD", default=""),
+    "V16_VERIFY_TLS": env("ODOO_V16_VERIFY_TLS"),
+    # ─── v19 instance ─────────────────────────────────────────────────────
+    "V19_BASE_URL": env("ODOO_V19_BASE_URL", default=""),
+    "V19_DB_NAME": env("ODOO_V19_DB_NAME", default=""),
+    "V19_API_USER": env("ODOO_V19_API_USER", default=""),
+    "V19_API_PASSWORD": env("ODOO_V19_API_PASSWORD", default=""),
+    "V19_VERIFY_TLS": env("ODOO_V19_VERIFY_TLS"),
 }
 
 GAMMA = {

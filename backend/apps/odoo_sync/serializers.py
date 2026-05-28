@@ -14,3 +14,8 @@ class SyncLogSerializer(serializers.ModelSerializer):
 
 class TriggerSyncSerializer(serializers.Serializer):
     scope = serializers.ChoiceField(choices=SyncScope.choices, default=SyncScope.ALL)
+    api_version = serializers.ChoiceField(
+        choices=["v16", "v19"],
+        default="v19",
+        help_text="Which Odoo instance to sync from.",
+    )
