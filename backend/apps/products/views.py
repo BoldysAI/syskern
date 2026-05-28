@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid as _uuid_module
 from datetime import timedelta
 
-from django.http import HttpResponse
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -14,11 +14,10 @@ from rest_framework.views import APIView
 
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.attributes.serializers import ProductAttributeValueSerializer
-from apps.odoo_sync.adapters.factory import get_odoo_adapter
-from apps.offers.services.translation import DeepLClient, TranslationError
 from apps.simulations.models import SimulationLine, SimulationStatus
 
-from .exports import build_products_xlsx
+from .tasks import EXPORT_DIR, export_products_task, refresh_pamp_task, translate_product_task
+
 from .filters import ProductFilter
 from .models import Product, ProductSupplier
 from .serializers import (
@@ -125,58 +124,29 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="refresh-pamp")
     def refresh_pamp(self, request, pk=None):
-        """Re-pull this product's PAMP + stock from Odoo (read-only on Odoo).
+        """Dispatch a Celery task to refresh PAMP+stock from Odoo.
 
-        PAMP (`pamp_eur`) is Odoo's `standard_price`. This reads the latest
-        value for the single product and updates the *local* DB only — it
-        never writes back to Odoo.
+        Returns 202 with `task_id`; client polls `/api/tasks/{task_id}/`.
         """
         product = self.get_object()
-
         if not product.odoo_id:
             return Response(
                 {"detail": "Produit non lié à Odoo — PAMP non recalculable."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        try:
-            adapter = get_odoo_adapter()
-            adapter.authenticate()
-            stock_map = adapter.get_stock_quantities([product.odoo_id])
-        except Exception as exc:  # noqa: BLE001 — surface any Odoo failure cleanly
-            return Response(
-                {"detail": f"Odoo indisponible : {exc}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        stock = stock_map.get(product.odoo_id)
-        if stock is None:
-            return Response(
-                {"detail": "Produit introuvable dans Odoo."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        now = timezone.now()
-        update_fields = {
-            "stock_quantity": stock.quantity,
-            "odoo_last_sync_at": now,
-        }
-        if stock.standard_price_eur is not None:
-            update_fields["pamp_eur"] = stock.standard_price_eur
-            update_fields["pamp_synced_at"] = now
-
-        Product.objects.filter(pk=product.pk).update(**update_fields)
-        product.refresh_from_db()
-        return Response(ProductDetailSerializer(product).data)
+        result = refresh_pamp_task.delay(str(product.pk))
+        return Response(
+            {"task_id": result.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     # ── /api/products/{id}/translate (CDC §10.4) ─────────────────────────────
 
     @action(detail=True, methods=["post"], url_path="translate")
     def translate(self, request, pk=None):
-        """Translate the FR descriptions to a target language via DeepL.
+        """Dispatch a Celery task to translate the FR descriptions via DeepL.
 
-        Stores the result in the `description_marketing[lang]` /
-        `description_technical[lang]` JSONB cache so it is reused next time.
+        Returns 202 with `task_id`; client polls `/api/tasks/{task_id}/`.
         """
         product = self.get_object()
         target = str((request.data or {}).get("target_lang", "")).lower()
@@ -194,31 +164,11 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        client = DeepLClient()
-        try:
-            marketing_tr = (
-                client.translate(source_text=marketing_fr, source_lang="fr", target_lang=target)
-                if marketing_fr else ""
-            )
-            technical_tr = (
-                client.translate(source_text=technical_fr, source_lang="fr", target_lang=target)
-                if technical_fr else ""
-            )
-        except TranslationError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
-
-        marketing = dict(product.description_marketing or {})
-        technical = dict(product.description_technical or {})
-        if marketing_tr:
-            marketing[target] = marketing_tr
-        if technical_tr:
-            technical[target] = technical_tr
-        product.description_marketing = marketing
-        product.description_technical = technical
-        product.save(
-            update_fields=["description_marketing", "description_technical", "updated_at"]
+        result = translate_product_task.delay(str(product.pk), target)
+        return Response(
+            {"task_id": result.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
         )
-        return Response(ProductDetailSerializer(product).data)
 
     # ── 1.C — /api/products/{id}/attributes (CDC §4.4) ───────────────────────
 
@@ -331,23 +281,32 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get", "post"], url_path="export")
     def export(self, request):
-        """Export the filtered product list as an Excel workbook.
+        """Dispatch a Celery task to build the catalog Excel.
 
-        Honors the exact same query-parameters as `GET /api/products`
-        (universe, search, ordering, hierarchy cascade, …) so the export
-        always matches what the user sees in the catalog.
+        Honors the exact same query-parameters as `GET /api/products`.
+        Returns 202 + `task_id`; client polls `/api/tasks/{task_id}/` and
+        then downloads from the `file_url` returned in the SUCCESS result.
         """
-        qs = self.filter_queryset(self.get_queryset())
-
-        xlsx_bytes = build_products_xlsx(qs)
-        response = HttpResponse(
-            xlsx_bytes,
-            content_type=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
+        query_params = request.query_params.dict()
+        result = export_products_task.delay(query_params=query_params)
+        return Response(
+            {"task_id": result.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
         )
-        response["Content-Disposition"] = 'attachment; filename="catalog_export.xlsx"'
-        return response
+
+    # ── /api/products/exports/{task_id} — file download ────────────────────────
+    @action(detail=False, methods=["get"], url_path=r"exports/(?P<task_id>[\w-]+)")
+    def export_file(self, request, task_id=None):
+        """Stream the Excel produced by `export_products_task` (by task_id)."""
+        file_path = EXPORT_DIR / f"{task_id}.xlsx"
+        if not file_path.is_file():
+            raise Http404("Export introuvable ou expiré.")
+        return FileResponse(
+            file_path.open("rb"),
+            as_attachment=True,
+            filename="catalogue_syskern.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 
 class ProductSupplierViewSet(viewsets.ModelViewSet):

@@ -30,6 +30,7 @@ from .serializers import (
     SimulationWriteSerializer,
 )
 from .services.runner import run_simulation
+from .tasks import recalculate_task
 
 
 class SimulationViewSet(viewsets.ModelViewSet):
@@ -212,28 +213,26 @@ class SimulationViewSet(viewsets.ModelViewSet):
     # ─── /recalculate ─────────────────────────────────────────────────
     @action(detail=True, methods=["post"])
     def recalculate(self, request, pk=None):
+        """Dispatch a Celery task to run the pricing engine.
+
+        Returns 202 with `task_id`; client polls `/api/tasks/{task_id}/`.
+        """
         simulation = self.get_object()
         self._ensure_writable(simulation)
         ser = RecalculateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        if data.get("market_params"):
-            simulation.market_params = data["market_params"]
-            simulation.save(update_fields=["market_params", "updated_at"])
-
-        trigger = (
-            RecalculationTrigger.MANUAL_FULL_REFRESH if data.get("market_params")
-            else RecalculationTrigger.MANUAL_REFRESH_ODOO if data.get("refresh_odoo")
-            else RecalculationTrigger.MANUAL_CURRENT_PARAMS
+        result = recalculate_task.delay(
+            str(simulation.pk),
+            market_params=data.get("market_params") or None,
+            refresh_odoo=bool(data.get("refresh_odoo")),
+            note=data.get("note", ""),
         )
-        # TODO: when `refresh_odoo=True` call the Odoo adapter to refresh
-        # stock/pamp/pending purchases before running the engine.
-        run_simulation(simulation, trigger=trigger, note=data.get("note", ""))
-        # Refetch — `get_object()` prefetched `lines` *before* the recalc,
-        # so the cached Python instances would mask the new PA/PR/PV.
-        fresh = Simulation.objects.prefetch_related("lines").get(pk=simulation.pk)
-        return Response(SimulationDetailSerializer(fresh).data)
+        return Response(
+            {"task_id": result.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     # ─── /recalculations (list) ───────────────────────────────────────
     @action(detail=True, methods=["get"])

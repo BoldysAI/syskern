@@ -23,6 +23,44 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ── Celery polling helpers ───────────────────────────────────────────────
+interface TaskResponse<T> {
+  task_id: string;
+  status: "PENDING" | "STARTED" | "SUCCESS" | "FAILURE" | "REVOKED";
+  result?: T;
+  error?: string;
+}
+
+/** Poll `/api/tasks/{id}` until terminal state, then return result or throw. */
+async function pollTask<T>(
+  taskId: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<T> {
+  const intervalMs = opts.intervalMs ?? 800;
+  const timeoutMs = opts.timeoutMs ?? 120_000;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const r = await apiFetch<TaskResponse<T>>(
+      `/api/tasks/${encodeURIComponent(taskId)}/`
+    );
+    if (r.status === "SUCCESS") return r.result as T;
+    if (r.status === "FAILURE") throw new Error(r.error || "Tâche échouée");
+    if (r.status === "REVOKED") throw new Error("Tâche annulée");
+    await new Promise((res) => setTimeout(res, intervalMs));
+  }
+  throw new Error("Délai d'attente dépassé");
+}
+
+/** Dispatch a Celery task via the given endpoint, then poll until done. */
+async function dispatchAndPoll<T>(
+  path: string,
+  options?: RequestInit,
+  pollOpts?: { intervalMs?: number; timeoutMs?: number }
+): Promise<T> {
+  const dispatch = await apiFetch<{ task_id: string }>(path, options);
+  return pollTask<T>(dispatch.task_id, pollOpts);
+}
+
 export interface ProductListParams {
   universe?: string;
   family?: string;
@@ -160,12 +198,60 @@ export interface CreateSimulationInput {
   market_params?: Record<string, unknown>;
 }
 
+export type MarketParameterType = "copper_price" | "fx_rate";
+export type CopperMarket = "LME" | "SHE";
+
 export interface MarketParameter {
   id: string;
-  copper_rate?: string;
-  euro_usd?: string;
+  parameter_type: MarketParameterType;
+  valid_from: string;
+  valid_to: string | null;
+  is_active: boolean;
+  notes?: string;
+  // Copper-only
+  copper_market?: CopperMarket | null;
+  copper_price?: string | null;
+  copper_currency?: string | null;
+  copper_unit?: string | null;
+  // FX-only
+  fx_from_currency?: string | null;
+  fx_to_currency?: string | null;
+  fx_rate?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface TransportMode {
+  id: string;
+  code: string;
+  label: Record<string, string>;
+  category: "maritime" | "road" | "air" | "rail";
+  default_pallet_capacity?: number | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SyncLog {
+  id: string;
+  sync_type: string;
+  scope: string;
+  odoo_api_version: string;
+  started_at: string;
+  completed_at: string | null;
+  status: "running" | "success" | "partial_failure" | "failed";
+  items_created: number;
+  items_updated: number;
+  items_failed: number;
+  errors: Array<{ item_id: string | null; error_message: string }>;
+  triggered_by: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SyncStatus {
+  last: SyncLog | null;
+  running: SyncLog | null;
 }
 
 export function getProducts(params?: ProductListParams): Promise<PaginatedProducts> {
@@ -182,7 +268,7 @@ export function getProducts(params?: ProductListParams): Promise<PaginatedProduc
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
 }
 
-/** Download the filtered catalog as an Excel workbook (CDC §4.1.1). */
+/** Trigger an async Excel export (Celery task), then download the file. */
 export async function exportProducts(params?: {
   search?: string;
   universe?: string;
@@ -190,19 +276,18 @@ export async function exportProducts(params?: {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   if (params?.universe) q.set("universe", params.universe);
-  const res = await fetch(`/api/products/export/?${q.toString()}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`Export échoué (${res.status})`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
+  const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
+    `/api/products/export/?${q.toString()}`,
+    { method: "POST", body: JSON.stringify({}) },
+    { timeoutMs: 180_000 }
+  );
+  // Trigger the browser download via a short-lived anchor.
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "catalogue_syskern.xlsx";
+  a.href = result.file_url;
+  a.download = result.filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
 }
 
 /** Distinct universe values actually present in the catalog (CDC §4.4). */
@@ -240,22 +325,24 @@ export function getPriceHistory(
   );
 }
 
-/** Re-pull this product's PAMP + stock from Odoo (read-only on Odoo). */
+/** Re-pull this product's PAMP + stock from Odoo (Celery task). */
 export function refreshPamp(sku: string): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(
+  return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/refresh-pamp/`,
-    { method: "POST" }
+    { method: "POST" },
+    { timeoutMs: 60_000 }
   );
 }
 
-/** Translate the FR descriptions to EN/ES via DeepL (cached in JSONB). */
+/** Translate the FR descriptions to EN/ES via DeepL (Celery task). */
 export function translateProduct(
   sku: string,
   targetLang: "en" | "es"
 ): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(
+  return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/translate/`,
-    { method: "POST", body: JSON.stringify({ target_lang: targetLang }) }
+    { method: "POST", body: JSON.stringify({ target_lang: targetLang }) },
+    { timeoutMs: 60_000 }
   );
 }
 
@@ -313,9 +400,10 @@ export function recalculate(
   id: string,
   body?: { market_params?: Record<string, unknown>; note?: string }
 ): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
+  return dispatchAndPoll<SimulationDetail>(
     `/api/simulations/${encodeURIComponent(id)}/recalculate/`,
-    { method: "POST", body: JSON.stringify(body ?? {}) }
+    { method: "POST", body: JSON.stringify(body ?? {}) },
+    { timeoutMs: 180_000 }
   );
 }
 
@@ -333,53 +421,104 @@ export function duplicateSimulation(id: string): Promise<SimulationDetail> {
   );
 }
 
-export function getMarketParameters(): Promise<MarketParameter[]> {
+// ── Market parameters (settings) ─────────────────────────────────────────
+export function listMarketParameters(filter?: {
+  type?: MarketParameterType;
+  activeOnly?: boolean;
+}): Promise<MarketParameter[]> {
+  const q = new URLSearchParams();
+  if (filter?.type) q.set("parameter_type", filter.type);
+  if (filter?.activeOnly) q.set("is_active", "true");
+  q.set("limit", "200");
+  const qs = q.toString();
   return apiFetch<{ count: number; results: MarketParameter[] }>(
-    "/api/market-parameters/?limit=1&ordering=-created_at"
+    `/api/market-parameters/${qs ? "?" + qs : ""}`
   ).then((r) => r.results);
 }
 
-// ── Odoo Sync ────────────────────────────────────────────────────────────────
-
-export type SyncScope = "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales";
-export type SyncStatus = "running" | "success" | "partial_failure" | "failed";
-
-export interface SyncLog {
-  id: string;
-  sync_type: string;
-  scope: SyncScope;
-  odoo_api_version: string;
-  started_at: string;
-  completed_at: string | null;
-  status: SyncStatus;
-  items_created: number;
-  items_updated: number;
-  items_failed: number;
-  errors: { item_id: string | null; error_message: string }[];
-  triggered_by: string;
-}
-
-export interface SyncStatusResponse {
-  last: SyncLog | null;
-  running: SyncLog | null;
-}
-
-export function triggerSync(scope: SyncScope = "all", apiVersion: string = "v19"): Promise<SyncLog> {
-  return apiFetch<SyncLog>("/api/odoo/sync/trigger", {
+export function createMarketParameter(
+  data: Partial<MarketParameter>
+): Promise<MarketParameter> {
+  return apiFetch<MarketParameter>("/api/market-parameters/", {
     method: "POST",
-    body: JSON.stringify({ scope, api_version: apiVersion }),
+    body: JSON.stringify(data),
   });
 }
 
-export function getSyncStatus(): Promise<SyncStatusResponse> {
-  return apiFetch<SyncStatusResponse>("/api/odoo/sync/status");
+export function updateMarketParameter(
+  id: string,
+  patch: Partial<MarketParameter>
+): Promise<MarketParameter> {
+  return apiFetch<MarketParameter>(`/api/market-parameters/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
-export function getSyncLogs(params?: { scope?: SyncScope; limit?: number }): Promise<SyncLog[]> {
-  const q = new URLSearchParams();
-  if (params?.scope) q.set("scope", params.scope);
-  q.set("limit", String(params?.limit ?? 20));
-  return apiFetch<{ count: number; results: SyncLog[] }>(
-    `/api/odoo/sync/logs?${q.toString()}`
+export function deleteMarketParameter(id: string): Promise<void> {
+  return apiFetch<void>(`/api/market-parameters/${id}/`, { method: "DELETE" });
+}
+
+// Back-compat alias kept for any older callers; prefer listMarketParameters.
+export function getMarketParameters(): Promise<MarketParameter[]> {
+  return listMarketParameters({ activeOnly: true });
+}
+
+// ── Transport modes ──────────────────────────────────────────────────────
+export function listTransportModes(activeOnly = false): Promise<TransportMode[]> {
+  const qs = activeOnly ? "?is_active=true" : "";
+  return apiFetch<{ count: number; results: TransportMode[] }>(
+    `/api/transport-modes/${qs}`
   ).then((r) => r.results);
 }
+
+export function createTransportMode(
+  data: Partial<TransportMode>
+): Promise<TransportMode> {
+  return apiFetch<TransportMode>("/api/transport-modes/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateTransportMode(
+  id: string,
+  patch: Partial<TransportMode>
+): Promise<TransportMode> {
+  return apiFetch<TransportMode>(`/api/transport-modes/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteTransportMode(id: string): Promise<void> {
+  return apiFetch<void>(`/api/transport-modes/${id}/`, { method: "DELETE" });
+}
+
+// ── Odoo sync (settings) ─────────────────────────────────────────────────
+export function listSyncLogs(limit = 20): Promise<SyncLog[]> {
+  return apiFetch<{ count: number; results: SyncLog[] }>(
+    `/api/odoo/sync/logs?limit=${limit}`
+  ).then((r) => r.results);
+}
+
+export function getSyncStatus(): Promise<SyncStatus> {
+  return apiFetch<SyncStatus>("/api/odoo/sync/status");
+}
+
+export function getOdooHealth(): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/api/odoo/health");
+}
+
+/** Trigger an async Odoo sync (Celery task). Returns the SyncLog row. */
+export function triggerOdooSync(
+  scope: "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales" = "all",
+  api_version: "v16" | "v19" = "v19"
+): Promise<SyncLog> {
+  return dispatchAndPoll<SyncLog>(
+    "/api/odoo/sync/trigger",
+    { method: "POST", body: JSON.stringify({ scope, api_version }) },
+    { timeoutMs: 600_000 }
+  );
+}
+
