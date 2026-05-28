@@ -12,8 +12,9 @@ def healthcheck(_request):
 
 
 api_patterns = [
-    # Auth (shared password gate for MVP1).
+    # Auth + user management.
     path("", include("apps.core.urls")),
+    path("", include("apps.accounts.urls")),
 
     # PIM (Brique 1).
     path("", include("apps.products.urls")),

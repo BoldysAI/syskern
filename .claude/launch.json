@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "frontend"],
+      "port": 3000
+    },
+    {
+      "name": "frontend-host",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "autoPort": true
+    }
+  ]
+}

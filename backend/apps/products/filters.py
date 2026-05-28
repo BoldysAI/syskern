@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import django_filters as filters
+from django.db.models import Q
 
 from .models import Product
 
@@ -10,7 +11,9 @@ class ProductFilter(filters.FilterSet):
     """Catalog filters: hierarchy cascade, brand, stock, supplier, etc."""
 
     sku_code = filters.CharFilter(field_name="sku_code", lookup_expr="icontains")
-    universe = filters.CharFilter(field_name="universe", lookup_expr="iexact")
+    # Accepts one or several comma-separated universes, matched case-insensitively.
+    # e.g. ?universe=COPPER  or  ?universe=COPPER,OPTICAL FIBER
+    universe = filters.CharFilter(method="filter_universe")
     family = filters.CharFilter(field_name="family", lookup_expr="iexact")
     range = filters.CharFilter(field_name="range", lookup_expr="iexact")
     sub_range = filters.CharFilter(field_name="sub_range", lookup_expr="iexact")
@@ -39,6 +42,16 @@ class ProductFilter(filters.FilterSet):
             "is_active",
             "is_copper_indexed",
         ]
+
+    def filter_universe(self, queryset, name, value: str):
+        """Match one or several comma-separated universes (case-insensitive)."""
+        values = [v.strip() for v in value.split(",") if v.strip()]
+        if not values:
+            return queryset
+        q = Q()
+        for v in values:
+            q |= Q(universe__iexact=v)
+        return queryset.filter(q)
 
     def filter_in_stock(self, queryset, name, value: bool):
         if value is None:

@@ -1,0 +1,18 @@
+usage: manage.py create_platform_user [-h] --email EMAIL --password PASSWORD
+                                      [--role {admin,commercial,viewer}]
+                                      [--first-name FIRST_NAME]
+                                      [--last-name LAST_NAME] [--version]
+                                      [-v {0,1,2,3}] [--settings SETTINGS]
+                                      [--pythonpath PYTHONPATH] [--traceback]
+                                      [--no-color] [--force-color]
+                                      [--skip-checks]
+manage.py create_platform_user: error: unrecognized arguments: compose exec backend python manage.py create_platform_user
+usage: manage.py create_platform_user [-h] --email EMAIL --password PASSWORD
+                                      [--role {admin,commercial,viewer}]
+                                      [--first-name FIRST_NAME]
+                                      [--last-name LAST_NAME] [--version]
+                                      [-v {0,1,2,3}] [--settings SETTINGS]
+                                      [--pythonpath PYTHONPATH] [--traceback]
+                                      [--no-color] [--force-color]
+                                      [--skip-checks]
+manage.py create_platform_user: error: unrecognized arguments: compose exec backend python manage.py create_platform_user

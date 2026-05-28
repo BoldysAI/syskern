@@ -27,6 +27,7 @@ class TriggerSyncView(APIView):
             scope=ser.validated_data["scope"],
             sync_type=SyncType.MANUAL,
             triggered_by="manual",
+            api_version=ser.validated_data.get("api_version"),
         )
         return Response(SyncLogSerializer(log).data)
 
