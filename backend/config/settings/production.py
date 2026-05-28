@@ -11,7 +11,11 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
 # ─── Security headers ─────────────────────────────────────────────────────────
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = True
+# Traefik / Coolify already handles HTTP→HTTPS at the edge, so we leave
+# Django out of that loop by default (otherwise internal proxy calls
+# from Next.js → backend get 301'd and break). Set to True for setups
+# without an upstream proxy.
+SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=False)
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000  # 1 year, mirrors §9.3.4 of the CDC
