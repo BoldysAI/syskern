@@ -50,6 +50,7 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
+      - exports_data:/tmp/syskern_exports
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,6 +59,54 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py runserver 0.0.0.0:8000"
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: syskern-celery-worker
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DATABASE_URL: postgres://${POSTGRES_USER:-syskern}:${POSTGRES_PASSWORD:-syskern}@postgres:5432/${POSTGRES_DB:-syskern}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - exports_data:/tmp/syskern_exports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A config worker --loglevel=info --concurrency=2
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: syskern-celery-beat
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DATABASE_URL: postgres://${POSTGRES_USER:-syskern}:${POSTGRES_PASSWORD:-syskern}@postgres:5432/${POSTGRES_DB:-syskern}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - exports_data:/tmp/syskern_exports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    command: celery -A config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
   frontend:
     build:
@@ -81,3 +130,5 @@ services:
 volumes:
   postgres_data:
     name: syskern_postgres_data
+  exports_data:
+    name: syskern_exports_data

@@ -23,6 +23,44 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ── Celery polling helpers ───────────────────────────────────────────────
+interface TaskResponse<T> {
+  task_id: string;
+  status: "PENDING" | "STARTED" | "SUCCESS" | "FAILURE" | "REVOKED";
+  result?: T;
+  error?: string;
+}
+
+/** Poll `/api/tasks/{id}` until terminal state, then return result or throw. */
+async function pollTask<T>(
+  taskId: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<T> {
+  const intervalMs = opts.intervalMs ?? 800;
+  const timeoutMs = opts.timeoutMs ?? 120_000;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const r = await apiFetch<TaskResponse<T>>(
+      `/api/tasks/${encodeURIComponent(taskId)}/`
+    );
+    if (r.status === "SUCCESS") return r.result as T;
+    if (r.status === "FAILURE") throw new Error(r.error || "Tâche échouée");
+    if (r.status === "REVOKED") throw new Error("Tâche annulée");
+    await new Promise((res) => setTimeout(res, intervalMs));
+  }
+  throw new Error("Délai d'attente dépassé");
+}
+
+/** Dispatch a Celery task via the given endpoint, then poll until done. */
+async function dispatchAndPoll<T>(
+  path: string,
+  options?: RequestInit,
+  pollOpts?: { intervalMs?: number; timeoutMs?: number }
+): Promise<T> {
+  const dispatch = await apiFetch<{ task_id: string }>(path, options);
+  return pollTask<T>(dispatch.task_id, pollOpts);
+}
+
 export interface ProductListParams {
   universe?: string;
   family?: string;
@@ -182,7 +220,7 @@ export function getProducts(params?: ProductListParams): Promise<PaginatedProduc
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
 }
 
-/** Download the filtered catalog as an Excel workbook (CDC §4.1.1). */
+/** Trigger an async Excel export (Celery task), then download the file. */
 export async function exportProducts(params?: {
   search?: string;
   universe?: string;
@@ -190,19 +228,18 @@ export async function exportProducts(params?: {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   if (params?.universe) q.set("universe", params.universe);
-  const res = await fetch(`/api/products/export/?${q.toString()}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`Export échoué (${res.status})`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
+  const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
+    `/api/products/export/?${q.toString()}`,
+    { method: "POST", body: JSON.stringify({}) },
+    { timeoutMs: 180_000 }
+  );
+  // Trigger the browser download via a short-lived anchor.
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "catalogue_syskern.xlsx";
+  a.href = result.file_url;
+  a.download = result.filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
 }
 
 /** Distinct universe values actually present in the catalog (CDC §4.4). */
@@ -240,22 +277,24 @@ export function getPriceHistory(
   );
 }
 
-/** Re-pull this product's PAMP + stock from Odoo (read-only on Odoo). */
+/** Re-pull this product's PAMP + stock from Odoo (Celery task). */
 export function refreshPamp(sku: string): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(
+  return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/refresh-pamp/`,
-    { method: "POST" }
+    { method: "POST" },
+    { timeoutMs: 60_000 }
   );
 }
 
-/** Translate the FR descriptions to EN/ES via DeepL (cached in JSONB). */
+/** Translate the FR descriptions to EN/ES via DeepL (Celery task). */
 export function translateProduct(
   sku: string,
   targetLang: "en" | "es"
 ): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>(
+  return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/translate/`,
-    { method: "POST", body: JSON.stringify({ target_lang: targetLang }) }
+    { method: "POST", body: JSON.stringify({ target_lang: targetLang }) },
+    { timeoutMs: 60_000 }
   );
 }
 
@@ -313,9 +352,10 @@ export function recalculate(
   id: string,
   body?: { market_params?: Record<string, unknown>; note?: string }
 ): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
+  return dispatchAndPoll<SimulationDetail>(
     `/api/simulations/${encodeURIComponent(id)}/recalculate/`,
-    { method: "POST", body: JSON.stringify(body ?? {}) }
+    { method: "POST", body: JSON.stringify(body ?? {}) },
+    { timeoutMs: 180_000 }
   );
 }
 

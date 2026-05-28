@@ -1,6 +1,7 @@
-"""Auth proxy endpoints."""
+"""Auth proxy endpoints + generic Celery task polling."""
 from __future__ import annotations
 
+from celery.result import AsyncResult
 from django.contrib.auth import authenticate, login, logout as auth_logout
 from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
@@ -47,6 +48,27 @@ def login_view(request: Request) -> Response:
 def logout_view(request: Request) -> Response:
     auth_logout(request)
     return Response({"detail": "ok"}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def task_status(_request: Request, task_id: str) -> Response:
+    """Generic Celery task polling.
+
+    Returns the current state of the task and, when terminal, the result
+    (on SUCCESS) or the error message (on FAILURE). Front-end clients can
+    poll this endpoint until status is in {SUCCESS, FAILURE, REVOKED}.
+    """
+    r = AsyncResult(task_id)
+    body: dict = {"task_id": task_id, "status": r.status}
+    if r.successful():
+        body["result"] = r.result
+    elif r.failed():
+        info = r.info
+        body["error"] = str(info) if info is not None else "Tâche échouée"
+    elif r.status == "STARTED" and isinstance(r.info, dict):
+        body["progress"] = r.info
+    return Response(body)
 
 
 @api_view(["GET"])
