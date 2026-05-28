@@ -14,6 +14,8 @@ from rest_framework.views import APIView
 
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.attributes.serializers import ProductAttributeValueSerializer
+from apps.odoo_sync.adapters.factory import get_odoo_adapter
+from apps.offers.services.translation import DeepLClient, TranslationError
 from apps.simulations.models import SimulationLine, SimulationStatus
 
 from .exports import build_products_xlsx
@@ -118,6 +120,105 @@ class ProductViewSet(viewsets.ModelViewSet):
             if line.simulation.last_calculated_at is not None
         ]
         return Response({"period": period, "points": points})
+
+    # ── /api/products/{id}/refresh-pamp ──────────────────────────────────────
+
+    @action(detail=True, methods=["post"], url_path="refresh-pamp")
+    def refresh_pamp(self, request, pk=None):
+        """Re-pull this product's PAMP + stock from Odoo (read-only on Odoo).
+
+        PAMP (`pamp_eur`) is Odoo's `standard_price`. This reads the latest
+        value for the single product and updates the *local* DB only — it
+        never writes back to Odoo.
+        """
+        product = self.get_object()
+
+        if not product.odoo_id:
+            return Response(
+                {"detail": "Produit non lié à Odoo — PAMP non recalculable."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            adapter = get_odoo_adapter()
+            adapter.authenticate()
+            stock_map = adapter.get_stock_quantities([product.odoo_id])
+        except Exception as exc:  # noqa: BLE001 — surface any Odoo failure cleanly
+            return Response(
+                {"detail": f"Odoo indisponible : {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        stock = stock_map.get(product.odoo_id)
+        if stock is None:
+            return Response(
+                {"detail": "Produit introuvable dans Odoo."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        now = timezone.now()
+        update_fields = {
+            "stock_quantity": stock.quantity,
+            "odoo_last_sync_at": now,
+        }
+        if stock.standard_price_eur is not None:
+            update_fields["pamp_eur"] = stock.standard_price_eur
+            update_fields["pamp_synced_at"] = now
+
+        Product.objects.filter(pk=product.pk).update(**update_fields)
+        product.refresh_from_db()
+        return Response(ProductDetailSerializer(product).data)
+
+    # ── /api/products/{id}/translate (CDC §10.4) ─────────────────────────────
+
+    @action(detail=True, methods=["post"], url_path="translate")
+    def translate(self, request, pk=None):
+        """Translate the FR descriptions to a target language via DeepL.
+
+        Stores the result in the `description_marketing[lang]` /
+        `description_technical[lang]` JSONB cache so it is reused next time.
+        """
+        product = self.get_object()
+        target = str((request.data or {}).get("target_lang", "")).lower()
+        if target not in {"en", "es"}:
+            return Response(
+                {"detail": "Langue cible invalide (attendu : en ou es)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        marketing_fr = (product.description_marketing or {}).get("fr", "")
+        technical_fr = (product.description_technical or {}).get("fr", "")
+        if not marketing_fr and not technical_fr:
+            return Response(
+                {"detail": "Aucune description française à traduire."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client = DeepLClient()
+        try:
+            marketing_tr = (
+                client.translate(source_text=marketing_fr, source_lang="fr", target_lang=target)
+                if marketing_fr else ""
+            )
+            technical_tr = (
+                client.translate(source_text=technical_fr, source_lang="fr", target_lang=target)
+                if technical_fr else ""
+            )
+        except TranslationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        marketing = dict(product.description_marketing or {})
+        technical = dict(product.description_technical or {})
+        if marketing_tr:
+            marketing[target] = marketing_tr
+        if technical_tr:
+            technical[target] = technical_tr
+        product.description_marketing = marketing
+        product.description_technical = technical
+        product.save(
+            update_fields=["description_marketing", "description_technical", "updated_at"]
+        )
+        return Response(ProductDetailSerializer(product).data)
 
     # ── 1.C — /api/products/{id}/attributes (CDC §4.4) ───────────────────────
 
@@ -228,20 +329,15 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     # ── 1.E — /api/products/export (CDC §4.1.1) ──────────────────────────────
 
-    @action(detail=False, methods=["post"], url_path="export")
+    @action(detail=False, methods=["get", "post"], url_path="export")
     def export(self, request):
-        """Export a filtered product list as an Excel workbook.
+        """Export the filtered product list as an Excel workbook.
 
-        Accepts the same query-parameter filters as `GET /api/products`.
-        Filters can also be supplied in the POST body (JSON) for convenience.
+        Honors the exact same query-parameters as `GET /api/products`
+        (universe, search, ordering, hierarchy cascade, …) so the export
+        always matches what the user sees in the catalog.
         """
-        qs = Product.objects.all().prefetch_related("suppliers")
-
-        # Allow filters via both query params and request body.
-        filter_data = {**request.query_params.dict(), **request.data}
-        filterset = ProductFilter(data=filter_data, queryset=qs)
-        if filterset.is_valid():
-            qs = filterset.qs
+        qs = self.filter_queryset(self.get_queryset())
 
         xlsx_bytes = build_products_xlsx(qs)
         response = HttpResponse(

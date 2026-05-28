@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Prevent Next.js from redirecting /api/foo/ → /api/foo before the rewrite runs.
   skipTrailingSlashRedirect: true,
+  // Prevent Next.js from re-encoding already-encoded URL segments in rewrite
+  // destinations (BFF proxy pattern — backend owns the URL as-is).
+  skipProxyUrlNormalize: true,
   async rewrites() {
     return [
       {

@@ -10,23 +10,32 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Package,
+  Loader2,
 } from "lucide-react";
-import { getProducts, type Product, type PaginatedProducts } from "@/lib/api";
+import {
+  getProducts,
+  getUniverses,
+  exportProducts,
+  type Product,
+  type PaginatedProducts,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
 }
 
-const UNIVERSES = ["COPPER", "OPTICAL FIBER", "OEM", "RACKS", "ACCESSORIES"];
-
-const UNIVERSE_COLORS: Record<string, string> = {
-  COPPER: "bg-amber-100 text-amber-800",
-  "OPTICAL FIBER": "bg-blue-100 text-blue-800",
-  OEM: "bg-purple-100 text-purple-800",
-  RACKS: "bg-slate-100 text-slate-700",
-  ACCESSORIES: "bg-green-100 text-green-700",
-};
+// Real DB universe values can be long (e.g. "RACKS & ACCESSORIES CABINET"),
+// so colour by keyword match rather than exact equality.
+function universeColor(universe: string): string {
+  const u = universe.toUpperCase();
+  if (u.includes("COPPER")) return "bg-amber-100 text-amber-800";
+  if (u.includes("OPTICAL")) return "bg-blue-100 text-blue-800";
+  if (u.includes("OEM")) return "bg-purple-100 text-purple-800";
+  if (u.includes("RACK")) return "bg-slate-100 text-slate-700";
+  if (u.includes("RESIDENTIAL")) return "bg-green-100 text-green-700";
+  return "bg-slate-100 text-slate-600";
+}
 
 type SortField = "sku_code" | "name" | "universe" | "family" | "pamp_eur" | "stock_quantity";
 type SortDir = "asc" | "desc";
@@ -36,9 +45,9 @@ function Skeleton({ className }: { className?: string }) {
 }
 
 function UniverseBadge({ universe }: { universe: string }) {
-  const color = UNIVERSE_COLORS[universe] ?? "bg-slate-100 text-slate-600";
+  if (!universe) return <span className="text-slate-300">—</span>;
   return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", color)}>
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", universeColor(universe))}>
       {universe}
     </span>
   );
@@ -59,12 +68,14 @@ export default function CatalogPage() {
   const [sortField, setSortField] = useState<SortField>("sku_code");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
+  const { data: universes } = useSWR<string[]>("universes", getUniverses);
+
   const { data, isLoading, error } = useSWR<PaginatedProducts>(
     ["products", search, selectedUniverses.join(","), page],
     () =>
       getProducts({
         search: search || undefined,
-        universe: selectedUniverses[0] || undefined,
+        universe: selectedUniverses.length ? selectedUniverses.join(",") : undefined,
         page,
         limit: 20,
       }),
@@ -88,6 +99,21 @@ export default function CatalogPage() {
       prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u]
     );
     setPage(1);
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportProducts({
+        search: search || undefined,
+        universe: selectedUniverses.length ? selectedUniverses.join(",") : undefined,
+      });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Export échoué");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const products = data?.results ?? [];
@@ -146,19 +172,22 @@ export default function CatalogPage() {
             Univers
           </label>
           <div className="flex flex-col gap-2">
-            {UNIVERSES.map((u) => (
+            {(universes ?? []).map((u) => (
               <label key={u} className="flex items-center gap-2.5 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={selectedUniverses.includes(u)}
                   onChange={() => toggleUniverse(u)}
-                  className="w-4 h-4 rounded border-slate-300 text-[#E07200] accent-[#E07200]"
+                  className="w-4 h-4 rounded border-slate-300 text-[#E07200] accent-[#E07200] flex-shrink-0"
                 />
                 <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">
                   {u}
                 </span>
               </label>
             ))}
+            {!universes && (
+              <span className="text-xs text-slate-400">Chargement…</span>
+            )}
           </div>
         </div>
       </aside>
@@ -176,11 +205,19 @@ export default function CatalogPage() {
             )}
           </div>
           <button
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors"
+            onClick={handleExport}
+            disabled={isExporting || total === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Exporter en Excel"
           >
-            <Download size={15} />
-            <span className="hidden sm:inline">Exporter</span>
+            {isExporting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Download size={15} />
+            )}
+            <span className="hidden sm:inline">
+              {isExporting ? "Export…" : "Exporter"}
+            </span>
           </button>
         </div>
 

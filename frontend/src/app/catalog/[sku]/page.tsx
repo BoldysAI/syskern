@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import useSWR from "swr";
+import { useParams } from "next/navigation";
+import useSWR, { useSWRConfig } from "swr";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   ChevronRight,
@@ -17,9 +18,17 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
-import { getProduct, type ProductDetail, type ProductSupplier } from "@/lib/api";
+import {
+  getProduct,
+  refreshPamp,
+  getPriceHistory,
+  translateProduct,
+  type ProductDetail,
+  type ProductSupplier,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const UNIVERSE_COLORS: Record<string, string> = {
@@ -133,14 +142,27 @@ function TabGeneral({ product }: { product: ProductDetail }) {
   );
 }
 
+const PRICE_PERIODS: { id: "3m" | "6m" | "12m"; label: string }[] = [
+  { id: "3m", label: "3 mois" },
+  { id: "6m", label: "6 mois" },
+  { id: "12m", label: "12 mois" },
+];
+
 function TabTarification({ product }: { product: ProductDetail }) {
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
-  const mockHistory = Array.from({ length: 6 }, (_, i) => ({
-    month: new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleDateString("fr-FR", {
-      month: "short",
-    }),
-    value: pamp > 0 ? pamp * (0.9 + Math.random() * 0.2) : null,
+
+  const [period, setPeriod] = useState<"3m" | "6m" | "12m">("6m");
+  const { data: history, isLoading: historyLoading } = useSWR(
+    ["price-history", product.sku_code, period],
+    () => getPriceHistory(product.sku_code, period)
+  );
+
+  const chartData = (history?.points ?? []).map((p) => ({
+    date: new Date(p.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+    PA: p.pa_eur != null ? parseFloat(p.pa_eur) : null,
+    PR: p.pr_eur != null ? parseFloat(p.pr_eur) : null,
+    PV: p.pv_eur != null ? parseFloat(p.pv_eur) : null,
   }));
 
   return (
@@ -203,31 +225,65 @@ function TabTarification({ product }: { product: ProductDetail }) {
         </div>
       </div>
 
-      {pamp > 0 && (
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm md:col-span-2 lg:col-span-3">
-          <div className="flex items-center gap-2 mb-4">
+      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm md:col-span-2 lg:col-span-3">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div className="flex items-center gap-2">
             <TrendingUp size={15} className="text-[#E07200]" />
-            <h3 className="text-sm font-semibold text-slate-700">Évolution PAMP (6 derniers mois)</h3>
+            <h3 className="text-sm font-semibold text-slate-700">
+              Historique PA / PR / PV
+            </h3>
           </div>
-          <div className="h-48">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+            {PRICE_PERIODS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPeriod(p.id)}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                  period === p.id
+                    ? "bg-white text-[#E07200] shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {historyLoading ? (
+          <div className="h-48 flex items-center justify-center text-sm text-slate-400">
+            Chargement…
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="h-48 flex flex-col items-center justify-center text-center gap-1 text-slate-400">
+            <p className="text-sm font-medium text-slate-500">Aucun historique de prix</p>
+            <p className="text-xs">
+              Les points apparaîtront ici dès qu&apos;une simulation finalisée inclura ce produit.
+            </p>
+          </div>
+        ) : (
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={mockHistory}>
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <LineChart data={chartData}>
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
-                <Tooltip formatter={(v) => [`${Number(v).toFixed(2)} €`, "PAMP"]} />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#E07200"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#E07200" }}
-                  activeDot={{ r: 5 }}
+                <Tooltip
+                  formatter={(value) => {
+                    const n = Array.isArray(value) ? NaN : Number(value);
+                    return Number.isFinite(n)
+                      ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                      : "—";
+                  }}
                 />
+                <Legend />
+                <Line type="monotone" dataKey="PA" stroke="#16A34A" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="PR" stroke="#E07200" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="PV" stroke="#2563EB" strokeWidth={2} dot={{ r: 3 }} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -235,6 +291,21 @@ function TabTarification({ product }: { product: ProductDetail }) {
 function TabDescriptions({ product }: { product: ProductDetail }) {
   const langs = ["fr", "en", "es"];
   const langLabels: Record<string, string> = { fr: "Français", en: "Anglais", es: "Espagnol" };
+
+  const { mutate } = useSWRConfig();
+  const [translating, setTranslating] = useState<string | null>(null);
+
+  const handleTranslate = async (lang: "en" | "es") => {
+    setTranslating(lang);
+    try {
+      const updated = await translateProduct(product.sku_code, lang);
+      await mutate(["product", product.sku_code], updated, { revalidate: false });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Échec de la traduction");
+    } finally {
+      setTranslating(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -246,10 +317,14 @@ function TabDescriptions({ product }: { product: ProductDetail }) {
           <div key={lang} className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-700">{langLabels[lang]}</h3>
-              {!hasContent && (
-                <button className="flex items-center gap-1.5 text-xs font-medium text-[#E07200] hover:text-[#C56400] transition-colors">
-                  <Languages size={13} />
-                  Traduire avec DeepL
+              {!hasContent && lang !== "fr" && (
+                <button
+                  onClick={() => handleTranslate(lang as "en" | "es")}
+                  disabled={translating !== null}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[#E07200] hover:text-[#C56400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Languages size={13} className={cn(translating === lang && "animate-pulse")} />
+                  {translating === lang ? "Traduction…" : "Traduire avec DeepL"}
                 </button>
               )}
             </div>
@@ -349,14 +424,30 @@ const TABS = [
   { id: "fournisseurs", label: "Fournisseurs" },
 ];
 
-export default function ProductPage({ params }: { params: Promise<{ sku: string }> }) {
-  const { sku } = use(params);
-  const decodedSku = decodeURIComponent(sku);
+export default function ProductPage() {
+  const params = useParams<{ sku: string }>();
+  const decodedSku = decodeURIComponent(params?.sku ?? "");
+  const swrKey = decodedSku ? ["product", decodedSku] : null;
 
+  const { mutate } = useSWRConfig();
   const { data: product, isLoading, error } = useSWR<ProductDetail>(
-    ["product", decodedSku],
+    swrKey,
     () => getProduct(decodedSku)
   );
+
+  const [recalcing, setRecalcing] = useState(false);
+  const handleRecalc = async () => {
+    if (!decodedSku) return;
+    setRecalcing(true);
+    try {
+      const updated = await refreshPamp(decodedSku);
+      await mutate(swrKey, updated, { revalidate: false });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Échec du recalcul du PAMP");
+    } finally {
+      setRecalcing(false);
+    }
+  };
 
   if (error) {
     return (
@@ -364,12 +455,21 @@ export default function ProductPage({ params }: { params: Promise<{ sku: string 
         <AlertCircle size={40} className="text-red-300" />
         <p className="font-medium">Produit introuvable</p>
         <p className="text-sm text-slate-400">{error?.message}</p>
-        <Link
-          href="/catalog"
-          className="text-sm text-[#E07200] hover:text-[#C56400] font-medium mt-2"
-        >
-          Retour au catalogue
-        </Link>
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={() => mutate(swrKey)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors"
+          >
+            <RefreshCw size={14} />
+            Réessayer
+          </button>
+          <Link
+            href="/catalog"
+            className="text-sm text-[#E07200] hover:text-[#C56400] font-medium"
+          >
+            Retour au catalogue
+          </Link>
+        </div>
       </div>
     );
   }
@@ -430,9 +530,14 @@ export default function ProductPage({ params }: { params: Promise<{ sku: string 
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600">
-                <RefreshCw size={14} />
-                Recalculer PAMP
+              <button
+                onClick={handleRecalc}
+                disabled={recalcing}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Recharger le PAMP et le stock depuis Odoo"
+              >
+                <RefreshCw size={14} className={cn(recalcing && "animate-spin")} />
+                {recalcing ? "Recalcul…" : "Recalculer PAMP"}
               </button>
             </div>
           </div>
