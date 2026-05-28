@@ -1,0 +1,52 @@
+# Syskern Celery Beat (scheduler)
+#
+# Coolify deployment (Beat service):
+#   • Build Pack:         Dockerfile
+#   • Base Directory:     /backend
+#   • Dockerfile:         Dockerfile.beat
+#   • Port:               (none — beat dispatches via the broker)
+#   • Required env:       same as backend Web (DATABASE_URL needed for the
+#                         django_celery_beat DatabaseScheduler tables).
+#
+# Run only ONE Beat instance per environment — multiple beats would
+# duplicate scheduled tasks. Coolify: set replicas=1 / no autoscale.
+
+ARG PYTHON_VERSION=3.12-slim-bookworm
+
+FROM python:${PYTHON_VERSION} AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN groupadd -r app && useradd -r -g app -u 1000 -d /app app
+
+# ─── deps ──────────────────────────────────────────────────────────────────
+FROM base AS deps
+COPY pyproject.toml ./
+RUN pip install --upgrade pip && pip install .
+
+# ─── runtime ──────────────────────────────────────────────────────────────
+FROM deps AS prod
+COPY --chown=app:app . .
+
+USER app
+
+ENV CELERY_BEAT_LOGLEVEL=info
+
+# Process-presence check — Beat has no port, but PID 1 is the celery
+# process itself, and Docker will restart on crash.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+  CMD pgrep -f "celery.*beat" > /dev/null || exit 1
+
+CMD ["sh", "-c", "celery -A config beat \
+     --loglevel=${CELERY_BEAT_LOGLEVEL} \
+     --scheduler django_celery_beat.schedulers:DatabaseScheduler"]

@@ -1,0 +1,57 @@
+# Syskern Celery worker
+#
+# Coolify deployment (Worker service):
+#   • Build Pack:         Dockerfile
+#   • Base Directory:     /backend
+#   • Dockerfile:         Dockerfile.worker
+#   • Port:               (none — worker is broker-driven)
+#   • Required env:       same as backend Web, plus:
+#       CELERY_WORKER_CONCURRENCY=2      (optional, tune to CPU)
+#       CELERY_WORKER_LOGLEVEL=info
+#
+# Shares broker/backend with Web (Redis via REDIS_URL).
+
+ARG PYTHON_VERSION=3.12-slim-bookworm
+
+FROM python:${PYTHON_VERSION} AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN groupadd -r app && useradd -r -g app -u 1000 -d /app app
+
+# ─── deps ──────────────────────────────────────────────────────────────────
+FROM base AS deps
+COPY pyproject.toml ./
+RUN pip install --upgrade pip && pip install .
+
+# ─── runtime ──────────────────────────────────────────────────────────────
+FROM deps AS prod
+COPY --chown=app:app . .
+
+# Filesystem location shared with the Web service via the platform's volume
+# so the export endpoint can stream files the worker wrote.
+RUN mkdir -p /tmp/syskern_exports && chown -R app:app /tmp/syskern_exports
+
+USER app
+
+ENV CELERY_WORKER_CONCURRENCY=2 \
+    CELERY_WORKER_LOGLEVEL=info
+
+# Ping the worker through the broker — proves end-to-end liveness.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD celery -A config inspect ping -d "celery@$(hostname)" --timeout=5 \
+      | grep -q pong || exit 1
+
+CMD ["sh", "-c", "celery -A config worker \
+     --loglevel=${CELERY_WORKER_LOGLEVEL} \
+     --concurrency=${CELERY_WORKER_CONCURRENCY}"]

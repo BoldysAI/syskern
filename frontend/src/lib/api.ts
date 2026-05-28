@@ -198,12 +198,60 @@ export interface CreateSimulationInput {
   market_params?: Record<string, unknown>;
 }
 
+export type MarketParameterType = "copper_price" | "fx_rate";
+export type CopperMarket = "LME" | "SHE";
+
 export interface MarketParameter {
   id: string;
-  copper_rate?: string;
-  euro_usd?: string;
+  parameter_type: MarketParameterType;
+  valid_from: string;
+  valid_to: string | null;
+  is_active: boolean;
+  notes?: string;
+  // Copper-only
+  copper_market?: CopperMarket | null;
+  copper_price?: string | null;
+  copper_currency?: string | null;
+  copper_unit?: string | null;
+  // FX-only
+  fx_from_currency?: string | null;
+  fx_to_currency?: string | null;
+  fx_rate?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface TransportMode {
+  id: string;
+  code: string;
+  label: Record<string, string>;
+  category: "maritime" | "road" | "air" | "rail";
+  default_pallet_capacity?: number | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SyncLog {
+  id: string;
+  sync_type: string;
+  scope: string;
+  odoo_api_version: string;
+  started_at: string;
+  completed_at: string | null;
+  status: "running" | "success" | "partial_failure" | "failed";
+  items_created: number;
+  items_updated: number;
+  items_failed: number;
+  errors: Array<{ item_id: string | null; error_message: string }>;
+  triggered_by: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SyncStatus {
+  last: SyncLog | null;
+  running: SyncLog | null;
 }
 
 export function getProducts(params?: ProductListParams): Promise<PaginatedProducts> {
@@ -373,53 +421,104 @@ export function duplicateSimulation(id: string): Promise<SimulationDetail> {
   );
 }
 
-export function getMarketParameters(): Promise<MarketParameter[]> {
+// ── Market parameters (settings) ─────────────────────────────────────────
+export function listMarketParameters(filter?: {
+  type?: MarketParameterType;
+  activeOnly?: boolean;
+}): Promise<MarketParameter[]> {
+  const q = new URLSearchParams();
+  if (filter?.type) q.set("parameter_type", filter.type);
+  if (filter?.activeOnly) q.set("is_active", "true");
+  q.set("limit", "200");
+  const qs = q.toString();
   return apiFetch<{ count: number; results: MarketParameter[] }>(
-    "/api/market-parameters/?limit=1&ordering=-created_at"
+    `/api/market-parameters/${qs ? "?" + qs : ""}`
   ).then((r) => r.results);
 }
 
-// ── Odoo Sync ────────────────────────────────────────────────────────────────
-
-export type SyncScope = "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales";
-export type SyncStatus = "running" | "success" | "partial_failure" | "failed";
-
-export interface SyncLog {
-  id: string;
-  sync_type: string;
-  scope: SyncScope;
-  odoo_api_version: string;
-  started_at: string;
-  completed_at: string | null;
-  status: SyncStatus;
-  items_created: number;
-  items_updated: number;
-  items_failed: number;
-  errors: { item_id: string | null; error_message: string }[];
-  triggered_by: string;
-}
-
-export interface SyncStatusResponse {
-  last: SyncLog | null;
-  running: SyncLog | null;
-}
-
-export function triggerSync(scope: SyncScope = "all", apiVersion: string = "v19"): Promise<SyncLog> {
-  return apiFetch<SyncLog>("/api/odoo/sync/trigger", {
+export function createMarketParameter(
+  data: Partial<MarketParameter>
+): Promise<MarketParameter> {
+  return apiFetch<MarketParameter>("/api/market-parameters/", {
     method: "POST",
-    body: JSON.stringify({ scope, api_version: apiVersion }),
+    body: JSON.stringify(data),
   });
 }
 
-export function getSyncStatus(): Promise<SyncStatusResponse> {
-  return apiFetch<SyncStatusResponse>("/api/odoo/sync/status");
+export function updateMarketParameter(
+  id: string,
+  patch: Partial<MarketParameter>
+): Promise<MarketParameter> {
+  return apiFetch<MarketParameter>(`/api/market-parameters/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
-export function getSyncLogs(params?: { scope?: SyncScope; limit?: number }): Promise<SyncLog[]> {
-  const q = new URLSearchParams();
-  if (params?.scope) q.set("scope", params.scope);
-  q.set("limit", String(params?.limit ?? 20));
-  return apiFetch<{ count: number; results: SyncLog[] }>(
-    `/api/odoo/sync/logs?${q.toString()}`
+export function deleteMarketParameter(id: string): Promise<void> {
+  return apiFetch<void>(`/api/market-parameters/${id}/`, { method: "DELETE" });
+}
+
+// Back-compat alias kept for any older callers; prefer listMarketParameters.
+export function getMarketParameters(): Promise<MarketParameter[]> {
+  return listMarketParameters({ activeOnly: true });
+}
+
+// ── Transport modes ──────────────────────────────────────────────────────
+export function listTransportModes(activeOnly = false): Promise<TransportMode[]> {
+  const qs = activeOnly ? "?is_active=true" : "";
+  return apiFetch<{ count: number; results: TransportMode[] }>(
+    `/api/transport-modes/${qs}`
   ).then((r) => r.results);
 }
+
+export function createTransportMode(
+  data: Partial<TransportMode>
+): Promise<TransportMode> {
+  return apiFetch<TransportMode>("/api/transport-modes/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateTransportMode(
+  id: string,
+  patch: Partial<TransportMode>
+): Promise<TransportMode> {
+  return apiFetch<TransportMode>(`/api/transport-modes/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteTransportMode(id: string): Promise<void> {
+  return apiFetch<void>(`/api/transport-modes/${id}/`, { method: "DELETE" });
+}
+
+// ── Odoo sync (settings) ─────────────────────────────────────────────────
+export function listSyncLogs(limit = 20): Promise<SyncLog[]> {
+  return apiFetch<{ count: number; results: SyncLog[] }>(
+    `/api/odoo/sync/logs?limit=${limit}`
+  ).then((r) => r.results);
+}
+
+export function getSyncStatus(): Promise<SyncStatus> {
+  return apiFetch<SyncStatus>("/api/odoo/sync/status");
+}
+
+export function getOdooHealth(): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/api/odoo/health");
+}
+
+/** Trigger an async Odoo sync (Celery task). Returns the SyncLog row. */
+export function triggerOdooSync(
+  scope: "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales" = "all",
+  api_version: "v16" | "v19" = "v19"
+): Promise<SyncLog> {
+  return dispatchAndPoll<SyncLog>(
+    "/api/odoo/sync/trigger",
+    { method: "POST", body: JSON.stringify({ scope, api_version }) },
+    { timeoutMs: 600_000 }
+  );
+}
+
