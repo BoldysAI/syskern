@@ -155,13 +155,21 @@ def _normalize_product(
     raw: dict,
     supplier_map: dict[int, list[OdooSupplierLink]],
 ) -> OdooProduct:
+    """CDC §5.3 field mapping.
+
+    Per the CDC: `sku_code ↔ default_code`, `name ↔ name` (commercial).
+    Defensive fallback to `name` for SKU is preserved because Syskern's
+    historical Odoo data stores the SKU in `name` (investigation report).
+    """
     tmpl_id: int = raw["id"]
     categ_name = _many2one_name(raw.get("categ_id"))
     universe, family, rng, sub_range = _split_category(categ_name)
+    sku_code = raw.get("default_code") or raw.get("name") or ""
+    commercial_name = raw.get("name") or sku_code
     return OdooProduct(
         odoo_id=tmpl_id,
-        sku_code=raw.get("name") or "",
-        name=raw.get("name") or "",
+        sku_code=sku_code,
+        name=commercial_name,
         universe=universe,
         family=family,
         range=rng,
@@ -169,6 +177,7 @@ def _normalize_product(
         description_marketing_fr=raw.get("description_sale") or "",
         description_technical_fr=raw.get("description") or "",
         gtin=raw.get("barcode") or "",
+        hs_code=raw.get("hs_code") or "",
         weight_kg=_to_decimal(raw.get("weight")),
         standard_price_eur=_to_decimal(raw.get("standard_price")),
         suppliers=supplier_map.get(tmpl_id, []),
@@ -310,16 +319,59 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         supplier_map = self._fetch_supplier_map([odoo_id])
         return _normalize_product(raws[0], supplier_map)
 
+    def payload_from_product(self, product: OdooProduct) -> dict:
+        """Translate the platform's OdooProduct DTO → Odoo v16 write/create dict.
+
+        Field mapping per CDC §5.3 (writeable fields only — pricelist,
+        category, brand, dynamic attributes are NOT pushed back):
+          • sku_code              → default_code
+          • name (commercial)     → name
+          • gtin                  → barcode  (v19 also writes gtin_code)
+          • hs_code               → hs_code
+          • weight_kg             → weight
+          • is_active             → active
+          • description_marketing → description_sale
+          • description_technical → description
+        """
+        payload: dict = {
+            "name": product.name or product.sku_code,
+            "default_code": product.sku_code,
+            "active": product.is_active,
+            "type": "product",
+        }
+        if product.gtin:
+            payload["barcode"] = product.gtin
+        if product.hs_code:
+            payload["hs_code"] = product.hs_code
+        if product.weight_kg is not None:
+            payload["weight"] = float(product.weight_kg)
+        if product.description_marketing_fr:
+            payload["description_sale"] = product.description_marketing_fr
+        if product.description_technical_fr:
+            payload["description"] = product.description_technical_fr
+        # NOTE: standard_price (PAMP) is NEVER pushed — it's Odoo's source of truth.
+        return payload
+
     def create_product(self, product: OdooProduct) -> int:
-        raise NotImplementedError(
-            "create_product not implemented — read-only Phase-A. "
-            "Enable after Olivier approves sync strategy."
+        """Create a product.template in Odoo v16 and return its new id."""
+        payload = self.payload_from_product(product)
+        new_id = self._kw("product.template", "create", [payload])
+        logger.info(
+            "Created Odoo v16 product id=%s sku=%s", new_id, product.sku_code,
         )
+        return int(new_id)
 
     def update_product(self, odoo_id: int, fields: dict) -> None:
-        raise NotImplementedError(
-            "update_product not implemented — read-only Phase-A. "
-            "Enable after Olivier approves sync strategy."
+        """Update a product.template in Odoo v16. `fields` is an Odoo-shaped dict.
+
+        Use `payload_from_product()` to translate from OdooProduct first.
+        """
+        if not fields:
+            return
+        self._kw("product.template", "write", [[odoo_id], fields])
+        logger.info(
+            "Updated Odoo v16 product id=%s fields=%s",
+            odoo_id, sorted(fields.keys()),
         )
 
     # ── Stock ──────────────────────────────────────────────────────────────

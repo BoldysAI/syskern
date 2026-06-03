@@ -171,9 +171,15 @@ def _upsert_product(
             "description_marketing": {"fr": op.description_marketing_fr},
             "description_technical": {"fr": op.description_technical_fr},
             "gtin": op.gtin,
+            "hs_code": op.hs_code,
             "unit_weight_kg": op.weight_kg,
             "is_active": op.is_active,
             "odoo_last_sync_at": now,
+            # A pull from Odoo wins per CDC §5.6 (last-write-wins, Odoo
+            # preferred) — mark our local copy as in-sync so the periodic
+            # push-retry task doesn't try to re-push the same row.
+            "odoo_sync_status": "synced",
+            "odoo_sync_error": "",
         }
 
         # Set the version-specific odoo_id field.

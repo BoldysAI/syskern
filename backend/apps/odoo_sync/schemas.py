@@ -23,7 +23,17 @@ class OdooSupplierLink:
 
 @dataclass
 class OdooProduct:
-    """Subset of `product.template` + `product.product`."""
+    """Subset of `product.template` + `product.product`.
+
+    Field-mapping reference (CDC §5.3):
+      • sku_code              ↔ Odoo `default_code` (fallback to `name`)
+      • name (commercial)     ↔ Odoo `name`
+      • gtin                  ↔ Odoo `barcode` (v16) / `gtin_code` (v19)
+      • hs_code               ↔ Odoo `hs_code` (native)
+      • weight_kg             ↔ Odoo `weight`
+      • standard_price_eur    ↔ Odoo `standard_price` (PAMP)
+      • universe/family/...   ↔ Odoo `categ_id.parent_path` (parsed)
+    """
 
     odoo_id: int
     sku_code: str
@@ -35,6 +45,7 @@ class OdooProduct:
     description_marketing_fr: str = ""
     description_technical_fr: str = ""
     gtin: str = ""
+    hs_code: str = ""
     weight_kg: Optional[Decimal] = None
     standard_price_eur: Optional[Decimal] = None
     suppliers: list[OdooSupplierLink] = field(default_factory=list)

@@ -81,14 +81,17 @@ def _normalize_product_v19(
     raw: dict,
     supplier_map: dict[int, list[OdooSupplierLink]],
 ) -> OdooProduct:
+    """CDC §5.3 field mapping (v19 variant — adds `gtin_code` + `brand_id`)."""
     tmpl_id: int = raw["id"]
     categ_name = _many2one_name(raw.get("categ_id"))
     universe, family, rng, sub_range = _split_category(categ_name)
     gtin = raw.get("gtin_code") or raw.get("barcode") or ""
+    sku_code = raw.get("default_code") or raw.get("name") or ""
+    commercial_name = raw.get("name") or sku_code
     return OdooProduct(
         odoo_id=tmpl_id,
-        sku_code=raw.get("name") or "",
-        name=raw.get("name") or "",
+        sku_code=sku_code,
+        name=commercial_name,
         universe=universe,
         family=family,
         range=rng,
@@ -96,6 +99,7 @@ def _normalize_product_v19(
         description_marketing_fr=raw.get("description_sale") or "",
         description_technical_fr=raw.get("description") or "",
         gtin=str(gtin) if gtin else "",
+        hs_code=raw.get("hs_code") or "",
         weight_kg=_to_decimal(raw.get("weight")),
         standard_price_eur=_to_decimal(raw.get("standard_price")),
         suppliers=supplier_map.get(tmpl_id, []),
@@ -191,14 +195,49 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         supplier_map = self._fetch_supplier_map([odoo_id])
         return _normalize_product_v19(raws[0], supplier_map)
 
+    def payload_from_product(self, product: OdooProduct) -> dict:
+        """Same as v16 but also writes `gtin_code` (v19's canonical field)
+        in addition to the legacy `barcode` for back-compatibility."""
+        payload: dict = {
+            "name": product.name or product.sku_code,
+            "default_code": product.sku_code,
+            "active": product.is_active,
+            "type": "product",
+        }
+        if product.gtin:
+            payload["gtin_code"] = product.gtin
+            payload["barcode"] = product.gtin
+        if product.hs_code:
+            payload["hs_code"] = product.hs_code
+        if product.weight_kg is not None:
+            payload["weight"] = float(product.weight_kg)
+        if product.description_marketing_fr:
+            payload["description_sale"] = product.description_marketing_fr
+        if product.description_technical_fr:
+            payload["description"] = product.description_technical_fr
+        # NOTE: standard_price (PAMP) is NEVER pushed — Odoo is source of truth.
+        return payload
+
     def create_product(self, product: OdooProduct) -> int:
-        raise NotImplementedError(
-            "create_product not implemented — read-only Phase-A."
+        """Create a product.template in Odoo v19 and return its new id."""
+        payload = self.payload_from_product(product)
+        new_id = self._kw("product.template", "create", [payload])
+        logger.info(
+            "Created Odoo v19 product id=%s sku=%s", new_id, product.sku_code,
         )
+        return int(new_id)
 
     def update_product(self, odoo_id: int, fields: dict) -> None:
-        raise NotImplementedError(
-            "update_product not implemented — read-only Phase-A."
+        """Update a product.template in Odoo v19. `fields` is an Odoo-shaped dict.
+
+        Use `payload_from_product()` to translate from OdooProduct first.
+        """
+        if not fields:
+            return
+        self._kw("product.template", "write", [[odoo_id], fields])
+        logger.info(
+            "Updated Odoo v19 product id=%s fields=%s",
+            odoo_id, sorted(fields.keys()),
         )
 
     # ── Stock ──────────────────────────────────────────────────────────────

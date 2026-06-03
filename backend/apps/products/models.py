@@ -103,6 +103,24 @@ class Product(BaseModel):
     # ─── Metadata ─────────────────────────────────────────────────────────
     is_active = models.BooleanField(default=True)
     odoo_last_sync_at = models.DateTimeField(null=True, blank=True)
+
+    # ─── Push-to-Odoo status (CDC §5.4.3) ─────────────────────────────────
+    # Tracks the state of the *outgoing* push (platform → Odoo). The
+    # `retry_failed_product_pushes` Celery task picks up rows in
+    # `pending_odoo_sync` or `sync_failed` every hour and re-dispatches.
+    ODOO_SYNC_STATUSES = [
+        ("not_synced", "Not synced"),
+        ("pending_odoo_sync", "Pending push to Odoo"),
+        ("synced", "In sync with Odoo"),
+        ("sync_failed", "Push failed"),
+    ]
+    odoo_sync_status = models.CharField(
+        max_length=20,
+        choices=ODOO_SYNC_STATUSES,
+        default="not_synced",
+        db_index=True,
+    )
+    odoo_sync_error = models.TextField(blank=True, default="")
     migration_source = models.CharField(
         max_length=32,
         choices=MigrationSource.choices,

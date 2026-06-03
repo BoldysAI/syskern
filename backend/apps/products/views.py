@@ -79,6 +79,37 @@ class ProductViewSet(viewsets.ModelViewSet):
         """Soft-delete (CDC §4.6) — keeps historical simulations valid."""
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
+        self._push_to_odoo_async(instance)
+
+    def perform_create(self, serializer) -> None:
+        instance = serializer.save()
+        self._push_to_odoo_async(instance)
+
+    def perform_update(self, serializer) -> None:
+        instance = serializer.save()
+        self._push_to_odoo_async(instance)
+
+    @staticmethod
+    def _push_to_odoo_async(product: Product) -> None:
+        """Dispatch a Celery task to push this product to Odoo (CDC §5.3, §5.4.3).
+
+        - Marks the row `pending_odoo_sync` immediately so the periodic
+          retry job catches it if the worker drops the message.
+        - Fire-and-forget: failures are tracked by the task itself (status
+          → `sync_failed` + error message) and retried automatically.
+        """
+        # Late imports keep `apps.products.views` cheap to load at startup.
+        from django.conf import settings
+
+        from apps.odoo_sync.tasks import push_product_task
+
+        Product.objects.filter(pk=product.pk).update(
+            odoo_sync_status="pending_odoo_sync",
+            odoo_sync_error="",
+        )
+
+        api_version = (settings.ODOO.get("API_VERSION") or "v19").lower()
+        push_product_task.delay(str(product.pk), api_version=api_version)
 
     # ── /api/products/{id}/price-history ─────────────────────────────────────
 
