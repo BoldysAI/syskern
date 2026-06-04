@@ -225,9 +225,6 @@ SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")
 SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
 
-# MVP1 shared-password gate (used by the auth proxy until Supabase is wired).
-APP_PASSWORD = env("APP_PASSWORD", default="")
-
 # ─── Celery ───────────────────────────────────────────────────────────────────
 
 CELERY_BROKER_URL = env("REDIS_URL", default="redis://localhost:6379/0")
