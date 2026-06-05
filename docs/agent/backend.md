@@ -2,6 +2,7 @@
 
 > Lis ce fichier avant toute tâche backend. Règles d'or transverses → `/AGENTS.md`.
 > Patterns détaillés : `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`.
+> Domaines : `pim.md` (catalogue produit + attributs).
 
 ## Organisation
 - Projet Django dans `backend/config/` : `settings/{base,local,production}.py`, `urls.py`, `celery.py`, `wsgi/asgi.py`.

@@ -129,6 +129,68 @@ export interface ProductDetail extends Omit<Product, "active_supplier"> {
   suppliers: ProductSupplier[];
 }
 
+// ─── Dynamic attributes (EAV registry + per-product values, CDC §4.5) ───────
+
+export type AttributeCategory =
+  | "structural"
+  | "technical"
+  | "marketing"
+  | "commercial"
+  | "logistic";
+
+export type AttributeDataType =
+  | "text"
+  | "number"
+  | "boolean"
+  | "date"
+  | "select"
+  | "multiselect";
+
+/** One choice for a select / multiselect attribute. */
+export interface AttributeOption {
+  value: string;
+  label: Record<string, string>;
+}
+
+/** An attribute definition from the registry. */
+export interface AttributeRegistry {
+  id: string;
+  code: string;
+  label: Record<string, string>;
+  category: AttributeCategory;
+  data_type: AttributeDataType;
+  options: AttributeOption[] | null;
+  unit: string;
+  is_required: boolean;
+  is_searchable: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * A value set on a product for a given attribute.
+ * `value` is the raw JSON payload whose shape depends on the attribute's
+ * data_type (string | number | boolean | "YYYY-MM-DD" | string[]).
+ */
+export interface ProductAttributeValue {
+  id: string;
+  product: string;
+  attribute: string;
+  attribute_code: string;
+  value: unknown;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Generic DRF LimitOffset pagination envelope. */
+export interface PaginatedResponse<T> {
+  count: number;
+  next?: string;
+  previous?: string;
+  results: T[];
+}
+
 export interface PaginatedProducts {
   count: number;
   next?: string;
@@ -343,6 +405,49 @@ export function translateProduct(
     `/api/products/${encodeURIComponent(sku)}/translate/`,
     { method: "POST", body: JSON.stringify({ target_lang: targetLang }) },
     { timeoutMs: 60_000 }
+  );
+}
+
+/** Partially update a product's core fields (CDC §4.3 — édition en place). */
+export function updateProduct(
+  idOrSku: string,
+  patch: Partial<ProductDetail>
+): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>(`/api/products/${encodeURIComponent(idOrSku)}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+/** Attribute values currently set on a product (plain array, not paginated). */
+export function getProductAttributes(
+  idOrSku: string
+): Promise<ProductAttributeValue[]> {
+  return apiFetch<ProductAttributeValue[]>(
+    `/api/products/${encodeURIComponent(idOrSku)}/attributes/`
+  );
+}
+
+/** Attribute registry definitions, optionally filtered by category. */
+export function getAttributeRegistry(
+  category?: AttributeCategory
+): Promise<AttributeRegistry[]> {
+  const q = new URLSearchParams({ limit: "500" });
+  if (category) q.set("category", category);
+  return apiFetch<PaginatedResponse<AttributeRegistry>>(
+    `/api/attributes/?${q.toString()}`
+  ).then((r) => r.results);
+}
+
+/** Upsert one attribute value on a product (PUT, body `{value}`). */
+export function setProductAttribute(
+  productId: string,
+  attributeId: string,
+  value: unknown
+): Promise<ProductAttributeValue> {
+  return apiFetch<ProductAttributeValue>(
+    `/api/products/${encodeURIComponent(productId)}/attributes/${encodeURIComponent(attributeId)}/`,
+    { method: "PUT", body: JSON.stringify({ value }) }
   );
 }
 

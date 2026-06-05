@@ -132,7 +132,7 @@ Ton training est périmé sur Django 5 / DRF / Next.js. **Avant d'écrire du cod
 ## 8. Workflow & commandes
 
 ```bash
-docker compose up                                                   # stack locale
+docker compose up                                                   # stack locale (ou dev natif → docs/agent/local-dev.md)
 docker compose run --rm backend python manage.py makemigrations     # migrations
 docker compose run --rm backend python manage.py migrate
 ruff check . && ruff format --check .                               # qualité backend (dans backend/)
@@ -185,8 +185,9 @@ Les playbooks de `docs/agent/` sont **vivants**. Tu les tiens à jour toi-même,
 
 - **Garde ce fichier court** (~200 lignes). Le détail mécanique vit dans `docs/agent/*.md`, jamais ici.
 - **Routing — avant toute tâche non triviale, lis le playbook pertinent puis propose un plan court** :
-  travail backend → `docs/agent/backend.md` · frontend → `docs/agent/frontend.md` · sinon le playbook qui matche la tâche (`drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md` pour Gamma/OpenAI/DeepL).
-- **Dès que tu établis une nouvelle convention, un pattern récurrent ou un choix technique non trivial** : écris-le directement dans le `docs/agent/*.md` concerné, dans la foulée du code. Référence — ne duplique pas.
+  travail backend → `docs/agent/backend.md` · frontend → `docs/agent/frontend.md` · dev local sans Docker → `docs/agent/local-dev.md` · sinon le playbook qui matche la tâche (`pim.md` pour catalogue/produit/attributs, `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md` pour Gamma/OpenAI/DeepL).
+- **Nouvelle brique ou feature d'un domaine non encore couvert → crée un nouveau playbook** `docs/agent/<domaine>.md` (terse, à sections stables, sur le modèle des existants), branche-le dans ce routing, puis tiens-le à jour. Ne laisse pas un domaine entier (ex. PIM, offres) sans playbook.
+- **Dès que tu établis une nouvelle convention, un pattern récurrent ou un choix technique non trivial** : écris-le directement dans le `docs/agent/*.md` concerné, dans la foulée du code (crée-le s'il manque). Référence — ne duplique pas.
 - **Décisions d'architecture → `docs/agent/decisions.md`**, en **append-only** et daté. N'écrase jamais une entrée passée.
 - **Fichiers de pattern** : terses, à sections stables. Édite la section concernée, pas le fichier entier.
 - **Le code fait foi** : si une doc `docs/agent/` contredit le code réel, corrige la doc.

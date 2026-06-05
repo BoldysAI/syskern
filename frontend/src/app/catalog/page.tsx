@@ -16,7 +16,6 @@ import {
   getProducts,
   getUniverses,
   exportProducts,
-  type Product,
   type PaginatedProducts,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
