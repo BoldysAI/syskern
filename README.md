@@ -69,11 +69,34 @@ et serializers sont ajoutés au fur et à mesure des briques.
 
 ### Prérequis
 
-- Docker Desktop ≥ 24
-- `docker compose` v2 (intégré)
-- Make optionnel pour les raccourcis
+- **Docker** (optionnel) : Docker Desktop ≥ 24 + `docker compose` v2
+- **Sans Docker** : Postgres 16 + Redis 7 + Python 3.12 (`uv`) + Node 20 — voir [docs/agent/local-dev.md](docs/agent/local-dev.md)
 
-### Bootstrap
+### Développement sans Docker (2 terminaux)
+
+Si Docker Desktop bug, Postgres et Redis tournent en local (ex. Homebrew) :
+
+```bash
+# Une fois
+./scripts/dev-setup.sh
+cd backend && uv run python manage.py create_platform_user \
+  --email toi@example.com --password secret --role admin
+
+# Terminal 1
+./scripts/dev-backend.sh
+
+# Terminal 2
+./scripts/dev-frontend.sh
+
+# Terminal 3 (optionnel — PAMP Odoo, DeepL, exports)
+./scripts/dev-celery.sh
+```
+
+→ Frontend http://localhost:3000 · API http://127.0.0.1:8000/api/health
+
+Utiliser `backend/.env.native.example` comme modèle (hosts `127.0.0.1`, pas `postgres`/`redis`).
+
+### Bootstrap (Docker)
 
 ```bash
 # 1. cloner et entrer dans le repo

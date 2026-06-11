@@ -2,6 +2,7 @@
 
 > Lis ce fichier avant toute tâche backend. Règles d'or transverses → `/AGENTS.md`.
 > Patterns détaillés : `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`.
+> Domaines : `pim.md` (catalogue produit + attributs).
 
 ## Organisation
 - Projet Django dans `backend/config/` : `settings/{base,local,production}.py`, `urls.py`, `celery.py`, `wsgi/asgi.py`.
@@ -23,6 +24,15 @@ apps/<app>/
 └── tests/           # pytest
 ```
 La logique métier non triviale va dans `services/`, **pas** dans les vues/serializers.
+
+## Données de référence (seed)
+
+Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
+- Constantes + helpers idempotents dans `apps/<app>/seeds.py` (`get_or_create` sur `code`).
+- Chargement au déploiement via **data migration** `RunPython` qui importe le helper
+  (réutilisable dans les tests). Reverse = suppression ciblée par `code`.
+- Exemples : `apps/market/seeds.py`, `apps/attributes/seeds.py`.
+- Ne pas seed les données saisies manuellement (`market_parameters` cuivre/FX).
 
 ## Modèles
 - Hériter de `apps.core.models.BaseModel` → **UUID PK** + `created_at`/`updated_at`.
@@ -71,3 +81,6 @@ docker compose run --rm backend pytest
 - Après modif de modèle : `makemigrations` + **commit** les migrations.
 - psycopg **3** (`ENGINE = django.db.backends.postgresql`).
 - Lookup détail produit : accepte UUID **ou** `sku_code`.
+- **`create_platform_user`** = auth plateforme (`Profile.role`) ; **pas** l'accès Django admin
+  (`is_staff`/`is_superuser`) → `createsuperuser` ou flags manuels (cf. `local-dev.md`, `decisions.md`).
+- **Python 3.12** en dev/prod — pas 3.14 (admin Django cassé). Pin : `backend/.python-version`.

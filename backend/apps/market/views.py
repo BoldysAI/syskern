@@ -4,9 +4,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.products.models import Incoterm
-
-from .models import MarketParameter, TransportMode
+from .models import Incoterm, MarketParameter, TransportMode
 from .serializers import MarketParameterSerializer, TransportModeSerializer
 
 
@@ -31,11 +29,15 @@ class MarketParameterViewSet(viewsets.ModelViewSet):
 
 @api_view(["GET"])
 def list_incoterms(_request):
-    """Read-only listing of supported incoterms (CDC §12.2)."""
+    """Read-only listing of supported incoterms (CDC §12.2).
+
+    Reads the seeded `incoterms` reference table (CDC §3.3).
+    """
     return Response(
         {
             "incoterms": [
-                {"code": code, "label": label} for code, label in Incoterm.choices
+                {"code": it.code, "label": it.label}
+                for it in Incoterm.objects.filter(is_active=True)
             ]
         }
     )

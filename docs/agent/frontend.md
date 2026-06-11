@@ -133,6 +133,41 @@ Ne jamais comparer `role === "admin"` inline — utiliser `canEdit(role)` / `isA
 
 ---
 
+## Édition en place & autosave
+
+Pattern pour l'édition en place (fiche produit, CDC §4.3). Référence :
+`hooks/useAutosave.ts`, `app/catalog/[sku]/page.tsx`.
+
+```typescript
+import { useAutosave } from "@/hooks/useAutosave";
+
+// `draft` doit être référentiellement stable tant qu'il ne change pas (useMemo).
+const draft = useMemo(() => ({ core: coreDraft, attrs: attrDraft }), [coreDraft, attrDraft]);
+const { status, error } = useAutosave(draft, persist, { delay: 2000, enabled: !!data });
+// status: "idle" | "saving" | "saved" | "error" → indicateur visuel
+```
+
+**Règles :**
+- Debounce **2s** ; un burst d'édits = **un seul** appel (`onSave` reçoit la dernière valeur).
+- **Update optimiste** : refléter le draft immédiatement, puis `mutate(key, next, { revalidate: false })`.
+- **Rollback** sur erreur backend : purger le draft + `mutate(key)` (refetch), afficher un message FR.
+- **Pas d'appel si la validation client échoue** (typage par champ avant submit).
+- Ne jamais `setState` directement dans un effet, ni lire/écrire un `ref.current` pendant le render
+  (règles `react-hooks/refs` + `set-state-in-effect`) — sinon `next build` casse.
+
+---
+
+## Variables d'environnement
+
+- Côté **serveur** (BFF/rewrites) : `BACKEND_URL`. Côté **client** : préfixe `NEXT_PUBLIC_*`.
+- ⚠️ `NEXT_PUBLIC_*` est **inliné au build** → changer la valeur impose un rebuild
+  (un restart ne suffit pas). Ex. `NEXT_PUBLIC_ODOO_BASE_URL` (lien « Voir dans Odoo »).
+- Toujours gérer le cas « variable vide » (feature désactivée proprement, pas de crash).
+- Documenter toute nouvelle variable dans `frontend/.env.example` + service frontend de
+  `docker-compose.yml`.
+
+---
+
 ## Styles
 
 ```typescript
@@ -178,3 +213,6 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] `cn()` pour toutes les classes conditionnelles
 - [ ] `canEdit(role)` / `isAdmin(role)` pour les guards de permission
 - [ ] `"use client"` si hooks/events, sinon Server Component si possible
+- [ ] Édition en place : `useAutosave` (debounce 2s), update optimiste + rollback, validation avant submit
+- [ ] Nouvelle var d'env documentée (`.env.example` + `docker-compose.yml`) ; `NEXT_PUBLIC_*` = rebuild
+- [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`

@@ -2,12 +2,16 @@
 
 Covers:
 - transport modes (CDC §3.2 → `transport_modes`)
+- incoterms reference table (CDC §3.3 → `incoterms`)
 - market parameters: copper spot prices, FX rates (`market_parameters`)
 
-The list of Incoterms lives in `apps.products.models.Incoterm` as a
-TextChoices enum — there is no need for a separate database table since the
-codes are fixed by ICC 2020.
+The `Incoterm` model below is the reference table seeded with the 11 ICC 2020
+codes (CDC §3.3).  It coexists with the `apps.products.models.Incoterm`
+TextChoices enum, which remains the validation source for the `incoterm`
+CharField on `ProductSupplier`, `OfferLine` and `Client` (no FK conversion in
+MVP1 — cf. `docs/agent/decisions.md`).
 """
+
 from __future__ import annotations
 
 from django.db import models
@@ -37,6 +41,27 @@ class TransportMode(BaseModel):
         return self.code
 
 
+class Incoterm(BaseModel):
+    """Reference table of supported Incoterms 2020 (CDC §3.3 → `incoterms`).
+
+    Seeded with the 11 ICC codes by a data migration.  The matching
+    `apps.products.models.Incoterm` TextChoices enum stays the validation
+    source for the stored `incoterm` CharFields (no FK in MVP1).
+    """
+
+    code = models.CharField(max_length=4, unique=True)
+    label = models.JSONField(help_text='Multilingual {"fr": ..., "en": ..., "es": ...}')
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "incoterms"
+        ordering = ["display_order", "code"]
+
+    def __str__(self) -> str:
+        return self.code
+
+
 class MarketParameterType(models.TextChoices):
     COPPER_PRICE = "copper_price", "Copper spot price"
     FX_RATE = "fx_rate", "FX rate"
@@ -60,9 +85,7 @@ class MarketParameter(BaseModel):
     copper_market = models.CharField(
         max_length=4, choices=CopperMarket.choices, blank=True, default=""
     )
-    copper_price = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
-    )
+    copper_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     copper_currency = models.CharField(
         max_length=3, choices=Currency.choices, blank=True, default=""
     )
@@ -95,4 +118,6 @@ class MarketParameter(BaseModel):
     def __str__(self) -> str:
         if self.parameter_type == MarketParameterType.COPPER_PRICE:
             return f"Cu {self.copper_market} {self.copper_price} {self.copper_currency}/{self.copper_unit} @ {self.valid_from}"
-        return f"FX {self.fx_from_currency}→{self.fx_to_currency} {self.fx_rate} @ {self.valid_from}"
+        return (
+            f"FX {self.fx_from_currency}→{self.fx_to_currency} {self.fx_rate} @ {self.valid_from}"
+        )

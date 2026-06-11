@@ -118,6 +118,10 @@ services:
     environment:
       BACKEND_URL: http://syskern-backend:8000
       WATCHPACK_POLLING: "true"
+      # Base URL de l'instance Odoo pour les liens "Voir dans Odoo" (CDC §4.3).
+      # NEXT_PUBLIC_* est inliné au build Next.js → un changement de valeur
+      # nécessite un rebuild de l'image frontend (pas seulement un restart).
+      NEXT_PUBLIC_ODOO_BASE_URL: ${NEXT_PUBLIC_ODOO_BASE_URL:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
