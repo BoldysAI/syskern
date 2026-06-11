@@ -10,7 +10,7 @@
 
 | Outil | Version | Installation macOS (Homebrew) |
 |---|---|---|
-| Python | 3.12+ | `brew install python@3.12` |
+| Python | **3.12** (pas 3.14) | `brew install python@3.12` · pin via `backend/.python-version` |
 | [uv](https://docs.astral.sh/uv/) | récent | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Node.js | 20+ | `brew install node@20` |
 | PostgreSQL | 16 | `brew install postgresql@16` |
@@ -59,8 +59,8 @@ cp backend/.env.native.example backend/.env
 cp frontend/.env.example frontend/.env.local
 # BACKEND_URL=http://127.0.0.1:8000  (déjà la valeur par défaut)
 
-# Dépendances
-cd backend && uv sync --extra dev && cd ..
+# Dépendances (Python 3.12 obligatoire — 3.14 casse l'admin Django, cf. decisions.md)
+cd backend && uv python install 3.12 && uv sync --python 3.12 --extra dev && cd ..
 cd frontend && npm ci && cd ..
 
 # Schéma + utilisateur plateforme
@@ -70,6 +70,8 @@ uv run python manage.py create_platform_user \
   --email toi@example.com \
   --password ton-mot-de-passe \
   --role admin
+# Accès Django admin (/admin/) : createsuperuser OU is_staff+is_superuser (cf. decisions.md)
+uv run python manage.py createsuperuser
 cd ..
 ```
 
@@ -114,6 +116,8 @@ les boutons async renverront une erreur ou resteront en attente.
 | http://127.0.0.1:8000/api/docs/ | Swagger |
 | http://localhost:3000/login | Page de connexion |
 | http://localhost:3000/catalog | Liste produits (après login) |
+| http://localhost:3000/settings (onglet Modes de transport) | 7 modes seedés (cf. `pim.md`) |
+| http://127.0.0.1:8000/admin/ | Django admin (compte `createsuperuser`, pas seulement `create_platform_user`) |
 
 ---
 
@@ -126,6 +130,19 @@ les boutons async renverront une erreur ou resteront en attente.
 **`redis connection error`** — `brew services start redis`. Pour tester sans Redis, seules les routes synchrones marchent.
 
 **Frontend 401 / redirect login** — Créer un user avec `create_platform_user` (rôle `admin` ou `commercial`).
+
+**Connexion refusée sur `/admin/`** — `create_platform_user` ne suffit pas (`is_staff`/`is_superuser` absents). Utiliser `createsuperuser` ou :
+
+```bash
+uv run python manage.py shell -c "
+from django.contrib.auth import get_user_model
+u = get_user_model().objects.get(email='toi@example.com')
+u.is_staff = u.is_superuser = True
+u.save()
+"
+```
+
+**Admin Django : page jaune `AttributeError … 'super' object has no attribute 'dicts'`** — mauvaise version Python. Vérifier `uv run python --version` → doit être **3.12.x**. Corriger : `rm -rf .venv && uv sync --python 3.12 --extra dev`.
 
 **`NEXT_PUBLIC_ODOO_BASE_URL`** — Ajouter dans `frontend/.env.local`, redémarrer `npm run dev` (en mode dev, pas besoin de rebuild).
 

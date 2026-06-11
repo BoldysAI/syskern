@@ -22,6 +22,30 @@ pour ajouter une ressource DRF générique, suis `drf-resource.md`.
 - **`attributes.AttributeRegistry`** — définitions d'attributs dynamiques (EAV).
 - **`attributes.ProductAttributeValue`** — valeurs par produit, `UNIQUE(product, attribute)`.
 
+### Données de référence seedées (CDC §3.3)
+
+Chargées au `migrate` via **data migrations idempotentes** (`get_or_create` sur `code`).
+Logique réutilisable dans `apps/market/seeds.py` et `apps/attributes/seeds.py`.
+
+| Donnée | Table / registre | Quantité | Migration |
+|---|---|---|---|
+| Incoterms ICC 2020 | `market.Incoterm` (`incoterms`) | 11 | `market/0003_seed_reference_data` |
+| Modes de transport | `market.TransportMode` | 7 | `market/0003_seed_reference_data` |
+| Attributs minimaux | `attributes.AttributeRegistry` | 5 | `attributes/0003_seed_minimal_attributes` |
+
+Codes attributs seedés : `hs_code`, `gtin`, `dop_number`, `unit_weight_kg`, `pallet_qty`.
+`market_parameters` (cuivre/FX) **non seedés** — saisie manuelle.
+
+**Incoterms — double représentation (cf. `decisions.md`)** :
+- Table `incoterms` = référentiel (`GET /api/market/incoterms`, admin Django).
+- Enum `apps.products.models.Incoterm` = validation des CharField `incoterm` sur
+  `ProductSupplier`, `OfferLine`, `Client` (pas de FK en MVP1).
+
+**Vérifier après `migrate`** :
+- Frontend : **Paramètres → Modes de transport** (7 lignes).
+- API : `/api/market/incoterms`, `/api/transport-modes/`.
+- Tests : `pytest apps/market/tests/test_seed.py`.
+
 ### Pattern EAV (attributs dynamiques, CDC §4.5)
 
 Les clients ajoutent des attributs **sans migration de schéma**. Le registre porte le
@@ -117,6 +141,8 @@ autosave dans `frontend.md`.
 ## Décisions liées (cf. `decisions.md`)
 
 - Couche modèle PIM déjà livrée (gap-only sur les tickets « migrations initiales »).
+- Incoterms : table `incoterms` + enum `Incoterm` coexistent (pas de FK en MVP1).
+- Seed référence : data migrations Django idempotentes (`seeds.py`).
 - Chevauchement assumé colonnes first-class ↔ attributs registre (`hs_code`, `gtin`,
   `dop_number`, `unit_weight_kg`, `pallet_qty`) — pas de synchro auto.
 - Fiche produit : `NEXT_PUBLIC_ODOO_BASE_URL`, édition gardée par `canEdit`, placeholders

@@ -82,7 +82,7 @@ syskern/
 │       ├── products/          # PIM : Product, ProductSupplier
 │       ├── attributes/        # registre EAV + valeurs JSONB
 │       ├── clients/           # Client (Odoo + prospects locaux)
-│       ├── market/            # MarketParameter (cuivre/FX), TransportMode
+│       ├── market/            # Incoterm, TransportMode, MarketParameter (cuivre/FX) ; seeds dans seeds.py
 │       ├── simulations/       # moteur pricing : Simulation/Line/Recalculation + services/engine
 │       ├── offers/            # Offer/OfferLine + génération Gamma
 │       ├── documents/         # PJ pour offres projet
@@ -154,6 +154,7 @@ Santé : `/api/health` → `{"status":"ok"}` · `/api/docs/` (Swagger) · `/admi
   - [ ] `npm run lint` propre, `npx tsc --noEmit` sans erreur de types
   - [ ] `npm run build` (`next build`) passe
   - [ ] checklist `docs/agent/frontend.md` respectée
+- **Docs (systématique — cf. §11)** : toute PR / tâche qui touche code, modèle, API, convention ou dev local inclut la mise à jour des playbooks concernés **dans le même diff** (pas « plus tard »). Checklist §11.
 
 > Pas de CI dans le repo : ces vérifications sont **locales et manuelles**. Ne suppose pas qu'un pipeline les rattrapera.
 
@@ -181,13 +182,34 @@ Santé : `/api/health` → `{"status":"ok"}` · `/api/docs/` (Swagger) · `/admi
 
 ## 11. Auto-maintenance des règles (living docs)
 
-Les playbooks de `docs/agent/` sont **vivants**. Tu les tiens à jour toi-même, automatiquement — sans validation préalable.
+Les playbooks de `docs/agent/` sont **vivants**. **Chaque changement de code qui introduit, modifie ou clarifie un comportement doit se solder par une mise à jour doc dans le même lot de travail** — pas en tâche séparée, pas « on verra plus tard ».
+
+### Obligation systématique (agents et devs)
+
+Avant de considérer une tâche **terminée**, parcours cette checklist et mets à jour ce qui s'applique :
+
+| Déclencheur | Où documenter |
+|---|---|
+| Écart au CDC, choix d'archi, coexistence de deux modèles (enum + table, etc.) | `docs/agent/decisions.md` — entrée `[P]` ou `[T]` datée, append-only |
+| Nouveau modèle, endpoint, contrainte DB, pattern backend récurrent | playbook domaine (`pim.md`, `pricing-chain.md`, …) **et** si transverse → `backend.md` |
+| Nouvelle convention frontend (composant, autosave, env) | `frontend.md` (+ playbook domaine si spécifique) |
+| Setup local, piège dev (versions Python, auth admin, ports) | `local-dev.md` |
+| Nouveau domaine sans playbook | **créer** `docs/agent/<domaine>.md`, l'ajouter au routing ci-dessous |
+| Carte du dépôt / routing obsolète | ce fichier (`AGENTS.md` §4 ou §11) — **garder court** |
+
+**Une PR sans mise à jour doc quand la checklist s'applique = incomplète**, même si les tests passent.
+
+### Routing (lecture avant tâche non triviale)
+
+- backend → `docs/agent/backend.md`
+- frontend → `docs/agent/frontend.md`
+- dev local sans Docker → `docs/agent/local-dev.md`
+- PIM (catalogue, attributs, seeds référence) → `pim.md`
+- sinon → `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`
+
+### Règles de forme
 
 - **Garde ce fichier court** (~200 lignes). Le détail mécanique vit dans `docs/agent/*.md`, jamais ici.
-- **Routing — avant toute tâche non triviale, lis le playbook pertinent puis propose un plan court** :
-  travail backend → `docs/agent/backend.md` · frontend → `docs/agent/frontend.md` · dev local sans Docker → `docs/agent/local-dev.md` · sinon le playbook qui matche la tâche (`pim.md` pour catalogue/produit/attributs, `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md` pour Gamma/OpenAI/DeepL).
-- **Nouvelle brique ou feature d'un domaine non encore couvert → crée un nouveau playbook** `docs/agent/<domaine>.md` (terse, à sections stables, sur le modèle des existants), branche-le dans ce routing, puis tiens-le à jour. Ne laisse pas un domaine entier (ex. PIM, offres) sans playbook.
-- **Dès que tu établis une nouvelle convention, un pattern récurrent ou un choix technique non trivial** : écris-le directement dans le `docs/agent/*.md` concerné, dans la foulée du code (crée-le s'il manque). Référence — ne duplique pas.
-- **Décisions d'architecture → `docs/agent/decisions.md`**, en **append-only** et daté. N'écrase jamais une entrée passée.
-- **Fichiers de pattern** : terses, à sections stables. Édite la section concernée, pas le fichier entier.
-- **Le code fait foi** : si une doc `docs/agent/` contredit le code réel, corrige la doc.
+- **Nouvelle brique ou feature d'un domaine non encore couvert → crée un playbook** `docs/agent/<domaine>.md` (terse, sections stables), branche-le dans le routing ci-dessus.
+- **Décisions d'architecture → `decisions.md`**, append-only et daté. N'écrase jamais une entrée passée.
+- **Le code fait foi** : si une doc contredit le code réel, corrige la doc (pas l'inverse sans décision dans `decisions.md`).
