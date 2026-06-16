@@ -95,6 +95,15 @@ class OdooPurchaseLine:
 - Tous les champs optionnels ont une valeur par défaut (chaîne vide ou `None`).
 - Ajouter un DTO → `@dataclass` dans `schemas.py`, Decimal pour les montants.
 
+### Écarts v16 ↔ v19 (push produit)
+
+| Champ | v16 (`OdooAdapterV16`) | v19 (`OdooAdapterV19`) |
+|---|---|---|
+| Type stockable | `type: "product"` | `type: "consu"` + `is_storable: True` |
+| GTIN | `barcode` | `gtin_code` (+ `barcode` en secours) |
+
+En v19, `type: "product"` lève `Wrong value for product.template.type` — ne pas réutiliser le payload v16 tel quel.
+
 ---
 
 ## Ajouter une méthode à tous les adapters existants

@@ -157,6 +157,17 @@ const { status, error } = useAutosave(draft, persist, { delay: 2000, enabled: !!
 
 ---
 
+## Brouillon de formulaire long (localStorage)
+
+Pour les formulaires multi-étapes (ex. wizard de création produit `/catalog/new`) :
+
+- Restaurer le brouillon via un **initializer paresseux** `useState(loadDraft)` (lit
+  `localStorage` une seule fois, retourne un défaut si SSR / vide). **Ne pas** restaurer via
+  `useEffect + setState` (règle `set-state-in-effect`).
+- Persister via un **effet qui écrit seulement** `localStorage.setItem` (aucun `setState`).
+- Purger (`removeItem`) après succès. Clé versionnée (ex. `syskern:new-product-draft:v1`).
+- Toujours `try/catch` les accès `localStorage` (mode privé / quota).
+
 ## Variables d'environnement
 
 - Côté **serveur** (BFF/rewrites) : `BACKEND_URL`. Côté **client** : préfixe `NEXT_PUBLIC_*`.

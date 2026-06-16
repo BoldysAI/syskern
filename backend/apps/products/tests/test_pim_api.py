@@ -397,6 +397,87 @@ class TestNestedSupplierEndpoints:
         resp = client.post(url)
         assert resp.status_code == 404
 
+    def test_activate_keeps_single_active_among_many(self, client, product):
+        """Switching the active source must leave exactly one active (mutex)."""
+        s1 = ProductSupplier.objects.create(
+            product=product, supplier_name="F1", is_active=True
+        )
+        s2 = ProductSupplier.objects.create(product=product, supplier_name="F2")
+        s3 = ProductSupplier.objects.create(product=product, supplier_name="F3")
+
+        resp = client.post(f"/api/products/{product.pk}/suppliers/{s3.pk}/activate/")
+        assert resp.status_code == 200
+        active = ProductSupplier.objects.filter(product=product, is_active=True)
+        assert active.count() == 1
+        assert active.first().pk == s3.pk
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        assert s1.is_active is False
+        assert s2.is_active is False
+
+
+# ─── 1.F — parse-sku utility endpoint (CDC §4.1.3) ───────────────────────────
+
+
+class TestParseSkuEndpoint:
+    def test_parse_sku_with_numeric_suffix(self, client):
+        resp = client.post(
+            "/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5-21"}, format="json"
+        )
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] == "21"
+
+    def test_parse_sku_with_e_suffix(self, client):
+        resp = client.post(
+            "/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5-E02"}, format="json"
+        )
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] == "E02"
+
+    def test_parse_sku_without_suffix(self, client):
+        resp = client.post(
+            "/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5"}, format="json"
+        )
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] is None
+
+    def test_parse_sku_missing_sku_returns_400(self, client):
+        resp = client.post("/api/products/parse-sku/", {}, format="json")
+        assert resp.status_code == 400
+
+    def test_parse_sku_blank_sku_returns_400(self, client):
+        resp = client.post("/api/products/parse-sku/", {"sku": "   "}, format="json")
+        assert resp.status_code == 400
+
+
+# ─── 1.G — supplier name lookups (wizard / SupplierManager) ─────────────────
+
+
+class TestSupplierNameLookups:
+    def test_list_distinct_supplier_names(self, client, supplier):
+        resp = client.get("/api/supplier-names")
+        assert resp.status_code == 200
+        assert supplier.supplier_name in resp.data["values"]
+
+    def test_supplier_template_returns_latest_defaults(self, client, product, supplier):
+        resp = client.get(
+            f"/api/supplier-names/template?name={supplier.supplier_name}"
+        )
+        assert resp.status_code == 200
+        assert resp.data["supplier_name"] == supplier.supplier_name
+        assert resp.data["factory_code"] == supplier.factory_code
+
+    def test_supplier_template_missing_name_returns_404(self, client):
+        resp = client.get("/api/supplier-names/template?name=Inconnu")
+        assert resp.status_code == 404
+
+    def test_supplier_template_blank_name_returns_400(self, client):
+        resp = client.get("/api/supplier-names/template")
+        assert resp.status_code == 400
+
 
 # ─── 1.E — Excel export ───────────────────────────────────────────────────────
 

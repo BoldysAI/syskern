@@ -147,6 +147,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
   const segments = pathname.split("/").filter(Boolean);
   const labels: Record<string, string> = {
     catalog: "Catalogue",
+    new: "Nouveau produit",
     simulator: "Simulations",
     offers: "Offres",
     settings: "Paramètres",

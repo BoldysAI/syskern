@@ -70,17 +70,36 @@ export interface ProductListParams {
   limit?: number;
 }
 
+/** Purchase currencies supported by the platform (core.models.Currency). */
+export type Currency = "EUR" | "USD" | "RMB";
+
 /** Supplier embedded in product list/detail */
 export interface ProductSupplier {
   id: string;
   supplier_name: string;
   factory_code?: string;
-  po_base_price?: string;
-  po_currency?: string;
+  po_base_price?: string | null;
+  po_currency?: Currency;
   is_copper_indexed?: boolean;
+  copper_base_price?: string | null;
   incoterm?: string;
   incoterm_location?: string;
+  notes?: string;
   is_active: boolean;
+}
+
+/** Writable shape for creating/updating a supplier (Decimal fields as string). */
+export interface ProductSupplierInput {
+  supplier_name: string;
+  factory_code?: string;
+  po_base_price?: string | null;
+  po_currency?: Currency;
+  is_copper_indexed?: boolean;
+  copper_base_price?: string | null;
+  incoterm?: string;
+  incoterm_location?: string;
+  notes?: string;
+  is_active?: boolean;
 }
 
 /** Compact shape returned by the list endpoint */
@@ -354,9 +373,35 @@ export async function exportProducts(params?: {
 
 /** Distinct universe values actually present in the catalog (CDC §4.4). */
 export function getUniverses(): Promise<string[]> {
+  return getHierarchyLevel("universe");
+}
+
+export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
+
+/** Distinct hierarchy values, optionally filtered by parent selections. */
+export function getHierarchyLevel(
+  level: HierarchyLevel,
+  parents?: { universe?: string; family?: string; range?: string }
+): Promise<string[]> {
+  const q = new URLSearchParams({ level });
+  if (parents?.universe) q.set("universe", parents.universe);
+  if (parents?.family) q.set("family", parents.family);
+  if (parents?.range) q.set("range", parents.range);
   return apiFetch<{ level: string; values: string[] }>(
-    "/api/hierarchy/distinct?level=universe"
+    `/api/hierarchy/distinct?${q.toString()}`
   ).then((r) => r.values);
+}
+
+/** Distinct supplier names already used in the catalog. */
+export function getSupplierNames(): Promise<string[]> {
+  return apiFetch<{ values: string[] }>("/api/supplier-names").then((r) => r.values);
+}
+
+/** Default commercial fields for a known supplier name (latest row). */
+export function getSupplierTemplate(name: string): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/supplier-names/template?name=${encodeURIComponent(name)}`
+  );
 }
 
 export function getProduct(sku: string): Promise<ProductDetail> {
@@ -448,6 +493,71 @@ export function setProductAttribute(
   return apiFetch<ProductAttributeValue>(
     `/api/products/${encodeURIComponent(productId)}/attributes/${encodeURIComponent(attributeId)}/`,
     { method: "PUT", body: JSON.stringify({ value }) }
+  );
+}
+
+/** Create a product (CDC §4.1.3). Odoo push is dispatched async server-side. */
+export function createProduct(data: Partial<ProductDetail>): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>("/api/products/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/** Derive parent_reference + factory_code from a raw SKU (wizard pre-fill). */
+export function parseSku(
+  sku: string
+): Promise<{ sku: string; parent_reference: string | null; factory_code: string | null }> {
+  return apiFetch("/api/products/parse-sku/", {
+    method: "POST",
+    body: JSON.stringify({ sku }),
+  });
+}
+
+// ─── Product suppliers (nested under a product, CDC §4.1.3 / §4.3) ───────────
+
+export function getProductSuppliers(productId: string): Promise<ProductSupplier[]> {
+  return apiFetch<ProductSupplier[]>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/`
+  );
+}
+
+export function createSupplier(
+  productId: string,
+  data: ProductSupplierInput
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/`,
+    { method: "POST", body: JSON.stringify(data) }
+  );
+}
+
+export function updateSupplier(
+  productId: string,
+  supplierId: string,
+  patch: Partial<ProductSupplierInput>
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
+    { method: "PATCH", body: JSON.stringify(patch) }
+  );
+}
+
+export function deleteSupplier(productId: string, supplierId: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
+    { method: "DELETE" }
+  );
+}
+
+/** Activate a supplier; the backend deactivates the others atomically. */
+export function activateSupplier(
+  productId: string,
+  supplierId: string
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/activate/`,
+    { method: "POST" }
   );
 }
 

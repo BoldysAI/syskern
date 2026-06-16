@@ -82,14 +82,20 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 
 | Méthode | Path | Note |
 |---|---|---|
-| `GET`/`POST` | `/api/products/` | liste (compact) / create |
+| `GET`/`POST` | `/api/products/` | liste (compact) / create. POST déclenche le push Odoo async (cf. `_push_to_odoo_async`) |
+| `POST` | `/api/products/parse-sku` | utilitaire wizard → `{sku, parent_reference, factory_code}` (service `sku_parser`) ; 400 si `sku` absent |
+| `GET` | `/api/hierarchy/distinct?level=…` | valeurs distinctes par niveau (cascade wizard : universe → family → range → sub_range) |
+| `GET` | `/api/supplier-names` | noms fournisseurs distincts déjà utilisés dans le catalogue |
+| `GET` | `/api/supplier-names/template?name=…` | pré-remplissage commercial depuis la dernière ligne `ProductSupplier` de ce nom ; 404 si inconnu |
 | `GET`/`PATCH`/`PUT`/`DELETE` | `/api/products/{id\|sku}/` | lookup **UUID ou `sku_code`** ; DELETE = soft-delete |
 | `GET` | `/api/products/{id}/attributes/` | valeurs EAV du produit (array, **non paginé**) |
 | `PUT`/`DELETE` | `/api/products/{id}/attributes/{attribute_id}/` | upsert (body `{"value": ...}`) / suppression |
 | `GET` | `/api/products/{id}/price-history/?period=3m\|6m\|12m` | PA/PR/PV des simulations finalisées |
 | `POST` | `/api/products/{id}/refresh-pamp/` | async (Odoo) → `202 + task_id` |
 | `POST` | `/api/products/{id}/translate/` | async (DeepL) `{target_lang: en\|es}` |
-| `GET`/`POST` | `/api/products/{id}/suppliers/` + `.../{pk}/activate/` | fournisseurs imbriqués |
+| `GET`/`POST` | `/api/products/{id}/suppliers/` | fournisseurs imbriqués (list / create) |
+| `PATCH`/`DELETE` | `/api/products/{id}/suppliers/{pk}/` | update / delete d'un fournisseur |
+| `POST` | `/api/products/{id}/suppliers/{pk}/activate/` | active ce fournisseur, désactive les autres **dans une transaction** (mutex `one_active_supplier_per_product`) |
 | CRUD | `/api/attributes/` (+ `POST /reorder/`) | registre des définitions (paginé) |
 | CRUD | `/api/attribute-values/?product={uuid}` | accès plat aux valeurs (legacy) |
 
@@ -133,8 +139,52 @@ Conçu pour réemploi (fiche produit **et** futur wizard de création). Exporte
 
 `getProduct`, `getProductAttributes`, `getAttributeRegistry(category?)`,
 `setProductAttribute(productId, attributeId, value)`, `updateProduct(idOrSku, patch)`,
+`createProduct(data)`, `parseSku(sku)`, `getProductSuppliers`, `createSupplier`,
+`updateSupplier`, `deleteSupplier`, `activateSupplier`,
 `getPriceHistory`, `refreshPamp`, `translateProduct`. Édition en place → voir le pattern
 autosave dans `frontend.md`.
+
+---
+
+## Parsing SKU (`apps/products/services/sku_parser.py`, CDC §4.1.3)
+
+Le suffixe de spécification d'un SKU est `-NN` ou `-ENN` (1-3 chiffres, préfixe `E`
+optionnel), regex `r"-(E?\d{1,3})$"`.
+
+- `extract_factory_code("KCFF6A4PZHDBL5-21") → "21"` / `"...-E02" → "E02"` / sinon `None`.
+- `extract_parent_reference("KCFF6A4PZHDBL5-21") → "KCFF6A4PZHDBL5"` (retrait du suffixe via
+  `re.sub` — **pas** le regex littéral du ticket qui était bugué, cf. `decisions.md`).
+- `parse_sku(sku)` combine les deux ; alimente l'auto-suggestion du wizard via
+  `POST /api/products/parse-sku`. L'utilisateur peut toujours surcharger les valeurs.
+
+## Wizard de création (`/catalog/new`, CDC §4.1.3)
+
+Page : [frontend/src/app/catalog/new/page.tsx](../../frontend/src/app/catalog/new/page.tsx)
+(route statique, prioritaire sur `/catalog/[sku]`). 5 étapes (Identification, Technique,
+Logistique, Fournisseur(s), Validation) + **toggle « Formulaire complet »**.
+
+- Validation par étape : SKU (`^[A-Z0-9-]+$`) + nom + `description_marketing.fr` requis ;
+  cohérence cuivre (miroir `ProductWriteSerializer`). Impossible d'avancer si erreurs.
+- **Brouillon `localStorage`** (`syskern:new-product-draft:v1`) restauré au montage,
+  purgé après création réussie.
+- SKU `onBlur` → `parseSku` → pré-remplit `parent_reference` / `factory_code` (non écrasés
+  si l'utilisateur les a édités).
+- Hiérarchie : dropdowns en cascade (univers → famille → gamme → sous-gamme) via
+  `GET /api/hierarchy/distinct`.
+- Attributs `technical` via `AttributeRenderer` (draft local, persistés **après** création).
+- Création : `createProduct` → `setProductAttribute` (par attribut) → `createSupplier`
+  (par fournisseur draft). Sync Odoo automatique côté serveur → création locale OK même si
+  Odoo est down. Gardé par `canEdit(role)`.
+
+## Gestion fournisseurs (`components/SupplierManager.tsx`)
+
+Composant **réutilisable** (CRUD + toggle « Source active » mutex UI + suppression confirmée).
+Wiring API + `mutate` SWR dans l'onglet Commercial (gardé par `canEdit`) ; wiring sur draft
+local (ids `crypto.randomUUID()`) dans l'étape 4 du wizard. Props :
+`{ suppliers, onCreate, onUpdate, onDelete, onActivate, readOnly?, maxSuppliers? }`.
+
+À l'ajout : bascule **« Fournisseur existant »** (liste `GET /api/supplier-names` + pré-remplissage
+via `GET /api/supplier-names/template`) vs **« Nouveau fournisseur »** (saisie libre du nom).
 
 ---
 

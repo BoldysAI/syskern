@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Package,
+  Plus,
   Loader2,
 } from "lucide-react";
 import {
@@ -19,6 +21,8 @@ import {
   type PaginatedProducts,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { canEdit } from "@/lib/auth";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
@@ -61,6 +65,8 @@ function SortIcon({ field, sortField, sortDir }: { field: string; sortField: str
 
 export default function CatalogPage() {
   const router = useRouter();
+  const { role } = useAuth();
+  const userCanEdit = canEdit(role);
   const [search, setSearch] = useState("");
   const [selectedUniverses, setSelectedUniverses] = useState<string[]>([]);
   const [page, setPage] = useState(1);
@@ -203,21 +209,33 @@ export default function CatalogPage() {
               </p>
             )}
           </div>
-          <button
-            onClick={handleExport}
-            disabled={isExporting || total === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Exporter en Excel"
-          >
-            {isExporting ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Download size={15} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={isExporting || total === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Exporter en Excel"
+            >
+              {isExporting ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Download size={15} />
+              )}
+              <span className="hidden sm:inline">
+                {isExporting ? "Export…" : "Exporter"}
+              </span>
+            </button>
+            {userCanEdit && (
+              <Link
+                href="/catalog/new"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors"
+                title="Créer un produit"
+              >
+                <Plus size={15} />
+                <span className="hidden sm:inline">Nouveau produit</span>
+              </Link>
             )}
-            <span className="hidden sm:inline">
-              {isExporting ? "Export…" : "Exporter"}
-            </span>
-          </button>
+          </div>
         </div>
 
         {/* Mobile search */}

@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid as _uuid_module
 from datetime import timedelta
 
+from django.db import transaction
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -15,6 +16,8 @@ from rest_framework.views import APIView
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.attributes.serializers import ProductAttributeValueSerializer
 from apps.simulations.models import SimulationLine, SimulationStatus
+
+from .services.sku_parser import parse_sku
 
 from .tasks import EXPORT_DIR, export_products_task, refresh_pamp_task, translate_product_task
 
@@ -110,6 +113,23 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         api_version = (settings.ODOO.get("API_VERSION") or "v19").lower()
         push_product_task.delay(str(product.pk), api_version=api_version)
+
+    # ── /api/products/parse-sku (CDC §4.1.3) ─────────────────────────────────
+
+    @action(detail=False, methods=["post"], url_path="parse-sku")
+    def parse_sku(self, request):
+        """Derive `parent_reference` and `factory_code` from a raw SKU.
+
+        Utility endpoint used by the creation wizard to pre-fill its fields
+        (the user can override). Body: `{"sku": "KCFF6A4PZHDBL5-21"}`.
+        """
+        raw = request.data.get("sku") if isinstance(request.data, dict) else None
+        if not raw or not str(raw).strip():
+            return Response(
+                {"detail": "Le champ « sku » est requis."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(parse_sku(str(raw)))
 
     # ── /api/products/{id}/price-history ─────────────────────────────────────
 
@@ -293,15 +313,20 @@ class ProductViewSet(viewsets.ModelViewSet):
         url_path=r"suppliers/(?P<supplier_pk>[^/.]+)/activate",
     )
     def activate_supplier(self, request, pk=None, supplier_pk=None):
-        """Activate this supplier and deactivate all others for the same product."""
+        """Activate this supplier and deactivate all others for the same product.
+
+        The two writes run in a single transaction so the partial unique index
+        `one_active_supplier_per_product` is never violated mid-update.
+        """
         product = self.get_object()
         supplier = self._get_supplier(product, supplier_pk)
 
-        ProductSupplier.objects.filter(product=product).exclude(pk=supplier.pk).update(
-            is_active=False
-        )
-        supplier.is_active = True
-        supplier.save(update_fields=["is_active", "updated_at"])
+        with transaction.atomic():
+            ProductSupplier.objects.filter(product=product).exclude(
+                pk=supplier.pk
+            ).update(is_active=False)
+            supplier.is_active = True
+            supplier.save(update_fields=["is_active", "updated_at"])
         return Response(ProductSupplierSerializer(supplier).data)
 
     @staticmethod
@@ -362,11 +387,12 @@ class ProductSupplierViewSet(viewsets.ModelViewSet):
     def activate(self, request, pk=None):
         """Activate this source and deactivate any other for the same product."""
         supplier = self.get_object()
-        ProductSupplier.objects.filter(product_id=supplier.product_id).exclude(
-            pk=supplier.pk
-        ).update(is_active=False)
-        supplier.is_active = True
-        supplier.save(update_fields=["is_active", "updated_at"])
+        with transaction.atomic():
+            ProductSupplier.objects.filter(product_id=supplier.product_id).exclude(
+                pk=supplier.pk
+            ).update(is_active=False)
+            supplier.is_active = True
+            supplier.save(update_fields=["is_active", "updated_at"])
         return Response(ProductSupplierSerializer(supplier).data)
 
 
@@ -420,3 +446,35 @@ class DistinctFactoryCodesView(APIView):
             .distinct()
         )
         return Response({"values": list(values)})
+
+
+class DistinctSupplierNamesView(APIView):
+    """GET /api/supplier-names — distinct supplier names across the catalog."""
+
+    def get(self, request):
+        values = (
+            ProductSupplier.objects.order_by("supplier_name")
+            .values_list("supplier_name", flat=True)
+            .distinct()
+        )
+        return Response({"values": list(values)})
+
+
+class SupplierNameTemplateView(APIView):
+    """GET /api/supplier-names/template?name=... — defaults from the latest row."""
+
+    def get(self, request):
+        name = (request.query_params.get("name") or "").strip()
+        if not name:
+            return Response(
+                {"detail": "Le paramètre « name » est requis."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        supplier = (
+            ProductSupplier.objects.filter(supplier_name=name)
+            .order_by("-updated_at")
+            .first()
+        )
+        if supplier is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(ProductSupplierSerializer(supplier).data)

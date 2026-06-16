@@ -202,7 +202,10 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
             "name": product.name or product.sku_code,
             "default_code": product.sku_code,
             "active": product.is_active,
-            "type": "product",
+            # Odoo 19 removed type='product' (v16 storable). Goods + tracked inventory
+            # replaces the legacy storable product type (cf. odoo/odoo 19.0 product.template).
+            "type": "consu",
+            "is_storable": True,
         }
         if product.gtin:
             payload["gtin_code"] = product.gtin
