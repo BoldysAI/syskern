@@ -33,6 +33,7 @@ The ``po_currency`` is EUR throughout.
 No copper indexation — racks do not contain copper cable.
 ``is_active`` is left at its DB value (same conservative policy as the cable loaders).
 """
+
 from __future__ import annotations
 
 import logging
@@ -68,13 +69,13 @@ class _SheetProfile:
     """Per-sheet column layout for the MIRSAN price list."""
 
     sheet_name: str
-    header_row: int      # 0-based
-    sku_col: int         # UKN product code column index
-    item_code_col: int   # UKN number code column index (−1 = absent)
-    desc_col: int        # Designation / Description column index (−1 = absent)
-    mirsan_col: int      # Mirsan product code column index (−1 = absent)
-    dim_col: int         # Dimensions column index (−1 = absent)
-    price_col: int       # Best price column index (SYSKERN DDP or TG fallback)
+    header_row: int  # 0-based
+    sku_col: int  # UKN product code column index
+    item_code_col: int  # UKN number code column index (−1 = absent)
+    desc_col: int  # Designation / Description column index (−1 = absent)
+    mirsan_col: int  # Mirsan product code column index (−1 = absent)
+    dim_col: int  # Dimensions column index (−1 = absent)
+    price_col: int  # Best price column index (SYSKERN DDP or TG fallback)
 
 
 # Profiles derived from manual inspection (see module docstring).
@@ -87,7 +88,7 @@ _SHEET_PROFILES: ClassVar[list[_SheetProfile]] = [
         desc_col=4,
         mirsan_col=0,
         dim_col=3,
-        price_col=16,   # SYSKERN DDP Prices (latest)
+        price_col=16,  # SYSKERN DDP Prices (latest)
     ),
     _SheetProfile(
         sheet_name="GRID CABINETS",
@@ -97,7 +98,7 @@ _SHEET_PROFILES: ClassVar[list[_SheetProfile]] = [
         desc_col=4,
         mirsan_col=0,
         dim_col=3,
-        price_col=13,   # SYSKERN DDP Prices
+        price_col=13,  # SYSKERN DDP Prices
     ),
     _SheetProfile(
         sheet_name="RACKS & OPEN RACKS",
@@ -107,7 +108,7 @@ _SHEET_PROFILES: ClassVar[list[_SheetProfile]] = [
         desc_col=0,
         mirsan_col=3,
         dim_col=-1,
-        price_col=13,   # SYSKERN DDP prices
+        price_col=13,  # SYSKERN DDP prices
     ),
     _SheetProfile(
         sheet_name="ACCESSORIES 19",
@@ -117,7 +118,7 @@ _SHEET_PROFILES: ClassVar[list[_SheetProfile]] = [
         desc_col=4,
         mirsan_col=0,
         dim_col=-1,
-        price_col=9,    # SYMEA DDP Prices (best available; no SYSKERN DDP col)
+        price_col=9,  # SYMEA DDP Prices (best available; no SYSKERN DDP col)
     ),
 ]
 
@@ -207,7 +208,9 @@ class MirsanLoader(BaseExcelLoader):
 
         wb = openpyxl.load_workbook(config.file_path, data_only=True, read_only=True)
         matcher = ProductMatcher()
-        report = LoaderReport(source_file=source_name, sheet_name="(all sheets)", dry_run=config.dry_run)
+        report = LoaderReport(
+            source_file=source_name, sheet_name="(all sheets)", dry_run=config.dry_run
+        )
 
         for profile in _SHEET_PROFILES:
             df = _read_sheet_as_df(wb, profile)

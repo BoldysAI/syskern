@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
+import * as Tabs from "@radix-ui/react-tabs";
 import {
   Activity,
   Plus,
@@ -40,7 +41,6 @@ import {
   type SyncStatus,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import SettingsNav from "./_components/SettingsNav";
 
 const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
@@ -76,13 +76,7 @@ function Modal({
 }
 
 // ── Tab : Marché (Market parameters) ─────────────────────────────────────
-function MarketParamModal({
-  param,
-  onClose,
-}: {
-  param?: MarketParameter;
-  onClose: () => void;
-}) {
+function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose: () => void }) {
   const [type, setType] = useState<MarketParameterType>(param?.parameter_type ?? "copper_price");
   const [validFrom, setValidFrom] = useState(param?.valid_from ?? todayIso());
   const [validTo, setValidTo] = useState(param?.valid_to ?? "");
@@ -132,8 +126,15 @@ function MarketParamModal({
   };
 
   return (
-    <Modal title={param ? "Modifier le paramètre marché" : "Nouveau paramètre marché"} onClose={onClose}>
-      {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+    <Modal
+      title={param ? "Modifier le paramètre marché" : "Nouveau paramètre marché"}
+      onClose={onClose}
+    >
+      {error && (
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div>
           <label className={labelCls}>Type</label>
@@ -146,8 +147,10 @@ function MarketParamModal({
                 disabled={!!param}
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
-                  type === t ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]" : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
-                  param && "opacity-60 cursor-not-allowed"
+                  type === t
+                    ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
+                    : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                  param && "opacity-60 cursor-not-allowed",
                 )}
               >
                 {t === "copper_price" ? "Prix cuivre" : "Taux de change"}
@@ -161,14 +164,22 @@ function MarketParamModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Marché</label>
-                <select value={copperMarket ?? ""} onChange={(e) => setCopperMarket(e.target.value as "LME" | "SHE")} className={inputCls}>
+                <select
+                  value={copperMarket ?? ""}
+                  onChange={(e) => setCopperMarket(e.target.value as "LME" | "SHE")}
+                  className={inputCls}
+                >
                   <option value="LME">LME (London)</option>
                   <option value="SHE">SHE (Shanghai)</option>
                 </select>
               </div>
               <div>
                 <label className={labelCls}>Devise</label>
-                <select value={copperCurrency ?? ""} onChange={(e) => setCopperCurrency(e.target.value)} className={inputCls}>
+                <select
+                  value={copperCurrency ?? ""}
+                  onChange={(e) => setCopperCurrency(e.target.value)}
+                  className={inputCls}
+                >
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
                   <option value="RMB">RMB</option>
@@ -178,11 +189,23 @@ function MarketParamModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Prix</label>
-                <input value={copperPrice ?? ""} onChange={(e) => setCopperPrice(e.target.value)} required type="number" step="0.0001" className={inputCls} />
+                <input
+                  value={copperPrice ?? ""}
+                  onChange={(e) => setCopperPrice(e.target.value)}
+                  required
+                  type="number"
+                  step="0.0001"
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Unité</label>
-                <input value={copperUnit ?? ""} onChange={(e) => setCopperUnit(e.target.value)} placeholder="ton / kg" className={inputCls} />
+                <input
+                  value={copperUnit ?? ""}
+                  onChange={(e) => setCopperUnit(e.target.value)}
+                  placeholder="ton / kg"
+                  className={inputCls}
+                />
               </div>
             </div>
           </>
@@ -190,15 +213,34 @@ function MarketParamModal({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>De</label>
-              <input value={fxFrom ?? ""} onChange={(e) => setFxFrom(e.target.value.toUpperCase())} required maxLength={3} className={inputCls} />
+              <input
+                value={fxFrom ?? ""}
+                onChange={(e) => setFxFrom(e.target.value.toUpperCase())}
+                required
+                maxLength={3}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Vers</label>
-              <input value={fxTo ?? ""} onChange={(e) => setFxTo(e.target.value.toUpperCase())} required maxLength={3} className={inputCls} />
+              <input
+                value={fxTo ?? ""}
+                onChange={(e) => setFxTo(e.target.value.toUpperCase())}
+                required
+                maxLength={3}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Taux</label>
-              <input value={fxRate ?? ""} onChange={(e) => setFxRate(e.target.value)} required type="number" step="0.000001" className={inputCls} />
+              <input
+                value={fxRate ?? ""}
+                onChange={(e) => setFxRate(e.target.value)}
+                required
+                type="number"
+                step="0.000001"
+                className={inputCls}
+              />
             </div>
           </div>
         )}
@@ -206,27 +248,58 @@ function MarketParamModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Valide à partir du</label>
-            <input value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required type="date" className={inputCls} />
+            <input
+              value={validFrom}
+              onChange={(e) => setValidFrom(e.target.value)}
+              required
+              type="date"
+              className={inputCls}
+            />
           </div>
           <div>
             <label className={labelCls}>Jusqu&apos;au (optionnel)</label>
-            <input value={validTo ?? ""} onChange={(e) => setValidTo(e.target.value)} type="date" className={inputCls} />
+            <input
+              value={validTo ?? ""}
+              onChange={(e) => setValidTo(e.target.value)}
+              type="date"
+              className={inputCls}
+            />
           </div>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4 rounded border-slate-300 accent-[#E07200]" />
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+          />
           Actif
         </label>
 
         <div>
           <label className={labelCls}>Notes</label>
-          <textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2} className={inputCls} />
+          <textarea
+            value={notes ?? ""}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className={inputCls}
+          />
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600">Annuler</button>
-          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+          >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {param ? "Mettre à jour" : "Créer"}
           </button>
@@ -237,7 +310,9 @@ function MarketParamModal({
 }
 
 function TabMarche() {
-  const { data, isLoading, error } = useSWR<MarketParameter[]>("market-params", () => listMarketParameters());
+  const { data, isLoading, error } = useSWR<MarketParameter[]>("market-params", () =>
+    listMarketParameters(),
+  );
   const [editing, setEditing] = useState<MarketParameter | "new" | null>(null);
 
   const handleDelete = async (p: MarketParameter) => {
@@ -254,9 +329,13 @@ function TabMarche() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
-          Historique versionné des prix cuivre (LME/SHE) et taux de change. Les simulations fixent les valeurs au moment du calcul.
+          Historique versionné des prix cuivre (LME/SHE) et taux de change. Les simulations fixent
+          les valeurs au moment du calcul.
         </p>
-        <button onClick={() => setEditing("new")} className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium">
+        <button
+          onClick={() => setEditing("new")}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium"
+        >
           <Plus size={14} />
           Nouveau paramètre
         </button>
@@ -264,20 +343,29 @@ function TabMarche() {
 
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
         {error ? (
-          <div className="py-12 text-center text-sm text-slate-400">Impossible de charger les paramètres.</div>
+          <div className="py-12 text-center text-sm text-slate-400">
+            Impossible de charger les paramètres.
+          </div>
         ) : isLoading ? (
           <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>
         ) : !data?.length ? (
           <div className="py-12 text-center text-slate-400">
             <Coins size={36} className="mx-auto mb-3 text-slate-200" />
-            <p className="text-sm">Aucun paramètre marché. Ajoutez un prix cuivre ou un taux de change.</p>
+            <p className="text-sm">
+              Aucun paramètre marché. Ajoutez un prix cuivre ou un taux de change.
+            </p>
           </div>
         ) : (
           <table className="w-full">
             <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
               <tr>
                 {["Type", "Détail", "Valide du", "Au", "Actif", ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -295,16 +383,29 @@ function TabMarche() {
                   <td className="px-4 py-2.5 text-sm text-slate-500">{p.valid_from}</td>
                   <td className="px-4 py-2.5 text-sm text-slate-500">{p.valid_to || "—"}</td>
                   <td className="px-4 py-2.5">
-                    <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", p.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}>
+                    <span
+                      className={cn(
+                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
+                        p.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
+                      )}
+                    >
                       {p.is_active ? "Oui" : "Non"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setEditing(p)} className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg" title="Modifier">
+                      <button
+                        onClick={() => setEditing(p)}
+                        className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg"
+                        title="Modifier"
+                      >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => handleDelete(p)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
+                      <button
+                        onClick={() => handleDelete(p)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="Supprimer"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -317,20 +418,17 @@ function TabMarche() {
       </div>
 
       {editing !== null && (
-        <MarketParamModal param={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />
+        <MarketParamModal
+          param={editing === "new" ? undefined : editing}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );
 }
 
 // ── Tab : Transport modes ────────────────────────────────────────────────
-function TransportModeModal({
-  mode,
-  onClose,
-}: {
-  mode?: TransportMode;
-  onClose: () => void;
-}) {
+function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: () => void }) {
   const [code, setCode] = useState(mode?.code ?? "");
   const [labelFr, setLabelFr] = useState(mode?.label?.fr ?? "");
   const [category, setCategory] = useState<TransportMode["category"]>(mode?.category ?? "maritime");
@@ -362,17 +460,35 @@ function TransportModeModal({
   };
 
   return (
-    <Modal title={mode ? "Modifier le mode de transport" : "Nouveau mode de transport"} onClose={onClose}>
-      {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+    <Modal
+      title={mode ? "Modifier le mode de transport" : "Nouveau mode de transport"}
+      onClose={onClose}
+    >
+      {error && (
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Code *</label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} required maxLength={32} className={inputCls} placeholder="MARITIME_FCL" />
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              maxLength={32}
+              className={inputCls}
+              placeholder="MARITIME_FCL"
+            />
           </div>
           <div>
             <label className={labelCls}>Catégorie *</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value as TransportMode["category"])} className={inputCls}>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as TransportMode["category"])}
+              className={inputCls}
+            >
               <option value="maritime">Maritime</option>
               <option value="road">Route</option>
               <option value="air">Aérien</option>
@@ -382,19 +498,46 @@ function TransportModeModal({
         </div>
         <div>
           <label className={labelCls}>Libellé (français) *</label>
-          <input value={labelFr} onChange={(e) => setLabelFr(e.target.value)} required className={inputCls} placeholder="Maritime conteneur complet" />
+          <input
+            value={labelFr}
+            onChange={(e) => setLabelFr(e.target.value)}
+            required
+            className={inputCls}
+            placeholder="Maritime conteneur complet"
+          />
         </div>
         <div>
           <label className={labelCls}>Capacité palette par défaut</label>
-          <input value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" min={0} className={inputCls} />
+          <input
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            type="number"
+            min={0}
+            className={inputCls}
+          />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4 rounded border-slate-300 accent-[#E07200]" />
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+          />
           Actif
         </label>
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600">Annuler</button>
-          <button type="submit" disabled={saving} className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+          >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {mode ? "Mettre à jour" : "Créer"}
           </button>
@@ -405,7 +548,9 @@ function TransportModeModal({
 }
 
 function TabTransport() {
-  const { data, isLoading, error } = useSWR<TransportMode[]>("transport-modes", () => listTransportModes());
+  const { data, isLoading, error } = useSWR<TransportMode[]>("transport-modes", () =>
+    listTransportModes(),
+  );
   const [editing, setEditing] = useState<TransportMode | "new" | null>(null);
 
   const handleDelete = async (m: TransportMode) => {
@@ -421,8 +566,13 @@ function TabTransport() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">Modes de transport utilisables dans les chaînes de calcul des simulations.</p>
-        <button onClick={() => setEditing("new")} className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium">
+        <p className="text-sm text-slate-500">
+          Modes de transport utilisables dans les chaînes de calcul des simulations.
+        </p>
+        <button
+          onClick={() => setEditing("new")}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium"
+        >
           <Plus size={14} />
           Nouveau mode
         </button>
@@ -443,28 +593,50 @@ function TabTransport() {
             <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
               <tr>
                 {["Code", "Libellé", "Catégorie", "Capacité palette", "Actif", ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {data.map((m) => (
                 <tr key={m.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">{m.code}</td>
+                  <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">
+                    {m.code}
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-slate-700">{m.label?.fr ?? "—"}</td>
                   <td className="px-4 py-2.5 text-sm text-slate-600 capitalize">{m.category}</td>
-                  <td className="px-4 py-2.5 text-sm text-slate-600">{m.default_pallet_capacity ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-sm text-slate-600">
+                    {m.default_pallet_capacity ?? "—"}
+                  </td>
                   <td className="px-4 py-2.5">
-                    <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", m.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}>
+                    <span
+                      className={cn(
+                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
+                        m.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
+                      )}
+                    >
                       {m.is_active ? "Oui" : "Non"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setEditing(m)} className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg" title="Modifier">
+                      <button
+                        onClick={() => setEditing(m)}
+                        className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg"
+                        title="Modifier"
+                      >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => handleDelete(m)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
+                      <button
+                        onClick={() => handleDelete(m)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="Supprimer"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -477,7 +649,10 @@ function TabTransport() {
       </div>
 
       {editing !== null && (
-        <TransportModeModal mode={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />
+        <TransportModeModal
+          mode={editing === "new" ? undefined : editing}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );
@@ -493,20 +668,38 @@ const SYNC_SCOPES = [
 
 function syncStatusBadge(s: SyncLog["status"]) {
   const map = {
-    success: { Icon: CheckCircle2, cls: "bg-green-100 text-green-700", label: "Succès" },
+    success: {
+      Icon: CheckCircle2,
+      cls: "bg-green-100 text-green-700",
+      label: "Succès",
+    },
     failed: { Icon: XCircle, cls: "bg-red-100 text-red-700", label: "Échec" },
-    partial_failure: { Icon: AlertTriangle, cls: "bg-amber-100 text-amber-700", label: "Partiel" },
-    running: { Icon: CircleDashed, cls: "bg-blue-100 text-blue-700", label: "En cours" },
+    partial_failure: {
+      Icon: AlertTriangle,
+      cls: "bg-amber-100 text-amber-700",
+      label: "Partiel",
+    },
+    running: {
+      Icon: CircleDashed,
+      cls: "bg-blue-100 text-blue-700",
+      label: "En cours",
+    },
   } as const;
   return map[s] ?? map.running;
 }
 
 function TabOdoo() {
-  const { data: health } = useSWR<{ ok: boolean }>("odoo-health", getOdooHealth, { refreshInterval: 30_000 });
-  const { data: status } = useSWR<SyncStatus>("odoo-sync-status", getSyncStatus, { refreshInterval: 5_000 });
-  const { data: logs } = useSWR<SyncLog[]>("odoo-sync-logs", () => listSyncLogs(20), { refreshInterval: 5_000 });
+  const { data: health } = useSWR<{ ok: boolean }>("odoo-health", getOdooHealth, {
+    refreshInterval: 30_000,
+  });
+  const { data: status } = useSWR<SyncStatus>("odoo-sync-status", getSyncStatus, {
+    refreshInterval: 5_000,
+  });
+  const { data: logs } = useSWR<SyncLog[]>("odoo-sync-logs", () => listSyncLogs(20), {
+    refreshInterval: 5_000,
+  });
 
-  const [scope, setScope] = useState<typeof SYNC_SCOPES[number]["id"]>("all");
+  const [scope, setScope] = useState<(typeof SYNC_SCOPES)[number]["id"]>("all");
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -533,7 +726,9 @@ function TabOdoo() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-1 bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Santé Odoo</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Santé Odoo
+            </span>
             <Activity size={14} className="text-slate-400" />
           </div>
           <div className="flex items-center gap-2 mt-3">
@@ -556,26 +751,42 @@ function TabOdoo() {
 
         <div className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Synchronisation manuelle</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Synchronisation manuelle
+            </span>
             <Database size={14} className="text-slate-400" />
           </div>
           {error && (
-            <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+            <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+              {error}
+            </div>
           )}
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={scope} onChange={(e) => setScope(e.target.value as typeof scope)} disabled={syncing} className="flex-1 min-w-[260px] px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:opacity-50">
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as typeof scope)}
+              disabled={syncing}
+              className="flex-1 min-w-[260px] px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:opacity-50"
+            >
               {SYNC_SCOPES.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
               ))}
             </select>
-            <button onClick={handleTrigger} disabled={syncing} className="flex items-center gap-2 px-4 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50">
+            <button
+              onClick={handleTrigger}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+            >
               {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
               {syncing ? "Sync en cours…" : "Lancer la synchronisation"}
             </button>
           </div>
           {status?.running && (
             <p className="text-xs text-blue-600 mt-3">
-              Sync en cours (scope: {status.running.scope}) démarré le {new Date(status.running.started_at).toLocaleString("fr-FR")}.
+              Sync en cours (scope: {status.running.scope}) démarré le{" "}
+              {new Date(status.running.started_at).toLocaleString("fr-FR")}.
             </p>
           )}
         </div>
@@ -598,8 +809,22 @@ function TabOdoo() {
             <table className="w-full">
               <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
                 <tr>
-                  {["Date", "Type", "Scope", "Statut", "Créés", "MAJ", "Échecs", "Déclenché par"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  {[
+                    "Date",
+                    "Type",
+                    "Scope",
+                    "Statut",
+                    "Créés",
+                    "MAJ",
+                    "Échecs",
+                    "Déclenché par",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -614,14 +839,26 @@ function TabOdoo() {
                       <td className="px-4 py-2 text-sm text-slate-600 capitalize">{l.sync_type}</td>
                       <td className="px-4 py-2 text-sm text-slate-600">{l.scope}</td>
                       <td className="px-4 py-2">
-                        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium", b.cls)}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                            b.cls,
+                          )}
+                        >
                           <b.Icon size={11} />
                           {b.label}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-sm text-slate-600">{l.items_created}</td>
                       <td className="px-4 py-2 text-sm text-slate-600">{l.items_updated}</td>
-                      <td className={cn("px-4 py-2 text-sm", l.items_failed ? "text-red-600 font-semibold" : "text-slate-600")}>{l.items_failed}</td>
+                      <td
+                        className={cn(
+                          "px-4 py-2 text-sm",
+                          l.items_failed ? "text-red-600 font-semibold" : "text-slate-600",
+                        )}
+                      >
+                        {l.items_failed}
+                      </td>
                       <td className="px-4 py-2 text-sm text-slate-500">{l.triggered_by}</td>
                     </tr>
                   );
@@ -635,18 +872,12 @@ function TabOdoo() {
   );
 }
 
-// ── Settings page (query-param driven tabs) ──────────────────────────────
-function SettingsContent() {
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") ?? "marche";
-
-  return (
-    <>
-      <SettingsNav />
-      {tab === "transport" ? <TabTransport /> : tab === "odoo" ? <TabOdoo /> : <TabMarche />}
-    </>
-  );
-}
+// ── Settings page (with tabs) ────────────────────────────────────────────
+const TABS = [
+  { id: "marche", label: "Paramètres marché", Icon: Coins },
+  { id: "transport", label: "Modes de transport", Icon: Truck },
+  { id: "odoo", label: "Synchronisation Odoo", Icon: Database },
+];
 
 export default function SettingsPage() {
   const { role, isLoading } = useAuth();
@@ -661,12 +892,39 @@ export default function SettingsPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-slate-900">Paramètres</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Configuration de la plateforme — réservé aux administrateurs.</p>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Configuration de la plateforme — réservé aux administrateurs.
+        </p>
       </div>
 
-      <Suspense fallback={<div className="py-12 text-center text-sm text-slate-400">Chargement…</div>}>
-        <SettingsContent />
-      </Suspense>
+      <Tabs.Root defaultValue="marche">
+        <Tabs.List className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
+          {TABS.map(({ id, label, Icon }) => (
+            <Tabs.Trigger
+              key={id}
+              value={id}
+              className={cn(
+                "flex items-center gap-2 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                "text-slate-500 hover:text-slate-800",
+                "data-[state=active]:bg-[#E07200] data-[state=active]:text-white",
+              )}
+            >
+              <Icon size={14} />
+              {label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+
+        <Tabs.Content value="marche">
+          <TabMarche />
+        </Tabs.Content>
+        <Tabs.Content value="transport">
+          <TabTransport />
+        </Tabs.Content>
+        <Tabs.Content value="odoo">
+          <TabOdoo />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }

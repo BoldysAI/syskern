@@ -3,6 +3,7 @@
 These types are intentionally framework-free (no Django ORM dependency)
 so the engine can be unit-tested with plain dataclass inputs.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,7 +11,6 @@ from decimal import Decimal
 from typing import Any
 
 from apps.core.models import Currency
-
 
 DEC_ZERO = Decimal(0)
 DEC_ONE = Decimal(1)
@@ -22,7 +22,7 @@ def to_decimal(value: Any) -> Decimal:
     precision.  Floats are funneled through `str()` to dodge binary FP."""
     if isinstance(value, Decimal):
         return value
-    if isinstance(value, (int, str)):
+    if isinstance(value, int | str):
         return Decimal(value)
     return Decimal(str(value))
 
@@ -38,10 +38,10 @@ class PriceWithCurrency:
         # Normalise the currency to upper-case for safe comparisons.
         object.__setattr__(self, "currency", self.currency.upper())
 
-    def with_amount(self, amount: Decimal) -> "PriceWithCurrency":
+    def with_amount(self, amount: Decimal) -> PriceWithCurrency:
         return PriceWithCurrency(amount=amount, currency=self.currency)
 
-    def with_currency(self, amount: Decimal, currency: str) -> "PriceWithCurrency":
+    def with_currency(self, amount: Decimal, currency: str) -> PriceWithCurrency:
         return PriceWithCurrency(amount=amount, currency=currency)
 
 
@@ -59,7 +59,7 @@ class ProductView:
     base_unit: str = "unit"
 
     @classmethod
-    def from_model(cls, product) -> "ProductView":
+    def from_model(cls, product) -> ProductView:
         return cls(
             sku_code=product.sku_code,
             is_copper_indexed=bool(product.is_copper_indexed),
@@ -73,7 +73,7 @@ class ProductView:
         )
 
     @classmethod
-    def from_snapshot(cls, snap: dict) -> "ProductView":
+    def from_snapshot(cls, snap: dict) -> ProductView:
         cw = snap.get("copper_weight_kg_per_unit")
         return cls(
             sku_code=snap.get("sku_code", ""),
@@ -118,9 +118,7 @@ class SimulationContext:
         return to_decimal(self.market_params[key])
 
     def copper_base_price(self, currency: str = "RMB") -> Decimal:
-        return to_decimal(
-            self.market_params.get(f"copper_base_price_{currency.lower()}", DEC_ZERO)
-        )
+        return to_decimal(self.market_params.get(f"copper_base_price_{currency.lower()}", DEC_ZERO))
 
     def copper_current_price(self, currency: str = "RMB") -> Decimal:
         return to_decimal(
@@ -148,7 +146,7 @@ class CalculationStep:
         *,
         reason: str = "not_applicable",
         order: int | None = None,
-    ) -> "CalculationStep":
+    ) -> CalculationStep:
         return cls(
             module_type=module_type,
             input_price=price,

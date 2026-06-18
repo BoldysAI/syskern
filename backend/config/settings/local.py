@@ -1,8 +1,9 @@
 """Local development settings."""
+
 from __future__ import annotations
 
 from .base import *  # noqa: F401,F403
-from .base import INSTALLED_APPS, MIDDLEWARE
+from .base import INSTALLED_APPS
 
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
@@ -17,6 +18,7 @@ STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 # Production tightens this in `config.settings.production`.
 REST_FRAMEWORK_DEFAULT_PERMISSIONS = ("rest_framework.permissions.AllowAny",)
 from .base import REST_FRAMEWORK  # noqa: E402
+
 REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"] = REST_FRAMEWORK_DEFAULT_PERMISSIONS
 
 INTERNAL_IPS = ["127.0.0.1"]
@@ -24,6 +26,7 @@ INTERNAL_IPS = ["127.0.0.1"]
 # Optional dev-only apps.
 try:
     import django_extensions  # noqa: F401
+
     INSTALLED_APPS = INSTALLED_APPS + ["django_extensions"]
 except ImportError:
     pass

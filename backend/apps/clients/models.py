@@ -2,6 +2,7 @@
 
 Cf. CDC §3.2 → `clients`.
 """
+
 from __future__ import annotations
 
 from django.db import models

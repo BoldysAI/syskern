@@ -46,6 +46,19 @@ Thumbs.db
 # ─── Docker ────────────────────────────────────────────────
 .docker/
 
+# ─── Node / Next.js (frontend) ─────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ─── Tooling caches ────────────────────────────────────────
+.pre-commit-cache/
+
 # ─── Project ───────────────────────────────────────────────
 backend/staticfiles/
 backend/mediafiles/

@@ -51,7 +51,10 @@ class OfferViewSet(viewsets.ModelViewSet):
         new_status = ser.validated_data["status"]
 
         # `won` / `lost` only apply to project offers (CDC §7.5.1).
-        if new_status in {OfferStatus.WON, OfferStatus.LOST} and offer.offer_type != OfferType.PROJECT:
+        if (
+            new_status in {OfferStatus.WON, OfferStatus.LOST}
+            and offer.offer_type != OfferType.PROJECT
+        ):
             raise ValidationError("won/lost transitions only apply to project offers.")
 
         now = timezone.now()
@@ -141,8 +144,10 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer.generated_file_url = ""  # real flow uploads to storage and stores URL
         offer.save(update_fields=["gamma_document_id", "generated_file_url", "updated_at"])
         return Response(
-            {"detail": "Generation stub — Gamma integration pending.",
-             "gamma_document_id": offer.gamma_document_id},
+            {
+                "detail": "Generation stub — Gamma integration pending.",
+                "gamma_document_id": offer.gamma_document_id,
+            },
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -165,9 +170,7 @@ class OfferLineViewSet(viewsets.ModelViewSet):
 class OfferDashboardView(APIView):
     def get(self, request):
         now = timezone.now()
-        counts = (
-            Offer.objects.values("status").annotate(n=Count("id")).order_by()
-        )
+        counts = Offer.objects.values("status").annotate(n=Count("id")).order_by()
         status_counts = {row["status"]: row["n"] for row in counts}
 
         project_qs = Offer.objects.filter(offer_type=OfferType.PROJECT)

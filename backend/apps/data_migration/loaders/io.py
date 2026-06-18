@@ -8,6 +8,7 @@ Design decisions:
   strings like #REF! / #N/A) into JSON-compatible Python values, so that
   MigrationUnmatched.raw_data never triggers a serialisation error.
 """
+
 from __future__ import annotations
 
 import math
@@ -55,9 +56,7 @@ def read_sheet(
             ) from exc
     else:
         if sheet_name not in available:
-            raise ValueError(
-                f"Sheet {sheet_name!r} not found. Available: {available}"
-            )
+            raise ValueError(f"Sheet {sheet_name!r} not found. Available: {available}")
         resolved = sheet_name
 
     df = pd.read_excel(
@@ -65,12 +64,14 @@ def read_sheet(
         sheet_name=resolved,
         header=header_row,
         engine="openpyxl",
-        dtype=str,       # keep everything as str initially; loaders cast themselves
+        dtype=str,  # keep everything as str initially; loaders cast themselves
     )
 
     # Normalise column names
-    df.columns = [str(c).strip() if not str(c).startswith("Unnamed") else f"__col_{i}__"
-                  for i, c in enumerate(df.columns)]
+    df.columns = [
+        str(c).strip() if not str(c).startswith("Unnamed") else f"__col_{i}__"
+        for i, c in enumerate(df.columns)
+    ]
 
     # Drop rows that are entirely blank
     df = df.dropna(how="all").reset_index(drop=True)
@@ -133,7 +134,7 @@ def json_safe(value: Any) -> Any:  # noqa: ANN401
         return stripped  # includes #REF!, #N/A, etc. — preserve for Olivier
     if isinstance(value, dict):
         return {k: json_safe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [json_safe(v) for v in value]
 
     # numpy scalars and other numeric types

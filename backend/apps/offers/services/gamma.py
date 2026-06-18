@@ -5,6 +5,7 @@ call `GammaClient.generate_quote(...)`, but the actual request body
 mapping is left to a follow-up task once Gamma's API contract is pinned
 down for the project (CDC §7.7).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -71,6 +72,4 @@ class GammaClient:
         line_items: list[dict],
         ai_instructions: str = "",
     ) -> GammaResponse:
-        raise NotImplementedError(
-            "Gamma tariff catalog generation is a stub in MVP1."
-        )
+        raise NotImplementedError("Gamma tariff catalog generation is a stub in MVP1.")

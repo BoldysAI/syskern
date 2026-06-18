@@ -3,6 +3,7 @@
 Periodic jobs (daily Odoo sync, offer expiration sweep, backup tee) are
 registered through `apps.<app>.tasks` modules and Celery Beat schedules.
 """
+
 from __future__ import annotations
 
 import os

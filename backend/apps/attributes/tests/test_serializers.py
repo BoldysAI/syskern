@@ -1,4 +1,5 @@
 """Unit tests for attribute value validation (CDC §4.5)."""
+
 from __future__ import annotations
 
 import pytest

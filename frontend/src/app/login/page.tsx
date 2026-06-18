@@ -100,9 +100,7 @@ export default function LoginPage() {
               disabled={loading}
               className={cn(
                 "flex items-center justify-center gap-2 w-full py-2.5 mt-2 rounded-lg text-sm font-semibold text-white transition-colors",
-                loading
-                  ? "bg-[#E07200]/60 cursor-not-allowed"
-                  : "bg-[#E07200] hover:bg-[#C56400]"
+                loading ? "bg-[#E07200]/60 cursor-not-allowed" : "bg-[#E07200] hover:bg-[#C56400]",
               )}
             >
               {loading ? (

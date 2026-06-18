@@ -34,7 +34,16 @@ class UserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "email", "first_name", "last_name", "role", "is_active", "date_joined", "last_login")
+        fields = (
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+            "date_joined",
+            "last_login",
+        )
         read_only_fields = fields
 
     def get_role(self, obj: User) -> str:

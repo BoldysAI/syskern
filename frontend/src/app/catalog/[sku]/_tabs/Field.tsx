@@ -43,7 +43,8 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
   const emit = (v: unknown) => setCore(field, v, validate(kind, v));
 
   const readDisplay = () => {
-    if (value === null || value === undefined || value === "") return <span className="text-slate-300">—</span>;
+    if (value === null || value === undefined || value === "")
+      return <span className="text-slate-300">—</span>;
     if (kind === "toggle") {
       return (
         <span
@@ -112,7 +113,9 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
           />
         ) : kind === "select" && options ? (
           <Select.Root value={(value as string) || undefined} onValueChange={(v) => emit(v)}>
-            <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left")}>
+            <Select.Trigger
+              className={cn(inputCls, "flex items-center justify-between gap-2 text-left")}
+            >
               <Select.Value placeholder="Sélectionner…" />
               <Select.Icon>
                 <ChevronDown size={15} className="text-slate-400" />
@@ -149,7 +152,11 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
               step={kind === "int" ? 1 : undefined}
               value={value == null ? "" : String(value)}
               onChange={(e) =>
-                emit(e.target.value === "" && (kind === "number" || kind === "int") ? null : e.target.value)
+                emit(
+                  e.target.value === "" && (kind === "number" || kind === "int")
+                    ? null
+                    : e.target.value,
+                )
               }
               className={cn(inputCls, "text-left", unit && "pr-12")}
             />

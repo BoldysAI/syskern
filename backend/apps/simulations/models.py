@@ -4,6 +4,7 @@ A simulation freezes a full snapshot of the parameters used (market params,
 calculation chain, supplier data, product data) so that historical results
 stay reproducible even when source data evolves.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -13,7 +14,6 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.core.models import BaseModel
-
 
 # ─── Choices ──────────────────────────────────────────────────────────────────
 
@@ -115,9 +115,7 @@ class Simulation(BaseModel):
 class SimulationLine(BaseModel):
     """One row per SKU within a simulation, with a frozen snapshot."""
 
-    simulation = models.ForeignKey(
-        Simulation, on_delete=models.CASCADE, related_name="lines"
-    )
+    simulation = models.ForeignKey(Simulation, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey(
         "products.Product", on_delete=models.PROTECT, related_name="simulation_lines"
     )
@@ -146,12 +144,8 @@ class SimulationLine(BaseModel):
     po_net_origin_currency = models.DecimalField(
         max_digits=12, decimal_places=4, null=True, blank=True
     )
-    po_net_eur = models.DecimalField(
-        max_digits=12, decimal_places=4, null=True, blank=True
-    )
-    pa_net_eur = models.DecimalField(
-        max_digits=12, decimal_places=4, null=True, blank=True
-    )
+    po_net_eur = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pa_net_eur = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     pamp_predictive_eur = models.DecimalField(
         max_digits=12, decimal_places=4, null=True, blank=True
     )

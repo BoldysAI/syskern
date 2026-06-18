@@ -8,18 +8,19 @@ Tests verify:
   4. Client upsert mapping
   5. Both adapters produce identical output from identical payloads.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from django.test import TestCase
 
 from apps.odoo_sync.adapters.v16 import OdooAdapterV16, _split_category
 from apps.odoo_sync.adapters.v19 import OdooAdapterV19
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 def _make_product_raw(
     odoo_id=100,
@@ -91,8 +92,8 @@ def _make_adapter_v19() -> OdooAdapterV19:
 
 # ── Category splitting ────────────────────────────────────────────────────────
 
-class TestSplitCategory(TestCase):
 
+class TestSplitCategory(TestCase):
     def test_four_levels(self):
         u, f, r, s = _split_category("All / COPPER / DATA CABLES / SOLID CABLE CAT6A")
         self.assertEqual(u, "COPPER")
@@ -121,8 +122,8 @@ class TestSplitCategory(TestCase):
 
 # ── V16 product normalisation ─────────────────────────────────────────────────
 
-class TestV16ListProducts(TestCase):
 
+class TestV16ListProducts(TestCase):
     def _run(self, raw_product, raw_supplier=None):
         adapter = _make_adapter_v16()
 
@@ -182,8 +183,8 @@ class TestV16ListProducts(TestCase):
 
 # ── V16 pending purchases ─────────────────────────────────────────────────────
 
-class TestV16PendingPurchases(TestCase):
 
+class TestV16PendingPurchases(TestCase):
     def _run(self, po_lines, variants):
         adapter = _make_adapter_v16()
 
@@ -198,16 +199,18 @@ class TestV16PendingPurchases(TestCase):
         return adapter.get_pending_purchases([100, 101])
 
     def test_outstanding_qty_returned(self):
-        po_lines = [{
-            "id": 1,
-            "product_id": [500, "CAT6ASSTPOH0,3GS"],
-            "product_qty": 100.0,
-            "qty_received": 30.0,
-            "price_unit": 65.0,
-            "currency_id": [1, "EUR"],
-            "date_planned": "2026-06-01 00:00:00",
-            "state": "purchase",
-        }]
+        po_lines = [
+            {
+                "id": 1,
+                "product_id": [500, "CAT6ASSTPOH0,3GS"],
+                "product_qty": 100.0,
+                "qty_received": 30.0,
+                "price_unit": 65.0,
+                "currency_id": [1, "EUR"],
+                "date_planned": "2026-06-01 00:00:00",
+                "state": "purchase",
+            }
+        ]
         variants = [{"id": 500, "product_tmpl_id": [100, "CAT6ASSTPOH0,3GS"]}]
 
         result = self._run(po_lines, variants)
@@ -219,16 +222,18 @@ class TestV16PendingPurchases(TestCase):
         self.assertEqual(line.currency, "EUR")
 
     def test_fully_received_line_excluded(self):
-        po_lines = [{
-            "id": 2,
-            "product_id": [500, "X"],
-            "product_qty": 50.0,
-            "qty_received": 50.0,  # fully received
-            "price_unit": 10.0,
-            "currency_id": [1, "EUR"],
-            "date_planned": False,
-            "state": "done",
-        }]
+        po_lines = [
+            {
+                "id": 2,
+                "product_id": [500, "X"],
+                "product_qty": 50.0,
+                "qty_received": 50.0,  # fully received
+                "price_unit": 10.0,
+                "currency_id": [1, "EUR"],
+                "date_planned": False,
+                "state": "done",
+            }
+        ]
         variants = [{"id": 500, "product_tmpl_id": [100, "X"]}]
         result = self._run(po_lines, variants)
         self.assertEqual(result.get(100, []), [])
@@ -243,8 +248,8 @@ class TestV16PendingPurchases(TestCase):
 
 # ── V16 stock aggregation ─────────────────────────────────────────────────────
 
-class TestV16Stock(TestCase):
 
+class TestV16Stock(TestCase):
     def test_aggregates_variants(self):
         adapter = _make_adapter_v16()
         quants = [
@@ -267,23 +272,25 @@ class TestV16Stock(TestCase):
 
 # ── V16 clients ───────────────────────────────────────────────────────────────
 
-class TestV16Clients(TestCase):
 
+class TestV16Clients(TestCase):
     def test_client_mapping(self):
         adapter = _make_adapter_v16()
-        raw = [{
-            "id": 27,
-            "name": "ELENDIL LYON",
-            "email": "contact@elendil.fr",
-            "phone": "+33 4 72 00 00 00",
-            "street": "5 rue des Câbles",
-            "city": "Saint-Priest",
-            "zip": "69800",
-            "country_id": [75, "France"],
-            "lang": "fr_FR",
-            "customer_rank": 1,
-            "write_date": "2026-03-15 10:00:00",
-        }]
+        raw = [
+            {
+                "id": 27,
+                "name": "ELENDIL LYON",
+                "email": "contact@elendil.fr",
+                "phone": "+33 4 72 00 00 00",
+                "street": "5 rue des Câbles",
+                "city": "Saint-Priest",
+                "zip": "69800",
+                "country_id": [75, "France"],
+                "lang": "fr_FR",
+                "customer_rank": 1,
+                "write_date": "2026-03-15 10:00:00",
+            }
+        ]
         adapter._kw = MagicMock(return_value=raw)
         clients = adapter.list_clients(limit=10)
         self.assertEqual(len(clients), 1)
@@ -295,6 +302,7 @@ class TestV16Clients(TestCase):
 
 
 # ── V19 parity — same inputs produce same outputs ─────────────────────────────
+
 
 class TestV19Parity(TestCase):
     """V19 adapter must produce the same normalised data as V16 for identical payloads."""

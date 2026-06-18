@@ -22,8 +22,18 @@ export function LogisticsTab() {
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Poids & unité</h3>
           <Field field="unit_weight_kg" label="Poids unitaire" kind="number" unit="kg" />
-          <Field field="base_unit" label="Unité de base" kind="select" options={BASE_UNIT_OPTIONS} />
-          <Field field="supply_policy" label="Approvisionnement" kind="select" options={SUPPLY_POLICY_OPTIONS} />
+          <Field
+            field="base_unit"
+            label="Unité de base"
+            kind="select"
+            options={BASE_UNIT_OPTIONS}
+          />
+          <Field
+            field="supply_policy"
+            label="Approvisionnement"
+            kind="select"
+            options={SUPPLY_POLICY_OPTIONS}
+          />
           <Field field="is_stockable" label="Stockable" kind="toggle" />
         </div>
 
@@ -38,7 +48,12 @@ export function LogisticsTab() {
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm lg:col-span-2">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Indexation cuivre</h3>
           <Field field="is_copper_indexed" label="Indexé cuivre" kind="toggle" />
-          <Field field="copper_weight_kg_per_unit" label="Poids cuivre / unité" kind="number" unit="kg" />
+          <Field
+            field="copper_weight_kg_per_unit"
+            label="Poids cuivre / unité"
+            kind="number"
+            unit="kg"
+          />
         </div>
       </div>
 

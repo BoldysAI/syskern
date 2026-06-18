@@ -1,4 +1,5 @@
 """Exceptions raised by the migration loader pipeline (CDC §8.4–§8.7)."""
+
 from __future__ import annotations
 
 
@@ -37,9 +38,7 @@ class AmbiguousMatchError(LoaderError):
     """
 
     def __init__(self, candidates: list[str], rule: str) -> None:
-        super().__init__(
-            f"Ambiguous match via rule {rule!r}: {len(candidates)} candidates found"
-        )
+        super().__init__(f"Ambiguous match via rule {rule!r}: {len(candidates)} candidates found")
         self.candidates = candidates
         self.rule = rule
 

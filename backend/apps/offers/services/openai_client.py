@@ -5,6 +5,7 @@ Stub for MVP1: ships a `generate_copy(prompt) -> str` interface that
 raises if no API key is configured.  The actual model + system prompt
 tuning is left to a follow-up once the offer-generation flow is wired.
 """
+
 from __future__ import annotations
 
 import httpx
@@ -44,8 +45,6 @@ class OpenAIClient:
                 },
             )
             if response.status_code != 200:
-                raise OpenAIError(
-                    f"OpenAI returned {response.status_code}: {response.text[:200]}"
-                )
+                raise OpenAIError(f"OpenAI returned {response.status_code}: {response.text[:200]}")
             payload = response.json()
             return payload["choices"][0]["message"]["content"].strip()

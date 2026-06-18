@@ -2,6 +2,7 @@
 
 Cf. CDC §3.2 → `offers`, `offer_lines` and §7.
 """
+
 from __future__ import annotations
 
 from django.contrib.postgres.fields import ArrayField
@@ -73,9 +74,7 @@ class Offer(BaseModel):
     gamma_document_id = models.CharField(max_length=128, blank=True, default="")
 
     # Lifecycle tracking
-    status = models.CharField(
-        max_length=16, choices=OfferStatus.choices, default=OfferStatus.DRAFT
-    )
+    status = models.CharField(max_length=16, choices=OfferStatus.choices, default=OfferStatus.DRAFT)
     sent_at = models.DateTimeField(null=True, blank=True)
     won_at = models.DateTimeField(null=True, blank=True)
     lost_at = models.DateTimeField(null=True, blank=True)
@@ -121,11 +120,12 @@ class OfferLine(BaseModel):
     # Negotiated final price — may diverge from the simulation PV after
     # commercial adjustment.
     final_price = models.DecimalField(max_digits=12, decimal_places=4)
-    discount_pct = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True
-    )
+    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     quantity = models.DecimalField(
-        max_digits=12, decimal_places=3, null=True, blank=True,
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
         help_text="Filled for project offers; null for tariffs.",
     )
 

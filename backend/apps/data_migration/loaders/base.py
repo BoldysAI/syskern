@@ -42,6 +42,7 @@ it back at the end.  No data is written.  The LoaderReport is still populated
 so callers can preview results; ``rows_updated`` stays at zero because
 ``apply_update()`` is not invoked.
 """
+
 from __future__ import annotations
 
 import abc
@@ -192,7 +193,9 @@ class BaseExcelLoader(abc.ABC):
         start = time.monotonic()
         source_name = Path(config.file_path).name
 
-        logger.info("Starting %s on %s (dry_run=%s)", type(self).__name__, source_name, config.dry_run)
+        logger.info(
+            "Starting %s on %s (dry_run=%s)", type(self).__name__, source_name, config.dry_run
+        )
 
         self.pre_run(config)
 
@@ -200,7 +203,9 @@ class BaseExcelLoader(abc.ABC):
         df = self._apply_column_mapping(df)
         self._validate_header(df)
 
-        report = LoaderReport(source_file=source_name, sheet_name=sheet_name, dry_run=config.dry_run)
+        report = LoaderReport(
+            source_file=source_name, sheet_name=sheet_name, dry_run=config.dry_run
+        )
 
         matcher = ProductMatcher()
         self._run_dataframe(df, config, matcher, report, source_name)

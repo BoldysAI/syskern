@@ -10,12 +10,12 @@ Dual-instance support (v16 + v19):
   - ``odoo_v16_id`` / ``odoo_v19_id`` are set independently; syncing v19
     never overwrites ``odoo_v16_id`` and vice-versa.
 """
+
 from __future__ import annotations
 
 import logging
 import re
 from datetime import datetime
-from decimal import Decimal
 
 from django.conf import settings
 from django.utils import timezone
@@ -70,9 +70,7 @@ def sync(
         if scope in {SyncScope.ALL, SyncScope.CLIENTS}:
             _sync_clients(adapter, log, modified_since=last_run_at)
 
-        log.status = (
-            SyncStatus.SUCCESS if log.items_failed == 0 else SyncStatus.PARTIAL_FAILURE
-        )
+        log.status = SyncStatus.SUCCESS if log.items_failed == 0 else SyncStatus.PARTIAL_FAILURE
     except Exception as exc:
         log.status = SyncStatus.FAILED
         log.errors.append({"item_id": None, "error_message": str(exc)})
@@ -98,6 +96,7 @@ def _last_successful_sync_at(scope: SyncScope, version: str) -> datetime | None:
 
 
 # ── Products ──────────────────────────────────────────────────────────────────
+
 
 def _sync_products(
     adapter: OdooAdapter,
@@ -144,7 +143,10 @@ def _sync_products(
 
     logger.info(
         "Product sync done (%s): created=%d updated=%d failed=%d",
-        version, log.items_created, log.items_updated, log.items_failed,
+        version,
+        log.items_created,
+        log.items_updated,
+        log.items_failed,
     )
 
 
@@ -250,6 +252,7 @@ def _upsert_supplier(product, supplier_link, ProductSupplier) -> None:
 
 # ── Stock ─────────────────────────────────────────────────────────────────────
 
+
 def _sync_stock(adapter: OdooAdapter, log: SyncLog, version: str) -> None:
     """Refresh stock_quantity and pamp_eur for all Odoo-linked products."""
     from apps.products.models import Product
@@ -267,16 +270,18 @@ def _sync_stock(adapter: OdooAdapter, log: SyncLog, version: str) -> None:
 
     now = timezone.now()
     for batch_start in range(0, total, _PAGE_SIZE):
-        batch = list(synced_qs[batch_start: batch_start + _PAGE_SIZE])
+        batch = list(synced_qs[batch_start : batch_start + _PAGE_SIZE])
         odoo_ids = [getattr(p, version_field) for p in batch if getattr(p, version_field)]
 
         try:
             stock_map = adapter.get_stock_quantities(odoo_ids)
         except Exception as exc:
-            log.errors.append({
-                "item_id": f"stock_batch_{batch_start}",
-                "error_message": str(exc),
-            })
+            log.errors.append(
+                {
+                    "item_id": f"stock_batch_{batch_start}",
+                    "error_message": str(exc),
+                }
+            )
             log.items_failed += len(batch)
             log.save(update_fields=["items_failed", "errors"])
             continue
@@ -303,10 +308,13 @@ def _sync_stock(adapter: OdooAdapter, log: SyncLog, version: str) -> None:
 
         log.save(update_fields=["items_updated", "items_failed", "errors"])
 
-    logger.info("Stock sync done (%s): updated=%d failed=%d", version, log.items_updated, log.items_failed)
+    logger.info(
+        "Stock sync done (%s): updated=%d failed=%d", version, log.items_updated, log.items_failed
+    )
 
 
 # ── Clients ───────────────────────────────────────────────────────────────────
+
 
 def _sync_clients(
     adapter: OdooAdapter,
@@ -325,7 +333,9 @@ def _sync_clients(
                 offset=offset,
             )
         except Exception as exc:
-            log.errors.append({"item_id": f"client_page_offset={offset}", "error_message": str(exc)})
+            log.errors.append(
+                {"item_id": f"client_page_offset={offset}", "error_message": str(exc)}
+            )
             log.items_failed += 1
             log.save(update_fields=["items_failed", "errors"])
             break
@@ -342,7 +352,9 @@ def _sync_clients(
 
     logger.info(
         "Client sync done: created=%d updated=%d failed=%d",
-        log.items_created, log.items_updated, log.items_failed,
+        log.items_created,
+        log.items_updated,
+        log.items_failed,
     )
 
 

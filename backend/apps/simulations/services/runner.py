@@ -9,11 +9,12 @@ Responsibilities:
 - persist results, aggregate stats and append a `SimulationRecalculation`
   trace (CDC §6.9.12)
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Iterable
 
 from django.db import transaction
 from django.db.models import Avg, Max, Min
@@ -41,7 +42,6 @@ from .engine import (
     resolve_mix_pct,
     run_chain,
 )
-
 
 # ─── Per-line input ──────────────────────────────────────────────────────
 
@@ -89,9 +89,7 @@ def run_simulation(
     results: list[LineResult] = []
     now = timezone.now()
 
-    lines = list(
-        simulation.lines.select_related("product").all()
-    )
+    lines = list(simulation.lines.select_related("product").all())
 
     for line in lines:
         result = _recalculate_line(
@@ -163,10 +161,11 @@ def _recalculate_line(
             currency=supplier.po_currency,
         )
         purchase_modules = build_purchase_modules(
-            {**purchase_config,
-             "symea_margin": purchase_config.get("symea_margin") or
-                             {"rate": str(simulation.symea_margin_rate),
-                              "position": "after_transports"}}
+            {
+                **purchase_config,
+                "symea_margin": purchase_config.get("symea_margin")
+                or {"rate": str(simulation.symea_margin_rate), "position": "after_transports"},
+            }
         )
         purchase_result = run_chain(purchase_modules, starting_price=starting_po, context=ctx)
         pa_net = purchase_result.final_price.amount
@@ -199,11 +198,17 @@ def _recalculate_line(
         )
 
         # Persist results
-        line.po_net_origin_currency = purchase_result.steps[0].output_price.amount \
-            if purchase_result.steps else Decimal(supplier.po_base_price)
+        line.po_net_origin_currency = (
+            purchase_result.steps[0].output_price.amount
+            if purchase_result.steps
+            else Decimal(supplier.po_base_price)
+        )
         line.po_net_eur = next(
-            (s.output_price.amount for s in purchase_result.steps
-             if s.module_type == "currency_conversion"),
+            (
+                s.output_price.amount
+                for s in purchase_result.steps
+                if s.module_type == "currency_conversion"
+            ),
             pa_net,
         )
         line.pa_net_eur = pa_net
@@ -240,7 +245,8 @@ def _product_snapshot(p: Product) -> dict:
         "sub_range": p.sub_range,
         "is_copper_indexed": p.is_copper_indexed,
         "copper_weight_kg_per_unit": str(p.copper_weight_kg_per_unit)
-        if p.copper_weight_kg_per_unit is not None else None,
+        if p.copper_weight_kg_per_unit is not None
+        else None,
         "base_unit": p.base_unit,
         "pallet_qty": p.pallet_qty,
         "unit_weight_kg": str(p.unit_weight_kg) if p.unit_weight_kg is not None else None,

@@ -1,4 +1,5 @@
 """Shared model primitives used by every app."""
+
 from __future__ import annotations
 
 import uuid

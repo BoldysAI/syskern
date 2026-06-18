@@ -11,12 +11,12 @@ Rounding policy (CDC §6.5, reconciled with the worked example §6.4):
 - the next module reads the quantized output, so chained results match
   the reference example PA = 390.1636 €/km
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Optional
 
 from apps.core.models import Currency
 
@@ -53,8 +53,7 @@ class CalculationModule(ABC):
     @abstractmethod
     def apply(
         self, input_price: PriceWithCurrency, ctx: SimulationContext, *, order: int | None = None
-    ) -> CalculationStep:
-        ...
+    ) -> CalculationStep: ...
 
 
 # ─── COPPER_VARIATION ─────────────────────────────────────────────────────
@@ -155,7 +154,7 @@ class TransportModule(CalculationModule):
     pallet_count: int
     from_location: str = ""
     to_location: str = ""
-    override_coefficient: Optional[Decimal] = None
+    override_coefficient: Decimal | None = None
     type: str = ModuleType.TRANSPORT
 
     def apply(
@@ -228,8 +227,8 @@ class CustomsModule(CalculationModule):
 
     global_cost: Decimal = DEC_ZERO
     currency: str = Currency.EUR.value
-    total_quantity: Optional[Decimal] = None
-    override_coefficient: Optional[Decimal] = None
+    total_quantity: Decimal | None = None
+    override_coefficient: Decimal | None = None
     type: str = ModuleType.CUSTOMS
 
     def apply(

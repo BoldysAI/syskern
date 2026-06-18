@@ -1,4 +1,5 @@
 """Serializers for the PIM (CDC §4)."""
+
 from __future__ import annotations
 
 from rest_framework import serializers
@@ -88,7 +89,9 @@ class ProductWriteSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs: dict) -> dict:
         """Cross-field rules from CDC §4.5."""
-        is_copper = attrs.get("is_copper_indexed", getattr(self.instance, "is_copper_indexed", False))
+        is_copper = attrs.get(
+            "is_copper_indexed", getattr(self.instance, "is_copper_indexed", False)
+        )
         copper_weight = attrs.get(
             "copper_weight_kg_per_unit",
             getattr(self.instance, "copper_weight_kg_per_unit", None),

@@ -5,6 +5,7 @@ handling needs to be wired against DeepL's API documentation.  The cache
 behaviour relies on storing the translated string in `Product.description_*`
 JSONB fields, so there's no Redis layer here.
 """
+
 from __future__ import annotations
 
 import httpx

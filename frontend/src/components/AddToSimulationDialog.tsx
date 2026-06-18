@@ -15,12 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 
 interface AddToSimulationDialogProps {
-  /** One or more product ids to add to the chosen simulation. */
-  productIds: string[];
-  /** Human label for the selection (e.g. a SKU, or "3 produits"). */
+  productId: string;
   productLabel: string;
-  /** Called after a successful add (e.g. to clear a multi-selection). */
-  onAdded?: () => void;
   /** The element that opens the dialog (wrapped as the trigger). */
   children: ReactNode;
 }
@@ -31,9 +27,8 @@ const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
 
 export function AddToSimulationDialog({
-  productIds,
+  productId,
   productLabel,
-  onAdded,
   children,
 }: AddToSimulationDialogProps) {
   const [open, setOpen] = useState(false);
@@ -73,12 +68,14 @@ export function AddToSimulationDialog({
     try {
       let simId = selectedSim;
       if (tab === "new") {
-        const sim = await createSimulation({ label: newLabel.trim(), simulation_type: newType });
+        const sim = await createSimulation({
+          label: newLabel.trim(),
+          simulation_type: newType,
+        });
         simId = sim.id;
       }
-      await addSimulationLines(simId, productIds);
+      await addSimulationLines(simId, [productId]);
       setDoneSimId(simId);
-      onAdded?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");
     } finally {
@@ -87,8 +84,7 @@ export function AddToSimulationDialog({
   };
 
   const canConfirm =
-    !submitting &&
-    (tab === "existing" ? selectedSim !== "" : newLabel.trim().length > 0);
+    !submitting && (tab === "existing" ? selectedSim !== "" : newLabel.trim().length > 0);
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -115,7 +111,9 @@ export function AddToSimulationDialog({
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
                   <Check size={24} className="text-green-600" />
                 </div>
-                <p className="text-sm font-medium text-slate-800">Produit ajouté à la simulation.</p>
+                <p className="text-sm font-medium text-slate-800">
+                  Produit ajouté à la simulation.
+                </p>
                 <Link
                   href={`/simulator/${doneSimId}`}
                   className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#E07200] hover:text-[#C56400]"
@@ -166,12 +164,17 @@ export function AddToSimulationDialog({
                           )}
                         >
                           <div className="min-w-0">
-                            <div className="text-sm font-medium text-slate-800 truncate">{s.label}</div>
+                            <div className="text-sm font-medium text-slate-800 truncate">
+                              {s.label}
+                            </div>
                             <div className="text-xs text-slate-400">
-                              {s.simulation_type === "tariff" ? "Tarif" : "Projet"} · {s.line_count} ligne(s)
+                              {s.simulation_type === "tariff" ? "Tarif" : "Projet"} · {s.line_count}{" "}
+                              ligne(s)
                             </div>
                           </div>
-                          {selectedSim === s.id && <Check size={16} className="text-[#E07200] flex-shrink-0" />}
+                          {selectedSim === s.id && (
+                            <Check size={16} className="text-[#E07200] flex-shrink-0" />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -179,7 +182,9 @@ export function AddToSimulationDialog({
                 ) : (
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Libellé *</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Libellé *
+                      </label>
                       <input
                         value={newLabel}
                         onChange={(e) => setNewLabel(e.target.value)}
@@ -188,7 +193,9 @@ export function AddToSimulationDialog({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Type</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Type
+                      </label>
                       <div className="flex gap-2">
                         {(["tariff", "project"] as SimulationType[]).map((t) => (
                           <button

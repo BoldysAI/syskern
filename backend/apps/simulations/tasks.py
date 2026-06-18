@@ -1,4 +1,5 @@
 """Celery tasks for the simulations app."""
+
 from __future__ import annotations
 
 from celery import shared_task
@@ -38,8 +39,10 @@ def recalculate_task(
         sim.save(update_fields=["market_params", "updated_at"])
 
     trigger = (
-        RecalculationTrigger.MANUAL_FULL_REFRESH if market_params
-        else RecalculationTrigger.MANUAL_REFRESH_ODOO if refresh_odoo
+        RecalculationTrigger.MANUAL_FULL_REFRESH
+        if market_params
+        else RecalculationTrigger.MANUAL_REFRESH_ODOO
+        if refresh_odoo
         else RecalculationTrigger.MANUAL_CURRENT_PARAMS
     )
     run_simulation(sim, trigger=trigger, note=note)

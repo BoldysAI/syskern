@@ -35,6 +35,7 @@ openpyxl reads HS codes like 854470000000 as large integers (scientific
 notation in Excel).  We normalise to the 6-digit trade code by stripping
 trailing zeros: 854470000000 → "854470".
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 _SUPPLIER_NAME = "Infoks"
 _TRADING_COMPANY = "Symea Shanghai"
-_FACTORY_CODE = "E04"       # Infoks factory code from supplier code list
+_FACTORY_CODE = "E04"  # Infoks factory code from supplier code list
 _INCOTERM = Incoterm.EXW
 _PO_CURRENCY = Currency.EUR
 _ORIGIN = "Turkey"
@@ -70,7 +71,7 @@ def _normalise_hs(value: object) -> str | None:
     if value is None:
         return None
     try:
-        raw = str(int(float(str(value))))   # e.g. "854470000000"
+        raw = str(int(float(str(value))))  # e.g. "854470000000"
         # HS codes are 6 digits; Excel pads them with trailing zeros to 12 digits.
         # We take the first 6 digits only when the remainder is all zeros.
         if len(raw) > 6 and raw[6:].lstrip("0") == "":

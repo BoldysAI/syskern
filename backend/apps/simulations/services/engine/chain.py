@@ -7,11 +7,12 @@ The runner returns:
 - a flat `breakdown` dict ready to be persisted to
   `simulation_lines.calculation_breakdown`
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Iterable
 
 from apps.core.models import Currency
 
@@ -27,7 +28,6 @@ from .modules import (
     CurrencyConversionModule,
     CustomsModule,
     MarginModule,
-    ModuleType,
     TransportModule,
 )
 
@@ -133,7 +133,9 @@ def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
 # ─── SALE CHAIN — produces PV from PR ─────────────────────────────────────
 
 
-def build_sale_modules(chain_config: dict, *, syskern_margin_rate: Decimal) -> list[CalculationModule]:
+def build_sale_modules(
+    chain_config: dict, *, syskern_margin_rate: Decimal
+) -> list[CalculationModule]:
     """Build the PV chain (CDC §6.8).
 
     Expected shape:

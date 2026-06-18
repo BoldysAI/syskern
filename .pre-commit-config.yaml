@@ -1,0 +1,83 @@
+# Pre-commit hooks for the Syskern monorepo.
+# Install once via `make setup`, then hooks run automatically on every commit.
+# To bypass in emergencies (discouraged): `git commit --no-verify`.
+
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  # ─── Hygiène générale (cross-stack) ──────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^.*\.(svg|md)$
+      - id: end-of-file-fixer
+        exclude: ^.*\.svg$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+        exclude: ^frontend/tsconfig.*\.json$  # tsconfig accepts JSON5 (comments)
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-case-conflict
+      - id: detect-private-key
+
+  # ─── Secrets scan ────────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: |
+          (?x)^(
+            .*\.lock$
+          | .*lock\.json$
+          | backend/uv\.lock
+          | frontend/package-lock\.json
+          | \.secrets\.baseline
+          )$
+
+  # ─── Backend: Ruff (lint + format) ───────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        name: ruff (backend lint)
+        args: [--fix]
+        files: ^backend/.*\.py$
+      - id: ruff-format
+        name: ruff (backend format)
+        files: ^backend/.*\.py$
+
+  # ─── Frontend: ESLint + Prettier ─────────────────────────────────────────
+  # Run via npx from the frontend folder. pre-commit passes file paths
+  # relative to the repo root (with the `frontend/` prefix), so the wrapper
+  # strips that prefix before handing them to eslint/prettier which expect
+  # paths relative to the frontend/ cwd.
+  - repo: local
+    hooks:
+      - id: eslint-frontend
+        name: eslint (frontend)
+        language: system
+        entry: scripts/pre-commit/run-frontend-tool.sh eslint
+        files: ^frontend/src/.*\.(ts|tsx|js|jsx|mjs)$
+        pass_filenames: true
+
+      - id: prettier-frontend
+        name: prettier (frontend)
+        language: system
+        entry: scripts/pre-commit/run-frontend-tool.sh prettier
+        files: ^frontend/(src|public)/.*\.(ts|tsx|js|jsx|mjs|json|css|md)$
+        pass_filenames: true
+
+  # ─── Conventional Commits (commit-msg) ───────────────────────────────────
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.30.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]

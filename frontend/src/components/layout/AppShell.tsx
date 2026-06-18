@@ -22,8 +22,16 @@ const NAV_ITEMS = [
   { label: "Offres", href: "/offers", icon: FileText },
 ] as const;
 
-const SETTINGS_ITEM = { label: "Paramètres", href: "/settings", icon: Settings } as const;
-const USERS_ITEM = { label: "Utilisateurs", href: "/admin/users", icon: Users } as const;
+const SETTINGS_ITEM = {
+  label: "Paramètres",
+  href: "/settings",
+  icon: Settings,
+} as const;
+const USERS_ITEM = {
+  label: "Utilisateurs",
+  href: "/admin/users",
+  icon: Users,
+} as const;
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -50,9 +58,7 @@ function NavItem({
       onClick={onClick}
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-        active
-          ? "bg-[#E07200] text-white"
-          : "text-white/70 hover:bg-[#1B3354] hover:text-white"
+        active ? "bg-[#E07200] text-white" : "text-white/70 hover:bg-[#1B3354] hover:text-white",
       )}
     >
       <Icon size={18} />
@@ -61,13 +67,7 @@ function NavItem({
   );
 }
 
-function Sidebar({
-  pathname,
-  onClose,
-}: {
-  pathname: string;
-  onClose?: () => void;
-}) {
+function Sidebar({ pathname, onClose }: { pathname: string; onClose?: () => void }) {
   const { user, role, logout } = useAuth();
 
   return (
@@ -126,9 +126,7 @@ function Sidebar({
                 ? `${user.first_name} ${user.last_name}`
                 : user?.email}
             </div>
-            <div className="text-white/40 text-xs">
-              {role ? ROLE_LABELS[role] : "—"}
-            </div>
+            <div className="text-white/40 text-xs">{role ? ROLE_LABELS[role] : "—"}</div>
           </div>
         </div>
         <button
@@ -165,9 +163,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
           <ChevronRight size={14} className="text-slate-400" />
           <span
             className={
-              i === segments.length - 1
-                ? "text-slate-800 font-medium"
-                : "hover:text-slate-700"
+              i === segments.length - 1 ? "text-slate-800 font-medium" : "hover:text-slate-700"
             }
           >
             {labels[seg] ?? seg}
@@ -210,7 +206,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 md:hidden transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <Sidebar pathname={pathname} onClose={() => setMobileOpen(false)} />

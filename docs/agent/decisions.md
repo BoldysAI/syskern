@@ -96,3 +96,15 @@ Implémentation de `[PIM] Admin du registre d'attributs dynamiques` (CDC §4.1.4
 - **DnD = `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`** (API stable `DndContext`/`SortableContext`/`useSortable`/`arrayMove`, pas le paquet expérimental `@dnd-kit/react`). Reorder optimiste via `mutate(KEY, optimistic, {revalidate:false})` puis revalidation après succès ; rollback (`mutate(KEY)`) + message FR sur erreur.
 - **Navigation = barre d'onglets de liens partagée (`SettingsNav`).** `/settings` n'utilise plus les onglets Radix in-page : les sections Marché / Transport / Odoo sont pilotées par le query-param `?tab=` (composant `SettingsContent` enveloppé dans `<Suspense>` — exigence Next 16 pour `useSearchParams`), et « Attributs dynamiques » est la route dédiée `/settings/attributes`. Les deux pages partagent `SettingsNav`. Accès **admin only** (comme `/settings`).
 - **Code auto-généré** depuis le label FR (`slugifyCode` : strip accents → snake_case, préfixe `attr_` si début non alphabétique) côté création, **input grisé/disabled en édition** (immuable, doublé par la validation serveur).
+
+## 2026-06-18 · [T] Qualité — pre-commit + Conventional Commits + Makefile setup
+`make setup` installe deps Python+Node, hooks pre-commit (ruff, eslint, prettier, detect-secrets, transverses) et commitizen sur `commit-msg`. Validation `feat|fix|chore|...(scope): description`. Wrapper `scripts/pre-commit/run-frontend-tool.sh` strip le préfixe `frontend/` pour que eslint/prettier reçoivent des chemins relatifs au cwd `frontend/`. `.secrets.baseline` allow-list les placeholders connus (env.example, doctests). Décision : ne pas activer mypy en hook (trop lent), `make typecheck` à la place.
+
+## 2026-06-18 · [P] Sécurité — rate-limit login 5 tentatives / 15 min par IP (CDC §9.2)
+`apps/core/rate_limit.py` (helpers `check`/`register_failure`/`clear`, IP via X-Forwarded-For premier hop) + counter dans `django.core.cache` (Redis backend partagé worker/web/beat). 6e tentative → `429` + `Retry-After`. Login réussi reset le compteur. **Une fois bloqué, même le bon mot de passe → 429** (pas d'oracle leak). Paramètres `LOGIN_RATE_LIMIT_MAX_ATTEMPTS`/`LOGIN_RATE_LIMIT_WINDOW_SECONDS` env-overridables. Tests : `apps/core/tests/test_rate_limit.py` (9 cas, isolation par IP, fenêtre glissante, XFF).
+
+## 2026-06-18 · [P] Cache Redis Django (`CACHES`)
+`django.core.cache.backends.redis.RedisCache` ajouté au `settings.base`, `LOCATION = REDIS_URL`, `KEY_PREFIX="syskern"`. Backend partagé entre gunicorn / worker / beat (cohérence du rate-limiter et de toute primitive future).
+
+## 2026-06-18 · [T] Spike volumétrie Odoo (CDC §5 sizing)
+`backend/scripts/spike_odoo_volumetry.py` mesure pull complet : `product.template` × 3 limits (100/200/500), `stock.quant`, `res.partner`, `product.supplierinfo`. Rapport markdown `backend/docs/odoo-mapping.md`. Sur v16 staging (800 SKU) : `limit=500` optimal (0.42 s vs 0.98 s à 100), pull total ~2.5 s, p99 par page 261 ms. **Sizing VPS 4 vCPU / 8 Go reste valable** ; `ODOO_TIMEOUT_SECONDS=60` couvre largement (3× le p99).

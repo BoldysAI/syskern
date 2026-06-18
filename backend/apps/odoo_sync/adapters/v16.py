@@ -11,12 +11,12 @@ Field mapping decisions confirmed by odoo_explore investigation (April–May 202
                         product_qty > qty_received; resolved via product_id→tmpl
   • clients          ← res.partner  customer_rank > 0
 """
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from apps.odoo_sync.schemas import (
     OdooClient,
@@ -26,8 +26,8 @@ from apps.odoo_sync.schemas import (
     OdooSupplierLink,
 )
 
-from .base import OdooAdapter
 from ._rpc import JsonRpcMixin
+from .base import OdooAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ _PO_LINE_FIELDS = [
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _split_category(complete_name: str) -> tuple[str, str, str, str]:
     """Return (universe, family, range, sub_range) from a categ complete_name.
 
@@ -117,7 +118,7 @@ def _split_category(complete_name: str) -> tuple[str, str, str, str]:
     return tuple(levels)  # type: ignore[return-value]
 
 
-def _to_decimal(value) -> Optional[Decimal]:
+def _to_decimal(value) -> Decimal | None:
     if value is None or value is False:
         return None
     try:
@@ -126,7 +127,7 @@ def _to_decimal(value) -> Optional[Decimal]:
         return None
 
 
-def _parse_write_date(raw) -> Optional[datetime]:
+def _parse_write_date(raw) -> datetime | None:
     if not raw:
         return None
     try:
@@ -136,13 +137,13 @@ def _parse_write_date(raw) -> Optional[datetime]:
 
 
 def _many2one_name(field_value) -> str:
-    if isinstance(field_value, (list, tuple)) and len(field_value) >= 2:
+    if isinstance(field_value, list | tuple) and len(field_value) >= 2:
         return str(field_value[1])
     return ""
 
 
-def _many2one_id(field_value) -> Optional[int]:
-    if isinstance(field_value, (list, tuple)) and field_value:
+def _many2one_id(field_value) -> int | None:
+    if isinstance(field_value, list | tuple) and field_value:
         return int(field_value[0])
     if isinstance(field_value, int):
         return field_value
@@ -150,6 +151,7 @@ def _many2one_id(field_value) -> Optional[int]:
 
 
 # ── Normalisation ─────────────────────────────────────────────────────────────
+
 
 def _normalize_product(
     raw: dict,
@@ -205,6 +207,7 @@ def _normalize_client(raw: dict) -> OdooClient:
 
 # ── Shared resolution helper ──────────────────────────────────────────────────
 
+
 def _resolve_variant_to_tmpl(
     kw_fn,
     variant_lines: dict[int, list[OdooPurchaseLine]],
@@ -233,6 +236,7 @@ def _resolve_variant_to_tmpl(
 
 
 # ── Adapter ───────────────────────────────────────────────────────────────────
+
 
 class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
     """Read-only JSON-RPC client for Odoo 16.
@@ -288,7 +292,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
 
     def list_products(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooProduct]:
@@ -357,7 +361,9 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         payload = self.payload_from_product(product)
         new_id = self._kw("product.template", "create", [payload])
         logger.info(
-            "Created Odoo v16 product id=%s sku=%s", new_id, product.sku_code,
+            "Created Odoo v16 product id=%s sku=%s",
+            new_id,
+            product.sku_code,
         )
         return int(new_id)
 
@@ -371,7 +377,8 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         self._kw("product.template", "write", [[odoo_id], fields])
         logger.info(
             "Updated Odoo v16 product id=%s fields=%s",
-            odoo_id, sorted(fields.keys()),
+            odoo_id,
+            sorted(fields.keys()),
         )
 
     # ── Stock ──────────────────────────────────────────────────────────────
@@ -382,10 +389,12 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         rows = self._kw(
             "stock.quant",
             "search_read",
-            [[
-                ["product_tmpl_id", "in", odoo_product_ids],
-                ["location_id.usage", "=", "internal"],
-            ]],
+            [
+                [
+                    ["product_tmpl_id", "in", odoo_product_ids],
+                    ["location_id.usage", "=", "internal"],
+                ]
+            ],
             {"fields": _STOCK_FIELDS},
         )
         result: dict[int, OdooStock] = {}
@@ -423,10 +432,12 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         rows = self._kw(
             "purchase.order.line",
             "search_read",
-            [[
-                ["product_id.product_tmpl_id", "in", odoo_product_ids],
-                ["state", "in", ["purchase", "done"]],
-            ]],
+            [
+                [
+                    ["product_id.product_tmpl_id", "in", odoo_product_ids],
+                    ["state", "in", ["purchase", "done"]],
+                ]
+            ],
             {"fields": _PO_LINE_FIELDS},
         )
 
@@ -455,9 +466,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
 
     # ── Pending sales ──────────────────────────────────────────────────────
 
-    def get_pending_sales(
-        self, odoo_product_ids: list[int]
-    ) -> dict[int, list[OdooPurchaseLine]]:
+    def get_pending_sales(self, odoo_product_ids: list[int]) -> dict[int, list[OdooPurchaseLine]]:
         """Sale lines confirmed but not yet fully delivered."""
         if not odoo_product_ids:
             return {}
@@ -465,14 +474,22 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         rows = self._kw(
             "sale.order.line",
             "search_read",
-            [[
-                ["product_id.product_tmpl_id", "in", odoo_product_ids],
-                ["state", "in", ["sale", "done"]],
-            ]],
-            {"fields": [
-                "id", "product_id", "product_uom_qty", "qty_delivered",
-                "price_unit", "currency_id",
-            ]},
+            [
+                [
+                    ["product_id.product_tmpl_id", "in", odoo_product_ids],
+                    ["state", "in", ["sale", "done"]],
+                ]
+            ],
+            {
+                "fields": [
+                    "id",
+                    "product_id",
+                    "product_uom_qty",
+                    "qty_delivered",
+                    "price_unit",
+                    "currency_id",
+                ]
+            },
         )
 
         variant_lines: dict[int, list[OdooPurchaseLine]] = {}
@@ -501,7 +518,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
 
     def list_clients(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooClient]:

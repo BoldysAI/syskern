@@ -1,4 +1,5 @@
 """Document library — reusable attachments for project offers (CDC §7.4)."""
+
 from __future__ import annotations
 
 from django.db import models
@@ -21,9 +22,7 @@ class DocumentLibrary(BaseModel):
     file_url = models.TextField()  # Supabase Storage URL
     file_size_bytes = models.IntegerField(null=True, blank=True)
     mime_type = models.CharField(max_length=128, blank=True, default="")
-    language = models.CharField(
-        max_length=2, choices=Language.choices, blank=True, default=""
-    )
+    language = models.CharField(max_length=2, choices=Language.choices, blank=True, default="")
     description = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     display_order = models.IntegerField(default=0)

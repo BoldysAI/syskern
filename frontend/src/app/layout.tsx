@@ -10,9 +10,7 @@ export const metadata: Metadata = {
   description: "Plateforme de tarification Syskern",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr" className={`${inter.variable} h-full`}>
       <body className="h-full">

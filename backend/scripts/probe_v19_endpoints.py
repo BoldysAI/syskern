@@ -1,4 +1,5 @@
 """Probe v19 instance endpoints to understand its API surface."""
+
 import httpx
 
 URL = "https://symea-odoo-18-boldys-dev-19-31446036.dev.odoo.com"
@@ -23,8 +24,13 @@ with httpx.Client(verify=False, follow_redirects=False, timeout=15.0) as c:
         try:
             kwargs = {}
             if method == "POST":
-                kwargs = {"json": {"jsonrpc": "2.0", "method": "call",
-                                   "params": {"service": "common", "method": "version", "args": []}}}
+                kwargs = {
+                    "json": {
+                        "jsonrpc": "2.0",
+                        "method": "call",
+                        "params": {"service": "common", "method": "version", "args": []},
+                    }
+                }
             r = c.request(method, URL + path, **kwargs)
             ctype = r.headers.get("content-type", "?").split(";")[0]
             loc = r.headers.get("location", "")

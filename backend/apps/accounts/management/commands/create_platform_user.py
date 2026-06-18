@@ -3,10 +3,11 @@
 Usage:
     python manage.py create_platform_user --email karim@boldys.ai --role admin --password secret
 """
+
 from __future__ import annotations
 
 from django.contrib.auth.models import User
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from apps.accounts.models import Profile, Role
 
@@ -43,6 +44,4 @@ class Command(BaseCommand):
         Profile.objects.update_or_create(user=user, defaults={"role": role})
 
         action = "Créé" if created else "Mis à jour"
-        self.stdout.write(
-            self.style.SUCCESS(f"{action} : {email} (rôle : {role})")
-        )
+        self.stdout.write(self.style.SUCCESS(f"{action} : {email} (rôle : {role})"))

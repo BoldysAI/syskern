@@ -109,11 +109,13 @@ class SimulationRecalculationSerializer(serializers.ModelSerializer):
 
 class AddLinesSerializer(serializers.Serializer):
     """Body for `POST /api/simulations/{id}/lines`."""
+
     product_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
 
 
 class BulkEditSerializer(serializers.Serializer):
     """Body for `POST /api/simulations/{id}/lines/bulk`."""
+
     filter = serializers.DictField(required=False, default=dict)
     margin_override = serializers.DecimalField(
         max_digits=5, decimal_places=4, required=False, allow_null=True
@@ -126,6 +128,7 @@ class BulkEditSerializer(serializers.Serializer):
 
 class RecalculateSerializer(serializers.Serializer):
     """Body for `POST /api/simulations/{id}/recalculate`."""
+
     refresh_odoo = serializers.BooleanField(default=False)
     market_params = serializers.DictField(required=False)
     note = serializers.CharField(required=False, allow_blank=True, default="")

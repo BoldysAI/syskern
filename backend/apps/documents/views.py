@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
-import os
-from pathlib import Path
 
-from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework import parsers, status, viewsets
 from rest_framework.decorators import action
@@ -41,7 +38,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
 
         category = request.data.get("category") or "other"
         language = request.data.get("language") or ""
-        name = request.data.get("name") or '{"fr": "%s"}' % file.name
+        name = request.data.get("name") or f'{{"fr": "{file.name}"}}'
         description = request.data.get("description") or ""
 
         target_path = f"documents/{file.name}"
@@ -63,6 +60,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
 def _safe_json(maybe_json, *, fallback: dict) -> dict:
     """Parse a JSON string if possible, else wrap as {fr: <raw>}."""
     import json
+
     if isinstance(maybe_json, dict):
         return maybe_json
     try:

@@ -1,9 +1,10 @@
 """Predictive PAMP + PR (stock/purchase mix) — CDC §6.7."""
+
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Iterable
 
 from .context import DEC_ZERO, to_decimal
 

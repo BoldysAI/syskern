@@ -20,6 +20,7 @@ Performance note:
   this is negligible in memory (<1 MB) and dramatically faster than ORM
   select() per row.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,8 +52,14 @@ class ProductMatcher:
     def _build_indexes(self) -> None:
         """Load three indexes from the database in a single queryset scan."""
         qs = Product.objects.only(
-            "id", "sku_code", "parent_reference", "factory_code",
-            "universe", "family", "range", "sub_range",
+            "id",
+            "sku_code",
+            "parent_reference",
+            "factory_code",
+            "universe",
+            "family",
+            "range",
+            "sub_range",
         ).iterator(chunk_size=500)
 
         # Rule 1: sku_code → uuid (unique by DB constraint)

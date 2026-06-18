@@ -6,6 +6,7 @@ its dedicated env vars (ODOO_V16_* or ODOO_V19_*).
 
 Both are used by the sync runner to support dual-instance sync without doublons.
 """
+
 from __future__ import annotations
 
 from django.conf import settings
@@ -50,9 +51,8 @@ def get_odoo_adapter_for(version: str) -> OdooAdapter:
         "user": cfg.get(f"{prefix}API_USER") or cfg.get("API_USER", ""),
         "password": cfg.get(f"{prefix}API_PASSWORD") or cfg.get("API_PASSWORD", ""),
         "timeout": float(cfg.get("TIMEOUT_SECONDS", 60)),
-        "verify_tls": str(
-            cfg.get(f"{prefix}VERIFY_TLS", cfg.get("VERIFY_TLS", "true"))
-        ).lower() not in ("false", "0", "no"),
+        "verify_tls": str(cfg.get(f"{prefix}VERIFY_TLS", cfg.get("VERIFY_TLS", "true"))).lower()
+        not in ("false", "0", "no"),
     }
     return _instantiate(version, kwargs)
 

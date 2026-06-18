@@ -4,6 +4,7 @@ The §6.4 worked example in the CDC is the single non-negotiable acceptance
 test for this module (cf. Annexe Technique §7.1, critère 1).  Any change
 that breaks `test_cdc_example_pa_390_16` is a defect by definition.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -22,7 +23,6 @@ from apps.simulations.services.engine import (
     quantize,
     run_chain,
 )
-
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -95,12 +95,12 @@ def test_cdc_example_pa_390_16(cdc_product, cdc_market_params, cdc_purchase_chai
 
     # Validate the breakdown matches the worked example step-by-step.
     amounts = [s.output_price.amount for s in result.steps]
-    assert amounts[0] == Decimal("2836")       # after copper variation (RMB)
-    assert amounts[1] == Decimal("356.7296")   # after EUR conversion
-    assert amounts[2] == Decimal("363.9760")   # after transport 1 (USD → EUR)
-    assert amounts[3] == Decimal("366.7538")   # after transport 2 (EUR)
-    assert amounts[4] == Decimal("366.7538")   # customs = 0 → passthrough
-    assert amounts[5] == Decimal("390.1636")   # after Symea margin
+    assert amounts[0] == Decimal("2836")  # after copper variation (RMB)
+    assert amounts[1] == Decimal("356.7296")  # after EUR conversion
+    assert amounts[2] == Decimal("363.9760")  # after transport 1 (USD → EUR)
+    assert amounts[3] == Decimal("366.7538")  # after transport 2 (EUR)
+    assert amounts[4] == Decimal("366.7538")  # customs = 0 → passthrough
+    assert amounts[5] == Decimal("390.1636")  # after Symea margin
 
 
 def test_cdc_example_pv_487_70(cdc_product, cdc_market_params, cdc_purchase_chain):
@@ -163,8 +163,10 @@ def test_copper_module_skipped_when_not_indexed(cdc_market_params):
 def test_fx_rate_derives_non_eur_pairs():
     ctx = SimulationContext(
         product=ProductView(
-            sku_code="X", is_copper_indexed=False,
-            copper_weight_kg_per_unit=None, pallet_qty=1,
+            sku_code="X",
+            is_copper_indexed=False,
+            copper_weight_kg_per_unit=None,
+            pallet_qty=1,
         ),
         market_params={"fx_eur_rmb": "7.95", "fx_eur_usd": "1.15"},
     )
@@ -175,10 +177,13 @@ def test_fx_rate_derives_non_eur_pairs():
 
 def test_margin_rate_validation():
     from apps.simulations.services.engine import MarginModule
+
     ctx = SimulationContext(
         product=ProductView(
-            sku_code="X", is_copper_indexed=False,
-            copper_weight_kg_per_unit=None, pallet_qty=1,
+            sku_code="X",
+            is_copper_indexed=False,
+            copper_weight_kg_per_unit=None,
+            pallet_qty=1,
         ),
         market_params={},
     )
@@ -236,9 +241,9 @@ def test_compute_pr_at_mix_extremes():
 
 def test_compute_pr_falls_back_to_pa_when_no_pamp():
     # Even with mix_pct=80, missing PAMP forces PR = PA net.
-    assert compute_pr(
-        pa_net_eur=Decimal("400"), pamp_predictive_eur=None, mix_pct=80
-    ) == Decimal("400")
+    assert compute_pr(pa_net_eur=Decimal("400"), pamp_predictive_eur=None, mix_pct=80) == Decimal(
+        "400"
+    )
 
 
 def test_quantize_rounds_half_up():

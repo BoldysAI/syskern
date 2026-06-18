@@ -1,8 +1,8 @@
 """DRF endpoints for simulations (CDC §6.9.9)."""
+
 from __future__ import annotations
 
 from django.db import transaction
-from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -12,10 +12,8 @@ from apps.offers.models import Offer
 from apps.products.models import Product
 
 from .models import (
-    RecalculationTrigger,
     Simulation,
     SimulationLine,
-    SimulationRecalculation,
     SimulationStatus,
 )
 from .serializers import (
@@ -29,7 +27,6 @@ from .serializers import (
     SimulationRecalculationSerializer,
     SimulationWriteSerializer,
 )
-from .services.runner import run_simulation
 from .tasks import recalculate_task
 
 
@@ -169,7 +166,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
         for product in Product.objects.filter(id__in=product_ids):
             if product.id in existing:
                 continue
-            new_lines.append(SimulationLine(simulation=simulation, product=product, status="pending"))
+            new_lines.append(
+                SimulationLine(simulation=simulation, product=product, status="pending")
+            )
         SimulationLine.objects.bulk_create(new_lines)
         Simulation.objects.filter(pk=simulation.pk).update(is_dirty=True)
         return Response({"added": len(new_lines)}, status=status.HTTP_201_CREATED)
@@ -285,7 +284,11 @@ class CompareSimulationsView(viewsets.ViewSet):
         for line in lines:
             entry = matrix.setdefault(
                 str(line.product_id),
-                {"product_sku": line.product.sku_code, "product_name": line.product.name, "values": {}},
+                {
+                    "product_sku": line.product.sku_code,
+                    "product_name": line.product.name,
+                    "values": {},
+                },
             )
             entry["values"][str(line.simulation_id)] = {
                 "pa_net_eur": str(line.pa_net_eur) if line.pa_net_eur else None,

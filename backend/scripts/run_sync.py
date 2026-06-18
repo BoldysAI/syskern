@@ -1,14 +1,18 @@
 """Déclenche un sync produits + stock + clients et affiche le rapport."""
-import os, sys, django
+
+import os
+import sys
+
+import django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 sys.path.insert(0, "/app")
 django.setup()
 
-from apps.odoo_sync.services.runner import sync
-from apps.odoo_sync.models import SyncScope, SyncType
-from apps.products.models import Product
 from apps.clients.models import Client
+from apps.odoo_sync.models import SyncScope, SyncType
+from apps.odoo_sync.services.runner import sync
+from apps.products.models import Product
 
 print("─" * 60)
 print("SYNC PRODUCTS")
@@ -42,11 +46,13 @@ print()
 print("─" * 60)
 print("RÉSULTAT EN BASE")
 n_products = Product.objects.filter(odoo_id__isnull=False).count()
-n_clients  = Client.objects.filter(odoo_id__isnull=False).count()
+n_clients = Client.objects.filter(odoo_id__isnull=False).count()
 sample = Product.objects.filter(odoo_id__isnull=False).order_by("sku_code")[:5]
 print(f"  Produits synchro : {n_products}")
 print(f"  Clients synchro  : {n_clients}")
 print()
 print("  Exemples produits :")
 for p in sample:
-    print(f"    {p.sku_code:<30} universe={p.universe!r:<20} pamp={p.pamp_eur} stock={p.stock_quantity}")
+    print(
+        f"    {p.sku_code:<30} universe={p.universe!r:<20} pamp={p.pamp_eur} stock={p.stock_quantity}"
+    )

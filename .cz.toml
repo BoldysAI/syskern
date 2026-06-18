@@ -1,0 +1,21 @@
+# Commitizen — Conventional Commits configuration
+# See https://www.conventionalcommits.org/ and https://commitizen-tools.github.io/commitizen/
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+version = "0.1.0"
+update_changelog_on_bump = false
+allow_abort = true
+allowed_prefixes = ["Merge", "Revert"]
+
+# Accepted commit types (matches the Conventional Commits spec).
+# Examples:
+#   feat(catalog): add export to Excel button
+#   fix(odoo): handle expired session by re-authenticating once
+#   chore(deps): bump celery to 5.6.3
+#   docs(readme): document the new `make setup` target
+#   refactor(simulations): extract margin resolution helper
+#   test(products): cover universe filter with multi-value
+#   ci: pin pre-commit hook versions

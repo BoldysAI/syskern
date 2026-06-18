@@ -63,7 +63,15 @@ function formatDateFr(iso: string): string {
 
 // ─── Read-mode rendering ────────────────────────────────────────────────────
 
-function ReadValue({ attribute, value, lang }: { attribute: AttributeRegistry; value: unknown; lang: string }) {
+function ReadValue({
+  attribute,
+  value,
+  lang,
+}: {
+  attribute: AttributeRegistry;
+  value: unknown;
+  lang: string;
+}) {
   const empty = value === null || value === undefined || value === "";
   if (empty) return <span className="text-slate-300">—</span>;
 
@@ -93,7 +101,11 @@ function ReadValue({ attribute, value, lang }: { attribute: AttributeRegistry; v
       return <span className="font-medium text-slate-800">{formatDateFr(String(value))}</span>;
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
-      return <span className="font-medium text-slate-800">{opt ? localize(opt.label, lang) : String(value)}</span>;
+      return (
+        <span className="font-medium text-slate-800">
+          {opt ? localize(opt.label, lang) : String(value)}
+        </span>
+      );
     }
     case "multiselect": {
       const arr = Array.isArray(value) ? value : [];
@@ -103,7 +115,10 @@ function ReadValue({ attribute, value, lang }: { attribute: AttributeRegistry; v
           {arr.map((v) => {
             const opt = (attribute.options ?? []).find((o) => o.value === String(v));
             return (
-              <span key={String(v)} className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
+              <span
+                key={String(v)}
+                className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs"
+              >
                 {opt ? localize(opt.label, lang) : String(v)}
               </span>
             );
@@ -289,7 +304,9 @@ function MultiSelectWidget({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-[#E2E8F0] rounded-lg">
-        {selected.length === 0 && <span className="text-sm text-slate-300 px-1 py-0.5">Aucune sélection</span>}
+        {selected.length === 0 && (
+          <span className="text-sm text-slate-300 px-1 py-0.5">Aucune sélection</span>
+        )}
         {selected.map((v) => {
           const opt = options.find((o) => o.value === v);
           return (
@@ -298,7 +315,12 @@ function MultiSelectWidget({
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#FFF3E0] text-[#C56400] text-xs font-medium"
             >
               {opt ? localize(opt.label, lang) : v}
-              <button type="button" onClick={() => remove(v)} aria-label={`Retirer ${v}`} className="hover:text-[#E07200]">
+              <button
+                type="button"
+                onClick={() => remove(v)}
+                aria-label={`Retirer ${v}`}
+                className="hover:text-[#E07200]"
+              >
                 <X size={12} />
               </button>
             </span>
@@ -340,7 +362,13 @@ function MultiSelectWidget({
  * Adaptive widget for a dynamic attribute (CDC §4.5).
  * Renders a labelled row; the right side adapts to `data_type` and `mode`.
  */
-export function AttributeRenderer({ attribute, value, mode, lang = "fr", onChange }: AttributeRendererProps) {
+export function AttributeRenderer({
+  attribute,
+  value,
+  mode,
+  lang = "fr",
+  onChange,
+}: AttributeRendererProps) {
   const label = useMemo(() => localize(attribute.label, lang), [attribute.label, lang]);
   const isMultiline =
     mode === "edit" &&

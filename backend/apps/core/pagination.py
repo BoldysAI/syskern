@@ -1,4 +1,5 @@
 """Default pagination classes."""
+
 from __future__ import annotations
 
 from rest_framework.pagination import LimitOffsetPagination

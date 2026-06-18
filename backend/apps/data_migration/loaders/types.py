@@ -1,4 +1,5 @@
 """Immutable dataclasses shared across the loader pipeline (CDC §8.4–§8.8)."""
+
 from __future__ import annotations
 
 import uuid

@@ -71,8 +71,8 @@ function AddProductsModal({
 
   const { data, isLoading } = useSWR<PaginatedProducts>(
     ["sim-add-products", search],
-    () => getProducts({ q: search || undefined, limit: 25 }),
-    { keepPreviousData: true }
+    () => getProducts({ search: search || undefined, limit: 25 }),
+    { keepPreviousData: true },
   );
 
   const toggle = (id: string) =>
@@ -134,7 +134,7 @@ function AddProductsModal({
                     <label
                       className={cn(
                         "flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50",
-                        already && "opacity-40 cursor-not-allowed"
+                        already && "opacity-40 cursor-not-allowed",
                       )}
                     >
                       <input
@@ -217,10 +217,12 @@ export default function SimulationDetailPage() {
   const router = useRouter();
   const id = params?.id ?? "";
 
-  const { data: sim, isLoading, error, mutate } = useSWR<SimulationDetail>(
-    id ? ["simulation", id] : null,
-    () => getSimulation(id)
-  );
+  const {
+    data: sim,
+    isLoading,
+    error,
+    mutate,
+  } = useSWR<SimulationDetail>(id ? ["simulation", id] : null, () => getSimulation(id));
 
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -245,7 +247,10 @@ export default function SimulationDetailPage() {
         <AlertCircle size={40} className="text-red-300" />
         <p className="font-medium">Simulation introuvable</p>
         <p className="text-sm text-slate-400">{error?.message}</p>
-        <Link href="/simulator" className="text-sm text-[#E07200] hover:text-[#C56400] font-medium mt-2">
+        <Link
+          href="/simulator"
+          className="text-sm text-[#E07200] hover:text-[#C56400] font-medium mt-2"
+        >
           Retour aux simulations
         </Link>
       </div>
@@ -285,11 +290,15 @@ export default function SimulationDetailPage() {
                     sim.status === "finalized"
                       ? "bg-green-100 text-green-700"
                       : sim.status === "archived"
-                      ? "bg-slate-100 text-slate-500"
-                      : "bg-amber-100 text-amber-700"
+                        ? "bg-slate-100 text-slate-500"
+                        : "bg-amber-100 text-amber-700",
                   )}
                 >
-                  {sim.status === "finalized" ? "Finalisé" : sim.status === "archived" ? "Archivé" : "Brouillon"}
+                  {sim.status === "finalized"
+                    ? "Finalisé"
+                    : sim.status === "archived"
+                      ? "Archivé"
+                      : "Brouillon"}
                 </span>
                 {sim.is_dirty && sim.status === "draft" && (
                   <span className="text-xs text-orange-600 font-medium">Recalcul nécessaire</span>
@@ -313,7 +322,11 @@ export default function SimulationDetailPage() {
                     disabled={busy !== null}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                   >
-                    {busy === "recalc" ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />}
+                    {busy === "recalc" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Calculator size={14} />
+                    )}
                     Recalculer
                   </button>
                   <button
@@ -365,22 +378,37 @@ export default function SimulationDetailPage() {
       {sim && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Lignes</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Lignes
+            </div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{sim.line_count}</div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">PV moyen</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              PV moyen
+            </div>
             <div className="text-2xl font-bold text-slate-900 mt-1">
               {avgPv != null ? fmtEur(String(avgPv)) : "—"}
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Marge Syskern</div>
-            <div className="text-2xl font-bold text-slate-900 mt-1">{decToPct(sim.syskern_margin_rate)} %</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Marge Syskern
+            </div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {decToPct(sim.syskern_margin_rate)} %
+            </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Erreurs</div>
-            <div className={cn("text-2xl font-bold mt-1", errorCount ? "text-red-600" : "text-slate-900")}>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Erreurs
+            </div>
+            <div
+              className={cn(
+                "text-2xl font-bold mt-1",
+                errorCount ? "text-red-600" : "text-slate-900",
+              )}
+            >
               {errorCount}
             </div>
           </div>
@@ -414,14 +442,16 @@ export default function SimulationDetailPage() {
             <table className="w-full">
               <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
                 <tr>
-                  {["SKU", "Désignation", "PA net", "PR", "PV", "Marge", "Mix", "Statut", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["SKU", "Désignation", "PA net", "PR", "PV", "Marge", "Mix", "Statut", ""].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
@@ -435,9 +465,13 @@ export default function SimulationDetailPage() {
                       <td className="px-4 py-2.5 text-sm text-slate-600 max-w-xs truncate">
                         {line.product_name}
                       </td>
-                      <td className="px-4 py-2.5 text-sm text-slate-700">{fmtEur(line.pa_net_eur)}</td>
+                      <td className="px-4 py-2.5 text-sm text-slate-700">
+                        {fmtEur(line.pa_net_eur)}
+                      </td>
                       <td className="px-4 py-2.5 text-sm text-slate-700">{fmtEur(line.pr_eur)}</td>
-                      <td className="px-4 py-2.5 text-sm font-semibold text-slate-900">{fmtEur(line.pv_eur)}</td>
+                      <td className="px-4 py-2.5 text-sm font-semibold text-slate-900">
+                        {fmtEur(line.pv_eur)}
+                      </td>
                       <td className="px-4 py-2.5">
                         <OverrideInput
                           value={decToPct(line.margin_override)}
@@ -448,7 +482,7 @@ export default function SimulationDetailPage() {
                               updateSimulationLine(line.id, {
                                 margin_override:
                                   raw.trim() === "" ? null : (parseFloat(raw) / 100).toFixed(4),
-                              })
+                              }),
                             )
                           }
                         />
@@ -463,13 +497,18 @@ export default function SimulationDetailPage() {
                               updateSimulationLine(line.id, {
                                 stock_purchase_mix_pct_override:
                                   raw.trim() === "" ? null : parseInt(raw, 10),
-                              })
+                              }),
                             )
                           }
                         />
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", st.cls)}>
+                        <span
+                          className={cn(
+                            "inline-flex px-2 py-0.5 rounded text-xs font-medium",
+                            st.cls,
+                          )}
+                        >
                           {st.label}
                         </span>
                       </td>

@@ -5,6 +5,7 @@ Per-environment settings live in `config.settings.local` and
 `config.settings.production`.  They import everything from this module and
 override what they need.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -142,12 +143,8 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 # ─── DRF ──────────────────────────────────────────────────────────────────────
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "apps.core.authentication.CsrfExemptSessionAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.core.authentication.CsrfExemptSessionAuthentication",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
@@ -224,6 +221,25 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")
 SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
+
+# ─── Cache (Redis) ────────────────────────────────────────────────────────────
+# Shared between gunicorn / worker / beat so primitives like the login
+# rate limiter see the same counters regardless of which process serves
+# the request. Falls back to LocMemCache (per-process) only in test contexts
+# where REDIS_URL isn't reachable.
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
+        "KEY_PREFIX": "syskern",
+        "TIMEOUT": 300,  # 5 min default for ad-hoc keys; rate-limiter sets its own
+    }
+}
+
+# ─── Login rate limit (CDC §9.2) ──────────────────────────────────────────────
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(env("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", default=5))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(env("LOGIN_RATE_LIMIT_WINDOW_SECONDS", default=900))  # 15 min
 
 # ─── Celery ───────────────────────────────────────────────────────────────────
 
