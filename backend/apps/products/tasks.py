@@ -86,7 +86,7 @@ def export_products_task(
     qs = Product.objects.all().prefetch_related("suppliers")
     if filters:
         filterset = ProductFilter(data=filters, queryset=qs)
-        qs = filterset.qs if filterset.is_valid() else filterset.queryset
+        qs = filterset.qs
     if ids:
         qs = qs.filter(id__in=ids)
 
