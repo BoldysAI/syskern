@@ -226,6 +226,8 @@ export interface AttributeRegistry {
   is_searchable: boolean;
   is_filterable: boolean;
   display_order: number;
+  /** Number of product_attribute_values rows cascade-deleted with this attribute. */
+  value_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -555,6 +557,49 @@ export function getAttributeRegistry(
   return apiFetch<PaginatedResponse<AttributeRegistry>>(
     `/api/attributes/?${q.toString()}`
   ).then((r) => r.results);
+}
+
+/** Full attribute registry (admin page `/settings/attributes`, CDC §4.1.4). */
+export function listAttributes(): Promise<AttributeRegistry[]> {
+  return apiFetch<PaginatedResponse<AttributeRegistry>>(
+    "/api/attributes/?limit=500"
+  ).then((r) => r.results);
+}
+
+/** Create a new attribute definition in the registry. */
+export function createAttribute(
+  data: Partial<AttributeRegistry>
+): Promise<AttributeRegistry> {
+  return apiFetch<AttributeRegistry>("/api/attributes/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/** Update an attribute definition (`code` is immutable server-side). */
+export function updateAttribute(
+  id: string,
+  patch: Partial<AttributeRegistry>
+): Promise<AttributeRegistry> {
+  return apiFetch<AttributeRegistry>(
+    `/api/attributes/${encodeURIComponent(id)}/`,
+    { method: "PATCH", body: JSON.stringify(patch) }
+  );
+}
+
+/** Delete an attribute; cascade-deletes its product_attribute_values. */
+export function deleteAttribute(id: string): Promise<void> {
+  return apiFetch<void>(`/api/attributes/${encodeURIComponent(id)}/`, {
+    method: "DELETE",
+  });
+}
+
+/** Persist a new display order; `ids` is the ordered list for one category. */
+export function reorderAttributes(ids: string[]): Promise<{ reordered: number }> {
+  return apiFetch<{ reordered: number }>("/api/attributes/reorder/", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
 }
 
 /** Upsert one attribute value on a product (PUT, body `{value}`). */

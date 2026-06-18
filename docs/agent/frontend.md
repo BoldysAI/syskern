@@ -197,6 +197,31 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
 - **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
   fournisseurs, etc.).
 
+## Drag-and-drop (réordonnancement) — `@dnd-kit`
+
+Réordonnancement de listes/tableaux via `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`
+(API stable : `DndContext`/`SortableContext`/`useSortable`/`arrayMove` — **pas** `@dnd-kit/react`).
+Référence : `app/settings/attributes/_components/rows.tsx` + `page.tsx`.
+
+- `DndContext` (sensors `PointerSensor` distance 5 + `KeyboardSensor` `sortableKeyboardCoordinates`,
+  `collisionDetection={closestCenter}`) → `SortableContext` (`items={ids}`,
+  `verticalListSortingStrategy`).
+- Ligne sortable : `useSortable({id})`, appliquer `transform`/`transition` via
+  `CSS.Transform.toString`. **Drag handle** dédié (`{...attributes} {...listeners}` + `touch-none`).
+- `onDragEnd` → `arrayMove` local → **update optimiste** `mutate(KEY, next, {revalidate:false})`
+  → appel API persistance → `mutate(KEY)` (revalidate) au succès, **rollback** (`mutate(KEY)`) +
+  message FR sur erreur.
+- Activer le DnD seulement quand le périmètre est cohérent (ex. une seule catégorie isolée) ;
+  sinon rendre des lignes statiques (deux composants distincts pour respecter les règles de hooks).
+
+## Sous-navigation des Paramètres (`SettingsNav`)
+
+`/settings` et `/settings/attributes` partagent `app/settings/_components/SettingsNav.tsx`
+(onglets = **liens** Next, état actif via `usePathname` + `useSearchParams`). Les sections de
+`/settings` (Marché/Transport/Odoo) sont pilotées par le query-param `?tab=` au lieu d'onglets
+Radix in-page. **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16 (sinon
+`next build` échoue) — encapsuler le composant qui le lit.
+
 ## Variables d'environnement
 
 - Côté **serveur** (BFF/rewrites) : `BACKEND_URL`. Côté **client** : préfixe `NEXT_PUBLIC_*`.

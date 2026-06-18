@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
-import * as Tabs from "@radix-ui/react-tabs";
 import {
   Activity,
   Plus,
@@ -41,6 +40,7 @@ import {
   type SyncStatus,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import SettingsNav from "./_components/SettingsNav";
 
 const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
@@ -635,12 +635,18 @@ function TabOdoo() {
   );
 }
 
-// ── Settings page (with tabs) ────────────────────────────────────────────
-const TABS = [
-  { id: "marche", label: "Paramètres marché", Icon: Coins },
-  { id: "transport", label: "Modes de transport", Icon: Truck },
-  { id: "odoo", label: "Synchronisation Odoo", Icon: Database },
-];
+// ── Settings page (query-param driven tabs) ──────────────────────────────
+function SettingsContent() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") ?? "marche";
+
+  return (
+    <>
+      <SettingsNav />
+      {tab === "transport" ? <TabTransport /> : tab === "odoo" ? <TabOdoo /> : <TabMarche />}
+    </>
+  );
+}
 
 export default function SettingsPage() {
   const { role, isLoading } = useAuth();
@@ -658,28 +664,9 @@ export default function SettingsPage() {
         <p className="text-sm text-slate-500 mt-0.5">Configuration de la plateforme — réservé aux administrateurs.</p>
       </div>
 
-      <Tabs.Root defaultValue="marche">
-        <Tabs.List className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
-          {TABS.map(({ id, label, Icon }) => (
-            <Tabs.Trigger
-              key={id}
-              value={id}
-              className={cn(
-                "flex items-center gap-2 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                "text-slate-500 hover:text-slate-800",
-                "data-[state=active]:bg-[#E07200] data-[state=active]:text-white"
-              )}
-            >
-              <Icon size={14} />
-              {label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        <Tabs.Content value="marche"><TabMarche /></Tabs.Content>
-        <Tabs.Content value="transport"><TabTransport /></Tabs.Content>
-        <Tabs.Content value="odoo"><TabOdoo /></Tabs.Content>
-      </Tabs.Root>
+      <Suspense fallback={<div className="py-12 text-center text-sm text-slate-400">Chargement…</div>}>
+        <SettingsContent />
+      </Suspense>
     </div>
   );
 }

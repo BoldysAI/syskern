@@ -50,7 +50,7 @@ function Section({
   title,
   icon,
   activeCount = 0,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
 }: {
   title: string;
@@ -337,7 +337,7 @@ export function CatalogSidebar({
         title="Hiérarchie produit"
         icon={<Layers size={16} />}
         activeCount={hierarchyCount}
-        defaultOpen
+        defaultOpen={false}
       >
         <p className="text-xs text-slate-500 mb-3 leading-relaxed">
           Filtrez par univers, famille, gamme ou sous-gamme — chaque niveau est indépendant.
@@ -452,7 +452,7 @@ export function CatalogSidebar({
 
       {!!attributes?.length && (
         <Section
-          title="Attributs techniques"
+          title="Attributs dynamiques"
           icon={<SlidersHorizontal size={16} />}
           activeCount={attrCount}
           defaultOpen={false}
@@ -474,7 +474,7 @@ export function CatalogSidebar({
         title="Filtres favoris"
         icon={<Bookmark size={16} />}
         activeCount={0}
-        defaultOpen={savedFilters.length > 0}
+        defaultOpen={false}
       >
         <div className="flex flex-col gap-3">
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -625,6 +625,20 @@ function AttributeFilter({
             />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (attribute.data_type === "date") {
+    return (
+      <div>
+        <label className="text-xs font-semibold text-slate-600 block mb-1.5">{label}</label>
+        <input
+          type="date"
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+        />
       </div>
     );
   }

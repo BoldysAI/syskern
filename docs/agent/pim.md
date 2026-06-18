@@ -102,7 +102,7 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 | `GET`/`POST` | `/api/products/{id}/suppliers/` | fournisseurs imbriqués (list / create) |
 | `PATCH`/`DELETE` | `/api/products/{id}/suppliers/{pk}/` | update / delete d'un fournisseur |
 | `POST` | `/api/products/{id}/suppliers/{pk}/activate/` | active ce fournisseur, désactive les autres **dans une transaction** (mutex `one_active_supplier_per_product`) |
-| CRUD | `/api/attributes/` (+ `POST /reorder/`) | registre des définitions (paginé) |
+| CRUD | `/api/attributes/` (+ `POST /reorder/`) | registre des définitions (paginé). Réponses incluent `value_count` (nb de valeurs liées, pour la modale de suppression). `reorder` body `{ids:[…]}` → `display_order = position` |
 | CRUD | `/api/attribute-values/?product={uuid}` | accès plat aux valeurs (legacy) |
 
 **Gotchas** :
@@ -137,7 +137,9 @@ composants privés dans `frontend/src/app/catalog/_components/`.
 - **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, fournisseur
   en **multi-checkbox** (niveaux indépendants — pas de cascade UI obligatoire ; chaque niveau
   via `getHierarchyLevel(level)`). Stock : toggles en stock / rupture + quantité min.
-  Attributs dynamiques `is_filterable` (rendus selon `data_type`). État = `CatalogFilters`
+  Attributs dynamiques `is_filterable` (rendus selon `data_type`, section sidebar
+  « Attributs dynamiques » — toutes catégories confondues ; `date` → `<input type="date">`).
+  État = `CatalogFilters`
   (tableaux `string[]` pour les multi) → `buildCatalogQuery()` dans `lib/api.ts` (partagé liste
   **et** export).
 - **Tri serveur** : param `ordering` (`field` / `-field`). En-têtes = cycle UI **asc → desc →
@@ -188,7 +190,37 @@ Conçu pour réemploi (fiche produit **et** futur wizard de création). Exporte
 `deleteProduct(idOrSku)`, `createProduct(data)`, `parseSku(sku)`, `getProductSuppliers`, `createSupplier`,
 `updateSupplier`, `deleteSupplier`, `activateSupplier`,
 `getPriceHistory`, `refreshPamp`, `translateProduct`. Édition en place → voir le pattern
-autosave dans `frontend.md`.
+autosave dans `frontend.md`. Registre admin :
+`listAttributes()`, `createAttribute(data)`, `updateAttribute(id, patch)`,
+`deleteAttribute(id)`, `reorderAttributes(ids)`.
+
+---
+
+## Admin registre d'attributs (`/settings/attributes`, CDC §4.1.4 / §4.3 Écran 3)
+
+Page : [frontend/src/app/settings/attributes/page.tsx](../../frontend/src/app/settings/attributes/page.tsx)
+(+ composants privés dans `_components/`). **Admin only** (redirige sinon). Permet à
+Olivier d'ajouter / modifier / supprimer / réordonner les attributs **sans migration SQL**.
+
+| Élément | Rôle |
+|---|---|
+| `SettingsNav.tsx` (`../_components/`) | Barre d'onglets de liens partagée par `/settings` (Marché/Transport/Odoo via `?tab=`) et `/settings/attributes` |
+| `rows.tsx` | `AttributeRow` (statique) + `SortableAttributeRow` (`useSortable`, drag handle `GripVertical`) |
+| `AttributeFormModal.tsx` | Création / édition : labels FR(*)/EN/ES, catégorie, type, éditeur d'options, unité, toggles Obligatoire/Recherchable/**Filtrable** |
+| `DeleteAttributeDialog.tsx` | Confirmation : affiche `value_count` + **saisie du code** pour activer la suppression |
+| `constants.ts` | `CATEGORIES`/`DATA_TYPES` (labels FR), `CODE_REGEX`, `slugifyCode()` |
+
+- **Tableau** : Code, Label FR, Catégorie, Type, Obligatoire, Ordre, Actions. Filtres par
+  **chips de catégorie** au-dessus.
+- **Drag-and-drop** (`@dnd-kit/core`+`sortable`) actif **uniquement quand une catégorie est
+  isolée** (reorder intra-catégorie). Optimiste (`mutate(KEY, …, {revalidate:false})`) puis
+  revalidation ; rollback + message FR sur erreur. Persiste via `reorderAttributes(ids)`.
+- **Code** auto-généré depuis le label FR (`slugifyCode`), éditable à la création,
+  **grisé/disabled en édition** (immuable — doublé serveur).
+- **Création depuis un chip de catégorie** : la modale pré-sélectionne cette catégorie
+  (`defaultCategory` ; onglet « Toutes » → défaut `technical`).
+- **Suppression en cascade** : `ProductAttributeValue.attribute` est `on_delete=CASCADE` ;
+  la modale annonce le nombre de valeurs supprimées (`value_count`).
 
 ---
 

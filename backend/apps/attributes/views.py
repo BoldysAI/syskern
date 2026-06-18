@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -14,7 +15,7 @@ from .serializers import (
 
 
 class AttributeRegistryViewSet(viewsets.ModelViewSet):
-    queryset = AttributeRegistry.objects.all()
+    queryset = AttributeRegistry.objects.annotate(value_count=Count("values"))
     serializer_class = AttributeRegistrySerializer
     ordering = ("display_order", "code")
     search_fields = ("code",)
