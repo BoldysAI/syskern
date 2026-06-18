@@ -84,10 +84,10 @@ ou de `self.retry()` manuel.
 EXPORT_DIR = Path("/tmp/syskern_exports")
 
 @shared_task(name="<app>.export_task", bind=True)
-def export_task(self, query_params: dict | None = None) -> dict:
+def export_task(self, filters: dict | None = None, columns: list | None = None, ids: list | None = None) -> dict:
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"   # task_id comme nom unique
-    file_path.write_bytes(build_xlsx(query_params or {}))
+    file_path.write_bytes(build_xlsx(filters=filters, columns=columns, ids=ids))
     return {
         "file_url": f"/api/<app>/exports/{self.request.id}/",
         "filename": "export.xlsx",
@@ -95,6 +95,8 @@ def export_task(self, query_params: dict | None = None) -> dict:
 ```
 
 Exposer le fichier : ajouter un `@action` (ou `APIView`) qui lit `EXPORT_DIR / f"{task_id}.xlsx"` et retourne un `FileResponse`. Voir `products/views.py::export_file`.
+
+**Gotcha dev** : après changement de **signature** d'une tâche déjà enregistrée, **redémarrer le worker Celery** (`./scripts/dev-celery.sh`). Sinon le process garde l'ancien code en mémoire → `TypeError: … unexpected keyword argument`.
 
 ---
 

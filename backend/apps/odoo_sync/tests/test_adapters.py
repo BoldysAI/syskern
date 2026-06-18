@@ -337,3 +337,19 @@ class TestV19Parity(TestCase):
         self.assertEqual(p16.gtin, p19.gtin)  # v19 prefers gtin_code
         self.assertEqual(len(p16.suppliers), len(p19.suppliers))
         self.assertEqual(p16.suppliers[0].name, p19.suppliers[0].name)
+
+
+class TestV19Payload(TestCase):
+    def test_payload_from_product_uses_consu_and_is_storable(self):
+        from apps.odoo_sync.schemas import OdooProduct
+
+        v19 = _make_adapter_v19()
+        dto = OdooProduct(
+            odoo_id=0,
+            sku_code="TEST-SKU-01",
+            name="Produit test",
+            is_active=True,
+        )
+        payload = v19.payload_from_product(dto)
+        self.assertEqual(payload["type"], "consu")
+        self.assertTrue(payload["is_storable"])

@@ -71,7 +71,7 @@ function AddProductsModal({
 
   const { data, isLoading } = useSWR<PaginatedProducts>(
     ["sim-add-products", search],
-    () => getProducts({ search: search || undefined, limit: 25 }),
+    () => getProducts({ q: search || undefined, limit: 25 }),
     { keepPreviousData: true }
   );
 

@@ -157,6 +157,71 @@ const { status, error } = useAutosave(draft, persist, { delay: 2000, enabled: !!
 
 ---
 
+## Brouillon de formulaire long (localStorage)
+
+Pour les formulaires multi-étapes (ex. wizard de création produit `/catalog/new`) :
+
+- Restaurer le brouillon via un **initializer paresseux** `useState(loadDraft)` (lit
+  `localStorage` une seule fois, retourne un défaut si SSR / vide). **Ne pas** restaurer via
+  `useEffect + setState` (règle `set-state-in-effect`).
+- Persister via un **effet qui écrit seulement** `localStorage.setItem` (aucun `setState`).
+  **Ne pas persister l'étape / onglet actif** du wizard — seulement les données de formulaire
+  (cf. wizard `/catalog/new` : réouverture toujours sur l'étape Identification).
+- Purger (`removeItem`) après succès. Clé versionnée (ex. `syskern:new-product-draft:v1`).
+- Toujours `try/catch` les accès `localStorage` (mode privé / quota).
+
+## Catalogue : favoris, sélection multi-pages, colonnes, filtres actifs
+
+Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_components/`) :
+
+- **Filtres favoris (`localStorage`)** : `filters-storage.ts` (clé `syskern:catalog-filters:v1`).
+  Charger via initializer paresseux `useState(loadSavedFilters)` ; persister via un **effet
+  d'écriture seule** (`useEffect(() => persistSavedFilters(x), [x])`, aucun `setState`).
+  `normalizeCatalogFilters` migre les anciennes valeurs string → `string[]`.
+- **Chips filtres actifs** : `active-filters.ts` (`buildFilterChips`, `countActiveFilters`,
+  `removeFilterChip`) + `ActiveFilterBar.tsx` au-dessus du tableau.
+- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Dialog Radix plein écran).
+- **Sélection persistée à travers les pages** : garder un `Set<string>` d'ids en state, **ne pas**
+  le réinitialiser au changement de page (le faire seulement après une action groupée réussie).
+  Sur clic de ligne interactif (checkbox, lien) : `onClick={(e) => e.stopPropagation()}` pour ne
+  pas déclencher l'ouverture du drawer.
+- **Recherche debouncée** : timer dans un `ref`, `setState` planifié dans le callback `setTimeout`
+  (jamais directement dans un effet — règle `set-state-in-effect`).
+- **Tri colonnes** : cycle local asc → desc → défaut (`sku_code` asc) ; envoi `ordering` au backend.
+  Ne pas imbriquer `setSortDir` dans le callback de `setSortField`.
+- **Colonnes redimensionnables** : `useColumnWidths.ts` — poignée `mousedown`, listeners
+  `mousemove`/`mouseup` en closures locales, persistance `localStorage`, curseur `col-resize` sur
+  `document.body` pendant le drag.
+- **Drawer slide-over** : `Dialog` Radix positionné `fixed right-0 top-0 h-full` (cf.
+  `ProductDrawer.tsx`).
+- **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
+  fournisseurs, etc.).
+
+## Drag-and-drop (réordonnancement) — `@dnd-kit`
+
+Réordonnancement de listes/tableaux via `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`
+(API stable : `DndContext`/`SortableContext`/`useSortable`/`arrayMove` — **pas** `@dnd-kit/react`).
+Référence : `app/settings/attributes/_components/rows.tsx` + `page.tsx`.
+
+- `DndContext` (sensors `PointerSensor` distance 5 + `KeyboardSensor` `sortableKeyboardCoordinates`,
+  `collisionDetection={closestCenter}`) → `SortableContext` (`items={ids}`,
+  `verticalListSortingStrategy`).
+- Ligne sortable : `useSortable({id})`, appliquer `transform`/`transition` via
+  `CSS.Transform.toString`. **Drag handle** dédié (`{...attributes} {...listeners}` + `touch-none`).
+- `onDragEnd` → `arrayMove` local → **update optimiste** `mutate(KEY, next, {revalidate:false})`
+  → appel API persistance → `mutate(KEY)` (revalidate) au succès, **rollback** (`mutate(KEY)`) +
+  message FR sur erreur.
+- Activer le DnD seulement quand le périmètre est cohérent (ex. une seule catégorie isolée) ;
+  sinon rendre des lignes statiques (deux composants distincts pour respecter les règles de hooks).
+
+## Sous-navigation des Paramètres (`SettingsNav`)
+
+`/settings` et `/settings/attributes` partagent `app/settings/_components/SettingsNav.tsx`
+(onglets = **liens** Next, état actif via `usePathname` + `useSearchParams`). Les sections de
+`/settings` (Marché/Transport/Odoo) sont pilotées par le query-param `?tab=` au lieu d'onglets
+Radix in-page. **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16 (sinon
+`next build` échoue) — encapsuler le composant qui le lit.
+
 ## Variables d'environnement
 
 - Côté **serveur** (BFF/rewrites) : `BACKEND_URL`. Côté **client** : préfixe `NEXT_PUBLIC_*`.

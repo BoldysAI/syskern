@@ -12,8 +12,20 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getPriceHistory } from "@/lib/api";
+import {
+  activateSupplier,
+  createSupplier,
+  deleteSupplier,
+  getPriceHistory,
+  getProductSuppliers,
+  updateSupplier,
+  type ProductSupplier,
+  type ProductSupplierInput,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { canEdit } from "@/lib/auth";
+import { SupplierManager } from "@/components/SupplierManager";
 import { AttributeSection } from "./AttributeSection";
 import { useEdit } from "./edit-context";
 
@@ -29,6 +41,8 @@ const PERIODS: { id: "3m" | "6m" | "12m"; label: string }[] = [
 
 export function CommercialTab() {
   const { product } = useEdit();
+  const { role } = useAuth();
+  const userCanEdit = canEdit(role);
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
 
@@ -46,7 +60,28 @@ export function CommercialTab() {
     PV: p.pv_eur != null ? parseFloat(p.pv_eur) : null,
   }));
 
-  const suppliers = product.suppliers ?? [];
+  const { data: suppliers, mutate: mutateSuppliers } = useSWR<ProductSupplier[]>(
+    ["product-suppliers", product.id],
+    () => getProductSuppliers(product.id),
+    { fallbackData: product.suppliers ?? [] },
+  );
+
+  const handleCreate = async (data: ProductSupplierInput) => {
+    await createSupplier(product.id, data);
+    await mutateSuppliers();
+  };
+  const handleUpdate = async (id: string, data: ProductSupplierInput) => {
+    await updateSupplier(product.id, id, data);
+    await mutateSuppliers();
+  };
+  const handleDelete = async (id: string) => {
+    await deleteSupplier(product.id, id);
+    await mutateSuppliers();
+  };
+  const handleActivate = async (id: string) => {
+    await activateSupplier(product.id, id);
+    await mutateSuppliers();
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -145,51 +180,16 @@ export function CommercialTab() {
         )}
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 px-5 pt-5 pb-3">Fournisseurs</h3>
-        {suppliers.length === 0 ? (
-          <p className="px-5 pb-5 text-sm text-slate-400">Aucun fournisseur enregistré.</p>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-y border-[#E2E8F0]">
-              <tr>
-                {["Fournisseur", "Code usine", "Prix achat", "Devise", "Incoterm", "Actif"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {suppliers.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800">{s.supplier_name}</td>
-                  <td className="px-4 py-3 font-mono text-sm text-slate-600">{s.factory_code || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {s.po_base_price ? parseDec(s.po_base_price).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{s.po_currency || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">
-                    {s.incoterm ? `${s.incoterm}${s.incoterm_location ? ` (${s.incoterm_location})` : ""}` : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
-                        s.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
-                      )}
-                    >
-                      {s.is_active ? "Oui" : "Non"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Fournisseurs</h3>
+        <SupplierManager
+          suppliers={suppliers ?? []}
+          onCreate={handleCreate}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+          onActivate={handleActivate}
+          readOnly={!userCanEdit}
+        />
       </div>
 
       <AttributeSection

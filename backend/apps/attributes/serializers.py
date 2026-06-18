@@ -33,9 +33,7 @@ def _validate_attribute_value(data_type: str, options: list | None, value: objec
 
     if data_type == AttributeDataType.TEXT:
         if not isinstance(value, str):
-            raise serializers.ValidationError(
-                {"value": "Expected a string for data_type 'text'."}
-            )
+            raise serializers.ValidationError({"value": "Expected a string for data_type 'text'."})
 
     elif data_type == AttributeDataType.NUMBER:
         try:
@@ -54,7 +52,9 @@ def _validate_attribute_value(data_type: str, options: list | None, value: objec
     elif data_type == AttributeDataType.DATE:
         if not isinstance(value, str) or not _ISO_DATE_RE.match(value):
             raise serializers.ValidationError(
-                {"value": f"Expected ISO 8601 date (YYYY-MM-DD) for data_type 'date', got {value!r}."}
+                {
+                    "value": f"Expected ISO 8601 date (YYYY-MM-DD) for data_type 'date', got {value!r}."
+                }
             )
 
     elif data_type == AttributeDataType.SELECT:
@@ -73,15 +73,26 @@ def _validate_attribute_value(data_type: str, options: list | None, value: objec
         invalid = [v for v in value if str(v) not in allowed]
         if invalid:
             raise serializers.ValidationError(
-                {"value": f"Invalid values for data_type 'multiselect': {invalid!r} are not in options."}
+                {
+                    "value": f"Invalid values for data_type 'multiselect': {invalid!r} are not in options."
+                }
             )
 
 
 class AttributeRegistrySerializer(serializers.ModelSerializer):
+    # Number of ProductAttributeValue rows that would be cascade-deleted with
+    # this attribute. Annotated on the list/detail queryset; falls back to a
+    # live count on create/update responses (single object, no N+1 risk).
+    value_count = serializers.SerializerMethodField()
+
     class Meta:
         model = AttributeRegistry
         fields = "__all__"
         read_only_fields = ("id", "created_at", "updated_at")
+
+    def get_value_count(self, obj: AttributeRegistry) -> int:
+        annotated = getattr(obj, "value_count", None)
+        return annotated if annotated is not None else obj.values.count()
 
     def validate(self, attrs: dict) -> dict:
         # `code` is immutable after creation (CDC §4.5).
@@ -90,9 +101,7 @@ class AttributeRegistrySerializer(serializers.ModelSerializer):
 
         label = attrs.get("label", getattr(self.instance, "label", {}) or {})
         if not (isinstance(label, dict) and label.get("fr")):
-            raise serializers.ValidationError(
-                {"label": "French label (`fr`) is required."}
-            )
+            raise serializers.ValidationError({"label": "French label (`fr`) is required."})
 
         data_type = attrs.get("data_type", getattr(self.instance, "data_type", None))
         options = attrs.get("options", getattr(self.instance, "options", None))

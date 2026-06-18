@@ -14,4 +14,10 @@ urlpatterns = [
     path("hierarchy/distinct", views.DistinctHierarchyView.as_view(), name="hierarchy-distinct"),
     path("brands", views.DistinctBrandsView.as_view(), name="brands"),
     path("factory-codes", views.DistinctFactoryCodesView.as_view(), name="factory-codes"),
+    path("supplier-names", views.DistinctSupplierNamesView.as_view(), name="supplier-names"),
+    path(
+        "supplier-names/template",
+        views.SupplierNameTemplateView.as_view(),
+        name="supplier-name-template",
+    ),
 ]

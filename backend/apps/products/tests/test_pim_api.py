@@ -9,15 +9,20 @@ Coverage:
 
 All tests use `@pytest.mark.django_db` and DRF's `APIClient`.
 """
+
 from __future__ import annotations
 
 import uuid
 
 import pytest
-from django.urls import reverse
 from rest_framework.test import APIClient
 
-from apps.attributes.models import AttributeCategory, AttributeDataType, AttributeRegistry, ProductAttributeValue
+from apps.attributes.models import (
+    AttributeCategory,
+    AttributeDataType,
+    AttributeRegistry,
+    ProductAttributeValue,
+)
 from apps.products.models import Product, ProductSupplier
 
 pytestmark = pytest.mark.django_db
@@ -279,9 +284,7 @@ class TestNestedAttributeEndpoints:
         url = f"/api/products/{product.pk}/attributes/{text_attr.pk}/"
         resp = client.put(url, {"value": "Bleu"}, format="json")
         assert resp.status_code == 200
-        assert ProductAttributeValue.objects.filter(
-            product=product, attribute=text_attr
-        ).exists()
+        assert ProductAttributeValue.objects.filter(product=product, attribute=text_attr).exists()
 
     def test_put_updates_existing_value(self, client, product, text_attr):
         ProductAttributeValue.objects.create(product=product, attribute=text_attr, value="Rouge")
@@ -295,7 +298,9 @@ class TestNestedAttributeEndpoints:
         url = f"/api/products/{product.pk}/attributes/{text_attr.pk}/"
         client.put(url, {"value": "X"}, format="json")
         client.put(url, {"value": "X"}, format="json")
-        assert ProductAttributeValue.objects.filter(product=product, attribute=text_attr).count() == 1
+        assert (
+            ProductAttributeValue.objects.filter(product=product, attribute=text_attr).count() == 1
+        )
 
     def test_list_attributes_shows_set_values(self, client, product, text_attr, boolean_attr):
         ProductAttributeValue.objects.create(product=product, attribute=text_attr, value="Blanc")
@@ -310,7 +315,9 @@ class TestNestedAttributeEndpoints:
         url = f"/api/products/{product.pk}/attributes/{text_attr.pk}/"
         resp = client.delete(url)
         assert resp.status_code == 204
-        assert not ProductAttributeValue.objects.filter(product=product, attribute=text_attr).exists()
+        assert not ProductAttributeValue.objects.filter(
+            product=product, attribute=text_attr
+        ).exists()
 
     def test_delete_nonexistent_value_returns_404(self, client, product, text_attr):
         url = f"/api/products/{product.pk}/attributes/{text_attr.pk}/"
@@ -397,44 +404,143 @@ class TestNestedSupplierEndpoints:
         resp = client.post(url)
         assert resp.status_code == 404
 
+    def test_activate_keeps_single_active_among_many(self, client, product):
+        """Switching the active source must leave exactly one active (mutex)."""
+        s1 = ProductSupplier.objects.create(product=product, supplier_name="F1", is_active=True)
+        s2 = ProductSupplier.objects.create(product=product, supplier_name="F2")
+        s3 = ProductSupplier.objects.create(product=product, supplier_name="F3")
 
-# ─── 1.E — Excel export ───────────────────────────────────────────────────────
-
-
-class TestExcelExport:
-    def test_export_returns_xlsx_content_type(self, client, product):
-        resp = client.post("/api/products/export/", {}, format="json")
+        resp = client.post(f"/api/products/{product.pk}/suppliers/{s3.pk}/activate/")
         assert resp.status_code == 200
-        assert (
-            resp["Content-Type"]
-            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        active = ProductSupplier.objects.filter(product=product, is_active=True)
+        assert active.count() == 1
+        assert active.first().pk == s3.pk
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        assert s1.is_active is False
+        assert s2.is_active is False
 
-    def test_export_has_content_disposition(self, client, product):
+
+# ─── 1.F — parse-sku utility endpoint (CDC §4.1.3) ───────────────────────────
+
+
+class TestParseSkuEndpoint:
+    def test_parse_sku_with_numeric_suffix(self, client):
+        resp = client.post("/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5-21"}, format="json")
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] == "21"
+
+    def test_parse_sku_with_e_suffix(self, client):
+        resp = client.post("/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5-E02"}, format="json")
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] == "E02"
+
+    def test_parse_sku_without_suffix(self, client):
+        resp = client.post("/api/products/parse-sku/", {"sku": "KCFF6A4PZHDBL5"}, format="json")
+        assert resp.status_code == 200
+        assert resp.data["parent_reference"] == "KCFF6A4PZHDBL5"
+        assert resp.data["factory_code"] is None
+
+    def test_parse_sku_missing_sku_returns_400(self, client):
+        resp = client.post("/api/products/parse-sku/", {}, format="json")
+        assert resp.status_code == 400
+
+    def test_parse_sku_blank_sku_returns_400(self, client):
+        resp = client.post("/api/products/parse-sku/", {"sku": "   "}, format="json")
+        assert resp.status_code == 400
+
+
+# ─── 1.G — supplier name lookups (wizard / SupplierManager) ─────────────────
+
+
+class TestSupplierNameLookups:
+    def test_list_distinct_supplier_names(self, client, supplier):
+        resp = client.get("/api/supplier-names")
+        assert resp.status_code == 200
+        assert supplier.supplier_name in resp.data["values"]
+
+    def test_supplier_template_returns_latest_defaults(self, client, product, supplier):
+        resp = client.get(f"/api/supplier-names/template?name={supplier.supplier_name}")
+        assert resp.status_code == 200
+        assert resp.data["supplier_name"] == supplier.supplier_name
+        assert resp.data["factory_code"] == supplier.factory_code
+
+    def test_supplier_template_missing_name_returns_404(self, client):
+        resp = client.get("/api/supplier-names/template?name=Inconnu")
+        assert resp.status_code == 404
+
+    def test_supplier_template_blank_name_returns_400(self, client):
+        resp = client.get("/api/supplier-names/template")
+        assert resp.status_code == 400
+
+
+# ─── 1.E — Excel export (async Celery contract — CDC §4.1.1 / AGENTS.md §4) ───
+
+
+def _run_export(**kwargs):
+    """Run the export task in-process and return (result_dict, loaded_workbook)."""
+    import openpyxl
+
+    from apps.products.tasks import EXPORT_DIR, export_products_task
+
+    eager = export_products_task.apply(kwargs=kwargs)
+    result = eager.result
+    wb = openpyxl.load_workbook(EXPORT_DIR / f"{eager.id}.xlsx")
+    return result, wb.active
+
+
+class TestExcelExportEndpoint:
+    """The endpoint is async: it returns 202 + task_id, never the file inline."""
+
+    def test_export_returns_202_and_task_id(self, client, product):
         resp = client.post("/api/products/export/", {}, format="json")
-        assert "attachment" in resp["Content-Disposition"]
-        assert ".xlsx" in resp["Content-Disposition"]
+        assert resp.status_code == 202
+        assert "task_id" in resp.data
 
-    def test_export_returns_non_empty_bytes(self, client, product):
-        resp = client.post("/api/products/export/", {}, format="json")
-        assert len(resp.content) > 0
+    def test_export_accepts_filters_in_body(self, client, product):
+        resp = client.post(
+            "/api/products/export/",
+            {"filters": {"sku_code": "TEST"}, "columns": ["sku_code", "name"]},
+            format="json",
+        )
+        assert resp.status_code == 202
 
-    def test_export_with_sku_filter_returns_subset(self, client):
+
+class TestExcelExportTask:
+    """Exercise the task logic directly (no broker / worker needed)."""
+
+    def test_filename_is_timestamped(self, product):
+        result, _ = _run_export()
+        assert result["filename"].startswith("catalog_")
+        assert result["filename"].endswith(".xlsx")
+
+    def test_header_uses_default_columns(self, product):
+        _, ws = _run_export()
+        headers = [c.value for c in ws[1]]
+        assert headers[0] == "SKU"
+        assert "Nom" in headers
+
+    def test_filters_are_honored(self):
         Product.objects.create(
-            sku_code="EXPORT-A",
-            name="Produit A",
-            description_marketing={"fr": "A"},
+            sku_code="EXPORT-A", name="Produit A", description_marketing={"fr": "A"}
         )
         Product.objects.create(
-            sku_code="EXPORT-B",
-            name="Produit B",
-            description_marketing={"fr": "B"},
+            sku_code="EXPORT-B", name="Produit B", description_marketing={"fr": "B"}
         )
-        resp_all = client.post("/api/products/export/", {}, format="json")
-        resp_filtered = client.post(
-            "/api/products/export/", {"sku_code": "EXPORT-A"}, format="json"
-        )
-        # Both succeed; the filtered response is smaller (fewer rows → smaller file).
-        assert resp_all.status_code == 200
-        assert resp_filtered.status_code == 200
-        assert len(resp_filtered.content) < len(resp_all.content)
+        _, ws = _run_export(filters={"sku_code": "EXPORT-A"})
+        skus = [row[0].value for row in ws.iter_rows(min_row=2)]
+        assert skus == ["EXPORT-A"]
+
+    def test_ids_selection_is_honored(self):
+        a = Product.objects.create(sku_code="SEL-A", name="A", description_marketing={"fr": "A"})
+        Product.objects.create(sku_code="SEL-B", name="B", description_marketing={"fr": "B"})
+        _, ws = _run_export(ids=[str(a.id)])
+        skus = [row[0].value for row in ws.iter_rows(min_row=2)]
+        assert skus == ["SEL-A"]
+
+    def test_columns_selection_limits_headers(self, product):
+        _, ws = _run_export(columns=["sku_code", "pamp_eur"])
+        headers = [c.value for c in ws[1] if c.value is not None]
+        assert headers == ["SKU", "PAMP (EUR)"]
