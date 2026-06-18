@@ -20,7 +20,10 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
   }
-  return res.json() as Promise<T>;
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 // ── Celery polling helpers ───────────────────────────────────────────────
@@ -61,13 +64,52 @@ async function dispatchAndPoll<T>(
   return pollTask<T>(dispatch.task_id, pollOpts);
 }
 
-export interface ProductListParams {
-  universe?: string;
-  family?: string;
-  range?: string;
-  search?: string;
+/** Catalog filter state — mirrors `ProductFilter` query params (CDC §4.1.1). */
+export interface CatalogFilters {
+  /** Full-text search (Postgres tsvector, FR + simple). */
+  q?: string;
+  universe?: string[];
+  family?: string[];
+  range?: string[];
+  sub_range?: string[];
+  brand?: string[];
+  supplier?: string[];
+  /** En stock (stock > 0). Combinable avec stock_out ; les deux cochés = pas de filtre stock. */
+  stock_in?: boolean;
+  /** Rupture (stock ≤ 0 ou null). Combinable avec stock_in. */
+  stock_out?: boolean;
+  stock_min?: number | null;
+  /** Dynamic attribute filters keyed by attribute code (`attr_<code>`). */
+  attrs?: Record<string, string | string[]>;
+}
+
+export interface ProductListParams extends CatalogFilters {
+  ordering?: string;
   page?: number;
   limit?: number;
+}
+
+/** Build the shared query string for `GET /api/products` and the export task. */
+export function buildCatalogQuery(filters: CatalogFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.q) params.q = filters.q;
+  if (filters.universe?.length) params.universe = filters.universe.join(",");
+  if (filters.family?.length) params.family = filters.family.join(",");
+  if (filters.range?.length) params.range = filters.range.join(",");
+  if (filters.sub_range?.length) params.sub_range = filters.sub_range.join(",");
+  if (filters.brand?.length) params.brand = filters.brand.join(",");
+  if (filters.supplier?.length) params.supplier = filters.supplier.join(",");
+  const { stock_in: inStock, stock_out: outStock } = filters;
+  if (inStock && !outStock) params.in_stock = "true";
+  else if (outStock && !inStock) params.in_stock = "false";
+  if (filters.stock_min != null && filters.stock_min > 0) {
+    params.stock_min = String(filters.stock_min);
+  }
+  for (const [code, value] of Object.entries(filters.attrs ?? {})) {
+    const v = Array.isArray(value) ? value.join(",") : value;
+    if (v) params[`attr_${code}`] = v;
+  }
+  return params;
 }
 
 /** Purchase currencies supported by the platform (core.models.Currency). */
@@ -182,6 +224,7 @@ export interface AttributeRegistry {
   unit: string;
   is_required: boolean;
   is_searchable: boolean;
+  is_filterable: boolean;
   display_order: number;
   created_at?: string;
   updated_at?: string;
@@ -336,30 +379,36 @@ export interface SyncStatus {
 }
 
 export function getProducts(params?: ProductListParams): Promise<PaginatedProducts> {
-  const q = new URLSearchParams();
+  const q = new URLSearchParams(buildCatalogQuery(params ?? {}));
   const limit = params?.limit ?? 20;
   const page = params?.page ?? 1;
   const offset = (page - 1) * limit;
-  if (params?.universe) q.set("universe", params.universe);
-  if (params?.family) q.set("family", params.family);
-  if (params?.range) q.set("range", params.range);
-  if (params?.search) q.set("search", params.search);
+  if (params?.ordering) q.set("ordering", params.ordering);
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
 }
 
-/** Trigger an async Excel export (Celery task), then download the file. */
-export async function exportProducts(params?: {
-  search?: string;
-  universe?: string;
+/** Trigger an async Excel export (Celery task), then download the file (CDC §4.1.1).
+ *
+ * Sends the active filters and chosen columns in the body. When `ids` is
+ * provided, only that selection is exported.
+ */
+export async function exportProducts(opts?: {
+  filters?: CatalogFilters;
+  columns?: string[];
+  ids?: string[];
 }): Promise<void> {
-  const q = new URLSearchParams();
-  if (params?.search) q.set("search", params.search);
-  if (params?.universe) q.set("universe", params.universe);
   const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
-    `/api/products/export/?${q.toString()}`,
-    { method: "POST", body: JSON.stringify({}) },
+    "/api/products/export/",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        filters: buildCatalogQuery(opts?.filters ?? {}),
+        columns: opts?.columns,
+        ids: opts?.ids,
+      }),
+    },
     { timeoutMs: 180_000 }
   );
   // Trigger the browser download via a short-lived anchor.
@@ -395,6 +444,23 @@ export function getHierarchyLevel(
 /** Distinct supplier names already used in the catalog. */
 export function getSupplierNames(): Promise<string[]> {
   return apiFetch<{ values: string[] }>("/api/supplier-names").then((r) => r.values);
+}
+
+/** Distinct brand values present in the catalog (CDC §4.1.1). */
+export function getBrands(): Promise<string[]> {
+  return apiFetch<{ values: string[] }>("/api/brands").then((r) => r.values);
+}
+
+/** Distinct factory codes present in the catalog (CDC §4.1.1). */
+export function getFactoryCodes(): Promise<string[]> {
+  return apiFetch<{ values: string[] }>("/api/factory-codes").then((r) => r.values);
+}
+
+/** Attributes flagged `is_filterable` — rendered as catalog sidebar filters. */
+export function getFilterableAttributes(): Promise<AttributeRegistry[]> {
+  return apiFetch<PaginatedResponse<AttributeRegistry>>(
+    "/api/attributes/?limit=500"
+  ).then((r) => r.results.filter((a) => a.is_filterable));
 }
 
 /** Default commercial fields for a known supplier name (latest row). */
@@ -461,6 +527,13 @@ export function updateProduct(
   return apiFetch<ProductDetail>(`/api/products/${encodeURIComponent(idOrSku)}/`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+/** Soft-delete a product (`is_active = false`, CDC §4.6). Accepts UUID or SKU. */
+export function deleteProduct(idOrSku: string): Promise<void> {
+  return apiFetch<void>(`/api/products/${encodeURIComponent(idOrSku)}/`, {
+    method: "DELETE",
   });
 }
 

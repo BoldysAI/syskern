@@ -1,11 +1,13 @@
 """Product master data (CDC §3.2 → `products`, `product_suppliers`)."""
+
 from __future__ import annotations
 
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
 from apps.core.models import BaseModel, Currency
-
 
 SKU_VALIDATOR = RegexValidator(
     regex=r"^[A-Z0-9-]+$",
@@ -94,9 +96,7 @@ class Product(BaseModel):
     is_stockable = models.BooleanField(default=True)
 
     # ─── Stock & PAMP (snapshots from Odoo) ───────────────────────────────
-    stock_quantity = models.DecimalField(
-        max_digits=12, decimal_places=3, null=True, blank=True
-    )
+    stock_quantity = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     pamp_eur = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     pamp_synced_at = models.DateTimeField(null=True, blank=True)
 
@@ -128,6 +128,12 @@ class Product(BaseModel):
         default="",
     )
 
+    # ─── Full-text search (CDC §4.1.1) ────────────────────────────────────
+    # Postgres STORED generated column maintained at the DB level (see
+    # migration 0004). Combines `french` (FR text) + `simple` (codes, EN/ES)
+    # dictionaries with weighted setweight for multilingual search.
+    search_vector = SearchVectorField(null=True, editable=False)
+
     class Meta:
         db_table = "products"
         ordering = ["sku_code"]
@@ -142,6 +148,7 @@ class Product(BaseModel):
             ),
             models.Index(fields=["factory_code"], name="idx_products_factory"),
             models.Index(fields=["is_active"], name="idx_products_active"),
+            GinIndex(fields=["search_vector"], name="idx_products_search_vector"),
         ]
 
     def __str__(self) -> str:
@@ -177,19 +184,11 @@ class ProductSupplier(BaseModel):
     is_active = models.BooleanField(default=False)
 
     # Pricing parameters pre-filled into a simulation when this source is used.
-    po_base_price = models.DecimalField(
-        max_digits=12, decimal_places=4, null=True, blank=True
-    )
-    po_currency = models.CharField(
-        max_length=3, choices=Currency.choices, default=Currency.RMB
-    )
+    po_base_price = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    po_currency = models.CharField(max_length=3, choices=Currency.choices, default=Currency.RMB)
     is_copper_indexed = models.BooleanField(default=False)
-    copper_base_price = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
-    )
-    incoterm = models.CharField(
-        max_length=4, choices=Incoterm.choices, blank=True, default=""
-    )
+    copper_base_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    incoterm = models.CharField(max_length=4, choices=Incoterm.choices, blank=True, default="")
     incoterm_location = models.CharField(max_length=128, blank=True, default="")
 
     notes = models.TextField(blank=True, default="")

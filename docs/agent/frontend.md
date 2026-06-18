@@ -165,8 +165,37 @@ Pour les formulaires multi-étapes (ex. wizard de création produit `/catalog/ne
   `localStorage` une seule fois, retourne un défaut si SSR / vide). **Ne pas** restaurer via
   `useEffect + setState` (règle `set-state-in-effect`).
 - Persister via un **effet qui écrit seulement** `localStorage.setItem` (aucun `setState`).
+  **Ne pas persister l'étape / onglet actif** du wizard — seulement les données de formulaire
+  (cf. wizard `/catalog/new` : réouverture toujours sur l'étape Identification).
 - Purger (`removeItem`) après succès. Clé versionnée (ex. `syskern:new-product-draft:v1`).
 - Toujours `try/catch` les accès `localStorage` (mode privé / quota).
+
+## Catalogue : favoris, sélection multi-pages, colonnes, filtres actifs
+
+Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_components/`) :
+
+- **Filtres favoris (`localStorage`)** : `filters-storage.ts` (clé `syskern:catalog-filters:v1`).
+  Charger via initializer paresseux `useState(loadSavedFilters)` ; persister via un **effet
+  d'écriture seule** (`useEffect(() => persistSavedFilters(x), [x])`, aucun `setState`).
+  `normalizeCatalogFilters` migre les anciennes valeurs string → `string[]`.
+- **Chips filtres actifs** : `active-filters.ts` (`buildFilterChips`, `countActiveFilters`,
+  `removeFilterChip`) + `ActiveFilterBar.tsx` au-dessus du tableau.
+- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Dialog Radix plein écran).
+- **Sélection persistée à travers les pages** : garder un `Set<string>` d'ids en state, **ne pas**
+  le réinitialiser au changement de page (le faire seulement après une action groupée réussie).
+  Sur clic de ligne interactif (checkbox, lien) : `onClick={(e) => e.stopPropagation()}` pour ne
+  pas déclencher l'ouverture du drawer.
+- **Recherche debouncée** : timer dans un `ref`, `setState` planifié dans le callback `setTimeout`
+  (jamais directement dans un effet — règle `set-state-in-effect`).
+- **Tri colonnes** : cycle local asc → desc → défaut (`sku_code` asc) ; envoi `ordering` au backend.
+  Ne pas imbriquer `setSortDir` dans le callback de `setSortField`.
+- **Colonnes redimensionnables** : `useColumnWidths.ts` — poignée `mousedown`, listeners
+  `mousemove`/`mouseup` en closures locales, persistance `localStorage`, curseur `col-resize` sur
+  `document.body` pendant le drag.
+- **Drawer slide-over** : `Dialog` Radix positionné `fixed right-0 top-0 h-full` (cf.
+  `ProductDrawer.tsx`).
+- **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
+  fournisseurs, etc.).
 
 ## Variables d'environnement
 

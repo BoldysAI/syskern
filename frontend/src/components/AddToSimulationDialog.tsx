@@ -15,8 +15,12 @@ import {
 import { cn } from "@/lib/utils";
 
 interface AddToSimulationDialogProps {
-  productId: string;
+  /** One or more product ids to add to the chosen simulation. */
+  productIds: string[];
+  /** Human label for the selection (e.g. a SKU, or "3 produits"). */
   productLabel: string;
+  /** Called after a successful add (e.g. to clear a multi-selection). */
+  onAdded?: () => void;
   /** The element that opens the dialog (wrapped as the trigger). */
   children: ReactNode;
 }
@@ -26,7 +30,12 @@ type Tab = "existing" | "new";
 const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
 
-export function AddToSimulationDialog({ productId, productLabel, children }: AddToSimulationDialogProps) {
+export function AddToSimulationDialog({
+  productIds,
+  productLabel,
+  onAdded,
+  children,
+}: AddToSimulationDialogProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("existing");
   const [selectedSim, setSelectedSim] = useState<string>("");
@@ -67,8 +76,9 @@ export function AddToSimulationDialog({ productId, productLabel, children }: Add
         const sim = await createSimulation({ label: newLabel.trim(), simulation_type: newType });
         simId = sim.id;
       }
-      await addSimulationLines(simId, [productId]);
+      await addSimulationLines(simId, productIds);
       setDoneSimId(simId);
+      onAdded?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");
     } finally {

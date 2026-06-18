@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
@@ -16,8 +16,10 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import {
+  deleteProduct,
   getAttributeRegistry,
   getPriceHistory,
   getProduct,
@@ -184,6 +186,7 @@ const TABS = [
 
 export default function ProductPage() {
   const params = useParams<{ sku: string }>();
+  const router = useRouter();
   const decodedSku = decodeURIComponent(params?.sku ?? "");
   const { role } = useAuth();
   const userCanEdit = canEdit(role);
@@ -207,6 +210,7 @@ export default function ProductPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [recalcing, setRecalcing] = useState(false);
   const [translating, setTranslating] = useState<"en" | "es" | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const attrMap = useMemo(() => {
     const m: Record<string, unknown> = {};
@@ -348,6 +352,27 @@ export default function ProductPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!product || !decodedSku) return;
+    const label = product.sku_code || decodedSku;
+    if (
+      !confirm(
+        `Supprimer le produit « ${label} » ?\n\nLe produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteProduct(decodedSku);
+      router.push("/catalog");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Échec de la suppression");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleTranslate = useCallback(
     async (lang: "en" | "es") => {
       if (!decodedSku) return;
@@ -457,18 +482,34 @@ export default function ProductPage() {
                     {recalcing ? "Recalcul…" : "Recalculer PAMP"}
                   </button>
                   {userCanEdit && (
-                    <button
-                      onClick={() => setEditing((e) => !e)}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-medium transition-colors",
-                        editing
-                          ? "bg-[#E07200] text-white hover:bg-[#C56400]"
-                          : "border border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
-                      )}
-                    >
-                      {editing ? <Check size={14} /> : <Pencil size={14} />}
-                      {editing ? "Terminer" : "Modifier"}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setEditing((e) => !e)}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-medium transition-colors",
+                          editing
+                            ? "bg-[#E07200] text-white hover:bg-[#C56400]"
+                            : "border border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                        )}
+                      >
+                        {editing ? <Check size={14} /> : <Pencil size={14} />}
+                        {editing ? "Terminer" : "Modifier"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={deleting || !product.is_active}
+                        className="flex items-center gap-2 px-3 py-2 text-sm border border-red-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          product.is_active
+                            ? "Désactiver ce produit"
+                            : "Produit déjà désactivé"
+                        }
+                      >
+                        <Trash2 size={14} />
+                        {deleting ? "Suppression…" : "Supprimer"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -541,7 +582,7 @@ export default function ProductPage() {
                   </button>
                 )}
 
-                <AddToSimulationDialog productId={product.id} productLabel={product.sku_code}>
+                <AddToSimulationDialog productIds={[product.id]} productLabel={product.sku_code}>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium transition-colors"

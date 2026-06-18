@@ -59,6 +59,7 @@ type ; la valeur est en JSONB.
 | `data_type` | `text` \| `number` \| `boolean` \| `date` \| `select` \| `multiselect` |
 | `options` | pour `select`/`multiselect` : `[{"value": ..., "label": {...}}]` |
 | `unit` | unité affichée (ex. `mm`, `kg`) pour `number` |
+| `is_filterable` | expose l'attribut comme **filtre sidebar catalogue** (`attr_<code>=…`) |
 | `display_order` | ordre d'affichage (réordonnable via `/api/attributes/reorder/`) |
 
 **Encodage `ProductAttributeValue.value` selon `data_type`** (validé serveur ET client) :
@@ -82,7 +83,12 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 
 | Méthode | Path | Note |
 |---|---|---|
-| `GET`/`POST` | `/api/products/` | liste (compact) / create. POST déclenche le push Odoo async (cf. `_push_to_odoo_async`) |
+| `GET`/`POST` | `/api/products/` | liste (compact, filtrable+recherche+tri) / create. POST déclenche le push Odoo async (cf. `_push_to_odoo_async`). Tri via `ProductOrderingFilter` (`ordering.py`) |
+| `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
+| `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
+| `GET` | `/api/brands` · `/api/factory-codes` | valeurs distinctes (filtres sidebar) |
+| `POST` | `/api/products/export` | export Excel **async** ; body `{filters, columns, ids}` → `202 + task_id` |
+| `GET` | `/api/products/exports/{task_id}` | download du `.xlsx` produit par la tâche |
 | `POST` | `/api/products/parse-sku` | utilitaire wizard → `{sku, parent_reference, factory_code}` (service `sku_parser`) ; 400 si `sku` absent |
 | `GET` | `/api/hierarchy/distinct?level=…` | valeurs distinctes par niveau (cascade wizard : universe → family → range → sub_range) |
 | `GET` | `/api/supplier-names` | noms fournisseurs distincts déjà utilisés dans le catalogue |
@@ -109,6 +115,41 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 
 ---
 
+## Catalogue frontend (`/catalog`, CDC §4.1.1 / §4.3 Écran 1)
+
+Page : [frontend/src/app/catalog/page.tsx](../../frontend/src/app/catalog/page.tsx) +
+composants privés dans `frontend/src/app/catalog/_components/`.
+
+| Composant | Rôle |
+|---|---|
+| `CatalogSidebar.tsx` | Filtres desktop (sections `Collapsible`, multi-checkbox, recherche locale) |
+| `CatalogFilterSheet.tsx` | Même filtres en panneau latéral mobile/tablette |
+| `ActiveFilterBar.tsx` + `active-filters.ts` | Chips des critères actifs (retrait unitaire + tout effacer) |
+| `CatalogPagination.tsx` | Pagination style Google (100 lignes/page) |
+| `ProductDrawer.tsx` | Aperçu rapide au clic ligne |
+| `ExportButton.tsx` | Export async (split button + choix colonnes) |
+| `useColumnWidths.ts` | Colonnes redimensionnables (`localStorage`) |
+| `filters-storage.ts` | Filtres favoris (`syskern:catalog-filters:v1`) |
+| `columns.ts` | Registre colonnes export (miroir `exports.py`) |
+
+- **Recherche full-text** : champ global → param `?q=` (tsvector backend). Debounce 300 ms
+  (timer en `ref`, pas de `setState` en effet).
+- **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, fournisseur
+  en **multi-checkbox** (niveaux indépendants — pas de cascade UI obligatoire ; chaque niveau
+  via `getHierarchyLevel(level)`). Stock : toggles en stock / rupture + quantité min.
+  Attributs dynamiques `is_filterable` (rendus selon `data_type`). État = `CatalogFilters`
+  (tableaux `string[]` pour les multi) → `buildCatalogQuery()` dans `lib/api.ts` (partagé liste
+  **et** export).
+- **Tri serveur** : param `ordering` (`field` / `-field`). En-têtes = cycle UI **asc → desc →
+  défaut (SKU ↑)**. Backend : `ProductOrderingFilter` (`NULLS LAST` sur `pamp_eur` /
+  `stock_quantity`) — cf. `ordering.py`.
+- **Pagination** : `limit=100` ; composant `CatalogPagination`.
+- **Sélection multiple** : `Set<string>` d'ids **persistée à travers les pages** → barre d'actions
+  groupées (export sélection, `AddToSimulationDialog` `productIds[]`).
+- **Détail** : clic ligne → drawer ; cellule SKU = lien `/catalog/[sku]`.
+- **Export** : `exportProducts({filters, columns, ids})` → tâche Celery ; **redémarrer le worker**
+  si la signature de `export_products_task` change.
+
 ## Fiche produit frontend (`/catalog/[sku]`, CDC §4.1.2 / §4.3)
 
 Page : [frontend/src/app/catalog/[sku]/page.tsx](../../frontend/src/app/catalog/[sku]/page.tsx).
@@ -122,6 +163,8 @@ Général, Technique, Marketing, Logistique, Commercial, Médias (placeholder MV
 - Champs cœur → `Field.tsx` (mappé sur `keyof ProductDetail`). Attributs dynamiques →
   `AttributeRenderer` via `AttributeSection.tsx` (un bloc par `category`).
 - Édition gardée par `canEdit(role)` (admin/commercial). Viewer = lecture seule.
+- **Supprimer** (soft-delete) : bouton sur la fiche pour `canEdit` → `deleteProduct(idOrSku)`
+  (`DELETE /api/products/{id|sku}/`) puis redirection `/catalog`.
 - Actions pied de page : **Voir dans Odoo** (`NEXT_PUBLIC_ODOO_BASE_URL`, désactivé si
   `odoo_id` null), **Ajouter à une simulation** (`AddToSimulationDialog`), **Historique**
   (placeholder MVP2).
@@ -137,9 +180,12 @@ Conçu pour réemploi (fiche produit **et** futur wizard de création). Exporte
 
 ### API client (`lib/api.ts`)
 
+`getProducts(params)` (filtres+`q`+`ordering`+pagination), `buildCatalogQuery`,
+`exportProducts({filters,columns,ids})`, `getBrands`, `getFactoryCodes`,
+`getFilterableAttributes`, `getHierarchyLevel`,
 `getProduct`, `getProductAttributes`, `getAttributeRegistry(category?)`,
 `setProductAttribute(productId, attributeId, value)`, `updateProduct(idOrSku, patch)`,
-`createProduct(data)`, `parseSku(sku)`, `getProductSuppliers`, `createSupplier`,
+`deleteProduct(idOrSku)`, `createProduct(data)`, `parseSku(sku)`, `getProductSuppliers`, `createSupplier`,
 `updateSupplier`, `deleteSupplier`, `activateSupplier`,
 `getPriceHistory`, `refreshPamp`, `translateProduct`. Édition en place → voir le pattern
 autosave dans `frontend.md`.
@@ -165,8 +211,9 @@ Logistique, Fournisseur(s), Validation) + **toggle « Formulaire complet »**.
 
 - Validation par étape : SKU (`^[A-Z0-9-]+$`) + nom + `description_marketing.fr` requis ;
   cohérence cuivre (miroir `ProductWriteSerializer`). Impossible d'avancer si erreurs.
-- **Brouillon `localStorage`** (`syskern:new-product-draft:v1`) restauré au montage,
-  purgé après création réussie.
+- **Brouillon `localStorage`** (`syskern:new-product-draft:v1`) : champs + fournisseurs draft
+  restaurés au montage ; **l'étape du wizard n'est pas persistée** (réouverture = Identification).
+  Purgé après création réussie.
 - SKU `onBlur` → `parseSku` → pré-remplit `parent_reference` / `factory_code` (non écrasés
   si l'utilisateur les a édités).
 - Hiérarchie : dropdowns en cascade (univers → famille → gamme → sous-gamme) via

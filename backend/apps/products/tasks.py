@@ -3,6 +3,7 @@
 These wrap operations that touch external services (Odoo, DeepL) or that
 otherwise should not block a request thread.
 """
+
 from __future__ import annotations
 
 import os
@@ -67,24 +68,36 @@ def refresh_pamp_task(product_pk: str) -> dict:
 
 
 @shared_task(name="products.export_products_task", bind=True)
-def export_products_task(self, query_params: dict | None = None) -> dict:
-    """Build a filtered catalog Excel workbook and store it on disk.
+def export_products_task(
+    self,
+    filters: dict | None = None,
+    columns: list[str] | None = None,
+    ids: list[str] | None = None,
+) -> dict:
+    """Build a filtered catalog Excel workbook and store it on disk (CDC §4.1.1).
+
+    - `filters`: same shape as the `GET /api/products` query params.
+    - `columns`: ordered list of column keys to include (default = full set).
+    - `ids`: explicit product ids (export of a multi-select selection).
 
     Returns `{"file_url": ..., "filename": ...}` — the client polls the
     polling endpoint, then downloads the file via the URL.
     """
     qs = Product.objects.all().prefetch_related("suppliers")
-    if query_params:
-        filterset = ProductFilter(data=query_params, queryset=qs)
-        if filterset.is_valid():
-            qs = filterset.qs
+    if filters:
+        filterset = ProductFilter(data=filters, queryset=qs)
+        qs = filterset.qs if filterset.is_valid() else filterset.queryset
+    if ids:
+        qs = qs.filter(id__in=ids)
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"
-    file_path.write_bytes(build_products_xlsx(qs))
+    file_path.write_bytes(build_products_xlsx(qs, columns=columns))
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
     return {
         "file_url": f"/api/products/exports/{self.request.id}/",
-        "filename": "catalogue_syskern.xlsx",
+        "filename": f"catalog_{timestamp}.xlsx",
         "size_bytes": os.path.getsize(file_path),
     }
 
@@ -114,11 +127,13 @@ def translate_product_task(product_pk: str, target_lang: str) -> dict:
     client = DeepLClient()
     marketing_tr = (
         client.translate(source_text=marketing_fr, source_lang="fr", target_lang=target)
-        if marketing_fr else ""
+        if marketing_fr
+        else ""
     )
     technical_tr = (
         client.translate(source_text=technical_fr, source_lang="fr", target_lang=target)
-        if technical_fr else ""
+        if technical_fr
+        else ""
     )
 
     marketing = dict(product.description_marketing or {})
@@ -129,7 +144,5 @@ def translate_product_task(product_pk: str, target_lang: str) -> dict:
         technical[target] = technical_tr
     product.description_marketing = marketing
     product.description_technical = technical
-    product.save(
-        update_fields=["description_marketing", "description_technical", "updated_at"]
-    )
+    product.save(update_fields=["description_marketing", "description_technical", "updated_at"])
     return ProductDetailSerializer(product).data

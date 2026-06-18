@@ -41,7 +41,6 @@ interface WizardDraft {
   core: Core;
   attrs: Record<string, unknown>;
   suppliers: ProductSupplier[];
-  step: number;
   fullForm: boolean;
 }
 
@@ -70,7 +69,6 @@ function emptyDraft(): WizardDraft {
     core: { base_unit: "unit", supply_policy: "buy", is_stockable: true, is_copper_indexed: false },
     attrs: {},
     suppliers: [],
-    step: 0,
     fullForm: false,
   };
 }
@@ -80,7 +78,15 @@ function loadDraft(): WizardDraft {
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return emptyDraft();
-    return { ...emptyDraft(), ...(JSON.parse(raw) as WizardDraft) };
+    const parsed = JSON.parse(raw) as Partial<WizardDraft> & { step?: number };
+    // `step` was persisted in v1 drafts — intentionally not restored (always start at Identification).
+    return {
+      ...emptyDraft(),
+      core: parsed.core ?? emptyDraft().core,
+      attrs: parsed.attrs ?? {},
+      suppliers: parsed.suppliers ?? [],
+      fullForm: parsed.fullForm ?? false,
+    };
   } catch {
     return emptyDraft();
   }
@@ -306,7 +312,7 @@ export default function NewProductPage() {
   const [attrs, setAttrs] = useState<Record<string, unknown>>(initial.attrs);
   const [attrValidity, setAttrValidity] = useState<Record<string, boolean>>({});
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>(initial.suppliers);
-  const [step, setStep] = useState<number>(initial.step);
+  const [step, setStep] = useState(0);
   const [fullForm, setFullForm] = useState<boolean>(initial.fullForm);
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -319,15 +325,15 @@ export default function NewProductPage() {
     getAttributeRegistry("technical"),
   );
 
-  // Persist the draft to localStorage on every change (no setState → lint-safe).
+  // Persist field values only — not the wizard step (reopen always on Identification).
   useEffect(() => {
-    const draft: WizardDraft = { core, attrs, suppliers, step, fullForm };
+    const draft: WizardDraft = { core, attrs, suppliers, fullForm };
     try {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
       /* storage unavailable — ignore */
     }
-  }, [core, attrs, suppliers, step, fullForm]);
+  }, [core, attrs, suppliers, fullForm]);
 
   const set = useCallback((key: string, value: unknown) => {
     setCoreState((c) => ({ ...c, [key]: value }));

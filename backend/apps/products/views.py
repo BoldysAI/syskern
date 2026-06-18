@@ -1,4 +1,5 @@
 """DRF views for the PIM (CDC §4.4)."""
+
 from __future__ import annotations
 
 import uuid as _uuid_module
@@ -8,8 +9,10 @@ from django.db import transaction
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,18 +20,17 @@ from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.attributes.serializers import ProductAttributeValueSerializer
 from apps.simulations.models import SimulationLine, SimulationStatus
 
-from .services.sku_parser import parse_sku
-
-from .tasks import EXPORT_DIR, export_products_task, refresh_pamp_task, translate_product_task
-
 from .filters import ProductFilter
 from .models import Product, ProductSupplier
+from .ordering import ProductOrderingFilter
 from .serializers import (
     ProductDetailSerializer,
     ProductListSerializer,
     ProductSupplierSerializer,
     ProductWriteSerializer,
 )
+from .services.sku_parser import parse_sku
+from .tasks import EXPORT_DIR, export_products_task, refresh_pamp_task, translate_product_task
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -41,6 +43,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Product.objects.all().prefetch_related("suppliers")
+    filter_backends = [DjangoFilterBackend, SearchFilter, ProductOrderingFilter]
     filterset_class = ProductFilter
     search_fields = (
         "sku_code",
@@ -52,7 +55,16 @@ class ProductViewSet(viewsets.ModelViewSet):
         "description_marketing",
         "description_technical",
     )
-    ordering_fields = ("sku_code", "name", "pamp_eur", "stock_quantity", "updated_at")
+    ordering_fields = (
+        "sku_code",
+        "name",
+        "universe",
+        "family",
+        "brand",
+        "pamp_eur",
+        "stock_quantity",
+        "updated_at",
+    )
     ordering = ("sku_code",)
 
     # ── 1.A — Lookup by UUID or SKU (CDC §4.4) ───────────────────────────────
@@ -227,10 +239,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def list_attributes(self, request, pk=None):
         """List all attribute values set on a product."""
         product = self.get_object()
-        values = (
-            ProductAttributeValue.objects.filter(product=product)
-            .select_related("attribute")
-        )
+        values = ProductAttributeValue.objects.filter(product=product).select_related("attribute")
         ser = ProductAttributeValueSerializer(values, many=True)
         return Response(ser.data)
 
@@ -256,9 +265,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         # PUT — upsert
         attribute = get_object_or_404(AttributeRegistry, pk=attribute_id)
-        pav, _ = ProductAttributeValue.objects.get_or_create(
-            product=product, attribute=attribute
-        )
+        pav, _ = ProductAttributeValue.objects.get_or_create(product=product, attribute=attribute)
         data = {
             "product": str(product.pk),
             "attribute": str(attribute.pk),
@@ -322,9 +329,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         supplier = self._get_supplier(product, supplier_pk)
 
         with transaction.atomic():
-            ProductSupplier.objects.filter(product=product).exclude(
-                pk=supplier.pk
-            ).update(is_active=False)
+            ProductSupplier.objects.filter(product=product).exclude(pk=supplier.pk).update(
+                is_active=False
+            )
             supplier.is_active = True
             supplier.save(update_fields=["is_active", "updated_at"])
         return Response(ProductSupplierSerializer(supplier).data)
@@ -337,14 +344,25 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get", "post"], url_path="export")
     def export(self, request):
-        """Dispatch a Celery task to build the catalog Excel.
+        """Dispatch a Celery task to build the catalog Excel (CDC §4.1.1).
 
-        Honors the exact same query-parameters as `GET /api/products`.
-        Returns 202 + `task_id`; client polls `/api/tasks/{task_id}/` and
-        then downloads from the `file_url` returned in the SUCCESS result.
+        POST body (preferred):
+          - `filters`: same shape as `GET /api/products` query params
+          - `columns`: ordered list of column keys to include (optional)
+          - `ids`: explicit product ids to export (selection — optional)
+
+        For backwards compatibility, query-parameters are also accepted as
+        filters. Returns 202 + `task_id`; the client polls
+        `/api/tasks/{task_id}/` then downloads from the returned `file_url`.
         """
-        query_params = request.query_params.dict()
-        result = export_products_task.delay(query_params=query_params)
+        body = request.data if isinstance(request.data, dict) else {}
+        filters = body.get("filters")
+        if not isinstance(filters, dict):
+            filters = request.query_params.dict()
+        columns = body.get("columns") if isinstance(body.get("columns"), list) else None
+        ids = body.get("ids") if isinstance(body.get("ids"), list) else None
+
+        result = export_products_task.delay(filters=filters, columns=columns, ids=ids)
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
@@ -416,10 +434,7 @@ class DistinctHierarchyView(APIView):
                 break
 
         values = (
-            qs.exclude(**{f"{level}": ""})
-            .order_by(level)
-            .values_list(level, flat=True)
-            .distinct()
+            qs.exclude(**{f"{level}": ""}).order_by(level).values_list(level, flat=True).distinct()
         )
         return Response({"level": level, "values": list(values)})
 
@@ -471,9 +486,7 @@ class SupplierNameTemplateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         supplier = (
-            ProductSupplier.objects.filter(supplier_name=name)
-            .order_by("-updated_at")
-            .first()
+            ProductSupplier.objects.filter(supplier_name=name).order_by("-updated_at").first()
         )
         if supplier is None:
             return Response(status=status.HTTP_404_NOT_FOUND)

@@ -3,6 +3,7 @@
 Cf. CDC §3.2 — pattern EAV with JSONB values.  Clients can add new attributes
 through the UI without a schema migration.
 """
+
 from __future__ import annotations
 
 from django.contrib.postgres.indexes import GinIndex
@@ -54,6 +55,9 @@ class AttributeRegistry(BaseModel):
     unit = models.CharField(max_length=32, blank=True, default="")
     is_required = models.BooleanField(default=False)
     is_searchable = models.BooleanField(default=True)
+    # Exposed as a sidebar filter on the catalog (CDC §4.1.1). Only attributes
+    # flagged here are honored by the `attr_<code>` query params.
+    is_filterable = models.BooleanField(default=False)
     display_order = models.IntegerField(default=0)
 
     class Meta:
