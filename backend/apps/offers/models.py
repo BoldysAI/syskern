@@ -31,6 +31,15 @@ class ExportFormat(models.TextChoices):
     DEVIS_GAMMA = "devis_gamma", "Gamma quote (project)"
 
 
+class GenerationStatus(models.TextChoices):
+    """Document generation lifecycle, distinct from the commercial `status`."""
+
+    PENDING = "pending", "Pending"
+    GENERATING = "generating", "Generating"
+    READY = "ready", "Ready"
+    ERROR = "error", "Error (retry possible)"
+
+
 class Offer(BaseModel):
     simulation = models.ForeignKey(
         "simulations.Simulation",
@@ -72,6 +81,15 @@ class Offer(BaseModel):
     # Generation results
     generated_file_url = models.TextField(blank=True, default="")
     gamma_document_id = models.CharField(max_length=128, blank=True, default="")
+    generation_status = models.CharField(
+        max_length=16,
+        choices=GenerationStatus.choices,
+        default=GenerationStatus.PENDING,
+        help_text="Document generation state (separate from the commercial status).",
+    )
+    generation_error = models.TextField(blank=True, default="")
+    # AI-generated arguments cached for re-use on retry (CDC §7.3.4).
+    ai_arguments = models.JSONField(default=dict, blank=True)
 
     # Lifecycle tracking
     status = models.CharField(max_length=16, choices=OfferStatus.choices, default=OfferStatus.DRAFT)

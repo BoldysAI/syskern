@@ -9,8 +9,11 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.offers.models import Offer
-from apps.offers.serializers import GenerateTariffOffersSerializer
-from apps.offers.tasks import generate_tariff_offers_task
+from apps.offers.serializers import (
+    GenerateProjectOfferSerializer,
+    GenerateTariffOffersSerializer,
+)
+from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
 
 from .models import (
@@ -126,6 +129,40 @@ class SimulationViewSet(viewsets.ModelViewSet):
         task = generate_tariff_offers_task.delay(str(simulation.id), payload)
         return Response(
             {"task_id": task.id, "status": "PENDING", "client_count": len(payload["client_ids"])},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    # ─── /generate-project-offer (CDC §7.3) ───────────────────────────
+    @action(detail=True, methods=["post"], url_path="generate-project-offer")
+    def generate_project_offer(self, request, pk=None):
+        """Generate a Gamma project quote (async, CDC §7.3).
+
+        Requires a finalized, project-type simulation. Returns 202 + task_id;
+        the client polls /api/tasks/{task_id}/ for the offer + generation status.
+        """
+        simulation = self.get_object()
+        if simulation.status != SimulationStatus.FINALIZED:
+            raise ValidationError("La simulation doit être finalisée.")
+        if simulation.simulation_type != SimulationType.PROJECT:
+            raise ValidationError("Génération projet réservée aux simulations de type projet.")
+
+        ser = GenerateProjectOfferSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        payload = {
+            "client_id": str(data["client_id"]),
+            "project_name": data["project_name"],
+            "quantities": data["quantities"],
+            "language": data["language"],
+            "expiration_date": (
+                data["expiration_date"].isoformat() if data.get("expiration_date") else None
+            ),
+            "ai_instructions": data.get("ai_instructions") or "",
+            "sections_config": data.get("sections_config"),
+        }
+        task = generate_project_offer_task.delay(str(simulation.id), payload)
+        return Response(
+            {"task_id": task.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
         )
 

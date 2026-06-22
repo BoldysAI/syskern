@@ -33,11 +33,38 @@
   des colonnes, polling + écran de chargement). Calque les pages `/admin/*` (fetch direct + CSRF,
   pas `lib/api.ts`).
 
+## Génération offre projet Gamma (§7.3)
+
+- Endpoint : `POST /api/simulations/{id}/generate-project-offer/` (action `SimulationViewSet`).
+  Garde : `finalized` + type `project`, sinon **400**. `202 + {task_id}`.
+- Tâche : `offers/tasks.py:generate_project_offer_task(simulation_id, params)`.
+  `params` = {client_id, project_name, quantities(sku->qty), language, expiration_date(ISO),
+  ai_instructions, sections_config}. Retry : `POST /api/offers/{id}/regenerate/` →
+  `regenerate_project_offer_task`.
+- Orchestration : `services/project_generator.py`
+  - `create_project_offer(...)` → Offer (type project, 1 client, EUR, devis_gamma) + OfferLines
+    avec **quantités** (final_price = `SimulationLine.pv_eur`).
+  - `run_generation(offer)` (retry-safe, lit tout depuis l'offre) → OpenAI args → payload Gamma
+    5 sections → `gamma.generate_and_wait` → stocke `gamma_document_id`, `generated_file_url`
+    (= gammaUrl), `project_info.gamma_export_url` (PDF), snapshot HTML best-effort.
+- Argumentaires IA : `services/ai_arguments.py:generate_arguments(...)` (OpenAI `generate_json`,
+  gpt-4o-mini configurable via `OPENAI_MODEL`, temp 0.7). 3 argumentaires {technical, commercial,
+  logistic} dans la langue cible. **Échec OpenAI → None** (offre générée sans copy + warning).
+  Cache par `instructions_hash` dans `Offer.ai_arguments` (réutilisé au retry).
+- Statut génération : `Offer.generation_status` (pending/generating/ready/**error**) +
+  `generation_error`. Gamma échoue → `error` + retry possible (l'offre + lignes persistent).
+- Intégration Gamma : voir `docs/integrations/gamma.md` (contrat, crédits, erreurs).
+- UI : `frontend/src/app/offers/new-project/?simulation_id=` (wizard 5 étapes : client+projet,
+  quantités éditables, langue+expiration, sections, instructions IA ; poll long 1-3 min ;
+  lien Gamma + bouton « Réessayer » sur erreur).
+
 ## Règles
 
 - **Tout export/génération = Celery** (§4) : jamais de génération synchrone dans la requête.
 - **Prix jamais recalculés ici** (§2) : on lit `SimulationLine.pv_eur` et on convertit la devise.
   Lignes sans `pv_eur` exclues (`final_price` NOT NULL).
 - Après ajout/modif d'un `tasks.py`, **redémarrer `celery-worker`** (autodiscovery au boot).
+- **Changement de clé/`.env` (GAMMA/OPENAI…)** : `docker compose restart` **ne recharge PAS** `env_file` → faire `docker compose up -d --force-recreate backend celery-worker`. Piège vécu : worker → « GAMMA_API_KEY is not configured » algré un `restart`. (`docker compose run --rm` lit `.env` à chaque fois, d'où des smokes OK mais un worker KO.)
+- UI offres : `/offers` liste réelle (dashboard + filtres + actions download/Gamma/retry, auto-refresh SWR si une génération est en cours) ; bouton « Nouvelle offre » → sélection d'une simulation finalisée → wizard tarif/projet. `OfferListSerializer` expose `generation_status`/`generated_file_url`/`client_ids` pour les actions.
 - `won`/`lost` réservés aux offres `project` ; versioning (`duplicate`) réservé aux `project`.
 - Gamma/OpenAI/DeepL : `offers/services/{gamma,openai_client,translation}.py` (offres projet, §7.3).

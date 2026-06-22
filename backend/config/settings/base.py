@@ -216,6 +216,9 @@ GAMMA = {
 
 DEEPL_API_KEY = env("DEEPL_API_KEY", default="")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+# Model for offer copy generation (CDC §7.6.1) — overridable per the evolving
+# model landscape (Annexe Technique §3.6).
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
 
 # ─── Initial data migration (one-shot — CDC §8) ───────────────────────────────
 # The migration is operated by Boldys at deployment. `LOCKED` is the guard-rail

@@ -243,10 +243,10 @@ export default function MigrationQuarantinePage() {
   }, [sourceFile, reason, status, offset]);
 
   const { data, isLoading, error } = useSWR<Paginated<UnmatchedRow>>(`quarantine:${query}`, () =>
-    fetcher(`/api/migration/unmatched/?${query}`),
+    fetcher<Paginated<UnmatchedRow>>(`/api/migration/unmatched/?${query}`),
   );
   const { data: facets } = useSWR<Facets>("quarantine-facets", () =>
-    fetcher("/api/migration/unmatched/facets/"),
+    fetcher<Facets>("/api/migration/unmatched/facets/"),
   );
 
   if (role !== "admin") {

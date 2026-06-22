@@ -48,8 +48,13 @@ class OfferListSerializer(serializers.ModelSerializer):
             "valid_from",
             "valid_to",
             "project_name",
+            "client_ids",
             "version_number",
             "line_count",
+            "generation_status",
+            "generated_file_url",
+            "gamma_document_id",
+            "generation_error",
             "created_at",
             "updated_at",
         )
@@ -132,4 +137,28 @@ class GenerateTariffOffersSerializer(serializers.Serializer):
         missing = [str(v) for v in value if v not in existing]
         if missing:
             raise serializers.ValidationError(f"Clients introuvables : {missing}")
+        return value
+
+
+class GenerateProjectOfferSerializer(serializers.Serializer):
+    """Input for `POST /api/simulations/{id}/generate-project-offer` (CDC §7.3)."""
+
+    client_id = serializers.UUIDField()
+    project_name = serializers.CharField(max_length=255)
+    quantities = serializers.DictField(child=serializers.FloatField(), allow_empty=False)
+    language = serializers.ChoiceField(choices=Language.choices, default=Language.FR)
+    expiration_date = serializers.DateField(required=False, allow_null=True)
+    ai_instructions = serializers.CharField(required=False, allow_blank=True, default="")
+    sections_config = serializers.DictField(
+        child=serializers.BooleanField(), required=False, allow_null=True
+    )
+
+    def validate_client_id(self, value):
+        if not Client.objects.filter(id=value).exists():
+            raise serializers.ValidationError(f"Client introuvable : {value}")
+        return value
+
+    def validate_quantities(self, value: dict) -> dict:
+        if any(q <= 0 for q in value.values()):
+            raise serializers.ValidationError("Les quantités doivent être strictement positives.")
         return value

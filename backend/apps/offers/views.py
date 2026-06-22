@@ -130,6 +130,21 @@ class OfferViewSet(viewsets.ModelViewSet):
                     chain.append(follower)
         return Response(OfferListSerializer(chain, many=True).data)
 
+    # ─── /regenerate (retry Gamma generation — CDC §7.6.3) ───────────
+    @action(detail=True, methods=["post"])
+    def regenerate(self, request, pk=None):
+        """Retry the Gamma generation of a project offer that errored.
+
+        Returns 202 + task_id; poll /api/tasks/{task_id}/.
+        """
+        from .tasks import regenerate_project_offer_task
+
+        offer = self.get_object()
+        if offer.offer_type != OfferType.PROJECT:
+            raise ValidationError("La régénération concerne les offres projet.")
+        task = regenerate_project_offer_task.delay(str(offer.id))
+        return Response({"task_id": task.id, "status": "PENDING"}, status=status.HTTP_202_ACCEPTED)
+
     # ─── /tariff-columns (catalogue for the generation wizard) ───────
     @action(detail=False, methods=["get"], url_path="tariff-columns")
     def tariff_columns(self, request):

@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface AddToSimulationDialogProps {
-  productId: string;
+  productIds: string[];
   productLabel: string;
   /** The element that opens the dialog (wrapped as the trigger). */
   children: ReactNode;
@@ -27,7 +27,7 @@ const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
 
 export function AddToSimulationDialog({
-  productId,
+  productIds,
   productLabel,
   children,
 }: AddToSimulationDialogProps) {
@@ -74,7 +74,7 @@ export function AddToSimulationDialog({
         });
         simId = sim.id;
       }
-      await addSimulationLines(simId, [productId]);
+      await addSimulationLines(simId, productIds);
       setDoneSimId(simId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");

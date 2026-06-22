@@ -22,6 +22,7 @@ from apps.simulations.services.engine.context import fx_rate
 
 from .models import ExportFormat, Offer, OfferLine, OfferStatus, OfferType
 from .services.excel import build_tariff_xlsx, fx_note_for
+from .services.project_generator import create_project_offer, run_generation
 
 logger = logging.getLogger("apps.offers.tasks")
 
@@ -133,3 +134,50 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
         logger.info("Tariff offer %s generated for client %s", offer.id, client_label)
 
     return {"count": len(results), "currency": target, "offers": results}
+
+
+def _offer_generation_result(offer: Offer) -> dict:
+    return {
+        "offer_id": str(offer.id),
+        "generation_status": offer.generation_status,
+        "gamma_document_id": offer.gamma_document_id,
+        "gamma_url": offer.generated_file_url,
+        "error": offer.generation_error,
+    }
+
+
+@shared_task(name="offers.generate_project_offer_task")
+def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
+    """Create a project offer then generate its Gamma quote (CDC §7.3).
+
+    ``params`` = {client_id, project_name, quantities (sku->qty), language,
+    expiration_date (ISO|None), ai_instructions, sections_config}.
+    """
+    simulation = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_id)
+    if simulation.status != SimulationStatus.FINALIZED:
+        raise ValueError("La simulation doit être finalisée.")
+    if simulation.simulation_type != SimulationType.PROJECT:
+        raise ValueError("La simulation doit être de type projet.")
+
+    client = Client.objects.get(pk=params["client_id"])
+    expiration = params.get("expiration_date")
+    offer = create_project_offer(
+        simulation=simulation,
+        client=client,
+        project_name=params["project_name"],
+        quantities=params.get("quantities") or {},
+        language=params.get("language") or "fr",
+        expiration_date=date.fromisoformat(expiration) if expiration else None,
+        ai_instructions=params.get("ai_instructions") or "",
+        sections_config=params.get("sections_config"),
+    )
+    offer = run_generation(offer)
+    return _offer_generation_result(offer)
+
+
+@shared_task(name="offers.regenerate_project_offer_task")
+def regenerate_project_offer_task(offer_id: str) -> dict:
+    """Re-run Gamma generation for an existing project offer (retry, CDC §7.6.3)."""
+    offer = Offer.objects.get(pk=offer_id)
+    offer = run_generation(offer)
+    return _offer_generation_result(offer)
