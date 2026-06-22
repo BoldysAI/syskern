@@ -12,6 +12,7 @@ import {
   LogOut,
   ChevronRight,
   Users,
+  FileWarning,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,11 @@ const USERS_ITEM = {
   label: "Utilisateurs",
   href: "/admin/users",
   icon: Users,
+} as const;
+const QUARANTINE_ITEM = {
+  label: "Quarantaine migration",
+  href: "/admin/migration-quarantine",
+  icon: FileWarning,
 } as const;
 
 const ROLE_LABELS: Record<string, string> = {
@@ -102,13 +108,22 @@ function Sidebar({ pathname, onClose }: { pathname: string; onClose?: () => void
         />
 
         {role === "admin" && (
-          <NavItem
-            href={USERS_ITEM.href}
-            icon={USERS_ITEM.icon}
-            label={USERS_ITEM.label}
-            active={pathname.startsWith(USERS_ITEM.href)}
-            onClick={onClose}
-          />
+          <>
+            <NavItem
+              href={USERS_ITEM.href}
+              icon={USERS_ITEM.icon}
+              label={USERS_ITEM.label}
+              active={pathname.startsWith(USERS_ITEM.href)}
+              onClick={onClose}
+            />
+            <NavItem
+              href={QUARANTINE_ITEM.href}
+              icon={QUARANTINE_ITEM.icon}
+              label={QUARANTINE_ITEM.label}
+              active={pathname.startsWith(QUARANTINE_ITEM.href)}
+              onClick={onClose}
+            />
+          </>
         )}
       </nav>
 
@@ -151,6 +166,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     settings: "Paramètres",
     admin: "Admin",
     users: "Utilisateurs",
+    "migration-quarantine": "Quarantaine migration",
   };
 
   return (

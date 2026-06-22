@@ -217,6 +217,30 @@ GAMMA = {
 DEEPL_API_KEY = env("DEEPL_API_KEY", default="")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 
+# ─── Initial data migration (one-shot — CDC §8) ───────────────────────────────
+# The migration is operated by Boldys at deployment. `LOCKED` is the guard-rail
+# (CDC §8.9): once true (post go-live) `run_migration` and `migration_reset`
+# refuse to run so an accidental re-run cannot clobber data Olivier enriched.
+# `STATE_FILE` holds the resume checkpoint (survives a DB reset — it is on disk,
+# not in Postgres). `SOURCES_DIR` defaults to the repo-root `migration/sources/`
+# (mounted at /migration/sources inside the backend container).
+MIGRATION = {
+    "LOCKED": env.bool("MIGRATION_LOCKED", default=False),
+    "STATE_FILE": env("MIGRATION_STATE_FILE", default=str(BASE_DIR / ".migration_state.json")),
+    "SOURCES_DIR": env(
+        "MIGRATION_SOURCES_DIR", default=str(BASE_DIR.parent / "migration" / "sources")
+    ),
+    # Optional path to a JSON manifest listing the Excel sources to load
+    # (see docs/runbooks/migration.md). Empty → step 2 auto-discovers nothing.
+    "MANIFEST": env("MIGRATION_MANIFEST", default=""),
+    # Final report (CDC §8.8): where migration_report_<date>.xlsx is written,
+    # and the cross-validation recipients for `migration_report --email`.
+    "REPORT_DIR": env(
+        "MIGRATION_REPORT_DIR", default=str(BASE_DIR.parent / "migration" / "reports")
+    ),
+    "REPORT_RECIPIENTS": env.list("MIGRATION_REPORT_RECIPIENTS", default=[]),
+}
+
 # Supabase (production only)
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")

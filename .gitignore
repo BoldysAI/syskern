@@ -64,3 +64,10 @@ backend/staticfiles/
 backend/mediafiles/
 migration/sources/
 !migration/sources/.gitkeep
+# Generated migration reports (CDC §8.8)
+migration/reports/
+# Migration resume checkpoint (on-disk state, never committed — CDC §8.9)
+.migration_state.json
+.migration_state.json.tmp
+backend/.migration_state.json
+migration/manifest.json
