@@ -27,6 +27,36 @@ def to_decimal(value: Any) -> Decimal:
     return Decimal(str(value))
 
 
+def fx_rate(from_currency: str, to_currency: str, market_params: dict) -> Decimal:
+    """EUR-pivot FX coefficient — ``amount_in_to = amount_in_from * rate`` (CDC §6.3.2).
+
+    Rates in ``market_params`` are entered as ``fx_eur_<curr>`` ("how many
+    <curr> for 1 EUR"); non-EUR pairs are derived via EUR. Raises ``ValueError``
+    if a required ``fx_eur_<curr>`` rate is missing.
+
+    Shared by the pricing engine (:meth:`SimulationContext.get_fx_rate`) and the
+    offer generator, which converts the EUR pivot PV to the sale currency at
+    generation time (CDC §6.8.2 / §7.2.5).
+    """
+    fr = from_currency.upper()
+    to = to_currency.upper()
+    if fr == to:
+        return DEC_ONE
+    eur = Currency.EUR.value
+
+    def _eur_to(currency: str) -> Decimal:
+        key = f"fx_eur_{currency.lower()}"
+        if key not in market_params:
+            raise ValueError(f"Missing FX rate `{key}` in market parameters.")
+        return to_decimal(market_params[key])
+
+    if fr == eur:
+        return _eur_to(to)
+    if to == eur:
+        return DEC_ONE / _eur_to(fr)
+    return _eur_to(to) / _eur_to(fr)
+
+
 @dataclass(frozen=True)
 class PriceWithCurrency:
     """A price + its currency.  Immutable so module boundaries stay clean."""
@@ -95,27 +125,10 @@ class SimulationContext:
     def get_fx_rate(self, from_currency: str, to_currency: str) -> Decimal:
         """Multiplicative coefficient — `amount_in_to = amount_in_from * rate`.
 
-        All rates are entered in EUR-pivot form (`fx_eur_<curr>`, meaning
-        "how many <curr> for 1 EUR").  Non-EUR pairs are derived on the fly
-        (CDC §6.3.2).
+        Delegates to the module-level :func:`fx_rate` so the engine and the
+        offer generator share one EUR-pivot implementation (CDC §6.3.2).
         """
-        fr = from_currency.upper()
-        to = to_currency.upper()
-        if fr == to:
-            return DEC_ONE
-        eur = Currency.EUR.value
-        if fr == eur:
-            return self._eur_to(to)
-        if to == eur:
-            return DEC_ONE / self._eur_to(fr)
-        # Both non-EUR — pivot via EUR.
-        return self._eur_to(to) / self._eur_to(fr)
-
-    def _eur_to(self, currency: str) -> Decimal:
-        key = f"fx_eur_{currency.lower()}"
-        if key not in self.market_params:
-            raise ValueError(f"Missing FX rate `{key}` in market parameters.")
-        return to_decimal(self.market_params[key])
+        return fx_rate(from_currency, to_currency, self.market_params)
 
     def copper_base_price(self, currency: str = "RMB") -> Decimal:
         return to_decimal(self.market_params.get(f"copper_base_price_{currency.lower()}", DEC_ZERO))

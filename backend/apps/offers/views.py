@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -21,6 +22,7 @@ from .serializers import (
     OfferWriteSerializer,
     StatusTransitionSerializer,
 )
+from .tasks import offer_export_path
 
 
 class OfferViewSet(viewsets.ModelViewSet):
@@ -127,6 +129,30 @@ class OfferViewSet(viewsets.ModelViewSet):
                 if follower not in chain:
                     chain.append(follower)
         return Response(OfferListSerializer(chain, many=True).data)
+
+    # ─── /tariff-columns (catalogue for the generation wizard) ───────
+    @action(detail=False, methods=["get"], url_path="tariff-columns")
+    def tariff_columns(self, request):
+        """Available tariff-Excel columns ([{key, label}]) translated by ?lang."""
+        from .services.excel import available_columns
+
+        lang = request.query_params.get("lang", "fr")
+        return Response(available_columns(lang))
+
+    # ─── /download (generated Excel/PDF) ─────────────────────────────
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """Stream the generated tariff Excel (CDC §7.8 — GET /offers/{id}/download)."""
+        offer = self.get_object()
+        path = offer_export_path(offer.id)
+        if not path.is_file():
+            raise Http404("Document non généré ou expiré.")
+        return FileResponse(
+            path.open("rb"),
+            as_attachment=True,
+            filename=f"tarif_{offer.id}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
     # ─── /generate (stub) ────────────────────────────────────────────
     @action(detail=True, methods=["post"])
