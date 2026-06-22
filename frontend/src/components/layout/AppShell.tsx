@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Users,
   FileWarning,
+  Library,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { label: "Catalogue", href: "/catalog", icon: LayoutGrid },
   { label: "Simulations", href: "/simulator", icon: Calculator },
   { label: "Offres", href: "/offers", icon: FileText },
+  { label: "Bibliothèque", href: "/library", icon: Library },
 ] as const;
 
 const SETTINGS_ITEM = {
@@ -166,6 +168,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     settings: "Paramètres",
     admin: "Admin",
     users: "Utilisateurs",
+    library: "Bibliothèque",
     "migration-quarantine": "Quarantaine migration",
   };
 

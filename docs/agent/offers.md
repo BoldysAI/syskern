@@ -58,6 +58,27 @@
   quantités éditables, langue+expiration, sections, instructions IA ; poll long 1-3 min ;
   lien Gamma + bouton « Réessayer » sur erreur).
 
+## Bibliothèque de documents (§7.4) — `apps/documents`
+
+- Modèle `DocumentLibrary` : `name` (JSONB multilingue), `category`, `file_url` (chemin
+  storage), `file_name`, `mime_type`, `language`, `product` (FK SET_NULL), `version`,
+  `uploaded_by`, `is_active`, `deleted_at` (soft-delete).
+- API (router `document-library`, **pas** `library`) :
+  - `GET /api/document-library/?category=&language=&product=` (liste, défaut **actifs**)
+  - `POST /api/document-library/upload/` (multipart) — valide **≤20 Mo** + types
+    (PDF/JPG/PNG/DOCX/XLSX), **versionne** par (product, language, file_name), stocke via
+    `default_storage` (local `MEDIA_ROOT/documents/<uuid>/`; prod → Supabase).
+  - `GET /api/document-library/{id}/download/` — stream `FileResponse` ; `?inline=1` pour
+    l'aperçu (PDF iframe / image).
+  - `GET /api/document-library/{id}/versions/` — chaîne de versions.
+  - `PATCH` (métadonnées seules — fichiers en read-only) ; `DELETE` = **soft-delete**
+    (`is_active=False` + `deleted_at`, fichier conservé).
+- Purge : tâche Celery **Beat** `documents.purge_deleted_documents` (04:00 UTC, migration
+  `documents/0003`) — hard-delete fichier + ligne au-delà de **30 j** (≠ apscheduler du ticket).
+- UI : `frontend/src/app/library/` (liste + filtres + modale upload drag-drop + aperçu +
+  versions + soft-delete) ; entrée nav « Bibliothèque ».
+- Storage = `default_storage` (local). Supabase Storage = prod (non câblé en local MVP1).
+
 ## Règles
 
 - **Tout export/génération = Celery** (§4) : jamais de génération synchrone dans la requête.
