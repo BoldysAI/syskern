@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { Download, ExternalLink, FileText, Loader2, Plus, RefreshCw, X } from "lucide-react";
@@ -42,6 +43,7 @@ interface Dashboard {
   status_counts: Record<string, number>;
   project_conversion_pct: number | null;
   tariff_active: number;
+  won_total: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -244,7 +246,7 @@ export default function OffersPage() {
       </div>
 
       {dash && (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label="Brouillons" value={dash.status_counts.draft ?? 0} />
           <Stat label="Envoyées" value={dash.status_counts.sent ?? 0} />
           <Stat label="Tarifs actifs" value={dash.tariff_active} />
@@ -253,6 +255,14 @@ export default function OffersPage() {
             value={
               dash.project_conversion_pct != null
                 ? `${dash.project_conversion_pct.toFixed(0)}%`
+                : "—"
+            }
+          />
+          <Stat
+            label="CA gagné (€)"
+            value={
+              dash.won_total != null
+                ? Number(dash.won_total).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
                 : "—"
             }
           />
@@ -313,7 +323,12 @@ export default function OffersPage() {
               {offers.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-slate-800">{o.label}</div>
+                    <Link
+                      href={`/offers/${o.id}`}
+                      className="text-sm font-medium text-slate-800 hover:text-[#E07200]"
+                    >
+                      {o.label}
+                    </Link>
                     <div className="text-xs text-slate-400">
                       {o.line_count} ligne(s) · {o.currency}
                     </div>

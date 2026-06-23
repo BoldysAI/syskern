@@ -14,8 +14,10 @@ from rest_framework.views import APIView
 
 from apps.simulations.models import Simulation, SimulationStatus
 
-from .models import Offer, OfferLine, OfferStatus, OfferType
+from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
 from .serializers import (
+    ExtendExpirationSerializer,
+    OfferAlertConfigSerializer,
     OfferDetailSerializer,
     OfferLineSerializer,
     OfferListSerializer,
@@ -23,6 +25,16 @@ from .serializers import (
     StatusTransitionSerializer,
 )
 from .tasks import offer_export_path
+
+# User-driven status transitions (CDC §7.5.1). `expired` is set only by the
+# daily cron; reactivation goes through extend-expiration, not /status.
+ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    OfferStatus.DRAFT: {OfferStatus.SENT},
+    OfferStatus.SENT: {OfferStatus.WON, OfferStatus.LOST},
+    OfferStatus.WON: set(),
+    OfferStatus.LOST: set(),
+    OfferStatus.EXPIRED: set(),
+}
 
 
 class OfferViewSet(viewsets.ModelViewSet):
@@ -52,6 +64,11 @@ class OfferViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         new_status = ser.validated_data["status"]
 
+        # Enforce the lifecycle order (e.g. draft→won is rejected; pass via sent).
+        if new_status != offer.status and new_status not in ALLOWED_TRANSITIONS.get(
+            offer.status, set()
+        ):
+            raise ValidationError(f"Transition {offer.status} → {new_status} non autorisée.")
         # `won` / `lost` only apply to project offers (CDC §7.5.1).
         if (
             new_status in {OfferStatus.WON, OfferStatus.LOST}
@@ -71,13 +88,9 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer.save()
         return Response(OfferDetailSerializer(offer).data)
 
-    # ─── /duplicate (new version of a project offer) ─────────────────
-    @action(detail=True, methods=["post"])
-    @transaction.atomic
-    def duplicate(self, request, pk=None):
-        src = self.get_object()
-        if src.offer_type != OfferType.PROJECT:
-            raise ValidationError("Only project offers can be versioned.")
+    @staticmethod
+    def _create_next_version(src: Offer) -> Offer:
+        """Clone a project offer as V(n+1): previous_offer chain + copied lines."""
         copy = Offer.objects.create(
             simulation=src.simulation,
             offer_type=src.offer_type,
@@ -110,7 +123,40 @@ class OfferViewSet(viewsets.ModelViewSet):
                 quantity=line.quantity,
                 display_order=line.display_order,
             )
+        return copy
+
+    # ─── /duplicate · /new-version (new version of a project offer) ──────
+    @action(detail=True, methods=["post"], url_path="new-version")
+    @transaction.atomic
+    def new_version(self, request, pk=None):
+        """Create V(n+1) of a project offer (CDC §7.5). Project offers only."""
+        src = self.get_object()
+        if src.offer_type != OfferType.PROJECT:
+            raise ValidationError("Seules les offres projet sont versionnables.")
+        copy = self._create_next_version(src)
         return Response(OfferDetailSerializer(copy).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def duplicate(self, request, pk=None):
+        """Backward-compatible alias of new-version."""
+        return self.new_version(request, pk=pk)
+
+    # ─── /extend-expiration ───────────────────────────────────────────
+    @action(detail=True, methods=["post"], url_path="extend-expiration")
+    def extend_expiration(self, request, pk=None):
+        """Push the validity date out (CDC §7.5). Reactivates an expired offer."""
+        offer = self.get_object()
+        ser = ExtendExpirationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_date = ser.validated_data["new_date"]
+        if new_date <= timezone.now().date() + timedelta(days=7):
+            raise ValidationError("La nouvelle date doit être à plus de 7 jours.")
+        offer.valid_to = new_date
+        if offer.status == OfferStatus.EXPIRED:
+            offer.status = OfferStatus.SENT  # reactivate (expired only comes from sent)
+        offer.save(update_fields=["valid_to", "status", "updated_at"])
+        return Response(OfferDetailSerializer(offer).data)
 
     # ─── /versions ───────────────────────────────────────────────────
     @action(detail=True, methods=["get"])
@@ -251,3 +297,17 @@ class OffersExpiringSoonView(APIView):
             Q(valid_to__isnull=False, valid_to__lte=deadline, valid_to__gte=now.date())
         ).order_by("valid_to")
         return Response(OfferListSerializer(offers, many=True).data)
+
+
+class OfferAlertSettingsView(APIView):
+    """Recipients of the J-7 expiration alert — UI-editable (CDC §7.6)."""
+
+    def get(self, request):
+        return Response(OfferAlertConfigSerializer(OfferAlertConfig.load()).data)
+
+    def put(self, request):
+        cfg = OfferAlertConfig.load()
+        ser = OfferAlertConfigSerializer(cfg, data=request.data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)

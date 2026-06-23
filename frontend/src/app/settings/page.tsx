@@ -18,6 +18,8 @@ import {
   Truck,
   Coins,
   Database,
+  Bell,
+  Mail,
   X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,11 +36,14 @@ import {
   getSyncStatus,
   getOdooHealth,
   triggerOdooSync,
+  getOfferAlertSettings,
+  updateOfferAlertSettings,
   type MarketParameter,
   type MarketParameterType,
   type TransportMode,
   type SyncLog,
   type SyncStatus,
+  type OfferAlertSettings,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -872,11 +877,122 @@ function TabOdoo() {
   );
 }
 
+// ── Tab : Alertes offres (J-7 expiration recipients) ─────────────────────
+function TabAlerts() {
+  const { data, isLoading } = useSWR<OfferAlertSettings>(
+    "offer-alert-settings",
+    getOfferAlertSettings,
+  );
+  // `draft` is null until the user edits — display falls back to fetched data
+  // (avoids a setState-in-effect to seed the form).
+  const [draft, setDraft] = useState<string[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const recipients = draft ?? data?.recipients ?? [];
+  const edit = (next: string[]) => {
+    setDraft(next);
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const clean = recipients.map((r) => r.trim()).filter(Boolean);
+      await updateOfferAlertSettings(clean);
+      await globalMutate("offer-alert-settings");
+      setDraft(null);
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Enregistrement échoué");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <p className="text-sm text-slate-500 mb-5">
+        Destinataires de l&apos;alerte quotidienne « offres arrivant à expiration sous 7 jours »
+        (CDC §7.6). L&apos;envoi tourne chaque matin (08:00 UTC). Sans destinataire, aucune alerte
+        n&apos;est envoyée.
+      </p>
+
+      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
+        {error && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {isLoading ? (
+          <div className="py-6 text-center text-sm text-slate-400">Chargement…</div>
+        ) : (
+          <>
+            <label className={labelCls}>Adresses e-mail</label>
+            <div className="flex flex-col gap-2">
+              {recipients.length === 0 && (
+                <p className="text-sm text-slate-400 py-2">
+                  Aucun destinataire. Ajoutez une adresse pour activer les alertes.
+                </p>
+              )}
+              {recipients.map((addr, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Mail size={15} className="text-slate-400 shrink-0" />
+                  <input
+                    type="email"
+                    value={addr}
+                    onChange={(e) =>
+                      edit(recipients.map((r, idx) => (idx === i ? e.target.value : r)))
+                    }
+                    placeholder="prenom@exemple.com"
+                    className={inputCls}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => edit(recipients.filter((_, idx) => idx !== i))}
+                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0"
+                    title="Retirer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => edit([...recipients, ""])}
+              className="mt-3 flex items-center gap-1.5 text-sm text-[#E07200] hover:text-[#C56400] font-medium"
+            >
+              <Plus size={14} /> Ajouter une adresse
+            </button>
+
+            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-[#E2E8F0]">
+              <button
+                onClick={save}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                Enregistrer
+              </button>
+              {saved && <span className="text-sm text-green-600">Enregistré ✓</span>}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Settings page (with tabs) ────────────────────────────────────────────
 const TABS = [
   { id: "marche", label: "Paramètres marché", Icon: Coins },
   { id: "transport", label: "Modes de transport", Icon: Truck },
   { id: "odoo", label: "Synchronisation Odoo", Icon: Database },
+  { id: "alerts", label: "Alertes offres", Icon: Bell },
 ];
 
 export default function SettingsPage() {
@@ -923,6 +1039,9 @@ export default function SettingsPage() {
         </Tabs.Content>
         <Tabs.Content value="odoo">
           <TabOdoo />
+        </Tabs.Content>
+        <Tabs.Content value="alerts">
+          <TabAlerts />
         </Tabs.Content>
       </Tabs.Root>
     </div>

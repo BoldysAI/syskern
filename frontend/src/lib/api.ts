@@ -798,3 +798,20 @@ export function reorderAttributes(ids: string[]): Promise<{ reordered: number }>
     body: JSON.stringify({ ids }),
   });
 }
+
+// ── Offer expiration-alert recipients (UI-editable, CDC §7.6) ──────────────
+
+export interface OfferAlertSettings {
+  recipients: string[];
+}
+
+export function getOfferAlertSettings(): Promise<OfferAlertSettings> {
+  return apiFetch<OfferAlertSettings>("/api/offers/alert-settings");
+}
+
+export function updateOfferAlertSettings(recipients: string[]): Promise<OfferAlertSettings> {
+  return apiFetch<OfferAlertSettings>("/api/offers/alert-settings", {
+    method: "PUT",
+    body: JSON.stringify({ recipients }),
+  });
+}

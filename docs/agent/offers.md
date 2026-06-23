@@ -58,6 +58,27 @@
   quantités éditables, langue+expiration, sections, instructions IA ; poll long 1-3 min ;
   lien Gamma + bouton « Réessayer » sur erreur).
 
+## Cycle de vie & suivi (§7.5 / §7.6)
+
+- Statuts : `draft → sent → {won, lost}` ; `expired` (auto par cron). `won/lost` **projet uniquement**.
+- `PATCH /api/offers/{id}/status/` — transitions validées par `ALLOWED_TRANSITIONS` (views.py).
+  `draft→won` rejeté (passer par `sent`) ; tariff→won/lost rejeté. Pose `sent_at`/`won_at`/`lost_at`.
+- `POST /api/offers/{id}/new-version/` (+ alias `duplicate`) — projet only ; crée V(n+1)
+  (`previous_offer` + `version_number+1` + copie des lignes). `GET .../versions/` = chaîne complète.
+- `POST /api/offers/{id}/extend-expiration/` `{new_date}` — date > **today+7** ; réactive
+  une offre `expired` en `sent`.
+- **Cron Celery Beat** `offers.daily_expiration_check` (08:00 UTC, migration `offers/0003`) :
+  expire les `sent` dépassés (won/lost intacts) + email J-7 (liens
+  `OFFER_FRONTEND_BASE_URL/offers/{id}`). Killswitch `EXPIRATION_CRON_ENABLED`. Email =
+  `send_mail` (backend console en dev, SMTP en prod via `EMAIL_*`).
+- **Destinataires de l'alerte = en base, éditables depuis l'UI** (pas en env) : modèle
+  singleton `OfferAlertConfig` (`offers/0004`), `OfferAlertConfig.load()` ; endpoint
+  `GET/PUT /api/offers/alert-settings` (serializer `OfferAlertConfigSerializer`, validation
+  email). UI : Paramètres → onglet « Alertes offres ». Le cron lit `OfferAlertConfig.load()`.
+- UI : `/offers` (liste + dashboard, label → détail) et `/offers/[id]` (header statut/version,
+  infos + compte à rebours expiration, document download/Gamma, chaîne de versions, lignes lecture
+  seule, actions cycle de vie : envoyer/gagner/perdre, prolonger, nouvelle version).
+
 ## Bibliothèque de documents (§7.4) — `apps/documents`
 
 - Modèle `DocumentLibrary` : `name` (JSONB multilingue), `category`, `file_url` (chemin

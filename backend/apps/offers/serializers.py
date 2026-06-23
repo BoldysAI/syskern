@@ -5,7 +5,7 @@ from rest_framework import serializers
 from apps.clients.models import Client
 from apps.core.models import Currency, Language
 
-from .models import Offer, OfferLine, OfferStatus, OfferType
+from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
 from .services.excel import validate_columns
 
 
@@ -111,6 +111,16 @@ class OfferWriteSerializer(serializers.ModelSerializer):
 class StatusTransitionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=OfferStatus.choices)
     lost_reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class ExtendExpirationSerializer(serializers.Serializer):
+    new_date = serializers.DateField()
+
+
+class OfferAlertConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfferAlertConfig
+        fields = ("recipients",)
 
 
 class GenerateTariffOffersSerializer(serializers.Serializer):

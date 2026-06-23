@@ -8,7 +8,7 @@ and the client polls ``/api/tasks/{task_id}/`` for the result.
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -181,3 +181,61 @@ def regenerate_project_offer_task(offer_id: str) -> dict:
     offer = Offer.objects.get(pk=offer_id)
     offer = run_generation(offer)
     return _offer_generation_result(offer)
+
+
+@shared_task(name="offers.daily_expiration_check")
+def daily_expiration_check() -> dict:
+    """Daily lifecycle cron (CDC §7.5.4 / §7.6).
+
+    1. Auto-expire `sent` offers whose validity has passed (won/lost untouched).
+    2. Email a J-7 alert listing `sent` offers expiring within 7 days.
+
+    Killswitch: ``OFFERS["EXPIRATION_CRON_ENABLED"]`` (env ``EXPIRATION_CRON_ENABLED``).
+    """
+    from django.conf import settings
+    from django.core.mail import send_mail
+
+    if not settings.OFFERS.get("EXPIRATION_CRON_ENABLED", True):
+        logger.info("Expiration cron disabled (EXPIRATION_CRON_ENABLED=false)")
+        return {"enabled": False}
+
+    today = timezone.now().date()
+
+    # 1. Expire overdue `sent` offers (won/lost/expired are never auto-expired).
+    expired_qs = Offer.objects.filter(
+        status=OfferStatus.SENT, valid_to__isnull=False, valid_to__lt=today
+    )
+    expired_count = expired_qs.update(status=OfferStatus.EXPIRED, updated_at=timezone.now())
+
+    # 2. Alert on `sent` offers expiring within the next 7 days.
+    soon = Offer.objects.filter(
+        status=OfferStatus.SENT,
+        valid_to__isnull=False,
+        valid_to__gte=today,
+        valid_to__lte=today + timedelta(days=7),
+    ).order_by("valid_to")
+
+    # Recipients are configured from the UI (Paramètres → Alertes offres), not env.
+    from .models import OfferAlertConfig
+
+    recipients = list(OfferAlertConfig.load().recipients or [])
+    emailed = 0
+    if soon.exists() and recipients:
+        base = settings.OFFERS.get("FRONTEND_BASE_URL", "")
+        lines = [f"- {o.label} (expire le {o.valid_to}) : {base}/offers/{o.id}" for o in soon]
+        body = "Offres arrivant à expiration sous 7 jours :\n\n" + "\n".join(lines)
+        emailed = send_mail(
+            subject=f"[Syskern] {soon.count()} offre(s) expirent bientôt",
+            message=body,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@syskern.local"),
+            recipient_list=recipients,
+            fail_silently=True,
+        )
+
+    logger.info(
+        "Expiration check: %d expired, %d expiring soon, email sent=%s",
+        expired_count,
+        soon.count(),
+        bool(emailed),
+    )
+    return {"expired": expired_count, "expiring_soon": soon.count(), "emailed": bool(emailed)}

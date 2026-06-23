@@ -158,3 +158,23 @@ class OfferLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.offer_id} · {self.product_id}"
+
+
+class OfferAlertConfig(BaseModel):
+    """Singleton config for the offer-expiration J-7 alert (CDC §7.6).
+
+    Recipients are edited from the UI (Paramètres → Alertes offres), not env.
+    """
+
+    recipients = ArrayField(models.EmailField(), default=list, blank=True)
+
+    class Meta:
+        db_table = "offer_alert_config"
+
+    @classmethod
+    def load(cls) -> OfferAlertConfig:
+        """Return the single config row, creating it on first access."""
+        return cls.objects.first() or cls.objects.create()
+
+    def __str__(self) -> str:
+        return f"OfferAlertConfig({len(self.recipients)} recipients)"

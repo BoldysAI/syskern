@@ -220,6 +220,27 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 # model landscape (Annexe Technique §3.6).
 OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
 
+# ─── Email (offer expiration alerts, technical alerts — CDC §7.5.4) ───────────
+# Dev: console backend (mails printed to logs). Prod: configure SMTP via env.
+EMAIL_BACKEND = env(
+    "DJANGO_EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = env("DJANGO_DEFAULT_FROM_EMAIL", default="noreply@syskern.local")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+
+# ─── Offer lifecycle (CDC §7.5 / §7.6) ────────────────────────────────────────
+# Alert recipients are configured from the UI (DB: OfferAlertConfig), not env.
+OFFERS = {
+    # Killswitch for the daily expiration cron (auto-expire + J-7 alert).
+    "EXPIRATION_CRON_ENABLED": env.bool("EXPIRATION_CRON_ENABLED", default=True),
+    # Base URL for clickable offer links in the alert email.
+    "FRONTEND_BASE_URL": env("OFFER_FRONTEND_BASE_URL", default="http://localhost:3000"),
+}
+
 # ─── Initial data migration (one-shot — CDC §8) ───────────────────────────────
 # The migration is operated by Boldys at deployment. `LOCKED` is the guard-rail
 # (CDC §8.9): once true (post go-live) `run_migration` and `migration_reset`
