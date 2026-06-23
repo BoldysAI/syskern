@@ -87,6 +87,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
   const [validTo, setValidTo] = useState(param?.valid_to ?? "");
   const [isActive, setIsActive] = useState(param?.is_active ?? true);
   const [notes, setNotes] = useState(param?.notes ?? "");
+  const [source, setSource] = useState(param?.source ?? "");
   const [copperMarket, setCopperMarket] = useState(param?.copper_market ?? "LME");
   const [copperPrice, setCopperPrice] = useState(param?.copper_price ?? "");
   const [copperCurrency, setCopperCurrency] = useState(param?.copper_currency ?? "USD");
@@ -108,6 +109,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
       valid_to: validTo || null,
       is_active: isActive,
       notes,
+      source,
     };
     if (type === "copper_price") {
       payload.copper_market = copperMarket as MarketParameter["copper_market"];
@@ -281,6 +283,16 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
           />
           Actif
         </label>
+
+        <div>
+          <label className={labelCls}>Source (optionnel)</label>
+          <input
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder="LME, BCE, manual…"
+            className={inputCls}
+          />
+        </div>
 
         <div>
           <label className={labelCls}>Notes</label>

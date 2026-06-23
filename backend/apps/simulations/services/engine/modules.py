@@ -79,12 +79,38 @@ class CopperVariationModule(CalculationModule):
         self, input_price: PriceWithCurrency, ctx: SimulationContext, *, order: int | None = None
     ) -> CalculationStep:
         product = ctx.product
-        if not product.is_copper_indexed or not product.copper_weight_kg_per_unit:
+        if not product.is_copper_indexed:
             return CalculationStep.passthrough(self.type, input_price, order=order)
+        # Indexed but no copper weight declared: nothing to vary, but this is a
+        # data gap worth surfacing as a warning (CDC §6.3.1) rather than a
+        # silent no-op.  The runner promotes the line to `warning` status.
+        if not product.copper_weight_kg_per_unit:
+            return CalculationStep.passthrough(
+                self.type,
+                input_price,
+                reason="indexed_without_weight",
+                order=order,
+                warnings=[
+                    f"Produit {product.sku_code} indexé cuivre mais sans poids de "
+                    f"cuivre (copper_weight_kg_per_unit) — variation cuivre ignorée."
+                ],
+            )
 
-        base = ctx.copper_base_price(input_price.currency)
-        current = ctx.copper_current_price(input_price.currency)
-        variation = (current - base) * product.copper_weight_kg_per_unit / Decimal(1000)
+        base_rmb = ctx.copper_base_price("RMB")
+        current_rmb = ctx.copper_current_price("RMB")
+        weight = product.copper_weight_kg_per_unit
+        warnings: list[str] = []
+        if base_rmb == DEC_ZERO and current_rmb == DEC_ZERO:
+            warnings.append(
+                "Paramètres cuivre absents du snapshot marché de la simulation "
+                "(cuivre base / actuel en RMB) — variation cuivre nulle. "
+                "Vérifiez les paramètres marché puis recalculez."
+            )
+        variation_rmb = (current_rmb - base_rmb) * weight / Decimal(1000)
+        if input_price.currency == "RMB":
+            variation = variation_rmb
+        else:
+            variation = variation_rmb * ctx.get_fx_rate("RMB", input_price.currency)
         new_amount = quantize(input_price.amount + variation)
 
         return CalculationStep(
@@ -93,12 +119,22 @@ class CopperVariationModule(CalculationModule):
             output_price=input_price.with_amount(new_amount),
             metadata={
                 "applied": True,
-                "copper_base": str(base),
-                "copper_current": str(current),
-                "copper_weight_kg": str(product.copper_weight_kg_per_unit),
+                "copper_price_currency": "RMB",
+                "copper_base": str(base_rmb),
+                "copper_current": str(current_rmb),
+                "copper_weight_kg": str(weight),
+                "variation_rmb": str(variation_rmb),
                 "variation": str(variation),
+                "variation_currency": input_price.currency,
+                "fx_rmb_to_input": (
+                    str(ctx.get_fx_rate("RMB", input_price.currency))
+                    if input_price.currency != "RMB"
+                    else None
+                ),
+                "po_currency": input_price.currency,
             },
             order=order,
+            warnings=warnings,
         )
 
 
@@ -116,7 +152,11 @@ class CurrencyConversionModule(CalculationModule):
         target = self.target_currency.upper()
         if input_price.currency == target:
             return CalculationStep.passthrough(
-                self.type, input_price, reason="same_currency", order=order
+                self.type,
+                input_price,
+                reason="same_currency",
+                order=order,
+                metadata={"currency": target},
             )
 
         rate = ctx.get_fx_rate(input_price.currency, target)
@@ -178,11 +218,27 @@ class TransportModule(CalculationModule):
 
         # Mode 1 — detailed
         if self.pallet_count <= 0:
-            raise ValueError("Transport.pallet_count must be > 0")
+            return CalculationStep.passthrough(
+                self.type,
+                input_price,
+                reason="transport_invalid_pallet_count",
+                order=order,
+                warnings=[
+                    "Le nombre de palettes du transport doit être supérieur à 0 "
+                    "— coût transport ignoré pour ce produit."
+                ],
+            )
         product = ctx.product
         if not product.pallet_qty or product.pallet_qty <= 0:
-            raise ValueError(
-                f"Product {product.sku_code} has no `pallet_qty` — cannot allocate transport cost."
+            return CalculationStep.passthrough(
+                self.type,
+                input_price,
+                reason="missing_pallet_qty",
+                order=order,
+                warnings=[
+                    f"Le produit {product.sku_code} n'a pas de quantité par palette "
+                    f"(pallet_qty) — coût transport ignoré pour ce produit."
+                ],
             )
 
         global_cost = to_decimal(self.global_cost)
@@ -210,8 +266,14 @@ class TransportModule(CalculationModule):
                 "pallet_qty": product.pallet_qty,
                 "cost_per_pallet": str(cost_per_pallet),
                 "cost_per_unit": str(cost_per_unit),
+                "cost_per_unit_currency": input_price.currency,
                 "from_location": self.from_location,
                 "to_location": self.to_location,
+                "fx_transport_to_input": (
+                    str(ctx.get_fx_rate(self.currency, input_price.currency))
+                    if self.currency.upper() != input_price.currency
+                    else None
+                ),
             },
             order=order,
         )
@@ -222,12 +284,16 @@ class TransportModule(CalculationModule):
 
 @dataclass
 class CustomsModule(CalculationModule):
-    """Customs duty (CDC §6.3.4).  Detailed mode requires a total quantity
-    to spread the global duty across; coefficient mode is a multiplier."""
+    """Customs duty (CDC §6.3.4).
+
+    Primary mode: percentage rate on the input price (`rate_pct`, e.g. 5 → +5 %).
+    Legacy modes: global cost spread over `total_quantity`, or coefficient override.
+    """
 
     global_cost: Decimal = DEC_ZERO
     currency: str = Currency.EUR.value
     total_quantity: Decimal | None = None
+    rate_pct: Decimal | None = None
     override_coefficient: Decimal | None = None
     type: str = ModuleType.CUSTOMS
 
@@ -245,10 +311,48 @@ class CustomsModule(CalculationModule):
                 order=order,
             )
 
+        if self.rate_pct is not None:
+            pct = to_decimal(self.rate_pct)
+            if pct == DEC_ZERO:
+                return CalculationStep.passthrough(
+                    self.type, input_price, reason="zero_customs_rate", order=order
+                )
+            rate = pct / Decimal(100)
+            duty = quantize(input_price.amount * rate)
+            new_amount = quantize(input_price.amount + duty)
+            return CalculationStep(
+                module_type=self.type,
+                input_price=input_price,
+                output_price=input_price.with_amount(new_amount),
+                metadata={
+                    "mode": "percentage",
+                    "rate_pct": str(pct),
+                    "duty_amount": str(duty),
+                    "duty_currency": input_price.currency,
+                },
+                order=order,
+            )
+
         global_cost = to_decimal(self.global_cost)
-        if global_cost == DEC_ZERO or not self.total_quantity:
+        if global_cost == DEC_ZERO:
             return CalculationStep.passthrough(
-                self.type, input_price, reason="no_customs_charge", order=order
+                self.type, input_price, reason="zero_customs_cost", order=order
+            )
+        if not self.total_quantity:
+            return CalculationStep.passthrough(
+                self.type,
+                input_price,
+                reason="missing_total_quantity",
+                order=order,
+                metadata={
+                    "global_cost": str(global_cost),
+                    "global_cost_currency": self.currency.upper(),
+                },
+                warnings=[
+                    f"Frais de douane de {global_cost} {self.currency.upper()} renseignés, "
+                    f"mais la quantité totale à répartir est absente — "
+                    f"complétez « Quantité totale » dans la chaîne de calcul."
+                ],
             )
 
         cost_per_unit_in_customs_currency = global_cost / to_decimal(self.total_quantity)
@@ -296,8 +400,8 @@ class MarginModule(CalculationModule):
         rate = to_decimal(self.rate)
         if rate < DEC_ZERO or rate >= DEC_ONE:
             raise ValueError(
-                f"Margin rate must satisfy 0 <= rate < 1 (got {rate}); a "
-                f"rate ≥ 1 would make the division impossible."
+                f"Taux de marge invalide ({rate}) : il doit respecter 0 ≤ taux < 1. "
+                f"Un taux ≥ 1 rendrait la division impossible."
             )
 
         denominator = DEC_ONE - rate

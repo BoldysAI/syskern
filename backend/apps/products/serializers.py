@@ -7,6 +7,16 @@ from rest_framework import serializers
 from .models import Product, ProductSupplier
 
 
+class BulkLookupSerializer(serializers.Serializer):
+    """Body for `POST /api/products/lookup-bulk` (CDC §6.9.2)."""
+
+    skus = serializers.ListField(
+        child=serializers.CharField(allow_blank=True),
+        allow_empty=False,
+        max_length=10000,
+    )
+
+
 class ProductSupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductSupplier

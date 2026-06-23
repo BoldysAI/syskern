@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, Suspense, type ReactNode } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   AlertCircle,
   Check,
-  ChevronRight,
   ExternalLink,
   History,
   Loader2,
@@ -37,6 +36,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
+import {
+  useBreadcrumbOverride,
+  type BreadcrumbCrumb,
+} from "@/components/layout/BreadcrumbContext";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { EditContext, type EditContextValue, type DescriptionKind } from "./_tabs/edit-context";
 import { GeneralTab } from "./_tabs/GeneralTab";
@@ -188,8 +191,26 @@ const TABS = [
 ];
 
 export default function ProductPage() {
+  return (
+    <Suspense fallback={<ProductPageSkeleton />}>
+      <ProductPageContent />
+    </Suspense>
+  );
+}
+
+function ProductPageSkeleton() {
+  return (
+    <div className="p-6">
+      <Skeleton className="h-8 w-48 mb-6" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+function ProductPageContent() {
   const params = useParams<{ sku: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const decodedSku = decodeURIComponent(params?.sku ?? "");
   const { role } = useAuth();
   const userCanEdit = canEdit(role);
@@ -214,7 +235,13 @@ export default function ProductPage() {
   );
   const latestPv = history6m?.points?.length ? parseDec(history6m.points[0].pv_eur) : 0;
 
-  const [editing, setEditing] = useState(false);
+  const wantEdit =
+    searchParams.get("edit") === "1" || searchParams.get("edit") === "true";
+  const tabParam = searchParams.get("tab");
+  const initialTab = TABS.some((tab) => tab.id === tabParam) ? tabParam! : "general";
+
+  const [manualEditing, setManualEditing] = useState<boolean | null>(null);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [coreDraft, setCoreDraft] = useState<Record<string, unknown>>({});
   const [attrDraft, setAttrDraft] = useState<Record<string, unknown>>({});
   const [fieldValidity, setFieldValidity] = useState<Record<string, boolean>>({});
@@ -222,6 +249,35 @@ export default function ProductPage() {
   const [recalcing, setRecalcing] = useState(false);
   const [translating, setTranslating] = useState<"en" | "es" | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const editing = manualEditing ?? (wantEdit && userCanEdit && Boolean(product));
+
+  const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] => {
+    const from = searchParams.get("from");
+    const simId = searchParams.get("simulation_id");
+    const simLabel = searchParams.get("simulation_label");
+
+    if (from === "simulation" && simId) {
+      return [
+        { href: "/catalog", label: "Accueil" },
+        { href: "/simulator", label: "Simulations" },
+        { href: `/simulator/${simId}`, label: simLabel || "Simulation" },
+        { label: decodedSku },
+      ];
+    }
+
+    const crumbs: BreadcrumbCrumb[] = [
+      { href: "/catalog", label: "Accueil" },
+      { href: "/catalog", label: "Catalogue" },
+    ];
+    if (product?.universe) {
+      crumbs.push({ label: product.universe });
+    }
+    crumbs.push({ label: decodedSku });
+    return crumbs;
+  }, [searchParams, product, decodedSku]);
+
+  useBreadcrumbOverride(breadcrumbCrumbs, Boolean(decodedSku));
 
   const attrMap = useMemo(() => {
     const m: Record<string, unknown> = {};
@@ -454,21 +510,6 @@ export default function ProductPage() {
 
   return (
     <div className="p-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
-        <Link href="/catalog" className="hover:text-slate-700 transition-colors">
-          Catalogue
-        </Link>
-        {product?.universe && (
-          <>
-            <ChevronRight size={14} className="text-slate-400" />
-            <span className="text-slate-500">{product.universe}</span>
-          </>
-        )}
-        <ChevronRight size={14} className="text-slate-400" />
-        <span className="text-slate-800 font-medium">{decodedSku}</span>
-      </nav>
-
       {isLoading || !product ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Skeleton className="h-96 lg:col-span-1" />
@@ -507,7 +548,7 @@ export default function ProductPage() {
                   {userCanEdit && (
                     <>
                       <button
-                        onClick={() => setEditing((e) => !e)}
+                        onClick={() => setManualEditing(editing ? false : true)}
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-medium transition-colors",
                           editing
@@ -536,7 +577,7 @@ export default function ProductPage() {
               </div>
 
               {/* Tabs */}
-              <Tabs.Root defaultValue="general">
+              <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
                 <Tabs.List className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm overflow-x-auto">
                   {TABS.map((tab) => (
                     <Tabs.Trigger

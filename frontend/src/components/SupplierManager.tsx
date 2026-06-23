@@ -8,14 +8,16 @@ import { Check, ChevronDown, Loader2, Plus, Star, Trash2, X } from "lucide-react
 import {
   getSupplierNames,
   getSupplierTemplate,
+  listIncoterms,
   type Currency,
   type ProductSupplier,
   type ProductSupplierInput,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { localizeIncotermLabel } from "@/lib/incoterms";
 
-/** Incoterms 2020 supported by the platform (mirrors apps.products.models.Incoterm). */
-const INCOTERMS = [
+/** Incoterms 2020 — loaded from API with static fallback. */
+const INCOTERMS_FALLBACK = [
   "EXW",
   "FCA",
   "FAS",
@@ -200,7 +202,10 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Prix de base</span>
+        <span className="text-xs font-medium text-slate-500">PO base</span>
+        <span className="text-[11px] leading-tight text-slate-400">
+          Prix d&apos;achat fournisseur (devise d&apos;origine) — point de départ du calcul PA
+        </span>
         <input
           type="number"
           inputMode="decimal"
@@ -208,11 +213,12 @@ function SupplierFields({
           disabled={disabled}
           onChange={(e) => onChange({ po_base_price: e.target.value === "" ? null : e.target.value })}
           className={inputCls}
+          placeholder="ex. 2350"
         />
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Devise</span>
+        <span className="text-xs font-medium text-slate-500">Devise PO</span>
         <CurrencySelect
           value={value.po_currency ?? "RMB"}
           disabled={disabled}
@@ -344,6 +350,9 @@ function IncotermSelect({
   onChange: (i: string) => void;
   disabled?: boolean;
 }) {
+  const { data: incoterms } = useSWR("incoterms-supplier", listIncoterms);
+  const codes = incoterms?.map((i) => i.code) ?? [...INCOTERMS_FALLBACK];
+
   return (
     <Select.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
       <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left disabled:opacity-50")}>
@@ -359,18 +368,24 @@ function IncotermSelect({
           className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
-            {INCOTERMS.map((i) => (
-              <Select.Item
-                key={i}
-                value={i}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
-              >
-                <Select.ItemText>{i}</Select.ItemText>
-                <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
+            {codes.map((code) => {
+              const ref = incoterms?.find((i) => i.code === code);
+              const label = ref ? localizeIncotermLabel(ref.label, code) : code;
+              return (
+                <Select.Item
+                  key={code}
+                  value={code}
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                >
+                  <Select.ItemText>
+                    {code} — {label}
+                  </Select.ItemText>
+                  <Select.ItemIndicator>
+                    <Check size={14} className="text-[#E07200]" />
+                  </Select.ItemIndicator>
+                </Select.Item>
+              );
+            })}
           </Select.Viewport>
         </Select.Content>
       </Select.Portal>

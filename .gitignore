@@ -71,3 +71,8 @@ migration/reports/
 .migration_state.json.tmp
 backend/.migration_state.json
 migration/manifest.json
+
+# ─── Node (frontend lives in frontend/) ────────────────────
+/node_modules/
+/package.json
+/package-lock.json

@@ -1,0 +1,441 @@
+"use client";
+
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import useSWR, { mutate as globalMutate } from "swr";
+import {
+  ArrowLeft,
+  BarChart3,
+  Bookmark,
+  GitCompare,
+  Layers,
+  Save,
+  Search,
+  Settings2,
+} from "lucide-react";
+import {
+  compareSimulations,
+  getSavedComparison,
+  getSimulations,
+  type CompareResponse,
+  type SavedComparison,
+  type Simulation,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { CompareContextDiff } from "./_components/CompareContextDiff";
+import { CompareOverview } from "./_components/CompareOverview";
+import { CompareSkuTable } from "./_components/CompareSkuTable";
+import { SaveComparisonModal } from "./_components/SaveComparisonModal";
+import { SavedComparisonsPanel } from "./_components/SavedComparisonsPanel";
+
+const MAX_COLUMNS = 4;
+
+type TabId = "overview" | "context" | "products";
+type AsideTab = "pick" | "saved";
+
+export default function CompareSimulationsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-400">Chargement…</div>}>
+      <CompareContent />
+    </Suspense>
+  );
+}
+
+function buildCompareUrl(item: {
+  simulation_ids: string[];
+  recalculation_ids: string[];
+  id?: string;
+}): string {
+  const qs = new URLSearchParams();
+  if (item.simulation_ids.length) qs.set("sims", item.simulation_ids.join(","));
+  if (item.recalculation_ids.length) qs.set("recalc", item.recalculation_ids.join(","));
+  if (item.id) qs.set("saved", item.id);
+  const q = qs.toString();
+  return q ? `/simulator/compare?${q}` : "/simulator/compare";
+}
+
+function CompareContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const simsParam = searchParams.get("sims") ?? "";
+  const recalcParam = searchParams.get("recalc") ?? "";
+  const savedParam = searchParams.get("saved");
+  const asideParam = searchParams.get("aside");
+
+  const initialSims = useMemo(
+    () => simsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, MAX_COLUMNS),
+    [simsParam]
+  );
+  const recalcIds = useMemo(
+    () => recalcParam.split(",").map((s) => s.trim()).filter(Boolean),
+    [recalcParam]
+  );
+
+  const [selected, setSelected] = useState<string[]>(initialSims);
+  const [query, setQuery] = useState("");
+  const [sortByDelta, setSortByDelta] = useState(true);
+  const [commonOnly, setCommonOnly] = useState(true);
+  const [expandedMetrics, setExpandedMetrics] = useState(false);
+  const [tab, setTab] = useState<TabId>("overview");
+  const [asideTab, setAsideTab] = useState<AsideTab>(
+    savedParam || asideParam === "saved" ? "saved" : "pick"
+  );
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(savedParam);
+
+  // Sync selection from URL when navigating (saved load, browser back).
+  useEffect(() => {
+    setSelected(initialSims);
+    setActiveSavedId(savedParam);
+  }, [initialSims, savedParam]);
+
+  // Deep-link: /simulator/compare?saved=<id> resolves to full column params.
+  useEffect(() => {
+    if (!savedParam || simsParam || recalcParam) return;
+    let cancelled = false;
+    getSavedComparison(savedParam)
+      .then((sc) => {
+        if (!cancelled) router.replace(buildCompareUrl(sc));
+      })
+      .catch(() => {
+        if (!cancelled) router.replace("/simulator/compare");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedParam, simsParam, recalcParam, router]);
+
+  const { data: simulations } = useSWR<Simulation[]>(["simulations", true], () =>
+    getSimulations({ includeArchived: true })
+  );
+
+  const columnCount = selected.length + recalcIds.length;
+  const compareKey =
+    columnCount >= 2 ? ["compare", selected.join(","), recalcIds.join(",")] : null;
+
+  const { data, isLoading, error } = useSWR<CompareResponse>(compareKey, () =>
+    compareSimulations({
+      simulation_ids: selected,
+      recalculation_ids: recalcIds,
+    })
+  );
+
+  const toggle = (id: string) => {
+    setActiveSavedId(null);
+    const next = selected.includes(id)
+      ? selected.filter((x) => x !== id)
+      : selected.length + recalcIds.length >= MAX_COLUMNS
+        ? selected
+        : [...selected, id];
+    if (next === selected) return;
+    setSelected(next);
+    router.replace(buildCompareUrl({ simulation_ids: next, recalculation_ids: recalcIds }));
+  };
+
+  const loadSaved = useCallback(
+    (item: SavedComparison) => {
+      router.push(buildCompareUrl(item));
+      setAsideTab("pick");
+    },
+    [router]
+  );
+
+  const filteredSims = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (simulations ?? []).filter(
+      (s) => !q || s.label.toLowerCase().includes(q) || s.project_name?.toLowerCase().includes(q)
+    );
+  }, [simulations, query]);
+
+  const defaultSaveLabel = useMemo(() => {
+    if (!data?.columns.length) return "";
+    return data.columns.map((c) => c.label).join(" vs ").slice(0, 120);
+  }, [data]);
+
+  const canSave = columnCount >= 2;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-[#E2E8F0] bg-white px-6 py-4">
+        <Link
+          href="/simulator"
+          className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-[#E07200]"
+        >
+          <ArrowLeft size={14} />
+          Retour aux simulations
+        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
+              <GitCompare size={20} className="text-[#E07200]" />
+              Comparer des simulations
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Vue synthétique, paramètres détaillés et comparaisons enregistrées.
+            </p>
+          </div>
+          {canSave && (
+            <button
+              type="button"
+              onClick={() => setSaveOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <Save size={16} />
+              Enregistrer
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex w-72 shrink-0 flex-col border-r border-[#E2E8F0] bg-[#FAFBFC]">
+          <div className="flex border-b border-[#E2E8F0]">
+            <AsideTabBtn
+              active={asideTab === "pick"}
+              onClick={() => setAsideTab("pick")}
+              label="Sélection"
+            />
+            <AsideTabBtn
+              active={asideTab === "saved"}
+              onClick={() => setAsideTab("saved")}
+              label="Enregistrées"
+              icon={<Bookmark size={13} />}
+            />
+          </div>
+
+          {asideTab === "pick" ? (
+            <>
+              {!recalcIds.length && (
+                <div className="border-b border-[#E2E8F0] p-3">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Rechercher…"
+                      className="w-full rounded-lg border border-[#E2E8F0] py-2 pl-8 pr-3 text-sm focus:border-[#E07200] focus:outline-none"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {columnCount}/{MAX_COLUMNS} colonne{columnCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              )}
+              {recalcIds.length > 0 ? (
+                <div className="border-b border-[#E2E8F0] p-3 text-xs text-slate-500">
+                  Mode snapshot : {selected.length} simulation{selected.length !== 1 ? "s" : ""} +{" "}
+                  {recalcIds.length} recalcul{recalcIds.length !== 1 ? "s" : ""}.
+                </div>
+              ) : (
+                <ul className="flex-1 overflow-y-auto p-2">
+                  {filteredSims.map((s) => {
+                    const checked = selected.includes(s.id);
+                    const disabled = !checked && columnCount >= MAX_COLUMNS;
+                    return (
+                      <li key={s.id}>
+                        <label
+                          className={cn(
+                            "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 text-sm hover:bg-white",
+                            disabled && "cursor-not-allowed opacity-40"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={() => toggle(s.id)}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-slate-800">
+                              {s.label}
+                            </span>
+                            <span className="block text-xs text-slate-400">
+                              {s.simulation_type === "tariff" ? "Tarif" : "Projet"} ·{" "}
+                              {s.line_count} lignes
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          ) : (
+            <SavedComparisonsPanel activeId={activeSavedId} onLoad={loadSaved} />
+          )}
+        </aside>
+
+        <main className="min-w-0 flex-1 overflow-auto p-6">
+          {recalcIds.length > 0 && (
+            <div className="mb-4 rounded-lg bg-[#FFF3E0] px-4 py-2.5 text-sm text-[#C56400]">
+              Comparaison incluant un ou plusieurs snapshots de recalcul historique.
+            </div>
+          )}
+          {activeSavedId && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-800">
+              <Bookmark size={15} />
+              Comparaison enregistrée chargée
+            </div>
+          )}
+          {!compareKey ? (
+            <div className="flex h-full flex-col items-center justify-center text-slate-400">
+              <GitCompare size={36} className="mb-3 text-slate-200" />
+              <p className="text-sm">Sélectionnez au moins 2 colonnes à comparer.</p>
+              <p className="mt-1 text-xs">
+                Ou choisissez une comparaison dans l&apos;onglet « Enregistrées ».
+              </p>
+            </div>
+          ) : isLoading ? (
+            <div className="py-10 text-center text-sm text-slate-400">Comparaison…</div>
+          ) : error ? (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error instanceof Error ? error.message : "Comparaison échouée."}
+            </div>
+          ) : data ? (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2 border-b border-[#E2E8F0] pb-3">
+                <TabButton
+                  active={tab === "overview"}
+                  onClick={() => setTab("overview")}
+                  icon={<BarChart3 size={15} />}
+                  label="Synthèse"
+                />
+                <TabButton
+                  active={tab === "context"}
+                  onClick={() => setTab("context")}
+                  icon={<Settings2 size={15} />}
+                  label="Paramètres"
+                />
+                <TabButton
+                  active={tab === "products"}
+                  onClick={() => setTab("products")}
+                  icon={<Layers size={15} />}
+                  label="Lignes SKU"
+                  badge={data.products.length}
+                />
+              </div>
+
+              {tab === "overview" && (
+                <CompareOverview columns={data.columns} products={data.products} />
+              )}
+              {tab === "context" && <CompareContextDiff columns={data.columns} />}
+              {tab === "products" && (
+                <>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={expandedMetrics}
+                      onChange={() => setExpandedMetrics((v) => !v)}
+                      className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+                    />
+                    Métriques détaillées en mode heatmap
+                  </label>
+                  <CompareSkuTable
+                    columns={data.columns}
+                    products={data.products}
+                    sortByDelta={sortByDelta}
+                    onToggleSort={() => setSortByDelta((v) => !v)}
+                    commonOnly={commonOnly}
+                    onToggleCommon={() => setCommonOnly((v) => !v)}
+                    expandedMetrics={expandedMetrics}
+                  />
+                </>
+              )}
+            </div>
+          ) : null}
+        </main>
+      </div>
+
+      <SaveComparisonModal
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        simulationIds={selected}
+        recalculationIds={recalcIds}
+        defaultLabel={defaultSaveLabel}
+        onSaved={(id) => {
+          void globalMutate("saved-comparisons");
+          setActiveSavedId(id);
+          setAsideTab("saved");
+          router.replace(
+            buildCompareUrl({
+              simulation_ids: selected,
+              recalculation_ids: recalcIds,
+              id,
+            })
+          );
+        }}
+      />
+    </div>
+  );
+}
+
+function AsideTabBtn({
+  active,
+  onClick,
+  label,
+  icon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors",
+        active
+          ? "border-b-2 border-[#E07200] text-[#C56400] bg-white"
+          : "text-slate-500 hover:bg-white/60"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  badge,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+        active
+          ? "bg-[#FFF3E0] text-[#C56400] ring-1 ring-[#E07200]/30"
+          : "text-slate-600 hover:bg-slate-50"
+      )}
+    >
+      {icon}
+      {label}
+      {badge != null && badge > 0 && (
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[10px] font-bold",
+            active ? "bg-[#E07200] text-white" : "bg-slate-200 text-slate-600"
+          )}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}

@@ -187,15 +187,71 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   pas déclencher l'ouverture du drawer.
 - **Recherche debouncée** : timer dans un `ref`, `setState` planifié dans le callback `setTimeout`
   (jamais directement dans un effet — règle `set-state-in-effect`).
-- **Tri colonnes** : cycle local asc → desc → défaut (`sku_code` asc) ; envoi `ordering` au backend.
-  Ne pas imbriquer `setSortDir` dans le callback de `setSortField`.
-- **Colonnes redimensionnables** : `useColumnWidths.ts` — poignée `mousedown`, listeners
-  `mousemove`/`mouseup` en closures locales, persistance `localStorage`, curseur `col-resize` sur
-  `document.body` pendant le drag.
 - **Drawer slide-over** : `Dialog` Radix positionné `fixed right-0 top-0 h-full` (cf.
   `ProductDrawer.tsx`).
 - **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
   fournisseurs, etc.).
+
+## Tableau de données partagé (`components/data-table/`)
+
+**Source unique** pour le shell UI des grands tableaux (catalogue produits, lignes simulation).
+Ne pas dupliquer le markup `<table>` — déclarer uniquement les colonnes métier.
+
+Référence : `components/data-table/DataTable.tsx`, `types.ts`, `useColumnWidths.ts`,
+`DataTablePagination.tsx`.
+
+```typescript
+import {
+  DataTable,
+  cycleSortField,
+  type DataTableColumnDef,
+  type DataTableSortState,
+} from "@/components/data-table";
+
+const DEFAULT_SORT: DataTableSortState = { field: "sku_code", dir: "asc" };
+const [sort, setSort] = useState(DEFAULT_SORT);
+
+const columns: DataTableColumnDef<Product>[] = [
+  {
+    key: "sku_code",
+    label: "SKU",
+    sortField: "sku_code",   // champ backend `ordering`
+    width: 160,
+    render: (row) => row.sku_code,
+  },
+  // …
+];
+
+<DataTable
+  columns={columns}
+  rows={products}
+  rowKey={(p) => p.id}
+  storageKey="syskern:catalog-col-widths:v1"   // une clé par écran
+  sort={sort}
+  defaultSort={DEFAULT_SORT}
+  onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+  isLoading={isLoading}
+  pagination={{ page, totalPages, totalCount, pageSize, onPageChange, itemLabel: "produit" }}
+  renderLeadingHeader={() => <CheckboxHeader />}
+  renderLeadingCell={(row) => <CheckboxRow row={row} />}
+  onRowClick={(row) => openDrawer(row)}
+/>
+```
+
+**Comportement unifié (catalogue + simulation)** :
+- **Tri cyclique** : asc → desc → tri par défaut (`cycleSortField`).
+- **Colonnes redimensionnables** : poignée à droite de chaque en-tête ; largeurs persistées
+  dans `localStorage` via `storageKey` (catalogue : `syskern:catalog-col-widths:v1` ;
+  simulation : `syskern:simulation-col-widths:v1`).
+- **Pagination** : `DataTablePagination` (numéros de page, ellipses, champ « Aller à »).
+- **Styles** : en-tête sticky `bg-slate-100/95`, lignes zebra + hover orange, SKU en
+  `font-mono text-orange-600`, skeleton loading intégré.
+- **Colonnes optionnelles** : `renderLeadingHeader`/`renderLeadingCell` (checkbox catalogue),
+  `renderTrailingCell` (menu kebab simulation), `rowClassName` (surlignage warning/error).
+
+Les consommateurs actuels : `app/catalog/page.tsx`, `app/simulator/[id]/_components/SimulationTable.tsx`.
+Les anciens `catalog/_components/useColumnWidths.ts` et `CatalogPagination.tsx` ré-exportent
+depuis `components/data-table/` (dépréciés — importer directement le module partagé).
 
 ## Drag-and-drop (réordonnancement) — `@dnd-kit`
 
@@ -221,6 +277,140 @@ Référence : `app/settings/attributes/_components/rows.tsx` + `page.tsx`.
 `/settings` (Marché/Transport/Odoo) sont pilotées par le query-param `?tab=` au lieu d'onglets
 Radix in-page. **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16 (sinon
 `next build` échoue) — encapsuler le composant qui le lit.
+
+Onglet **Marché** : CRUD paramètres cuivre/FX via `listMarketParameters` / `createMarketParameter`
+/ `updateMarketParameter` / `deleteMarketParameter` ; champ optionnel `source` (LME, BCE, manual).
+Pour récupérer le paramètre actif côté simulation : `getCurrentMarketParameter({ parameter_type, … })`
+→ `GET /api/market-parameters/current/`.
+
+## Fil d'Ariane contextuel (`BreadcrumbContext`)
+
+Référence : `components/layout/BreadcrumbContext.tsx`, consommé par `AppShell`.
+
+- Crumbs par défaut dérivés du pathname (segments cliquables).
+- Une page peut **surcharger** via `useBreadcrumbOverride(crumbs | null)` (cleanup au démontage).
+- Cas simulation → fiche produit : Accueil · Simulations · {label} · {SKU}.
+- Cas catalogue : Accueil · Catalogue · {universe?} · {SKU}. Fiche produit lit `?from=simulation` pour
+  restaurer le fil d'Ariane simulation au retour.
+
+## Wizard création simulation (`/simulator/new`)
+
+Référence : `app/simulator/new/` (CDC §6.9.2). Trois étapes : type/contexte → SKU → paramètres+chaîne.
+
+- **Brouillon** : clé `syskern:new-simulation-draft:v1`, initializer paresseux + effet
+  d'écriture seule (cf. pattern `/catalog/new`). L'étape active n'est **pas** persistée.
+- **Étape 1** : `TypeStep` — toggle Tarif/Projet, multi-select clients (`getClients`), projet =
+  1 client + `project_name` obligatoire.
+- **Étape 2** : `SkuStep` — 3 onglets combinables :
+  - `CatalogueSelectionPanel` : catalogue allégé multi-sélection (pas de redirect CDC).
+  - `HierarchyFilterPanel` : cascade univers→sous-gamme + ajout en masse (`getProducts`).
+  - `ImportFilePanel` : drag-and-drop `.xlsx`/`.csv`, parsing client `xlsx` (SheetJS), colonne
+    `sku_code` auto-détectée, `lookupBulkProducts` → panneau latéral persistant des non trouvés.
+  - `SelectedSkuList` : liste cumulative dédoublonnée par `id`.
+- **Étape 3** : `ParamsStep` — `MarketParamsModal` (pré-rempli via `getCurrentMarketParameter`),
+  **incoterm de vente** (`SaleIncotermFields` + prefill PV semi-auto), mix/marges, `ChainBuilder` PA/PV,
+  `ChainBuilder` DnD (`@dnd-kit`) pour chaînes PA/PV (douane = **taux %** `rate_pct`, transports avec
+  sélecteur mode FR), mix/marges/position Symea, preset import Chine.
+- **Soumission** : `createSimulation` + `addSimulationLines` → redirect `/simulator/[id]` (draft).
+- **Validation transports** : `validateTransportChains` — chaque leg doit avoir `pallet_count > 0` avant création.
+- **Helpers partagés** (`wizard-draft.ts`) : `buildSimulationPatch`, `simulationToEditDraft`, `step1Valid`, `buildMarketParams`.
+- **Dépendance** : `xlsx@0.18.5` (npm registry) pour le parsing Excel côté client.
+- **npm** : installer les deps **uniquement** dans `frontend/` (`cd frontend && npm ci`). Jamais à la racine du repo (cf. `decisions.md`).
+
+## Vue principale simulation (`/simulator/[id]`)
+
+Référence : `app/simulator/[id]/page.tsx` + `_components/` (CDC §6.9.3–5). Layout **3 zones** :
+sidebar paramètres collapsible (360px) · tableau résultats `flex-1` · drawer historique droit.
+Lecture seule si `status !== "draft"` (finalized/archived).
+
+- **`SimulationSidebar`** : header (libellé + statut + Finaliser/Dupliquer/Archiver/Supprimer + bouton
+  « contexte » → modale `TypeStep` pour type/clients/`project_name`). **Finaliser** → `FinalizeModal`
+  (liste des conséquences + saisie du libellé exact pour confirmer ; affiche la liste des SKU en erreur
+  renvoyée par le 400). **Dupliquer** → `DuplicateModal` (libellé pré-rempli `"<label> (copie)"`,
+  modifiable) puis redirect vers la copie ; toujours actif (même finalized). Sections Marché
+  (`MarketParamsModal` — **sauvegarde immédiate** à la fermeture via `saveMarketParamsNow`, en plus
+  de l'autosave 1s ; `onMarketParamsChange` alimente le recalc), **Incoterm de vente**
+  (`SaleIncotermFields` + `GET /api/incoterms` ; modale confirmation prefill chaîne PV ;
+  bouton « Adapter la chaîne PA depuis les fournisseurs » → skeleton PA depuis incoterm achat
+  majoritaire des lignes), Paramètres globaux (mix/marges/position Symea), Chaîne PA + PV
+  (`ChainBuilder` DnD). **Autosave `useAutosave(draft, persist, {delay: 1000})`** →
+  `updateSimulation(id, buildSimulationPatch(draft))`. ⚠️ **Déviation assumée : 1s** (vs convention
+  2s) car exigé par le CDC §6.9.3 ; validation `step1Valid` + `validateTransportChains` **avant** le
+  PATCH (jamais de chaîne invalide persistée). Draft réhydraté via `simulationToEditDraft(sim)`,
+  monté avec `key={sim.id}`.
+- **`SimulationTable`** : bandeau contexte (dernier calcul, cuivre base/actuel, FX, **incoterm vente**,
+  snapshot Odoo,
+  boutons **Recalculer** [proéminent si `is_dirty`] / Édition groupée / Exporter Excel / Historique) ;
+  **grille via `DataTable` partagé** (`components/data-table/`, clé largeurs
+  `syskern:simulation-col-widths:v1`) avec colonnes métier : SKU, Désignation (`product_designation`),
+  Gamme, Stock, PAMP, PA net, PAMP prév., PR, Marge eff., Mix eff., PV, Statut + menu kebab ;
+  surlignage jaune (warning) / rouge (error), badge « surchargé », cellules éditables Marge/Mix →
+  `updateSimulationLine` au blur (ligne dirty, PV non recalculé). Tri cyclique + pagination identiques
+  au catalogue. **Filtres statut** : 3 cases OK / Avertissements / Erreurs (toutes cochées par défaut)
+  → query `status_in=ok,warning,error` (omis si les 3 ou 0 cochées). Liste fetchée séparément
+  (clé SWR `["sim-lines", simId, statusIn, ordering, page]`).
+- **Diagnostics & breakdown ligne** :
+  - Clic sur la colonne **Statut** → `LineDiagnosticsDrawer` (erreurs/avertissements + lien
+    « Modifier le produit » avec onglet cible selon le message).
+  - Menu kebab **⋮** → **Détail du calcul** → `CalculationBreakdownDrawer` (wizard 3 étapes :
+    Synthèse PR/mix + snapshot marché + **incoterms achat/vente**, Chaîne PA, Chaîne PV ; lit `calculation_breakdown` +
+    `formatBreakdownStepDetails` pour narrations FR par module ; modes transport résolus via
+    `lib/transport-modes.ts` + `listTransportModes`).
+  - Menu kebab visible aussi en **lecture seule** (recalcul / reset désactivés).
+- **Liens produit depuis simulation** : SKU + Désignation → `/catalog/{sku}?edit=1&from=simulation&…`
+  via `productEditHref()` (`sim-format.ts`). Fil d'Ariane surchargé (`useBreadcrumbOverride`) :
+  Accueil · Simulations · {label sim} · {SKU}.
+- **`StockPurchaseMixSlider`** (`app/simulator/_components/StockPurchaseMixSlider.tsx`) :
+  composant partagé mix stock/achat. **`value` = part stock (PAMP) dans le PR** (0 = 100 % achat à
+  gauche, 100 = 100 % stock à droite). Barre bicolore + libellés « Achat (PA) » / « Stock (PAMP) » +
+  répartition `X % achat · Y % stock`. Utilisé dans `SimulationSidebar`, `ParamsStep`, `BulkEditModal`.
+- **Sidebar simulation redimensionnable** : `useResizableWidth` (280–640 px, défaut 360, clé
+  `syskern:simulation-sidebar-width`) + poignée drag sur `SimulationSidebar`. **Sidebar app**
+  repliable : `usePersistedBoolean` (`syskern:main-sidebar-collapsed`) + toggle dans `AppShell`.
+- **`RecalculateModal`** : 3 scopes (`params_only`/`with_odoo_refresh`/`full_refresh`), estimation durée,
+  barre de progression → `recalculateSimulation(id, {scope, market_params})` (snapshot marché courant
+  de la sidebar, tout scope) (`dispatchAndPoll`).
+- **`BulkEditModal`** : filtres cumulables (univers, famille, gamme **indépendants**, marque,
+  `factory_code`, has_warning/has_error), aperçu `{count}` débouncé (`bulkEditPreview`), actions
+  set_margin/set_mix/reset (`bulkEditLines`) + confirmation.
+- **`RecalcHistoryDrawer`** : `getRecalculations(id, {limit})` **paginé** (LimitOffset, « Charger plus »
+  par tranches de 10) — tag de scope coloré + paramètres figés (cuivre, FX, mix, marges, chaîne,
+  snapshot Odoo) + agrégats (PA/PR/PV moyens, **marge moyenne**, PV min/max). 2 actions par entrée :
+  **Voir détail** → `RecalcDetailModal` (lecture seule : agrégats + params figés + **breakdown par ligne**
+  via `getRecalculation` + `line_snapshots`) ; **Comparer avec actuel** →
+  `/simulator/compare?sims=<simId>&recalc=<recalcId>`.
+- **Comparaison (`/simulator/compare`)** : page `app/simulator/compare/page.tsx` sous `<Suspense>`.
+  **URL** : `?sims=a,b` (simulations, ordre = colonnes) ; `?recalc=id1,id2` (snapshots recalc, après les sims) ;
+  `?saved=<uuid>` (charge une comparaison enregistrée → résout vers `sims`/`recalc`) ; `?aside=saved` (ouvre l'onglet Enregistrées).
+  **Sidebar** : onglets **Sélection** (multi-select ≤4 + recherche) et **Enregistrées** (`SavedComparisonsPanel` :
+  liste, charger, supprimer). Bouton **Enregistrer** → `SaveComparisonModal` → `createSavedComparison`.
+  **API** : `compareSimulations({simulation_ids, recalculation_ids})` ; CRUD `getSavedComparisons` /
+  `createSavedComparison` / `deleteSavedComparison` / `getSavedComparison`.
+  **3 onglets contenu** (1ʳᵉ colonne = référence) :
+  - **Synthèse** (`CompareOverview`) — cartes identité par colonne, KPI + mini-barres, graphiques Recharts
+    (barres PA/PR/PV moyens, camembert impact PV par SKU, barres paramètres marché si écarts, top écarts PV).
+  - **Paramètres** (`CompareContextDiff`) — grille de cartes diff (sections repliables ; par défaut écarts seuls) :
+    identité, marché, simulation, agrégats ; style git-diff (identique / modifié / ajouté / absent).
+  - **Lignes SKU** (`CompareSkuTable`) — modes **Heatmap** (PV coloré par écart %), **Graphique** (barres
+    horizontales top 12 SKU), **Détail** (PA/PR/PV/marge/mix + delta vs réf.) ; tri par écart PV, filtre lignes communes.
+  Composants utilitaires : `compare-diff.ts` (`parseLocaleNum`, `fmtDelta`), `compare-stats.ts`, `compare-colors.ts`.
+  Accès : bouton « Comparer » + icône bookmark sur `/simulator` ; lien depuis `RecalcHistoryDrawer`
+  (`?sims=<simId>&recalc=<recalcId>`). Deltas calculés côté front — jamais de recalcul de prix.
+- Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
+  `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, `productEditHref`, `MODULE_LABELS`,
+  `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`). **Montants EUR = 2 décimales à l'affichage**
+  (`displayMoneyOptions` dans `fmtEur` / `fmtPrice` / narrations breakdown) ; autres devises jusqu'à 4.
+  Le moteur backend conserve 4 décimales — ne jamais arrondir côté front pour calculer.
+- **Libellés modes transport** : `lib/transport-modes.ts` — `localizeLabel`, `transportModeLabel`,
+  `transportModeLabelMap` (API `TransportMode.label.fr` + fallback seeds `TRUCK_FULL` → « Camion complet », etc.).
+  Utilisé par `ChainBuilder` (select), `CalculationBreakdownDrawer` (breakdown).
+- SKU : ajout/suppression de lignes hors de cette vue (à venir / catalogue). L'ancien `SimulationEditModal`
+  est **supprimé** (remplacé par la sidebar autosave).
+
+## Dev Next.js — racine Turbopack
+
+`frontend/next.config.ts` : `turbopack.root` pointe sur `frontend/` pour éviter que Next détecte un
+`package-lock.json` parasite à la racine du monorepo et scanne `backend/`, `data/`, etc.
 
 ## Variables d'environnement
 
@@ -274,10 +464,14 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Nouvel endpoint : interface + fonction dans `lib/api.ts`
 - [ ] Data fetching via SWR, cache key en tableau
 - [ ] Decimal API fields traités comme `string`, jamais de calcul front
+- [ ] Nouveau tableau paginé : réutiliser `components/data-table/DataTable` (pas de `<table>` custom)
 - [ ] Tailwind 4 : vérifier syntaxe via Context7 si doute
 - [ ] `cn()` pour toutes les classes conditionnelles
 - [ ] `canEdit(role)` / `isAdmin(role)` pour les guards de permission
 - [ ] `"use client"` si hooks/events, sinon Server Component si possible
-- [ ] Édition en place : `useAutosave` (debounce 2s), update optimiste + rollback, validation avant submit
+- [ ] Édition en place : `useAutosave` (debounce 2s par défaut ; **1s** sur la sidebar simulation, cf. CDC §6.9.3), update optimiste + rollback, validation avant submit
 - [ ] Nouvelle var d'env documentée (`.env.example` + `docker-compose.yml`) ; `NEXT_PUBLIC_*` = rebuild
 - [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`
+- [ ] Wizard / édition simulation → `validateTransportChains` + `buildSimulationPatch` ; vue 3 zones autosave sur `/simulator/[id]`
+- [ ] Mix stock/achat → `StockPurchaseMixSlider` (part stock = valeur curseur, pas l'inverse)
+- [ ] Breakdown calcul → `CalculationBreakdownDrawer` + helpers `sim-format.ts` (pas de calcul prix front)

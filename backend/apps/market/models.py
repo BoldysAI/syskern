@@ -102,6 +102,12 @@ class MarketParameter(BaseModel):
 
     valid_from = models.DateField()
     valid_to = models.DateField(null=True, blank=True)
+    source = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text="Data source, e.g. LME, BCE, manual.",
+    )
     notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
 
@@ -112,6 +118,10 @@ class MarketParameter(BaseModel):
             models.Index(
                 fields=["parameter_type", "-valid_from"],
                 name="idx_market_params_type",
+            ),
+            models.Index(
+                fields=["parameter_type", "is_active"],
+                name="idx_market_params_type_active",
             ),
         ]
 

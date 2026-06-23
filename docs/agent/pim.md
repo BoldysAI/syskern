@@ -17,6 +17,9 @@ pour ajouter une ressource DRF générique, suis `drf-resource.md`.
   (`description_marketing`, `description_technical`), identifiants (`gtin`, `hs_code`,
   `dop_number`), indexation cuivre, conditionnement, `pamp_eur`/`stock_quantity`
   (snapshots Odoo), liens Odoo (`odoo_id`, `odoo_v16_id`, `odoo_v19_id`).
+  Propriété **`designation`** : libellé lisible = `description_marketing.fr` → `name` →
+  `sku_code` (souvent `name` = SKU en base migrée). Exposée sur les lignes simulation
+  (`product_designation`) et les exports pricing.
 - **`products.ProductSupplier`** — sources d'achat. Contrainte : **un seul fournisseur
   actif par produit** (partial unique index `one_active_supplier_per_product`).
 - **`attributes.AttributeRegistry`** — définitions d'attributs dynamiques (EAV).
@@ -37,13 +40,13 @@ Codes attributs seedés : `hs_code`, `gtin`, `dop_number`, `unit_weight_kg`, `pa
 `market_parameters` (cuivre/FX) **non seedés** — saisie manuelle.
 
 **Incoterms — double représentation (cf. `decisions.md`)** :
-- Table `incoterms` = référentiel (`GET /api/market/incoterms`, admin Django).
+- Table `incoterms` = référentiel (`GET /api/incoterms`, admin Django).
 - Enum `apps.products.models.Incoterm` = validation des CharField `incoterm` sur
   `ProductSupplier`, `OfferLine`, `Client` (pas de FK en MVP1).
 
 **Vérifier après `migrate`** :
 - Frontend : **Paramètres → Modes de transport** (7 lignes).
-- API : `/api/market/incoterms`, `/api/transport-modes/`.
+- API : `/api/incoterms`, `/api/transport-modes/`.
 - Tests : `pytest apps/market/tests/test_seed.py`.
 
 ### Pattern EAV (attributs dynamiques, CDC §4.5)
@@ -264,6 +267,21 @@ local (ids `crypto.randomUUID()`) dans l'étape 4 du wizard. Props :
 
 À l'ajout : bascule **« Fournisseur existant »** (liste `GET /api/supplier-names` + pré-remplissage
 via `GET /api/supplier-names/template`) vs **« Nouveau fournisseur »** (saisie libre du nom).
+
+**Champ PO** : le libellé UI **« PO base »** correspond à `ProductSupplier.po_base_price`
+(CDC : prix d'achat fournisseur de référence, devise d'origine). C'est l'entrée de la chaîne PA
+(`PO base` → variation cuivre → … → PA net). Ne pas confondre avec PA net, PR ou PAMP.
+
+**Incoterm achat** (`ProductSupplier.incoterm` + `incoterm_location`) : metadata du PO base —
+exprime ce que le prix fournisseur inclut déjà (ex. FOB Shanghai = jusqu'au bord navire). Au recalc,
+snapshoté dans `SimulationLine.supplier_snapshot` ; le runner l'expose dans
+`calculation_breakdown.incoterm_context.purchase_incoterm` et émet des warnings si la chaîne PA
+duplique des transports déjà couverts (cf. `incoterm_rules.check_purchase_chain_coherence`).
+L'utilisateur **ajoute manuellement** les transports/douanes non couverts (§12.2) ; le preset
+« Standard import Chine » du wizard est un exemple FOB-like (2 transports + douane, montants vides).
+
+**Incoterm vente** : stocké sur `Simulation.sale_incoterm` (pas sur le produit) — hypothèse
+commerciale figée au recalc, reprise par défaut à la création d'offre (`OfferWriteSerializer`).
 
 ---
 

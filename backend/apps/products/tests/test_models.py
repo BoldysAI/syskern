@@ -64,3 +64,17 @@ class TestSupplierCascadeDelete:
         product_pk = product.pk
         product.delete()
         assert ProductSupplier.objects.filter(product_id=product_pk).count() == 0
+
+
+class TestProductDesignation:
+    def test_prefers_fr_marketing_copy(self):
+        p = Product(
+            sku_code="SKU-1",
+            name="SKU-1",
+            description_marketing={"fr": "Câble instrumentation 4x1.5"},
+        )
+        assert p.designation == "Câble instrumentation 4x1.5"
+
+    def test_falls_back_to_name(self):
+        p = Product(sku_code="COMM", name="Communication", description_marketing={})
+        assert p.designation == "Communication"

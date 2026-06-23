@@ -7,22 +7,45 @@ that breaks `test_cdc_example_pa_390_16` is a defect by definition.
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from decimal import Decimal
 
 import pytest
 
 from apps.simulations.services.engine import (
+    CalculationStep,
+    CopperVariationModule,
+    CurrencyConversionModule,
+    CustomsModule,
+    MarginModule,
     PendingPurchase,
     PriceWithCurrency,
     ProductView,
     SimulationContext,
+    TransportModule,
     build_purchase_modules,
     build_sale_modules,
     compute_pr,
     compute_predictive_pamp,
     quantize,
+    resolve_margin_rate,
+    resolve_mix_pct,
     run_chain,
+    to_decimal,
 )
+
+
+def _plain_ctx(market_params: dict | None = None, **product_overrides) -> SimulationContext:
+    """A bare context for module-level tests that don't need a real SKU."""
+    product = ProductView(
+        sku_code=product_overrides.get("sku_code", "X"),
+        is_copper_indexed=product_overrides.get("is_copper_indexed", False),
+        copper_weight_kg_per_unit=product_overrides.get("copper_weight_kg_per_unit"),
+        pallet_qty=product_overrides.get("pallet_qty", 10),
+        base_unit=product_overrides.get("base_unit", "unit"),
+    )
+    return SimulationContext(product=product, market_params=market_params or {})
+
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -136,6 +159,41 @@ def test_cdc_example_pv_487_70(cdc_product, cdc_market_params, cdc_purchase_chai
 # ─── Module-level tests ───────────────────────────────────────────────────
 
 
+def test_null_pallet_count_coalesced_and_warns(cdc_market_params):
+    """Wizard may persist pallet_count: null when the field is left empty."""
+    product = ProductView(
+        sku_code="X",
+        is_copper_indexed=False,
+        copper_weight_kg_per_unit=None,
+        pallet_qty=1,
+    )
+    ctx = SimulationContext(product=product, market_params=cdc_market_params)
+    chain = {
+        "currency_conversion": {"to_currency": "EUR"},
+        "transports": [
+            {
+                "order": 1,
+                "transport_mode_code": "20FT",
+                "global_cost": "12",
+                "currency": "USD",
+                "pallet_count": None,
+            }
+        ],
+        "symea_margin": {"rate": "0.06"},
+    }
+    modules = build_purchase_modules(chain)
+    transport_mods = [m for m in modules if m.type == "transport"]
+    assert len(transport_mods) == 1
+    assert transport_mods[0].pallet_count == 0
+
+    result = run_chain(
+        modules,
+        starting_price=PriceWithCurrency(amount=Decimal("100"), currency="EUR"),
+        context=ctx,
+    )
+    assert any("palettes" in w for w in result.warnings)
+
+
 def test_copper_module_skipped_when_not_indexed(cdc_market_params):
     product = ProductView(
         sku_code="X",
@@ -226,6 +284,43 @@ def test_predictive_pamp_returns_none_without_quantity():
     assert pamp is None
 
 
+def test_predictive_pamp_returns_none_when_not_synced():
+    # Produit jamais syncé avec Odoo (odoo_id IS NULL) → pas de PAMP prévisionnel
+    # même si un stock résiduel traîne (CDC §6.7.1).
+    pamp = compute_predictive_pamp(
+        odoo_synced=False,
+        stock_quantity=Decimal("10"),
+        pamp_eur=Decimal("100"),
+        pending_purchases=[PendingPurchase(quantity=Decimal("5"), price_unit_eur=Decimal("120"))],
+    )
+    assert pamp is None
+
+
+def test_predictive_pamp_stock_zero_with_pending_purchases():
+    # Stock = 0 mais achats engagés → PAMP = moyenne pondérée des seuls achats.
+    pamp = compute_predictive_pamp(
+        stock_quantity=Decimal("0"),
+        pamp_eur=None,
+        pending_purchases=[
+            PendingPurchase(quantity=Decimal("10"), price_unit_eur=Decimal("100")),
+            PendingPurchase(quantity=Decimal("30"), price_unit_eur=Decimal("120")),
+        ],
+    )
+    # (10*100 + 30*120) / 40 = 4600 / 40 = 115.
+    assert pamp == Decimal("115.0000")
+
+
+def test_predictive_pamp_quantizes_to_four_decimals():
+    # Quotient non terminant → arrondi 4 dp, ROUND_HALF_UP (CDC §6.5).
+    pamp = compute_predictive_pamp(
+        stock_quantity=Decimal("3"),
+        pamp_eur=Decimal("100"),
+        pending_purchases=[PendingPurchase(quantity=Decimal("4"), price_unit_eur=Decimal("150"))],
+    )
+    # (3*100 + 4*150) / 7 = 900 / 7 = 128.571428… → 128.5714.
+    assert pamp == Decimal("128.5714")
+
+
 def test_compute_pr_at_mix_extremes():
     assert compute_pr(
         pa_net_eur=Decimal("400"), pamp_predictive_eur=Decimal("300"), mix_pct=0
@@ -246,6 +341,391 @@ def test_compute_pr_falls_back_to_pa_when_no_pamp():
     )
 
 
+def test_compute_pr_quantizes_to_four_decimals():
+    # 33 % of (101, 100) → 100.33 exact; pick values producing > 4 decimals.
+    pr = compute_pr(
+        pa_net_eur=Decimal("100.12345"),
+        pamp_predictive_eur=Decimal("200.98765"),
+        mix_pct=50,
+    )
+    # (0.5*200.98765 + 0.5*100.12345) = 150.55555 → 150.5556 (ROUND_HALF_UP).
+    assert pr == Decimal("150.5556")
+
+
+def test_resolve_mix_pct_line_override_wins():
+    assert resolve_mix_pct(simulation_mix_pct=30, line_override=70) == 70
+
+
+def test_resolve_mix_pct_falls_back_to_simulation():
+    assert resolve_mix_pct(simulation_mix_pct=30, line_override=None) == 30
+
+
+def test_resolve_mix_pct_forced_to_zero_without_pamp():
+    # Predictive PAMP unavailable → mix forced to 0 even when an override is set.
+    assert resolve_mix_pct(simulation_mix_pct=30, line_override=70, pamp_available=False) == 0
+    assert resolve_mix_pct(simulation_mix_pct=30, line_override=None, pamp_available=False) == 0
+
+
 def test_quantize_rounds_half_up():
     assert quantize(Decimal("390.16361702")) == Decimal("390.1636")
     assert quantize(Decimal("0.00005")) == Decimal("0.0001")
+
+
+# ─── Domain types (dataclass — équivalent « validation Pydantic ») ─────────
+
+
+class TestPriceWithCurrency:
+    def test_currency_is_uppercased(self):
+        assert PriceWithCurrency(amount=Decimal("1"), currency="eur").currency == "EUR"
+
+    def test_is_immutable(self):
+        price = PriceWithCurrency(amount=Decimal("1"), currency="EUR")
+        with pytest.raises(FrozenInstanceError):
+            price.amount = Decimal("2")  # type: ignore[misc]
+
+    def test_with_amount_keeps_currency(self):
+        price = PriceWithCurrency(amount=Decimal("1"), currency="USD")
+        bumped = price.with_amount(Decimal("9"))
+        assert bumped.amount == Decimal("9")
+        assert bumped.currency == "USD"
+        assert price.amount == Decimal("1")  # original untouched
+
+
+class TestToDecimal:
+    def test_float_funnelled_through_str(self):
+        # 0.1 has no exact binary representation; str() dodges the FP noise.
+        assert to_decimal(0.1) == Decimal("0.1")
+
+    def test_int_and_str_and_decimal(self):
+        assert to_decimal(2) == Decimal("2")
+        assert to_decimal("1.5") == Decimal("1.5")
+        d = Decimal("3.3")
+        assert to_decimal(d) is d
+
+
+class TestCalculationStep:
+    def test_passthrough_flags_not_applied(self):
+        price = PriceWithCurrency(amount=Decimal("5"), currency="EUR")
+        step = CalculationStep.passthrough("customs", price, reason="no_customs_charge", order=3)
+        assert step.applied is False
+        assert step.input_price == step.output_price == price
+        assert step.metadata == {"applied": False, "reason": "no_customs_charge"}
+        assert step.order == 3
+
+    def test_to_dict_serialises_prices_as_strings(self):
+        step = CalculationStep(
+            module_type="margin",
+            input_price=PriceWithCurrency(amount=Decimal("100"), currency="EUR"),
+            output_price=PriceWithCurrency(amount=Decimal("133.3333"), currency="EUR"),
+            metadata={"rate": "0.25"},
+            order=6,
+        )
+        d = step.to_dict()
+        assert d["module"] == "margin"
+        assert d["input_price"] == {"amount": "100", "currency": "EUR"}
+        assert d["output_price"] == {"amount": "133.3333", "currency": "EUR"}
+        assert d["applied"] is True
+
+
+# ─── CopperVariationModule (6 cas — CDC §6.3.1) ───────────────────────────
+
+
+class TestCopperVariation:
+    def test_not_indexed_passthrough_exact(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params, is_copper_indexed=False)
+        price = PriceWithCurrency(amount=Decimal("2350"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        assert step.applied is False
+        assert step.metadata["reason"] == "not_applicable"
+        assert step.output_price == price
+
+    def test_cdc_example_variation(self, cdc_product, cdc_market_params):
+        ctx = SimulationContext(product=cdc_product, market_params=cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("2350"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        # variation = (97000 - 70000) * 18 / 1000 = 486 → 2350 + 486 = 2836.
+        assert step.applied is True
+        assert step.output_price.amount == Decimal("2836")
+        assert step.metadata["variation"] == "486"
+        assert step.metadata["copper_price_currency"] == "RMB"
+
+    def test_variation_converts_rmb_to_eur_input(self, cdc_product, cdc_market_params):
+        ctx = SimulationContext(product=cdc_product, market_params=cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("300"), currency="EUR")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        # variation_rmb = 486 ; taux RMB→EUR = 1/7.95 → +61.1321 EUR.
+        assert step.applied is True
+        assert step.metadata["copper_base"] == "70000"
+        assert step.metadata["copper_current"] == "97000"
+        assert step.metadata["copper_price_currency"] == "RMB"
+        assert step.output_price.currency == "EUR"
+        assert step.output_price.amount == Decimal("361.1321")
+
+    def test_current_equals_base_zero_variation(self, cdc_product):
+        ctx = SimulationContext(
+            product=cdc_product,
+            market_params={
+                "copper_base_price_rmb": "80000",
+                "copper_current_price_rmb": "80000",
+            },
+        )
+        price = PriceWithCurrency(amount=Decimal("2350"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        assert step.output_price.amount == Decimal("2350.0000")
+
+    def test_negative_variation_applied(self, cdc_product):
+        ctx = SimulationContext(
+            product=cdc_product,
+            market_params={
+                "copper_base_price_rmb": "97000",
+                "copper_current_price_rmb": "70000",
+            },
+        )
+        price = PriceWithCurrency(amount=Decimal("2350"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        # variation = (70000 - 97000) * 18 / 1000 = -486 → 2350 - 486 = 1864.
+        assert step.output_price.amount == Decimal("1864")
+
+    def test_indexed_without_weight_warns(self, cdc_market_params):
+        ctx = _plain_ctx(
+            cdc_market_params,
+            is_copper_indexed=True,
+            copper_weight_kg_per_unit=Decimal("0"),
+        )
+        price = PriceWithCurrency(amount=Decimal("2350"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        assert step.applied is False
+        assert step.metadata["reason"] == "indexed_without_weight"
+        assert step.output_price == price
+        # First-class warning (FR), not just a metadata reason.
+        assert step.warnings
+        assert "indexé cuivre" in step.warnings[0]
+
+    def test_warning_propagates_to_chain_result(self, cdc_market_params):
+        """A step warning must surface on ChainResult.warnings + to_breakdown."""
+        product = ProductView(
+            sku_code="WARN",
+            is_copper_indexed=True,
+            copper_weight_kg_per_unit=Decimal("0"),
+            pallet_qty=9,
+        )
+        ctx = SimulationContext(product=product, market_params=cdc_market_params)
+        modules = build_purchase_modules(
+            {
+                "copper_variation": {},
+                "currency_conversion": {"to_currency": "EUR"},
+                "transports": [],
+                "symea_margin": {"rate": "0.06"},
+            }
+        )
+        result = run_chain(
+            modules,
+            starting_price=PriceWithCurrency(amount=Decimal("100"), currency="RMB"),
+            context=ctx,
+        )
+        assert result.warnings
+        assert result.to_breakdown()["warnings"] == result.warnings
+
+
+# ─── CurrencyConversionModule (RMB/EUR/USD — CDC §6.3.2) ───────────────────
+
+
+class TestCurrencyConversion:
+    def test_rmb_to_eur(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("2836"), currency="RMB")
+        step = CurrencyConversionModule(target_currency="EUR").apply(price, ctx, order=1)
+        # 2836 / 7.95 = 356.7295597… → 356.7296.
+        assert step.output_price.currency == "EUR"
+        assert step.output_price.amount == Decimal("356.7296")
+
+    def test_eur_to_eur_passthrough(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CurrencyConversionModule(target_currency="EUR").apply(price, ctx, order=1)
+        assert step.applied is False
+        assert step.metadata["reason"] == "same_currency"
+        assert step.output_price == price
+
+    def test_eur_to_usd(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CurrencyConversionModule(target_currency="USD").apply(price, ctx, order=1)
+        # 100 * 1.15 = 115.
+        assert step.output_price.currency == "USD"
+        assert step.output_price.amount == Decimal("115.0000")
+
+    def test_usd_to_eur(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("115"), currency="USD")
+        step = CurrencyConversionModule(target_currency="EUR").apply(price, ctx, order=1)
+        # 115 / 1.15 = 100.
+        assert step.output_price.currency == "EUR"
+        assert step.output_price.amount == Decimal("100.0000")
+
+    def test_missing_rate_raises(self):
+        ctx = _plain_ctx({})  # no FX rates at all
+        price = PriceWithCurrency(amount=Decimal("100"), currency="USD")
+        with pytest.raises(ValueError, match="fx_eur_usd"):
+            CurrencyConversionModule(target_currency="EUR").apply(price, ctx, order=1)
+
+
+# ─── TransportModule (2 modes — CDC §6.3.3) ───────────────────────────────
+
+
+class TestTransport:
+    def test_detailed_cdc_first_leg(self, cdc_product, cdc_market_params):
+        ctx = SimulationContext(product=cdc_product, market_params=cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("356.7296"), currency="EUR")
+        mod = TransportModule(
+            transport_mode_code="40HQ",
+            global_cost=Decimal("3000"),
+            currency="USD",
+            pallet_count=40,
+        )
+        step = mod.apply(price, ctx, order=1)
+        # 3000/40 = 75 USD/pallet ; /9 = 8.333… USD/km ; *1/1.15 ≈ 7.2464 EUR.
+        assert step.output_price.amount == Decimal("363.9760")
+        assert step.metadata["mode"] == "detailed"
+
+    def test_coefficient_mode_direct_factor(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        mod = TransportModule(
+            transport_mode_code="ROAD",
+            global_cost=Decimal("0"),
+            currency="EUR",
+            pallet_count=0,
+            override_coefficient=Decimal("1.05"),
+        )
+        step = mod.apply(price, ctx, order=1)
+        assert step.metadata["mode"] == "coefficient"
+        assert step.output_price.amount == Decimal("105.0000")
+
+    def test_pallet_qty_missing_warns_instead_of_error(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params, pallet_qty=0)
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        mod = TransportModule(
+            transport_mode_code="ROAD",
+            global_cost=Decimal("1000"),
+            currency="EUR",
+            pallet_count=10,
+        )
+        step = mod.apply(price, ctx, order=1)
+        assert not step.applied
+        assert step.output_price.amount == Decimal("100")
+        assert any("pallet_qty" in w for w in step.warnings)
+
+    def test_invalid_pallet_count_warns_instead_of_error(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params, pallet_qty=10)
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        mod = TransportModule(
+            transport_mode_code="ROAD",
+            global_cost=Decimal("1000"),
+            currency="EUR",
+            pallet_count=0,
+        )
+        step = mod.apply(price, ctx, order=1)
+        assert not step.applied
+        assert any("palettes" in w for w in step.warnings)
+
+
+# ─── CustomsModule (coefficient + détaillé — CDC §6.3.4) ──────────────────
+
+
+class TestCustoms:
+    def test_coefficient_mode(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CustomsModule(override_coefficient=Decimal("1.045")).apply(price, ctx, order=1)
+        assert step.metadata["mode"] == "coefficient"
+        assert step.output_price.amount == Decimal("104.5000")
+
+    def test_detailed_global_cost_over_quantity(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CustomsModule(
+            global_cost=Decimal("1000"),
+            currency="EUR",
+            total_quantity=Decimal("100"),
+        ).apply(price, ctx, order=1)
+        # 1000 / 100 = 10 EUR/unit → 110.
+        assert step.metadata["mode"] == "detailed"
+        assert step.output_price.amount == Decimal("110.0000")
+
+    def test_no_charge_passthrough(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CustomsModule(global_cost=Decimal("0")).apply(price, ctx, order=1)
+        assert step.applied is False
+        assert step.metadata["reason"] == "zero_customs_cost"
+
+    def test_missing_total_quantity_warns(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CustomsModule(global_cost=Decimal("200"), currency="EUR").apply(price, ctx, order=1)
+        assert step.applied is False
+        assert step.metadata["reason"] == "missing_total_quantity"
+        assert len(step.warnings) == 1
+
+    def test_percentage_rate(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("200"), currency="EUR")
+        step = CustomsModule(rate_pct=Decimal("5")).apply(price, ctx, order=1)
+        assert step.applied is True
+        assert step.metadata["mode"] == "percentage"
+        assert step.output_price.amount == Decimal("210.0000")
+
+    def test_copper_warns_when_market_params_missing(self, cdc_product):
+        ctx = SimulationContext(product=cdc_product, market_params={})
+        price = PriceWithCurrency(amount=Decimal("70"), currency="RMB")
+        step = CopperVariationModule().apply(price, ctx, order=1)
+        assert step.applied is True
+        assert step.metadata["copper_base"] == "0"
+        assert len(step.warnings) == 1
+
+    def test_fx_conversion_when_currency_differs(self, cdc_market_params):
+        ctx = _plain_ctx(cdc_market_params)
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = CustomsModule(
+            global_cost=Decimal("115"),
+            currency="USD",
+            total_quantity=Decimal("100"),
+        ).apply(price, ctx, order=1)
+        # 115/100 = 1.15 USD/unit ; *1/1.15 = 1.0 EUR → 101.
+        assert step.output_price.amount == Decimal("101.0000")
+        assert step.metadata["global_cost_currency"] == "USD"
+
+
+# ─── MarginModule + resolution (CDC §6.3.5, §6.8) ─────────────────────────
+
+
+class TestMargin:
+    def test_25_percent_on_100(self):
+        ctx = _plain_ctx({})
+        price = PriceWithCurrency(amount=Decimal("100"), currency="EUR")
+        step = MarginModule(rate=Decimal("0.25")).apply(price, ctx, order=1)
+        # 100 / (1 - 0.25) = 133.3333…
+        assert step.output_price.amount == Decimal("133.3333")
+
+    def test_resolve_margin_rate_override_wins(self):
+        assert resolve_margin_rate(
+            simulation_margin_rate=Decimal("0.20"), line_override=Decimal("0.30")
+        ) == Decimal("0.30")
+
+    def test_resolve_margin_rate_falls_back_to_simulation(self):
+        assert resolve_margin_rate(
+            simulation_margin_rate=Decimal("0.20"), line_override=None
+        ) == Decimal("0.20")
+
+    def test_resolve_margin_rate_symea_vs_syskern(self):
+        # The resolution is role-agnostic: the caller passes whichever rate
+        # applies (Symea default 6 %, Syskern default 20 %, CDC §6.8.1).
+        symea = resolve_margin_rate(simulation_margin_rate=Decimal("0.06"), line_override=None)
+        syskern = resolve_margin_rate(simulation_margin_rate=Decimal("0.20"), line_override=None)
+        assert symea == Decimal("0.06")
+        assert syskern == Decimal("0.20")
+        # A per-line override still beats the simulation rate for either role.
+        assert resolve_margin_rate(
+            simulation_margin_rate=Decimal("0.06"), line_override=Decimal("0.12")
+        ) == Decimal("0.12")

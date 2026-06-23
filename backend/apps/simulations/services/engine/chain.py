@@ -32,14 +32,26 @@ from .modules import (
 )
 
 
+def _transport_pallet_count(transport: dict) -> int:
+    """Coalesce missing/null pallet_count to 0 (wizard may persist JSON null)."""
+    raw = transport.get("pallet_count")
+    return int(raw) if raw is not None else 0
+
+
 @dataclass
 class ChainResult:
     final_price: PriceWithCurrency
     steps: list[CalculationStep] = field(default_factory=list)
 
+    @property
+    def warnings(self) -> list[str]:
+        """All non-fatal diagnostics raised by the chain's steps, in order."""
+        return [w for step in self.steps for w in step.warnings]
+
     def to_breakdown(self) -> dict:
         return {
             "steps": [s.to_dict() for s in self.steps],
+            "warnings": self.warnings,
             "final_amount": str(self.final_price.amount),
             "final_currency": self.final_price.currency,
         }
@@ -95,7 +107,7 @@ def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
                 transport_mode_code=t.get("transport_mode_code", ""),
                 global_cost=to_decimal(t.get("global_cost", 0)),
                 currency=(t.get("currency") or "EUR").upper(),
-                pallet_count=int(t.get("pallet_count", 0)),
+                pallet_count=_transport_pallet_count(t),
                 from_location=t.get("from_location", ""),
                 to_location=t.get("to_location", ""),
                 override_coefficient=(
@@ -114,6 +126,11 @@ def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
                 total_quantity=(
                     to_decimal(customs["total_quantity"])
                     if customs.get("total_quantity") is not None
+                    else None
+                ),
+                rate_pct=(
+                    to_decimal(customs["rate_pct"])
+                    if customs.get("rate_pct") is not None
                     else None
                 ),
                 override_coefficient=(
@@ -157,7 +174,7 @@ def build_sale_modules(
                 transport_mode_code=t.get("transport_mode_code", ""),
                 global_cost=to_decimal(t.get("global_cost", 0)),
                 currency=(t.get("currency") or "EUR").upper(),
-                pallet_count=int(t.get("pallet_count", 0)),
+                pallet_count=_transport_pallet_count(t),
                 from_location=t.get("from_location", ""),
                 to_location=t.get("to_location", ""),
                 override_coefficient=(
@@ -177,6 +194,11 @@ def build_sale_modules(
                 total_quantity=(
                     to_decimal(customs["total_quantity"])
                     if customs.get("total_quantity") is not None
+                    else None
+                ),
+                rate_pct=(
+                    to_decimal(customs["rate_pct"])
+                    if customs.get("rate_pct") is not None
                     else None
                 ),
                 override_coefficient=(

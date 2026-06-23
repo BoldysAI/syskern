@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from .context import DEC_ZERO, to_decimal
+from .modules import quantize
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class PendingPurchase:
 
 def compute_predictive_pamp(
     *,
+    odoo_synced: bool = True,
     stock_quantity: Decimal | None,
     pamp_eur: Decimal | None,
     pending_purchases: Iterable[PendingPurchase] = (),
@@ -27,9 +29,18 @@ def compute_predictive_pamp(
     Sales pending consume stock at the current PAMP and therefore do not
     affect the future PAMP (which is a weighted average of *entries*).
 
-    Returns `None` when no quantity is available to average — the simulation
-    line must then ignore the stock/purchase mix entirely.
+    Returns `None` when:
+    - the product was never synced with Odoo (`odoo_synced=False`, i.e.
+      `product.odoo_id is None`) — no Odoo stock/PAMP/purchases to project; or
+    - no quantity is available to average (stock 0 and no pending purchases).
+
+    In both cases the simulation line must ignore the stock/purchase mix
+    entirely (the runner forces `mix_pct = 0`). The result is quantized to
+    4 decimal places (CDC §6.5).
     """
+    if not odoo_synced:
+        return None
+
     stock_q = to_decimal(stock_quantity) if stock_quantity is not None else DEC_ZERO
     pamp = to_decimal(pamp_eur) if pamp_eur is not None else DEC_ZERO
 
@@ -43,7 +54,7 @@ def compute_predictive_pamp(
     total_q = stock_q + purchase_q
     if total_q <= DEC_ZERO:
         return None
-    return (stock_value + purchase_value) / total_q
+    return quantize((stock_value + purchase_value) / total_q)
 
 
 def compute_pr(
@@ -58,25 +69,35 @@ def compute_pr(
     - `mix_pct = 0`   → PR = PA net (calculation on fresh purchases only)
     - `mix_pct = 100` → PR = PAMP predictive (calculation on existing stock)
     - intermediate    → weighted average
+
+    The result is quantized to 4 decimal places (CDC §6.5).
     """
     if mix_pct < 0 or mix_pct > 100:
         raise ValueError(f"mix_pct must be in [0, 100], got {mix_pct}")
 
     pa = to_decimal(pa_net_eur)
     if pamp_predictive_eur is None:
-        return pa
+        return quantize(pa)
 
     pamp = to_decimal(pamp_predictive_eur)
     ratio = Decimal(mix_pct) / Decimal(100)
-    return (ratio * pamp) + ((Decimal(1) - ratio) * pa)
+    return quantize((ratio * pamp) + ((Decimal(1) - ratio) * pa))
 
 
 def resolve_mix_pct(
     *,
     simulation_mix_pct: int,
     line_override: int | None,
+    pamp_available: bool = True,
 ) -> int:
-    """CDC §6.7.3 — per-line override beats simulation-wide value."""
+    """CDC §6.7.3 — per-line override beats simulation-wide value.
+
+    When the predictive PAMP is unavailable (`pamp_available=False`), the mix
+    is forced to ``0`` regardless of any override (CDC §6.7.1) — the PR then
+    rests entirely on the PA net.
+    """
+    if not pamp_available:
+        return 0
     return line_override if line_override is not None else simulation_mix_pct
 
 

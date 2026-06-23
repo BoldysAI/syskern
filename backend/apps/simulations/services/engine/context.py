@@ -130,19 +130,47 @@ class SimulationContext:
         """
         return fx_rate(from_currency, to_currency, self.market_params)
 
+    def _param(self, key: str) -> Decimal | None:
+        val = self.market_params.get(key)
+        if val is None or val == "":
+            return None
+        return to_decimal(val)
+
     def copper_base_price(self, currency: str = "RMB") -> Decimal:
-        return to_decimal(self.market_params.get(f"copper_base_price_{currency.lower()}", DEC_ZERO))
+        ccy = currency.lower()
+        for key in (
+            f"copper_base_price_{ccy}",
+            f"copper_base_{ccy}",
+            "copper_base_price",
+        ):
+            val = self._param(key)
+            if val is not None:
+                return val
+        return DEC_ZERO
 
     def copper_current_price(self, currency: str = "RMB") -> Decimal:
-        return to_decimal(
-            self.market_params.get(f"copper_current_price_{currency.lower()}", DEC_ZERO)
-        )
+        ccy = currency.lower()
+        for key in (
+            f"copper_current_price_{ccy}",
+            f"copper_current_{ccy}",
+            "copper_current_price",
+            "copper_price",
+        ):
+            val = self._param(key)
+            if val is not None:
+                return val
+        return DEC_ZERO
 
 
 @dataclass(frozen=True)
 class CalculationStep:
     """One module's contribution to a chain — fully self-describing for
-    audit / replay (`simulation_lines.calculation_breakdown.steps[i]`)."""
+    audit / replay (`simulation_lines.calculation_breakdown.steps[i]`).
+
+    `warnings` carries user-facing, non-fatal diagnostics (FR) raised by the
+    module — e.g. a copper-indexed SKU with no declared copper weight. The
+    runner aggregates these onto the line so the result is never a silent 0.
+    """
 
     module_type: str
     input_price: PriceWithCurrency
@@ -150,6 +178,7 @@ class CalculationStep:
     metadata: dict = field(default_factory=dict)
     order: int | None = None
     applied: bool = True
+    warnings: list[str] = field(default_factory=list)
 
     @classmethod
     def passthrough(
@@ -159,14 +188,20 @@ class CalculationStep:
         *,
         reason: str = "not_applicable",
         order: int | None = None,
+        warnings: list[str] | None = None,
+        metadata: dict | None = None,
     ) -> CalculationStep:
+        meta = {"applied": False, "reason": reason}
+        if metadata:
+            meta.update(metadata)
         return cls(
             module_type=module_type,
             input_price=price,
             output_price=price,
-            metadata={"applied": False, "reason": reason},
+            metadata=meta,
             order=order,
             applied=False,
+            warnings=warnings or [],
         )
 
     def to_dict(self) -> dict:
@@ -183,4 +218,5 @@ class CalculationStep:
                 "currency": self.output_price.currency,
             },
             "metadata": self.metadata,
+            "warnings": self.warnings,
         }

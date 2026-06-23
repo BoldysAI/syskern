@@ -8,6 +8,7 @@ app_name = "simulations"
 router = DefaultRouter()
 router.register(r"simulations", views.SimulationViewSet, basename="simulation")
 router.register(r"simulation-lines", views.SimulationLineViewSet, basename="simulation-line")
+router.register(r"saved-comparisons", views.SavedComparisonViewSet, basename="saved-comparison")
 
 urlpatterns = [
     path("", include(router.urls)),
