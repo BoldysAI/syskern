@@ -51,7 +51,7 @@ Règles absolues :
 |---|---|
 | Backend | **Django 5 + DRF**, Python 3.12 |
 | Async | **Celery + Redis** (`celery[redis]`, `django-celery-beat`) |
-| DB | **PostgreSQL 16** — psycopg 3. Local : Postgres Docker. Prod : Supabase self-host (VPS OVH) |
+| DB | **PostgreSQL classique** — psycopg 3. Local : Postgres Docker. Prod : Postgres sur VPS OVH. **Aucun projet Supabase lié** (cf. `decisions.md` 2026-06-22) |
 | Auth | Session Django + **users & rôles** (`admin`/`commercial`/`viewer`, `apps.accounts.Profile`). Prod cible : Supabase Auth JWT (stub) |
 | API docs | drf-spectacular → `/api/docs/` |
 | Frontend | **Next.js** (App Router), TypeScript |

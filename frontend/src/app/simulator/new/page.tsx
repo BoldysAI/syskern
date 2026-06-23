@@ -1,54 +1,86 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Loader2 } from "lucide-react";
-import { createSimulation, type SimulationType } from "@/lib/api";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { addSimulationLines, createSimulation } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { ParamsStep } from "./_components/ParamsStep";
+import { SkuStep } from "./_components/SkuStep";
+import { TypeStep } from "./_components/TypeStep";
+import {
+  buildSimulationPatch,
+  clearDraft,
+  loadDraft,
+  persistDraft,
+  step1Valid,
+  validateTransportChains,
+  type WizardDraft,
+} from "./_components/wizard-draft";
 
-function pctToDecimal(pct: string): string {
-  const n = parseFloat(pct);
-  return Number.isFinite(n) ? (n / 100).toFixed(4) : "0.0000";
-}
+const STEPS = [
+  { id: 1, label: "Type et contexte" },
+  { id: 2, label: "Sélection des SKU" },
+  { id: 3, label: "Paramètres et chaîne" },
+] as const;
 
 export default function NewSimulationPage() {
   const router = useRouter();
-  const [label, setLabel] = useState("");
-  const [type, setType] = useState<SimulationType>("tariff");
-  const [projectName, setProjectName] = useState("");
-  const [mixPct, setMixPct] = useState("0");
-  const [symeaPct, setSymeaPct] = useState("6");
-  const [syskernPct, setSyskernPct] = useState("20");
+  const [draft, setDraft] = useState<WizardDraft>(loadDraft);
+  const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!label.trim()) return;
+  // Write-only persistence (no setState in this effect).
+  useEffect(() => {
+    persistDraft(draft);
+  }, [draft]);
+
+  const update = (patch: Partial<WizardDraft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const step1Ok = step1Valid(draft);
+  const transportError = step === 3 ? validateTransportChains(draft) : null;
+  const step3Valid = transportError === null;
+
+  const canSubmit = step1Ok && step3Valid && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
     setSaving(true);
     setError(null);
     try {
-      const sim = await createSimulation({
-        label: label.trim(),
-        simulation_type: type,
-        project_name: type === "project" ? projectName.trim() : "",
-        stock_purchase_mix_pct: parseInt(mixPct, 10) || 0,
-        symea_margin_rate: pctToDecimal(symeaPct),
-        syskern_margin_rate: pctToDecimal(syskernPct),
-      });
+      const sim = await createSimulation(buildSimulationPatch(draft));
+      if (draft.selectedSkus.length > 0) {
+        await addSimulationLines(
+          sim.id,
+          draft.selectedSkus.map((s) => s.id)
+        );
+      }
+      clearDraft();
       router.push(`/simulator/${sim.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Création échouée");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Création de la simulation échouée.");
       setSaving(false);
     }
   };
 
-  const inputCls =
-    "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
-  const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
+  const goNext = () => {
+    if (step === 1 && !step1Ok) return;
+    if (step === 3) {
+      const err = validateTransportChains(draft);
+      if (err) {
+        setError(err);
+        return;
+      }
+    }
+    setError(null);
+    if (step < 3) setStep((s) => s + 1);
+    else void handleSubmit();
+  };
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="p-6 max-w-6xl mx-auto">
       <Link
         href="/simulator"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4"
@@ -59,115 +91,136 @@ export default function NewSimulationPage() {
 
       <h1 className="text-xl font-semibold text-slate-900 mb-6">Nouvelle simulation</h1>
 
+      {/* Stepper */}
+      <ol className="flex items-center gap-2 mb-8">
+        {STEPS.map((s, i) => {
+          const active = step === s.id;
+          const done = step > s.id;
+          return (
+            <li key={s.id} className="flex items-center gap-2 flex-1 last:flex-none">
+              <button
+                type="button"
+                onClick={() => (s.id < step || step1Ok ? setStep(s.id) : undefined)}
+                disabled={s.id > step && !step1Ok}
+                className="flex items-center gap-2 disabled:cursor-not-allowed"
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold border-2 transition-colors",
+                    active
+                      ? "border-[#E07200] bg-[#E07200] text-white"
+                      : done
+                        ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
+                        : "border-[#E2E8F0] text-slate-400"
+                  )}
+                >
+                  {s.id}
+                </span>
+                <span
+                  className={cn(
+                    "text-sm font-medium hidden sm:inline",
+                    active ? "text-slate-900" : "text-slate-500"
+                  )}
+                >
+                  {s.label}
+                </span>
+              </button>
+              {i < STEPS.length - 1 && (
+                <span
+                  className={cn(
+                    "h-0.5 flex-1 rounded-full",
+                    step > s.id ? "bg-[#E07200]" : "bg-[#E2E8F0]"
+                  )}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
         </div>
       )}
+      {step === 3 && transportError && !error && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          {transportError}
+        </div>
+      )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 flex flex-col gap-5"
-      >
-        <div>
-          <label className={labelCls}>Libellé *</label>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="ex. Tarif Q2 2026"
-            required
-            className={inputCls}
+      <div className="mb-8">
+        {step === 1 && (
+          <TypeStep
+            label={draft.label}
+            type={draft.type}
+            clientIds={draft.clientIds}
+            projectName={draft.projectName}
+            onLabel={(v) => update({ label: v })}
+            onType={(v) => update({ type: v })}
+            onClientIds={(v) => update({ clientIds: v })}
+            onProjectName={(v) => update({ projectName: v })}
           />
-        </div>
-
-        <div>
-          <label className={labelCls}>Type *</label>
-          <div className="flex gap-2">
-            {(["tariff", "project"] as SimulationType[]).map((t) => (
-              <button
-                type="button"
-                key={t}
-                onClick={() => setType(t)}
-                className={
-                  "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors " +
-                  (type === t
-                    ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                    : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50")
-                }
-              >
-                {t === "tariff" ? "Tarif" : "Projet"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {type === "project" && (
-          <div>
-            <label className={labelCls}>Nom du projet</label>
-            <input
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="ex. Datacenter Lyon"
-              className={inputCls}
-            />
-          </div>
         )}
+        {step === 2 && (
+          <SkuStep
+            selectedSkus={draft.selectedSkus}
+            onChange={(v) => update({ selectedSkus: v })}
+          />
+        )}
+        {step === 3 && (
+          <ParamsStep
+            marketParams={draft.marketParams}
+            purchaseChain={draft.purchaseChain}
+            saleChain={draft.saleChain}
+            mixPct={draft.mixPct}
+            symeaPct={draft.symeaPct}
+            syskernPct={draft.syskernPct}
+            symeaPosition={draft.symeaPosition}
+            saleIncoterm={draft.saleIncoterm}
+            saleIncotermLocation={draft.saleIncotermLocation}
+            onMarketParams={(v) => update({ marketParams: v })}
+            onPurchaseChain={(v) => update({ purchaseChain: v })}
+            onSaleChain={(v) => update({ saleChain: v })}
+            onMixPct={(v) => update({ mixPct: v })}
+            onSymeaPct={(v) => update({ symeaPct: v })}
+            onSyskernPct={(v) => update({ syskernPct: v })}
+            onSymeaPosition={(v) => update({ symeaPosition: v })}
+            onSaleIncoterm={(v) => update({ saleIncoterm: v })}
+            onSaleIncotermLocation={(v) => update({ saleIncotermLocation: v })}
+          />
+        )}
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Mix stock/achat (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={mixPct}
-              onChange={(e) => setMixPct(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Marge Symea (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              step="0.1"
-              value={symeaPct}
-              onChange={(e) => setSymeaPct(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Marge Syskern (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              step="0.1"
-              value={syskernPct}
-              onChange={(e) => setSyskernPct(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-        </div>
+      {/* Footer nav */}
+      <div className="flex items-center justify-between border-t border-[#E2E8F0] pt-5">
+        <button
+          type="button"
+          onClick={() => (step > 1 ? setStep((s) => s - 1) : router.push("/simulator"))}
+          className="px-4 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+        >
+          {step > 1 ? "Précédent" : "Annuler"}
+        </button>
 
-        <div className="flex gap-3 pt-2">
-          <Link
-            href="/simulator"
-            className="flex-1 text-center py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
-          >
-            Annuler
-          </Link>
-          <button
-            type="submit"
-            disabled={saving || !label.trim()}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving && <Loader2 size={15} className="animate-spin" />}
-            {saving ? "Création…" : "Créer la simulation"}
-          </button>
-        </div>
-      </form>
+        <button
+          type="button"
+          onClick={goNext}
+          disabled={(step === 1 && !step1Ok) || (step === 3 && !step3Valid) || saving}
+          className="flex items-center gap-2 px-5 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          {step < 3 ? (
+            <>
+              Suivant
+              <ChevronRight size={16} />
+            </>
+          ) : saving ? (
+            "Création…"
+          ) : (
+            "Créer la simulation"
+          )}
+        </button>
+      </div>
     </div>
   );
 }

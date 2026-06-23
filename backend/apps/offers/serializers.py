@@ -96,6 +96,9 @@ class OfferWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"client_ids": "Tariff offers require at least one client."}
             )
+        simulation = attrs.get("simulation")
+        if simulation and self.instance is None and not attrs.get("incoterm"):
+            attrs["incoterm"] = simulation.sale_incoterm
         return attrs
 
 

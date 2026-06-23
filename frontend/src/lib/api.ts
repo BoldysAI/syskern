@@ -277,10 +277,14 @@ export interface Simulation {
   stock_purchase_mix_pct: number;
   symea_margin_rate: string;
   syskern_margin_rate: string;
+  sale_incoterm?: string;
+  sale_incoterm_location?: string;
   line_count: number;
   created_at: string;
   updated_at: string;
 }
+
+export type SimulationLineStatus = "ok" | "pending" | "warning" | "error" | "dirty";
 
 export interface SimulationLine {
   id: string;
@@ -288,6 +292,10 @@ export interface SimulationLine {
   product: string;
   product_sku: string;
   product_name: string;
+  product_designation: string;
+  product_range: string | null;
+  product_stock: string | null;
+  product_pamp_eur: string | null;
   margin_override: string | null;
   stock_purchase_mix_pct_override: number | null;
   po_net_eur: string | null;
@@ -295,8 +303,142 @@ export interface SimulationLine {
   pamp_predictive_eur: string | null;
   pr_eur: string | null;
   pv_eur: string | null;
-  status: "ok" | "pending" | "warning" | "error" | "dirty";
+  effective_margin_rate: string | null;
+  effective_mix_pct: number | null;
+  calculation_breakdown?: Record<string, unknown>;
+  supplier_snapshot?: Record<string, unknown>;
+  status: SimulationLineStatus;
   last_calculated_at: string | null;
+}
+
+/** Recalc scopes from the modal (CDC §6.9.4). */
+export type RecalcScope = "params_only" | "with_odoo_refresh" | "full_refresh";
+
+/** One frozen per-SKU result inside a recalc trace (CDC §6.9.12). */
+export interface RecalculationLineSnapshot {
+  product_id: string;
+  sku: string;
+  designation: string;
+  pa_net_eur: string | null;
+  pr_eur: string | null;
+  pv_eur: string | null;
+  effective_margin_rate: string | null;
+  effective_mix_pct: number | null;
+  status: string;
+}
+
+/** One row of the recalculation audit trail (CDC §6.9.12). */
+export interface Recalculation {
+  id: string;
+  simulation: string;
+  calculated_at: string;
+  trigger_type: string;
+  note: string;
+  odoo_snapshot_at: string | null;
+  stock_purchase_mix_pct: number;
+  syskern_margin_rate: string;
+  symea_margin_rate: string;
+  sale_incoterm?: string;
+  sale_incoterm_location?: string;
+  market_params: Record<string, unknown>;
+  calculation_chain: Record<string, unknown>;
+  aggregates: SimulationAggregates;
+  /** Present on the detail endpoint (frozen per-SKU results). */
+  line_snapshots?: RecalculationLineSnapshot[];
+}
+
+/** Aggregates shared by recalc traces and compare columns (CDC §6.9.8/§6.9.12). */
+export interface SimulationAggregates {
+  line_count?: number;
+  avg_pa_eur?: string | null;
+  avg_pr_eur?: string | null;
+  avg_pv_eur?: string | null;
+  avg_margin?: string | null;
+  min_pv_eur?: string | null;
+  max_pv_eur?: string | null;
+  warnings_count?: number;
+  errors_count?: number;
+}
+
+/** Frozen context for a compare column (params, chain summary, dates). */
+export interface CompareColumnContext {
+  market_params: Record<string, unknown>;
+  stock_purchase_mix_pct: number;
+  symea_margin_rate: string;
+  syskern_margin_rate: string;
+  symea_margin_position: string;
+  sale_incoterm: string;
+  sale_incoterm_location: string;
+  simulation_type: SimulationType | null;
+  calculated_at: string | null;
+  odoo_snapshot_at: string | null;
+  trigger_type: string | null;
+  chain_module_count: number;
+  note: string | null;
+}
+
+/** One comparison column (a live simulation or a frozen recalc snapshot). */
+export interface CompareColumn {
+  key: string;
+  type: "simulation" | "recalculation";
+  id: string;
+  simulation_id: string;
+  label: string;
+  status: SimulationStatus | null;
+  aggregates: SimulationAggregates;
+  context: CompareColumnContext;
+}
+
+/** One cell of the compare matrix. */
+export interface CompareCell {
+  pa_net_eur: string | null;
+  pr_eur: string | null;
+  pv_eur: string | null;
+  effective_margin_rate: string | null;
+  effective_mix_pct: number | null;
+}
+
+/** One SKU row of the compare matrix. */
+export interface CompareProduct {
+  product_id: string;
+  product_sku: string;
+  product_name: string;
+  values: Record<string, CompareCell>;
+}
+
+export interface CompareResponse {
+  columns: CompareColumn[];
+  products: CompareProduct[];
+}
+
+export interface SavedComparisonColumn {
+  type: "simulation" | "recalculation";
+  id: string;
+  label: string;
+  simulation_id: string | null;
+}
+
+export interface SavedComparison {
+  id: string;
+  label: string;
+  simulation_ids: string[];
+  recalculation_ids: string[];
+  note: string;
+  column_count: number;
+  columns: SavedComparisonColumn[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Cumulative filter for bulk-edit / preview (CDC §6.9.5). */
+export interface BulkEditFilter {
+  universe?: string;
+  family?: string;
+  range?: string;
+  brand?: string;
+  factory_code?: string;
+  has_warning?: boolean;
+  has_error?: boolean;
 }
 
 /** Full shape from the detail endpoint (includes nested lines). */
@@ -304,7 +446,10 @@ export interface SimulationDetail extends Simulation {
   client_ids: string[];
   market_params: Record<string, unknown>;
   calculation_chain: Record<string, unknown>;
+  odoo_snapshot_at: string | null;
   lines: SimulationLine[];
+  /** Present (degraded mode) when a refresh recalc could not reach Odoo. */
+  odoo_refresh_error?: string;
 }
 
 export interface PaginatedSimulations {
@@ -318,10 +463,33 @@ export interface CreateSimulationInput {
   label: string;
   simulation_type: SimulationType;
   project_name?: string;
+  client_ids?: string[];
   stock_purchase_mix_pct?: number;
   symea_margin_rate?: string;
   syskern_margin_rate?: string;
   market_params?: Record<string, unknown>;
+  calculation_chain?: Record<string, unknown>;
+  sale_incoterm?: string;
+  sale_incoterm_location?: string;
+}
+
+export type UpdateSimulationInput = Partial<CreateSimulationInput>;
+
+/** Client (Odoo-synced customer or local prospect) — CDC §3.2. */
+export interface Client {
+  id: string;
+  name: string;
+  email: string;
+  is_prospect: boolean;
+  segment?: string;
+  address_city?: string;
+  address_country?: string;
+}
+
+/** Response shape from `POST /api/products/lookup-bulk` (CDC §6.9.2). */
+export interface BulkLookupResult {
+  found: Array<{ id: string; sku_code: string; name: string }>;
+  not_found: string[];
 }
 
 export type MarketParameterType = "copper_price" | "fx_rate";
@@ -334,6 +502,7 @@ export interface MarketParameter {
   valid_to: string | null;
   is_active: boolean;
   notes?: string;
+  source?: string;
   // Copper-only
   copper_market?: CopperMarket | null;
   copper_price?: string | null;
@@ -356,6 +525,11 @@ export interface TransportMode {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface IncotermRef {
+  code: string;
+  label: Record<string, string>;
 }
 
 export interface SyncLog {
@@ -679,10 +853,29 @@ export function activateSupplier(
   );
 }
 
-export function getSimulations(): Promise<Simulation[]> {
-  return apiFetch<PaginatedSimulations>("/api/simulations/?limit=200").then(
+export function getSimulations(opts?: { includeArchived?: boolean }): Promise<Simulation[]> {
+  const q = new URLSearchParams({ limit: "200" });
+  if (opts?.includeArchived) q.set("include_archived", "true");
+  return apiFetch<PaginatedSimulations>(`/api/simulations/?${q.toString()}`).then(
     (r) => r.results
   );
+}
+
+/** List clients, optionally filtered by a search term (CDC §6.9.2 step 1). */
+export function getClients(search?: string): Promise<Client[]> {
+  const q = new URLSearchParams({ limit: "200" });
+  if (search) q.set("search", search);
+  return apiFetch<PaginatedResponse<Client>>(`/api/clients/?${q.toString()}`).then(
+    (r) => r.results
+  );
+}
+
+/** Resolve a batch of SKU codes into found products vs not-found codes. */
+export function lookupBulkProducts(skus: string[]): Promise<BulkLookupResult> {
+  return apiFetch<BulkLookupResult>("/api/products/lookup-bulk", {
+    method: "POST",
+    body: JSON.stringify({ skus }),
+  });
 }
 
 export function getSimulation(id: string): Promise<SimulationDetail> {
@@ -692,6 +885,16 @@ export function getSimulation(id: string): Promise<SimulationDetail> {
 export function createSimulation(data: CreateSimulationInput): Promise<SimulationDetail> {
   return apiFetch<SimulationDetail>("/api/simulations/", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateSimulation(
+  id: string,
+  data: UpdateSimulationInput
+): Promise<SimulationDetail> {
+  return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
     body: JSON.stringify(data),
   });
 }
@@ -729,15 +932,166 @@ export function deleteSimulationLine(lineId: string): Promise<void> {
   });
 }
 
-export function recalculate(
+/** Force a full recalculation (CDC §6.9.4) — dispatches a Celery task and polls. */
+export function recalculateSimulation(
   id: string,
-  body?: { market_params?: Record<string, unknown>; note?: string }
+  body?: { scope?: RecalcScope; market_params?: Record<string, unknown>; note?: string }
 ): Promise<SimulationDetail> {
   return dispatchAndPoll<SimulationDetail>(
     `/api/simulations/${encodeURIComponent(id)}/recalculate/`,
     { method: "POST", body: JSON.stringify(body ?? {}) },
+    { timeoutMs: 300_000 }
+  );
+}
+
+/** Recalculate a single line synchronously (CDC §6.9.5) — no audit trace. */
+export function recalculateSimulationLine(lineId: string): Promise<SimulationLine> {
+  return apiFetch<SimulationLine>(
+    `/api/simulation-lines/${encodeURIComponent(lineId)}/recalculate/`,
+    { method: "POST" }
+  );
+}
+
+export interface SimulationLineQuery {
+  simulation: string;
+  /** @deprecated Prefer `status_in` — kept for backward compatibility. */
+  has_warning?: boolean;
+  /** @deprecated Prefer `status_in` — kept for backward compatibility. */
+  has_error?: boolean;
+  /** Comma-separated statuses: ok, warning, error */
+  status_in?: string;
+  ordering?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** Paginated lines for the results table (filters + ordering, CDC §6.9.9). */
+export function getSimulationLines(
+  params: SimulationLineQuery
+): Promise<PaginatedResponse<SimulationLine>> {
+  const limit = params.limit ?? 200;
+  const page = params.page ?? 1;
+  const q = new URLSearchParams({
+    simulation: params.simulation,
+    limit: String(limit),
+    offset: String((page - 1) * limit),
+  });
+  if (params.status_in) q.set("status_in", params.status_in);
+  if (params.has_warning) q.set("has_warning", "true");
+  if (params.has_error) q.set("has_error", "true");
+  if (params.ordering) q.set("ordering", params.ordering);
+  return apiFetch<PaginatedResponse<SimulationLine>>(
+    `/api/simulation-lines/?${q.toString()}`
+  );
+}
+
+/** Count the lines a bulk-edit filter would touch (no mutation). */
+export function bulkEditPreview(
+  id: string,
+  filter: BulkEditFilter
+): Promise<{ count: number }> {
+  return apiFetch<{ count: number }>(
+    `/api/simulations/${encodeURIComponent(id)}/lines/bulk/preview/`,
+    { method: "POST", body: JSON.stringify({ filter }) }
+  );
+}
+
+/** Apply a bulk-edit action to the filtered lines (CDC §6.9.5). */
+export function bulkEditLines(
+  id: string,
+  body: {
+    filter: BulkEditFilter;
+    margin_override?: string | null;
+    stock_purchase_mix_pct_override?: number | null;
+    reset?: boolean;
+  }
+): Promise<{ updated: number }> {
+  return apiFetch<{ updated: number }>(
+    `/api/simulations/${encodeURIComponent(id)}/lines/bulk/`,
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+/** Paginated recalculation history of a simulation, DESC (CDC §6.9.12). */
+export function getRecalculations(
+  id: string,
+  opts?: { limit?: number; offset?: number }
+): Promise<PaginatedResponse<Recalculation>> {
+  const q = new URLSearchParams();
+  q.set("limit", String(opts?.limit ?? 10));
+  if (opts?.offset) q.set("offset", String(opts.offset));
+  return apiFetch<PaginatedResponse<Recalculation>>(
+    `/api/simulations/${encodeURIComponent(id)}/recalculations/?${q.toString()}`
+  );
+}
+
+/** Full detail of a single recalc trace, incl. frozen line snapshots. */
+export function getRecalculation(simId: string, recalcId: string): Promise<Recalculation> {
+  return apiFetch<Recalculation>(
+    `/api/simulations/${encodeURIComponent(simId)}/recalculations/${encodeURIComponent(recalcId)}/`
+  );
+}
+
+/** Compare 2-4 simulations and/or recalc snapshots (CDC §6.9.8). */
+export function compareSimulations(body: {
+  simulation_ids?: string[];
+  recalculation_ids?: string[];
+}): Promise<CompareResponse> {
+  return apiFetch<CompareResponse>("/api/simulations/compare", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getSavedComparisons(): Promise<SavedComparison[]> {
+  return apiFetch<SavedComparison[]>("/api/saved-comparisons/");
+}
+
+export function getSavedComparison(id: string): Promise<SavedComparison> {
+  return apiFetch<SavedComparison>(`/api/saved-comparisons/${encodeURIComponent(id)}/`);
+}
+
+export function createSavedComparison(body: {
+  label: string;
+  simulation_ids: string[];
+  recalculation_ids?: string[];
+  note?: string;
+}): Promise<SavedComparison> {
+  return apiFetch<SavedComparison>("/api/saved-comparisons/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateSavedComparison(
+  id: string,
+  body: { label?: string; note?: string }
+): Promise<SavedComparison> {
+  return apiFetch<SavedComparison>(`/api/saved-comparisons/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteSavedComparison(id: string): Promise<void> {
+  return apiFetch<void>(`/api/saved-comparisons/${encodeURIComponent(id)}/`, {
+    method: "DELETE",
+  });
+}
+
+/** Trigger an async Excel export (Celery task), then download the file (CDC §6.9). */
+export async function exportSimulation(id: string): Promise<void> {
+  const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
+    `/api/simulations/${encodeURIComponent(id)}/export/`,
+    { method: "POST" },
     { timeoutMs: 180_000 }
   );
+  const a = document.createElement("a");
+  a.href = result.file_url;
+  a.download = result.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 export function finalizeSimulation(id: string): Promise<SimulationDetail> {
@@ -747,9 +1101,23 @@ export function finalizeSimulation(id: string): Promise<SimulationDetail> {
   );
 }
 
-export function duplicateSimulation(id: string): Promise<SimulationDetail> {
+export function duplicateSimulation(id: string, label?: string): Promise<SimulationDetail> {
   return apiFetch<SimulationDetail>(
     `/api/simulations/${encodeURIComponent(id)}/duplicate/`,
+    { method: "POST", body: JSON.stringify(label ? { label } : {}) }
+  );
+}
+
+export function archiveSimulation(id: string): Promise<SimulationDetail> {
+  return apiFetch<SimulationDetail>(
+    `/api/simulations/${encodeURIComponent(id)}/archive/`,
+    { method: "POST" }
+  );
+}
+
+export function unarchiveSimulation(id: string): Promise<SimulationDetail> {
+  return apiFetch<SimulationDetail>(
+    `/api/simulations/${encodeURIComponent(id)}/unarchive/`,
     { method: "POST" }
   );
 }
@@ -792,12 +1160,29 @@ export function deleteMarketParameter(id: string): Promise<void> {
   return apiFetch<void>(`/api/market-parameters/${id}/`, { method: "DELETE" });
 }
 
+export function getCurrentMarketParameter(opts: {
+  parameter_type: MarketParameterType;
+  fx_from_currency?: string;
+  fx_to_currency?: string;
+}): Promise<MarketParameter> {
+  const q = new URLSearchParams({ parameter_type: opts.parameter_type });
+  if (opts.fx_from_currency) q.set("fx_from_currency", opts.fx_from_currency);
+  if (opts.fx_to_currency) q.set("fx_to_currency", opts.fx_to_currency);
+  return apiFetch<MarketParameter>(`/api/market-parameters/current/?${q.toString()}`);
+}
+
 // Back-compat alias kept for any older callers; prefer listMarketParameters.
 export function getMarketParameters(): Promise<MarketParameter[]> {
   return listMarketParameters({ activeOnly: true });
 }
 
 // ── Transport modes ──────────────────────────────────────────────────────
+export function listIncoterms(): Promise<IncotermRef[]> {
+  return apiFetch<{ incoterms: IncotermRef[] }>("/api/incoterms").then(
+    (r) => r.incoterms
+  );
+}
+
 export function listTransportModes(activeOnly = false): Promise<TransportMode[]> {
   const qs = activeOnly ? "?is_active=true" : "";
   return apiFetch<{ count: number; results: TransportMode[] }>(

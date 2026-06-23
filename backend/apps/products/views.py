@@ -24,6 +24,7 @@ from .filters import ProductFilter
 from .models import Product, ProductSupplier
 from .ordering import ProductOrderingFilter
 from .serializers import (
+    BulkLookupSerializer,
     ProductDetailSerializer,
     ProductListSerializer,
     ProductSupplierSerializer,
@@ -473,6 +474,46 @@ class DistinctSupplierNamesView(APIView):
             .distinct()
         )
         return Response({"values": list(values)})
+
+
+class BulkLookupView(APIView):
+    """POST /api/products/lookup-bulk — resolve a list of SKU codes (CDC §6.9.2).
+
+    Used by the simulation creation wizard's "import file" path: the client
+    parses an Excel/CSV column `sku_code` and posts the raw values here.
+
+    Body: `{"skus": ["SKU-1", "SKU-2", ...]}`.
+    Response: `{"found": [{"id", "sku_code", "name"}], "not_found": ["..."]}`.
+
+    Performance: a single `sku_code__in` query resolves the whole batch, so
+    1000 SKU stay well under a second. Input order and exact casing are
+    preserved; duplicates collapse to a single entry.
+    """
+
+    def post(self, request):
+        ser = BulkLookupSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        raw_skus: list[str] = ser.validated_data["skus"]
+
+        # De-duplicate while preserving first-seen order.
+        seen: set[str] = set()
+        ordered_skus: list[str] = []
+        for sku in raw_skus:
+            cleaned = sku.strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                ordered_skus.append(cleaned)
+
+        matches = {
+            row["sku_code"]: row
+            for row in Product.objects.filter(sku_code__in=ordered_skus, is_active=True).values(
+                "id", "sku_code", "name"
+            )
+        }
+
+        found = [matches[sku] for sku in ordered_skus if sku in matches]
+        not_found = [sku for sku in ordered_skus if sku not in matches]
+        return Response({"found": found, "not_found": not_found})
 
 
 class SupplierNameTemplateView(APIView):

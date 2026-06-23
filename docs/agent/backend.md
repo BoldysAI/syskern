@@ -40,6 +40,9 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 - Champs Postgres / JSONB via `django.contrib.postgres` (déjà installé).
 - **Argent = `Decimal`** (`NUMERIC`), jamais float.
 - **Soft-delete** produits : `is_active = False`, jamais de hard-delete (préserve les simulations).
+- **Simulations finalized** : garde DRF (`SimulationViewSet`) **+** triggers PostgreSQL
+  (`simulations/0003` : `simulations_guard_finalized`, `simulation_lines_guard_finalized_parent`).
+  Détail schéma / champs snapshot → `pricing-chain.md`.
 
 ## DRF — baseline (config dans `settings/base.py`)
 - Auth par défaut : `core.authentication.CsrfExemptSessionAuthentication` (topologie browser → proxy Next → Django, même origine).
@@ -58,6 +61,19 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 ## Intégrations
 - **Odoo** : jamais d'accès direct. `apps.odoo_sync.adapters.factory.get_odoo_adapter[_for]`. v16/v19 derrière l'ABC `OdooAdapter`. → `odoo-adapter.md`.
 - **Pricing** : moteur isolé dans `apps/simulations/services/engine/` + `runner.py` (Decimal, transaction, trace `SimulationRecalculation`). → `pricing-chain.md`.
+- **Paramètres marché** (`apps/market`) : CRUD `GET/POST /api/market-parameters/` ;
+  paramètre actif courant `GET /api/market-parameters/current/?parameter_type=copper_price`
+  (FX : `fx_from_currency` + `fx_to_currency`). Cuivre/FX **non seedés** — saisie manuelle.
+- **Lookup bulk SKU** (`apps/products`) : `POST /api/products/lookup-bulk` body `{skus: [...]}` →
+  `{found: [{id, sku_code, name}], not_found: [...]}`. Une requête `sku_code__in`, produits actifs
+  uniquement. Route **avant** le router DRF (évite le conflit `products/{pk}`).
+- **Simulations CRUD** (`apps/simulations`) : `SimulationViewSet` + `SimulationLineViewSet`.
+  Validations création/édition : projet = 1 client + `project_name` ; tarif = `client_ids` peut être vide.
+  **`PATCH /api/simulations/{id}/`** : édition brouillon (label, clients, `market_params`, `calculation_chain`, marges, mix) → `is_dirty=True` via `perform_update`. Garde : `finalized` **et** `archived` → 403. DELETE finalized → 403 ; avec offres → 409.
+  Lignes : `GET /api/simulation-lines/?simulation=&status_in=` (CSV `ok,warning,error` ; legacy
+  `has_warning`/`has_error`). Recalc : `POST .../recalculate/` body `{scope, market_params?}` —
+  `market_params` persistés avant recalc pour **tout** scope si fournis. Tests :
+  `apps/products/tests/test_lookup_bulk.py`, `apps/simulations/tests/test_views.py`, `apps/simulations/tests/test_engine.py`.
 - **Gamma / OpenAI / DeepL** : clients `httpx` dans `apps/offers/services/` (pattern client simple, sans factory). → `integrations.md`.
 - HTTP sortant via `httpx`. Tout appel réseau encapsulé dans une tâche Celery (jamais dans une vue).
 

@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Plus, Calculator, Clock, FileCheck, Archive } from "lucide-react";
+import { Plus, Calculator, Clock, FileCheck, Archive, GitCompare, Bookmark } from "lucide-react";
 import { getSimulations, type Simulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +35,10 @@ const COLS = ["Nom", "Type", "Lignes", "Statut", "Dernier calcul", "Modifié"];
 
 export default function SimulatorPage() {
   const router = useRouter();
+  const [includeArchived, setIncludeArchived] = useState(false);
   const { data: simulations, isLoading, error } = useSWR<Simulation[]>(
-    "simulations",
-    getSimulations
+    ["simulations", includeArchived],
+    () => getSimulations({ includeArchived })
   );
 
   return (
@@ -50,13 +52,38 @@ export default function SimulatorPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => router.push("/simulator/new")}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#E07200] hover:bg-[#C56400] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
-        >
-          <Plus size={16} />
-          Nouvelle simulation
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) => setIncludeArchived(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+            />
+            Inclure les archivées
+          </label>
+          <button
+            onClick={() => router.push("/simulator/compare")}
+            className="flex items-center gap-2 px-4 py-2.5 border border-[#E2E8F0] text-slate-700 text-sm font-medium rounded-lg transition-colors hover:bg-slate-50"
+          >
+            <GitCompare size={16} />
+            Comparer
+          </button>
+          <button
+            onClick={() => router.push("/simulator/compare?aside=saved")}
+            className="flex items-center gap-2 px-3 py-2.5 border border-[#E2E8F0] text-slate-500 text-sm rounded-lg transition-colors hover:bg-slate-50"
+            title="Comparaisons enregistrées"
+          >
+            <Bookmark size={16} />
+          </button>
+          <button
+            onClick={() => router.push("/simulator/new")}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#E07200] hover:bg-[#C56400] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+          >
+            <Plus size={16} />
+            Nouvelle simulation
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">

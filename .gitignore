@@ -51,3 +51,8 @@ backend/staticfiles/
 backend/mediafiles/
 migration/sources/
 !migration/sources/.gitkeep
+
+# ─── Node (frontend lives in frontend/) ────────────────────
+/node_modules/
+/package.json
+/package-lock.json

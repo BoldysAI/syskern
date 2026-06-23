@@ -151,6 +151,15 @@ class Product(BaseModel):
             GinIndex(fields=["search_vector"], name="idx_products_search_vector"),
         ]
 
+    @property
+    def designation(self) -> str:
+        """Human-readable label — prefers FR marketing copy over the short name."""
+        marketing = self.description_marketing or {}
+        fr = (marketing.get("fr") or "").strip()
+        if fr:
+            return fr
+        return self.name or self.sku_code
+
     def __str__(self) -> str:
         return f"{self.sku_code} — {self.name}"
 

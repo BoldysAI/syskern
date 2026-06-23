@@ -147,47 +147,14 @@ export default function AttributesAdminPage() {
             <p className="text-sm">Aucun attribut dans cette catégorie. Créez-en un.</p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
-              <tr>
-                {COLUMNS.map((h, i) => (
-                  <th
-                    key={i}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {dndEnabled ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={filtered.map((a) => a.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {filtered.map((a) => (
-                      <SortableAttributeRow
-                        key={a.id}
-                        attribute={a}
-                        onEdit={setEditing}
-                        onDelete={setDeleting}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                filtered.map((a) => (
-                  <AttributeRow key={a.id} attribute={a} onEdit={setEditing} onDelete={setDeleting} />
-                ))
-              )}
-            </tbody>
-          </table>
+          <AttributesTable
+            attributes={filtered}
+            dndEnabled={dndEnabled}
+            sensors={sensors}
+            onDragEnd={handleDragEnd}
+            onEdit={setEditing}
+            onDelete={setDeleting}
+          />
         )}
       </div>
 
@@ -207,6 +174,69 @@ export default function AttributesAdminPage() {
         />
       )}
     </div>
+  );
+}
+
+/** DndContext must wrap the table, not tbody — it injects accessibility divs. */
+function AttributesTable({
+  attributes,
+  dndEnabled,
+  sensors,
+  onDragEnd,
+  onEdit,
+  onDelete,
+}: {
+  attributes: AttributeRegistry[];
+  dndEnabled: boolean;
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+  onEdit: (a: AttributeRegistry) => void;
+  onDelete: (a: AttributeRegistry) => void;
+}) {
+  const table = (
+    <table className="w-full">
+      <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+        <tr>
+          {COLUMNS.map((h, i) => (
+            <th
+              key={i}
+              className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-[#E2E8F0]">
+        {dndEnabled ? (
+          <SortableContext
+            items={attributes.map((a) => a.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {attributes.map((a) => (
+              <SortableAttributeRow
+                key={a.id}
+                attribute={a}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))}
+          </SortableContext>
+        ) : (
+          attributes.map((a) => (
+            <AttributeRow key={a.id} attribute={a} onEdit={onEdit} onDelete={onDelete} />
+          ))
+        )}
+      </tbody>
+    </table>
+  );
+
+  if (!dndEnabled) return table;
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      {table}
+    </DndContext>
   );
 }
 

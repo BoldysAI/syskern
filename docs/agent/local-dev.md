@@ -146,6 +146,12 @@ u.save()
 
 **`NEXT_PUBLIC_ODOO_BASE_URL`** — Ajouter dans `frontend/.env.local`, redémarrer `npm run dev` (en mode dev, pas besoin de rebuild).
 
+**Next.js très lent / page qui ne charge pas en dev** — Vérifier qu'il n'existe **pas** de `package.json` /
+`package-lock.json` / `node_modules/` à la **racine** du repo (un `npm install` accidentel à la racine
+force Turbopack à scanner tout le monorepo). Supprimer ces artefacts, ne garder que `frontend/package-lock.json`,
+redémarrer `./scripts/dev-frontend.sh`. Mitigation : `turbopack.root` dans `frontend/next.config.ts`
+(cf. `frontend.md`).
+
 **Réutiliser les données Docker** — Si tu avais déjà un volume Postgres Docker, tu peux soit garder cette BDD (exporter/import) soit repartir sur une BDD native vide + loaders `load_*` (cf. `data_migration`).
 
 ---
