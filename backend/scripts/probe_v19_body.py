@@ -1,4 +1,5 @@
 """Look at what the v19 host actually serves on `/`."""
+
 import httpx
 
 URL = "https://symea-odoo-18-boldys-dev-19-31446036.dev.odoo.com"

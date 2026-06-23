@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 import { useEdit, type DescriptionKind } from "./edit-context";
 
 const LANGS = ["fr", "en", "es"] as const;
-const LANG_LABELS: Record<string, string> = { fr: "Français", en: "Anglais", es: "Espagnol" };
+const LANG_LABELS: Record<string, string> = {
+  fr: "Français",
+  en: "Anglais",
+  es: "Espagnol",
+};
 
 const inputCls =
   "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
@@ -18,7 +22,12 @@ interface DescriptionsEditorProps {
   translating?: "en" | "es" | null;
 }
 
-export function DescriptionsEditor({ which, title, onTranslate, translating }: DescriptionsEditorProps) {
+export function DescriptionsEditor({
+  which,
+  title,
+  onTranslate,
+  translating,
+}: DescriptionsEditorProps) {
   const { mode, descValue, setDesc } = useEdit();
 
   return (

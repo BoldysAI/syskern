@@ -2,6 +2,7 @@
 
 Cf. CDC §3.2 → `offers`, `offer_lines` and §7.
 """
+
 from __future__ import annotations
 
 from django.contrib.postgres.fields import ArrayField
@@ -28,6 +29,15 @@ class ExportFormat(models.TextChoices):
     EXCEL = "excel", "Excel"
     CATALOG = "catalog", "Gamma catalog (tariff)"
     DEVIS_GAMMA = "devis_gamma", "Gamma quote (project)"
+
+
+class GenerationStatus(models.TextChoices):
+    """Document generation lifecycle, distinct from the commercial `status`."""
+
+    PENDING = "pending", "Pending"
+    GENERATING = "generating", "Generating"
+    READY = "ready", "Ready"
+    ERROR = "error", "Error (retry possible)"
 
 
 class Offer(BaseModel):
@@ -71,11 +81,18 @@ class Offer(BaseModel):
     # Generation results
     generated_file_url = models.TextField(blank=True, default="")
     gamma_document_id = models.CharField(max_length=128, blank=True, default="")
+    generation_status = models.CharField(
+        max_length=16,
+        choices=GenerationStatus.choices,
+        default=GenerationStatus.PENDING,
+        help_text="Document generation state (separate from the commercial status).",
+    )
+    generation_error = models.TextField(blank=True, default="")
+    # AI-generated arguments cached for re-use on retry (CDC §7.3.4).
+    ai_arguments = models.JSONField(default=dict, blank=True)
 
     # Lifecycle tracking
-    status = models.CharField(
-        max_length=16, choices=OfferStatus.choices, default=OfferStatus.DRAFT
-    )
+    status = models.CharField(max_length=16, choices=OfferStatus.choices, default=OfferStatus.DRAFT)
     sent_at = models.DateTimeField(null=True, blank=True)
     won_at = models.DateTimeField(null=True, blank=True)
     lost_at = models.DateTimeField(null=True, blank=True)
@@ -121,11 +138,12 @@ class OfferLine(BaseModel):
     # Negotiated final price — may diverge from the simulation PV after
     # commercial adjustment.
     final_price = models.DecimalField(max_digits=12, decimal_places=4)
-    discount_pct = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True
-    )
+    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     quantity = models.DecimalField(
-        max_digits=12, decimal_places=3, null=True, blank=True,
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
         help_text="Filled for project offers; null for tariffs.",
     )
 
@@ -140,3 +158,23 @@ class OfferLine(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.offer_id} · {self.product_id}"
+
+
+class OfferAlertConfig(BaseModel):
+    """Singleton config for the offer-expiration J-7 alert (CDC §7.6).
+
+    Recipients are edited from the UI (Paramètres → Alertes offres), not env.
+    """
+
+    recipients = ArrayField(models.EmailField(), default=list, blank=True)
+
+    class Meta:
+        db_table = "offer_alert_config"
+
+    @classmethod
+    def load(cls) -> OfferAlertConfig:
+        """Return the single config row, creating it on first access."""
+        return cls.objects.first() or cls.objects.create()
+
+    def __str__(self) -> str:
+        return f"OfferAlertConfig({len(self.recipients)} recipients)"

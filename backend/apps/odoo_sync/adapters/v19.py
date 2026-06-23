@@ -6,12 +6,12 @@ Investigation (May 2026) confirmed:
   • TLS verification disabled on this staging instance (cert mismatch);
     production v19 MUST present a valid cert (ODOO_VERIFY_TLS=true in prod).
 """
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from apps.odoo_sync.schemas import (
     OdooClient,
@@ -21,8 +21,8 @@ from apps.odoo_sync.schemas import (
     OdooSupplierLink,
 )
 
-from .base import OdooAdapter
 from ._rpc import JsonRpcMixin
+from .base import OdooAdapter
 from .v16 import (
     _PARTNER_FIELDS,
     _STOCK_FIELDS,
@@ -110,6 +110,7 @@ def _normalize_product_v19(
 
 # ── Adapter ───────────────────────────────────────────────────────────────────
 
+
 class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
     """Read-only JSON-RPC client for Odoo 19.
 
@@ -164,7 +165,7 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
 
     def list_products(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooProduct]:
@@ -226,7 +227,9 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         payload = self.payload_from_product(product)
         new_id = self._kw("product.template", "create", [payload])
         logger.info(
-            "Created Odoo v19 product id=%s sku=%s", new_id, product.sku_code,
+            "Created Odoo v19 product id=%s sku=%s",
+            new_id,
+            product.sku_code,
         )
         return int(new_id)
 
@@ -240,7 +243,8 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         self._kw("product.template", "write", [[odoo_id], fields])
         logger.info(
             "Updated Odoo v19 product id=%s fields=%s",
-            odoo_id, sorted(fields.keys()),
+            odoo_id,
+            sorted(fields.keys()),
         )
 
     # ── Stock ──────────────────────────────────────────────────────────────
@@ -251,10 +255,12 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         rows = self._kw(
             "stock.quant",
             "search_read",
-            [[
-                ["product_tmpl_id", "in", odoo_product_ids],
-                ["location_id.usage", "=", "internal"],
-            ]],
+            [
+                [
+                    ["product_tmpl_id", "in", odoo_product_ids],
+                    ["location_id.usage", "=", "internal"],
+                ]
+            ],
             {"fields": _STOCK_FIELDS},
         )
         result: dict[int, OdooStock] = {}
@@ -290,10 +296,12 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         rows = self._kw(
             "purchase.order.line",
             "search_read",
-            [[
-                ["product_id.product_tmpl_id", "in", odoo_product_ids],
-                ["state", "in", ["purchase", "done"]],
-            ]],
+            [
+                [
+                    ["product_id.product_tmpl_id", "in", odoo_product_ids],
+                    ["state", "in", ["purchase", "done"]],
+                ]
+            ],
             {"fields": _PO_LINE_FIELDS_V19},
         )
         variant_lines: dict[int, list[OdooPurchaseLine]] = {}
@@ -320,22 +328,28 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
 
     # ── Pending sales ──────────────────────────────────────────────────────
 
-    def get_pending_sales(
-        self, odoo_product_ids: list[int]
-    ) -> dict[int, list[OdooPurchaseLine]]:
+    def get_pending_sales(self, odoo_product_ids: list[int]) -> dict[int, list[OdooPurchaseLine]]:
         if not odoo_product_ids:
             return {}
         rows = self._kw(
             "sale.order.line",
             "search_read",
-            [[
-                ["product_id.product_tmpl_id", "in", odoo_product_ids],
-                ["state", "in", ["sale", "done"]],
-            ]],
-            {"fields": [
-                "id", "product_id", "product_uom_qty", "qty_delivered",
-                "price_unit", "currency_id",
-            ]},
+            [
+                [
+                    ["product_id.product_tmpl_id", "in", odoo_product_ids],
+                    ["state", "in", ["sale", "done"]],
+                ]
+            ],
+            {
+                "fields": [
+                    "id",
+                    "product_id",
+                    "product_uom_qty",
+                    "qty_delivered",
+                    "price_unit",
+                    "currency_id",
+                ]
+            },
         )
         variant_lines: dict[int, list[OdooPurchaseLine]] = {}
         for row in rows:
@@ -363,7 +377,7 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
 
     def list_clients(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooClient]:

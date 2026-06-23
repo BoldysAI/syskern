@@ -16,6 +16,7 @@ Requires the attributes app schema (EAV). On a fresh database, run migrate first
 
     docker compose run --rm backend python manage.py migrate
 """
+
 from apps.data_migration.loaders.loader_technique import TechniqueLoader
 
 from ._loader_base import BaseLoaderCommand

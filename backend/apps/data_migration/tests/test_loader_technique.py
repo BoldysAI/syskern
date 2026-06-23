@@ -12,6 +12,7 @@ Structure
 - ``TestTechEAV``              : @pytest.mark.django_db — EAV upsert behaviour
 - ``TestTechDryRun``           : @pytest.mark.django_db — dry_run mode
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -39,59 +40,128 @@ TECH_FIXTURE = FIXTURE_DIR / "technique_sample.xlsx"
 
 # Column order for UKN sheet (matches real file after pandas rename)
 _UKN_HEADERS = [
-    "Range", "Sub-Range", "Type", "AWG", "Internal Code",
-    "Unikkern Items code", "Description En", "OD (mm)", "lab",
-    "CPR level", "CPR updated date", "Report no.", "Cu (kg/km)",
-    "Origin", "Per Product Net Content", "Per Product Net Content (Unit)",
-    "Global Trade Item Number (GTIN)", "Individual Qty",
-    "Individual carton/bag size(mm)", "Qty per inner carton",
-    "Inner carton size(cm)", "Qty per export carton", "Export carton size(mm)",
-    "QTY/Pallet", "Loading Way /Pallet", "Pallet Size cm", None,
-    "Sticker ENG", "Sticker FR", "UID Code", "DoP", "Marking",
+    "Range",
+    "Sub-Range",
+    "Type",
+    "AWG",
+    "Internal Code",
+    "Unikkern Items code",
+    "Description En",
+    "OD (mm)",
+    "lab",
+    "CPR level",
+    "CPR updated date",
+    "Report no.",
+    "Cu (kg/km)",
+    "Origin",
+    "Per Product Net Content",
+    "Per Product Net Content (Unit)",
+    "Global Trade Item Number (GTIN)",
+    "Individual Qty",
+    "Individual carton/bag size(mm)",
+    "Qty per inner carton",
+    "Inner carton size(cm)",
+    "Qty per export carton",
+    "Export carton size(mm)",
+    "QTY/Pallet",
+    "Loading Way /Pallet",
+    "Pallet Size cm",
+    None,
+    "Sticker ENG",
+    "Sticker FR",
+    "UID Code",
+    "DoP",
+    "Marking",
 ]
 
 _NX_HEADERS = [
-    "Range", "Sub-Range", "Type", "AWG", "Unikkern Items code",
-    "Description En", "CPR", "Cu (kg/km)", "Origin",
-    "Per Product Net Content", "Per Product Net Content (Unit)",
-    "Global Trade Item Number (GTIN)", "Individual Qty",
-    "Individual carton/bag size(mm)", "Qty per inner carton",
-    "Inner carton size(cm)", "Qty per export carton", "Export carton size(mm)",
-    "QTY/Pallet", "Loading Way /Pallet", "Pallet Size cm", None,
-    "Sticker ENG", "Sticker FR", "UID Code", "DoP", "Marking",
+    "Range",
+    "Sub-Range",
+    "Type",
+    "AWG",
+    "Unikkern Items code",
+    "Description En",
+    "CPR",
+    "Cu (kg/km)",
+    "Origin",
+    "Per Product Net Content",
+    "Per Product Net Content (Unit)",
+    "Global Trade Item Number (GTIN)",
+    "Individual Qty",
+    "Individual carton/bag size(mm)",
+    "Qty per inner carton",
+    "Inner carton size(cm)",
+    "Qty per export carton",
+    "Export carton size(mm)",
+    "QTY/Pallet",
+    "Loading Way /Pallet",
+    "Pallet Size cm",
+    None,
+    "Sticker ENG",
+    "Sticker FR",
+    "UID Code",
+    "DoP",
+    "Marking",
 ]
 
 _OR_HEADERS = [
-    "Range", "Sub-Range", "Type", "AWG", "Unikkern Items code",
-    "Description En", "CPR", "Origin", "Cu (kg/km)", "Individual Packing",
-    "Per Product Net Content", "Per Product Net Content (Unit)",
-    "Global Trade Item Number (GTIN)", "Individual Qty",
-    "Individual carton/bag size", "Qty per inner carton", "Inner carton size mm",
-    "Qty per export carton", "Export carton size mm",
-    "QTY/Pallet", "Pallet Size cm", None, "Sticker ENG", "Sticker FR", None,
+    "Range",
+    "Sub-Range",
+    "Type",
+    "AWG",
+    "Unikkern Items code",
+    "Description En",
+    "CPR",
+    "Origin",
+    "Cu (kg/km)",
+    "Individual Packing",
+    "Per Product Net Content",
+    "Per Product Net Content (Unit)",
+    "Global Trade Item Number (GTIN)",
+    "Individual Qty",
+    "Individual carton/bag size",
+    "Qty per inner carton",
+    "Inner carton size mm",
+    "Qty per export carton",
+    "Export carton size mm",
+    "QTY/Pallet",
+    "Pallet Size cm",
+    None,
+    "Sticker ENG",
+    "Sticker FR",
+    None,
 ]
 
 
 def _ukn_row(**kwargs: object) -> list:
     """Build a UKN data row with sensible defaults."""
     defaults = {
-        "Range": "SOLID CABLE", "Sub-Range": "SOLID CABLE CAT6", "Type": "U/UTP", "AWG": "23",
+        "Range": "SOLID CABLE",
+        "Sub-Range": "SOLID CABLE CAT6",
+        "Type": "U/UTP",
+        "AWG": "23",
         "Internal Code": "KTEST001-21",
         "Unikkern Items code": "KTEST001",
         "Description En": "CAT6 TEST CABLE 500M",
         "OD (mm)": "5.80 +/- 0.3",
         "lab": "SGS - 9999",
         "CPR level": "Dca-s2, d1, a1",
-        "CPR updated date": None, "Report no.": None,
+        "CPR updated date": None,
+        "Report no.": None,
         "Cu (kg/km)": "16.0",
         "Origin": "China",
         "Per Product Net Content": "62",
         "Per Product Net Content (Unit)": "Kilogram (kg)",
         "Global Trade Item Number (GTIN)": "4897108899999",
-        "Individual Qty": None, "Individual carton/bag size(mm)": None,
-        "Qty per inner carton": None, "Inner carton size(cm)": None,
-        "Qty per export carton": None, "Export carton size(mm)": None,
-        "QTY/Pallet": "12", "Loading Way /Pallet": None, "Pallet Size cm": None,
+        "Individual Qty": None,
+        "Individual carton/bag size(mm)": None,
+        "Qty per inner carton": None,
+        "Inner carton size(cm)": None,
+        "Qty per export carton": None,
+        "Export carton size(mm)": None,
+        "QTY/Pallet": "12",
+        "Loading Way /Pallet": None,
+        "Pallet Size cm": None,
         None: None,
         "Sticker ENG": "CAT6 TEST CABLE 500M ENG",
         "Sticker FR": "CÂBLE CAT6 TEST 500M FR",
@@ -105,8 +175,10 @@ def _ukn_row(**kwargs: object) -> list:
 
 def _nx_row(**kwargs: object) -> list:
     defaults = {
-        "Range": "TELEPHONE CABLE", "Sub-Range": "TELEPHONE CABLE SYT1",
-        "Type": None, "AWG": None,
+        "Range": "TELEPHONE CABLE",
+        "Sub-Range": "TELEPHONE CABLE SYT1",
+        "Type": None,
+        "AWG": None,
         "Unikkern Items code": "NKTEST001",
         "Description En": "NEXKERN TEST CABLE",
         "CPR": None,
@@ -115,10 +187,15 @@ def _nx_row(**kwargs: object) -> list:
         "Per Product Net Content": "19.5",
         "Per Product Net Content (Unit)": "Kilogram (kg) [KGM]",
         "Global Trade Item Number (GTIN)": "4897108811111",
-        "Individual Qty": None, "Individual carton/bag size(mm)": None,
-        "Qty per inner carton": None, "Inner carton size(cm)": None,
-        "Qty per export carton": None, "Export carton size(mm)": None,
-        "QTY/Pallet": None, "Loading Way /Pallet": None, "Pallet Size cm": None,
+        "Individual Qty": None,
+        "Individual carton/bag size(mm)": None,
+        "Qty per inner carton": None,
+        "Inner carton size(cm)": None,
+        "Qty per export carton": None,
+        "Export carton size(mm)": None,
+        "QTY/Pallet": None,
+        "Loading Way /Pallet": None,
+        "Pallet Size cm": None,
         None: None,
         "Sticker ENG": "NEXKERN TEST ENG",
         "Sticker FR": "NEXKERN TEST FR",
@@ -142,35 +219,47 @@ def generate_technique_fixture(path: Path) -> None:
     ws_ukn.append(_ukn_row())
 
     # Scenario 2a: China row of a duplicate SKU (most complete)
-    ws_ukn.append(_ukn_row(**{
-        "Internal Code": "KTEST002-21",
-        "Unikkern Items code": "KTEST002",
-        "GTIN": "4897108888881",
-        "Origin": "China",
-        "UID Code": "UKN-TEST002DLH",
-    }))
+    ws_ukn.append(
+        _ukn_row(
+            **{
+                "Internal Code": "KTEST002-21",
+                "Unikkern Items code": "KTEST002",
+                "GTIN": "4897108888881",
+                "Origin": "China",
+                "UID Code": "UKN-TEST002DLH",
+            }
+        )
+    )
     # Scenario 2b: Turkey row of same SKU (less complete — OD and CPR missing)
-    ws_ukn.append(_ukn_row(**{
-        "Internal Code": "KTEST002-E02",
-        "Unikkern Items code": "KTEST002",
-        "Global Trade Item Number (GTIN)": "4897108888881",
-        "Origin": "Turkey",
-        "OD (mm)": None,
-        "CPR level": None,
-        "UID Code": "#REF!",
-        "Cu (kg/km)": None,
-        "QTY/Pallet": None,
-    }))
+    ws_ukn.append(
+        _ukn_row(
+            **{
+                "Internal Code": "KTEST002-E02",
+                "Unikkern Items code": "KTEST002",
+                "Global Trade Item Number (GTIN)": "4897108888881",
+                "Origin": "Turkey",
+                "OD (mm)": None,
+                "CPR level": None,
+                "UID Code": "#REF!",
+                "Cu (kg/km)": None,
+                "QTY/Pallet": None,
+            }
+        )
+    )
 
     # Scenario 3: no SKU → NO_SKU quarantine
     ws_ukn.append(_ukn_row(**{"Unikkern Items code": None, "Internal Code": None}))
 
     # Scenario 4: SKU not in DB → NO_MATCH quarantine
-    ws_ukn.append(_ukn_row(**{
-        "Internal Code": "UNKNOWNSKUXX-21",
-        "Unikkern Items code": "UNKNOWNSKUXX",
-        "UID Code": "#REF!",
-    }))
+    ws_ukn.append(
+        _ukn_row(
+            **{
+                "Internal Code": "UNKNOWNSKUXX-21",
+                "Unikkern Items code": "UNKNOWNSKUXX",
+                "UID Code": "#REF!",
+            }
+        )
+    )
 
     # ── NEXKERN sheet ─────────────────────────────────────────────────────────
     ws_nx = wb.create_sheet("NEXKERN GTIN code & packing")
@@ -183,12 +272,35 @@ def generate_technique_fixture(path: Path) -> None:
     ws_or = wb.create_sheet("ORSEAN GTIN code & packing")
     ws_or.append(_OR_HEADERS)
     # Minimal row — ORSEAN has no UID/DoP columns
-    ws_or.append([
-        "SOLID CABLE", "TV", "F/FTP", "23", "OEG3TEST5",
-        "ORSEAN TEST CABLE", "Dca", "China", "22", "500m drum",
-        "56", "Kilogram (kg)", "4897108884031",
-        None, None, None, None, None, None, "8", None, None, None, None, None,
-    ])
+    ws_or.append(
+        [
+            "SOLID CABLE",
+            "TV",
+            "F/FTP",
+            "23",
+            "OEG3TEST5",
+            "ORSEAN TEST CABLE",
+            "Dca",
+            "China",
+            "22",
+            "500m drum",
+            "56",
+            "Kilogram (kg)",
+            "4897108884031",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "8",
+            None,
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
 
     wb.save(path)
 
@@ -315,11 +427,24 @@ class TestTechNormalizeRow:
 
 class TestTechDedup:
     def _norm(self, sku: str, brand: str) -> object:
-        raw = pd.Series({"sku_code": sku, "__brand__": brand, "cu_kg_km": "1", "net_content": "1",
-                         "net_unit": "Kilogram (kg)", "gtin": None, "pallet_qty": None,
-                         "uid_code": None, "dop_number": None, "sticker_en": None,
-                         "sticker_fr": None, "cpr_level": None, "od_mm": None,
-                         "internal_code": None})
+        raw = pd.Series(
+            {
+                "sku_code": sku,
+                "__brand__": brand,
+                "cu_kg_km": "1",
+                "net_content": "1",
+                "net_unit": "Kilogram (kg)",
+                "gtin": None,
+                "pallet_qty": None,
+                "uid_code": None,
+                "dop_number": None,
+                "sticker_en": None,
+                "sticker_fr": None,
+                "cpr_level": None,
+                "od_mm": None,
+                "internal_code": None,
+            }
+        )
         return TechniqueLoader().normalize_row(raw)
 
     def test_ukn_brand_returns_sku(self) -> None:
@@ -340,14 +465,24 @@ class TestTechDedup:
 
 class TestTechMatchHint:
     def _hint(self, sku: str, internal: str | None = None) -> object:
-        raw = pd.Series({
-            "sku_code": sku, "__brand__": "ukn",
-            "internal_code": internal,
-            "cu_kg_km": "1", "net_content": "1",
-            "net_unit": "Kilogram (kg)", "gtin": None, "pallet_qty": None,
-            "uid_code": None, "dop_number": None, "sticker_en": None,
-            "sticker_fr": None, "cpr_level": None, "od_mm": None,
-        })
+        raw = pd.Series(
+            {
+                "sku_code": sku,
+                "__brand__": "ukn",
+                "internal_code": internal,
+                "cu_kg_km": "1",
+                "net_content": "1",
+                "net_unit": "Kilogram (kg)",
+                "gtin": None,
+                "pallet_qty": None,
+                "uid_code": None,
+                "dop_number": None,
+                "sticker_en": None,
+                "sticker_fr": None,
+                "cpr_level": None,
+                "od_mm": None,
+            }
+        )
         loader = TechniqueLoader()
         norm = loader.normalize_row(raw)
         return loader.build_match_hint(norm)

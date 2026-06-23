@@ -4,6 +4,7 @@ Cf. CDC §8.7.  The frontend exposes the quarantine but cannot auto-reinject
 rows — Olivier resolves each row manually (mark resolved / create the
 product / ignore).
 """
+
 from __future__ import annotations
 
 from django.db import models

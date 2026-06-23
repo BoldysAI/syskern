@@ -9,6 +9,7 @@ tests/fixtures/po_sample.xlsx at the start of the test session.
 DB: @pytest.mark.django_db(transaction=True) — savepoints require real
 transactions, not wrapping in a test transaction.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -36,62 +37,167 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 PO_HEADERS = [
     "Unikkern Items code",  # 0
-    "Internal Code",        # 1
-    "Brand",                # 2
-    "Active France Y/N",    # 3
-    "Active Export Y/N",    # 4
-    "Univers",              # 5
-    "Range",                # 6
-    "Sub-Range",            # 7
-    "Type",                 # 8
-    "AWG/SIZE",             # 9
-    "item code",            # 10
-    "Description En",       # 11
-    "Description fr",       # 12
-    "Tag",                  # 13
-    "Origin",               # 14
-    "Cu (kg/km)",           # 15
-    "QTY/Pallet",           # 16
+    "Internal Code",  # 1
+    "Brand",  # 2
+    "Active France Y/N",  # 3
+    "Active Export Y/N",  # 4
+    "Univers",  # 5
+    "Range",  # 6
+    "Sub-Range",  # 7
+    "Type",  # 8
+    "AWG/SIZE",  # 9
+    "item code",  # 10
+    "Description En",  # 11
+    "Description fr",  # 12
+    "Tag",  # 13
+    "Origin",  # 14
+    "Cu (kg/km)",  # 15
+    "QTY/Pallet",  # 16
     "Global Trade Item Number (GTIN)",  # 17
-    "HS Code",              # 18
-    "MOQ ",                 # 19
-    "Supplier Payment term",# 20
+    "HS Code",  # 18
+    "MOQ ",  # 19
+    "Supplier Payment term",  # 20
     "Distributor SC FOB Price (Usd/km)",  # 21
-    "MB% FOB Symea",        # 22
-    "Supplier",             # 23
+    "MB% FOB Symea",  # 22
+    "Supplier",  # 23
 ]
 
 PO_ROWS = [
     # Row 1: active France, copper-indexed, valid GTIN → match + full enrichment
-    ("KCFU64PZHDGR5", "KCFU64PZHDGR5-21", "UKN", "Yes", "Yes",
-     "COPPER", "DATA CABLES", "SOLID CABLE CAT6", "F/UTP", "23",
-     "U0102001", "CAT6 Cable F/UTP grey 500m", "CÂBLE CAT6 F/UTP gris 500m",
-     "Dca", "China", "17.5", "9", "4897108881749", "854449 2000",
-     "30 km", "T/T 60 days", "448.92", "0.09", "HT"),
+    (
+        "KCFU64PZHDGR5",
+        "KCFU64PZHDGR5-21",
+        "UKN",
+        "Yes",
+        "Yes",
+        "COPPER",
+        "DATA CABLES",
+        "SOLID CABLE CAT6",
+        "F/UTP",
+        "23",
+        "U0102001",
+        "CAT6 Cable F/UTP grey 500m",
+        "CÂBLE CAT6 F/UTP gris 500m",
+        "Dca",
+        "China",
+        "17.5",
+        "9",
+        "4897108881749",
+        "854449 2000",
+        "30 km",
+        "T/T 60 days",
+        "448.92",
+        "0.09",
+        "HT",
+    ),
     # Row 2: same SKU, different factory (Turkey KK) → second ProductSupplier
-    ("KCFU64PZHDGR5", "KCFU64PZHDGR5-E02", "UKN", "No", "Yes",
-     "COPPER", "DATA CABLES", "SOLID CABLE CAT6", "F/UTP", "23",
-     "", "CAT6 Cable F/UTP grey 500m TK", "",
-     "Dca", "Turkey", "17.5", "9", "4897108881749", "854449 2000",
-     "30 km", "T/T 30 days", "410.00", "0.07", "KK"),
+    (
+        "KCFU64PZHDGR5",
+        "KCFU64PZHDGR5-E02",
+        "UKN",
+        "No",
+        "Yes",
+        "COPPER",
+        "DATA CABLES",
+        "SOLID CABLE CAT6",
+        "F/UTP",
+        "23",
+        "",
+        "CAT6 Cable F/UTP grey 500m TK",
+        "",
+        "Dca",
+        "Turkey",
+        "17.5",
+        "9",
+        "4897108881749",
+        "854449 2000",
+        "30 km",
+        "T/T 30 days",
+        "410.00",
+        "0.07",
+        "KK",
+    ),
     # Row 3: no SKU, no identifiers → NO_SKU quarantine
-    ("", "", "", "", "",
-     "", "", "", "", "",
-     "", "", "",
-     "", "", "", "", "#N/A", "",
-     "", "", "0", "0.09", ""),
+    (
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "#N/A",
+        "",
+        "",
+        "",
+        "0",
+        "0.09",
+        "",
+    ),
     # Row 4: SKU present but no match in DB → NO_MATCH quarantine
-    ("UNKNOWNSKU99", "UNKNOWNSKU99-21", "UKN", "No", "No",
-     "COPPER", "DATA CABLES", "SOLID CABLE CAT6", "U/UTP", "24",
-     "", "Unknown cable", "",
-     "Dca", "China", "15.0", "12", "#N/A", "854449 2000",
-     "30 km", "T/T 60 days", "300.00", "0.09", "HT"),
+    (
+        "UNKNOWNSKU99",
+        "UNKNOWNSKU99-21",
+        "UKN",
+        "No",
+        "No",
+        "COPPER",
+        "DATA CABLES",
+        "SOLID CABLE CAT6",
+        "U/UTP",
+        "24",
+        "",
+        "Unknown cable",
+        "",
+        "Dca",
+        "China",
+        "15.0",
+        "12",
+        "#N/A",
+        "854449 2000",
+        "30 km",
+        "T/T 60 days",
+        "300.00",
+        "0.09",
+        "HT",
+    ),
     # Row 5: valid SKU, fob_price missing → MISSING_REQUIRED_FIELD quarantine
-    ("KCUF6A4PZHDBL5", "KCUF6A4PZHDBL5-21", "UKN", "Yes", "No",
-     "COPPER", "DATA CABLES", "SOLID CABLE CAT6A", "U/FTP", "23",
-     "", "CAT6A cable", "",
-     "Dca", "China", "20.0", "9", "4897108882319", "854449 2000",
-     "30 km", "T/T 60 days", "", "0.09", "HT"),
+    (
+        "KCUF6A4PZHDBL5",
+        "KCUF6A4PZHDBL5-21",
+        "UKN",
+        "Yes",
+        "No",
+        "COPPER",
+        "DATA CABLES",
+        "SOLID CABLE CAT6A",
+        "U/FTP",
+        "23",
+        "",
+        "CAT6A cable",
+        "",
+        "Dca",
+        "China",
+        "20.0",
+        "9",
+        "4897108882319",
+        "854449 2000",
+        "30 km",
+        "T/T 60 days",
+        "",
+        "0.09",
+        "HT",
+    ),
 ]
 
 
@@ -103,12 +209,12 @@ def generate_po_fixture(path: Path) -> None:
 
     # Metadata rows (rows 1-2) — copper base in col E (index 4)
     meta = [None] * len(PO_HEADERS)
-    ws.append(meta)                             # row 1: blank
+    ws.append(meta)  # row 1: blank
     meta2 = [None] * len(PO_HEADERS)
     meta2[4] = "3mm copper base"
     meta2[5] = 97000.0
-    ws.append(meta2)                            # row 2: copper base
-    ws.append([None] * len(PO_HEADERS))         # rows 3-12: blank spacers
+    ws.append(meta2)  # row 2: copper base
+    ws.append([None] * len(PO_HEADERS))  # rows 3-12: blank spacers
     ws.append([None] * len(PO_HEADERS))
     ws.append([None] * len(PO_HEADERS))
     ws.append([None] * len(PO_HEADERS))
@@ -119,9 +225,9 @@ def generate_po_fixture(path: Path) -> None:
     ws.append([None] * len(PO_HEADERS))
     ws.append([None] * len(PO_HEADERS))
 
-    ws.append(PO_HEADERS)                       # row 13: header
+    ws.append(PO_HEADERS)  # row 13: header
     for row in PO_ROWS:
-        ws.append(list(row))                    # rows 14-18: data
+        ws.append(list(row))  # rows 14-18: data
 
     # Supplier code list sheet
     ws2 = wb.create_sheet("Supplier code list")
@@ -424,10 +530,16 @@ class TestPOStorageFactoryKey:
     """Regression: missing Internal Code suffix must not collapse suppliers on ``factory_code=""``."""
 
     def test_uses_real_suffix_when_present(self) -> None:
-        assert POFournisseursLoader._storage_factory_key({"factory_code": "21", "supplier_code": "HT"}) == "21"
+        assert (
+            POFournisseursLoader._storage_factory_key({"factory_code": "21", "supplier_code": "HT"})
+            == "21"
+        )
 
     def test_synthetic_prefix_when_suffix_missing(self) -> None:
-        assert POFournisseursLoader._storage_factory_key({"factory_code": None, "supplier_code": "HT"}) == "?HT"
+        assert (
+            POFournisseursLoader._storage_factory_key({"factory_code": None, "supplier_code": "HT"})
+            == "?HT"
+        )
 
     def test_raises_when_suffix_and_supplier_missing(self) -> None:
         with pytest.raises(InvalidRowError):
@@ -454,10 +566,19 @@ class TestPOMissingFactorySuffixSuppliers:
         loader.apply_update(
             p,
             NormalizedRow(
-                data={**base, "supplier_code": "ZD", "fob_price_usd": Decimal("200"), "origin": "Turkey"},
+                data={
+                    **base,
+                    "supplier_code": "ZD",
+                    "fob_price_usd": Decimal("200"),
+                    "origin": "Turkey",
+                },
                 raw={},
             ),
         )
         assert ProductSupplier.objects.filter(product=p).count() == 2
-        assert ProductSupplier.objects.get(product=p, factory_code="?HT").po_base_price == Decimal("100")
-        assert ProductSupplier.objects.get(product=p, factory_code="?ZD").po_base_price == Decimal("200")
+        assert ProductSupplier.objects.get(product=p, factory_code="?HT").po_base_price == Decimal(
+            "100"
+        )
+        assert ProductSupplier.objects.get(product=p, factory_code="?ZD").po_base_price == Decimal(
+            "200"
+        )

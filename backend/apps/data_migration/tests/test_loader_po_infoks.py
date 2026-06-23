@@ -3,6 +3,7 @@
 DB integration tests (ProductSupplier upsert) require Docker Postgres and
 follow the same pattern as test_loader_po_fournisseurs.py.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -49,13 +50,13 @@ class TestINFOKSNormalizeRow:
             "hs_code": 854470000000,
             "payment_term": "INVOICE+60 DAYS",
             # Duplicate-named columns from the Excel header
-            "Ex Works Istanbul EUR/KM": 210.0,    # col 10 (2025)
-            "Ex Works Istanbul EUR/KM.1": None,   # col 12
-            "Ex Works Istanbul EUR/KM.2": None,   # col 13
+            "Ex Works Istanbul EUR/KM": 210.0,  # col 10 (2025)
+            "Ex Works Istanbul EUR/KM.1": None,  # col 12
+            "Ex Works Istanbul EUR/KM.2": None,  # col 13
             "Ex Works Istanbul EUR/KM.3": 230.0,  # col 14 (2026 DRAKA)
-            "Ex Works Istanbul EUR/KM.4": 238.59, # col 16 (2026 FINAL SYMEA) ← primary
-            "Ex Works Istanbul EUR/KM.5": None,   # col 20
-            "DDP Reau EUR/KM": 262.45,            # col 21
+            "Ex Works Istanbul EUR/KM.4": 238.59,  # col 16 (2026 FINAL SYMEA) ← primary
+            "Ex Works Istanbul EUR/KM.5": None,  # col 20
+            "DDP Reau EUR/KM": 262.45,  # col 21
             "FOB Istanbul EUR/KM": None,
         }
         defaults.update(kwargs)
@@ -82,9 +83,11 @@ class TestINFOKSNormalizeRow:
         assert row.data["exw_price"] == Decimal("0")
 
     def test_exw_price_none_when_all_missing(self) -> None:
-        row = INFOKSLoader().normalize_row(self._make_raw(
-            **{"Ex Works Istanbul EUR/KM.4": None, "Ex Works Istanbul EUR/KM.3": None}
-        ))
+        row = INFOKSLoader().normalize_row(
+            self._make_raw(
+                **{"Ex Works Istanbul EUR/KM.4": None, "Ex Works Istanbul EUR/KM.3": None}
+            )
+        )
         assert row.data["exw_price"] is None
 
     def test_hs_code_normalised(self) -> None:
@@ -119,26 +122,28 @@ class TestINFOKSNormalizeRow:
 
 class TestINFOKSMatchHint:
     def _make_row(self) -> pd.Series:
-        return pd.Series({
-            "sku_code": "KFO4OM3CTA",
-            "sub_range": "OM3",
-            "cable_type": "CENTRAL TUBE",
-            "description_en": "4FO OM3",
-            "cpr_tag": "Fca",
-            "individual_packing": "2000m drum",
-            "moq_km": 4000,
-            "hs_code": 854470000000,
-            "payment_term": "INVOICE+60 DAYS",
-            "infoks_range_code": "A-DQ",
-            "Ex Works Istanbul EUR/KM": None,
-            "Ex Works Istanbul EUR/KM.1": None,
-            "Ex Works Istanbul EUR/KM.2": None,
-            "Ex Works Istanbul EUR/KM.3": None,
-            "Ex Works Istanbul EUR/KM.4": 280.0,
-            "Ex Works Istanbul EUR/KM.5": None,
-            "DDP Reau EUR/KM": 310.0,
-            "FOB Istanbul EUR/KM": None,
-        })
+        return pd.Series(
+            {
+                "sku_code": "KFO4OM3CTA",
+                "sub_range": "OM3",
+                "cable_type": "CENTRAL TUBE",
+                "description_en": "4FO OM3",
+                "cpr_tag": "Fca",
+                "individual_packing": "2000m drum",
+                "moq_km": 4000,
+                "hs_code": 854470000000,
+                "payment_term": "INVOICE+60 DAYS",
+                "infoks_range_code": "A-DQ",
+                "Ex Works Istanbul EUR/KM": None,
+                "Ex Works Istanbul EUR/KM.1": None,
+                "Ex Works Istanbul EUR/KM.2": None,
+                "Ex Works Istanbul EUR/KM.3": None,
+                "Ex Works Istanbul EUR/KM.4": 280.0,
+                "Ex Works Istanbul EUR/KM.5": None,
+                "DDP Reau EUR/KM": 310.0,
+                "FOB Istanbul EUR/KM": None,
+            }
+        )
 
     def test_sku_in_hint(self) -> None:
         loader = INFOKSLoader()

@@ -4,8 +4,8 @@ day at 03:00 UTC (CDC §5.4.2 — daily nightly sync).
 Uses django_celery_beat's database scheduler so the schedule is editable
 from the Django admin without a code change.
 """
-from django.db import migrations
 
+from django.db import migrations
 
 SCHEDULE_NAME = "Daily Odoo full sync (03:00 UTC)"
 TASK_NAME = "odoo_sync.sync_task"
@@ -42,7 +42,6 @@ def remove_schedule(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("odoo_sync", "0001_initial"),
         ("django_celery_beat", "0019_alter_periodictasks_options"),

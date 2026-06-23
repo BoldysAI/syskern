@@ -13,6 +13,7 @@ The fixture covers all five branches of the matcher and base-loader pipeline:
 The test suite creates the matching DB products via factory-boy; this script
 only produces the file — no DB access required.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,15 +35,51 @@ HEADERS = [
 
 ROWS = [
     # 1: exact SKU match
-    ("KCFU64PZHDGR5", "", "21", "COPPER|DATA CABLES|SOLID CABLE CAT6|", "CAT6 Cable grey 500m", "4897108881749", "17.5", "9"),
+    (
+        "KCFU64PZHDGR5",
+        "",
+        "21",
+        "COPPER|DATA CABLES|SOLID CABLE CAT6|",
+        "CAT6 Cable grey 500m",
+        "4897108881749",
+        "17.5",
+        "9",
+    ),
     # 2: parent_reference + factory_code match (no full SKU)
-    ("", "KCFU64PZHDGR5", "21", "COPPER|DATA CABLES|SOLID CABLE CAT6|", "CAT6 Cable grey 500m v2", "", "", ""),
+    (
+        "",
+        "KCFU64PZHDGR5",
+        "21",
+        "COPPER|DATA CABLES|SOLID CABLE CAT6|",
+        "CAT6 Cable grey 500m v2",
+        "",
+        "",
+        "",
+    ),
     # 3: factory_code + category only (last-resort)
-    ("", "", "91", "COPPER|DATA CABLES|SOLID CABLE CAT6|F/UTP", "Orsean cable white 500m", "", "", "9"),
+    (
+        "",
+        "",
+        "91",
+        "COPPER|DATA CABLES|SOLID CABLE CAT6|F/UTP",
+        "Orsean cable white 500m",
+        "",
+        "",
+        "9",
+    ),
     # 4: no identifier at all → NO_SKU
     ("", "", "", "", "Mystery product with no code", "", "", ""),
     # 5: ambiguous factory+category → DUPLICATE_MATCH
-    ("", "", "E02", "COPPER|DATA CABLES|SOLID CABLE CAT6|AMBIGUOUS", "Ambiguous Turkish cable", "", "17.0", ""),
+    (
+        "",
+        "",
+        "E02",
+        "COPPER|DATA CABLES|SOLID CABLE CAT6|AMBIGUOUS",
+        "Ambiguous Turkish cable",
+        "",
+        "17.0",
+        "",
+    ),
 ]
 
 

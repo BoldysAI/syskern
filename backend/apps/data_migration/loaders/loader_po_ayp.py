@@ -36,6 +36,7 @@ is left unset unless you add metadata parsing later.
 ``ProductSupplier.is_active`` is never forced to ``True`` (same policy as the other
 PO loaders).
 """
+
 from __future__ import annotations
 
 import logging

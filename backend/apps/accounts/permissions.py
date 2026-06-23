@@ -1,4 +1,5 @@
 """Role-based DRF permissions."""
+
 from __future__ import annotations
 
 from rest_framework.permissions import BasePermission
@@ -18,6 +19,7 @@ def _get_role(request) -> str | None:
 
 class IsAdmin(BasePermission):
     """Only admins."""
+
     message = "Accès réservé aux administrateurs."
 
     def has_permission(self, request, view) -> bool:
@@ -26,6 +28,7 @@ class IsAdmin(BasePermission):
 
 class IsCommercialOrAbove(BasePermission):
     """Admins and commercials (not viewers)."""
+
     message = "Accès réservé aux commerciaux et administrateurs."
 
     def has_permission(self, request, view) -> bool:
@@ -34,6 +37,7 @@ class IsCommercialOrAbove(BasePermission):
 
 class IsAnyRole(BasePermission):
     """Any authenticated user with a profile (admin / commercial / viewer)."""
+
     message = "Authentification requise."
 
     def has_permission(self, request, view) -> bool:

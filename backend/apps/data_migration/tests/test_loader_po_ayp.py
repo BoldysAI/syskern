@@ -1,4 +1,5 @@
 """Unit tests for AYP PO loader helpers and normalisation (no DB)."""
+
 from __future__ import annotations
 
 from decimal import Decimal

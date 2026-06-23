@@ -11,6 +11,7 @@ Usage:
     docker compose run --rm backend python manage.py odoo_explore --action categories
     docker compose run --rm backend python manage.py odoo_explore --action full-report
 """
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,6 @@ from typing import Any
 
 import httpx
 from django.core.management.base import BaseCommand
-
 
 # ─── Read-only JSON-RPC client ────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ class OdooConn:
     verify_tls: bool = True
 
     @classmethod
-    def from_env(cls, label: str) -> "OdooConn":
+    def from_env(cls, label: str) -> OdooConn:
         prefix = f"ODOO_{label.upper()}"
         verify = os.environ.get(f"{prefix}_VERIFY_TLS", "true").lower() != "false"
         return cls(
@@ -63,7 +63,9 @@ class OdooConn:
             body = r.json()
             if body.get("error"):
                 err = body["error"]
-                raise RuntimeError(f"Odoo {self.label} error: {err.get('data', {}).get('message') or err}")
+                raise RuntimeError(
+                    f"Odoo {self.label} error: {err.get('data', {}).get('message') or err}"
+                )
             return body.get("result")
 
     # ─── Auth ────────────────────────────────────────────────────────
@@ -82,8 +84,14 @@ class OdooConn:
         # Hard guard: this command must never write.  Allow only the
         # documented read methods.
         ALLOWED = {
-            "fields_get", "search", "search_read", "search_count", "read",
-            "name_get", "name_search", "default_get",
+            "fields_get",
+            "search",
+            "search_read",
+            "search_count",
+            "read",
+            "name_get",
+            "name_search",
+            "default_get",
         }
         if method not in ALLOWED:
             raise PermissionError(
@@ -92,7 +100,8 @@ class OdooConn:
         if self.uid is None:
             self.authenticate()
         return self._call(
-            "object", "execute_kw",
+            "object",
+            "execute_kw",
             [self.db, self.uid, self.api_key, model, method, args, kwargs or {}],
         )
 
@@ -134,8 +143,20 @@ def action_fields(conns: list[OdooConn], *, model: str, **kwargs) -> dict:
         c.authenticate()
         try:
             fields = c.execute_kw(
-                model, "fields_get", [],
-                {"attributes": ["string", "type", "required", "readonly", "relation", "selection", "store"]},
+                model,
+                "fields_get",
+                [],
+                {
+                    "attributes": [
+                        "string",
+                        "type",
+                        "required",
+                        "readonly",
+                        "relation",
+                        "selection",
+                        "store",
+                    ]
+                },
             )
             standard = {k: v for k, v in fields.items() if not _is_custom_field(k)}
             custom = {k: v for k, v in fields.items() if _is_custom_field(k)}
@@ -151,13 +172,17 @@ def action_fields(conns: list[OdooConn], *, model: str, **kwargs) -> dict:
     return out
 
 
-def action_sample(conns: list[OdooConn], *, model: str, limit: int = 5, fields: list | None = None, **kwargs) -> dict:
+def action_sample(
+    conns: list[OdooConn], *, model: str, limit: int = 5, fields: list | None = None, **kwargs
+) -> dict:
     """Read a handful of records to inspect actual data shape."""
     out = {}
     for c in conns:
         c.authenticate()
         try:
-            records = c.execute_kw(model, "search_read", [[]], {"limit": limit, "fields": fields or []})
+            records = c.execute_kw(
+                model, "search_read", [[]], {"limit": limit, "fields": fields or []}
+            )
             out[c.label] = {
                 "model": model,
                 "count_returned": len(records),
@@ -188,8 +213,13 @@ def action_categories(conns: list[OdooConn], **kwargs) -> dict:
         c.authenticate()
         try:
             cats = c.execute_kw(
-                "product.category", "search_read", [[]],
-                {"fields": ["id", "name", "parent_id", "complete_name", "parent_path"], "limit": 200},
+                "product.category",
+                "search_read",
+                [[]],
+                {
+                    "fields": ["id", "name", "parent_id", "complete_name", "parent_path"],
+                    "limit": 200,
+                },
             )
             out[c.label] = {
                 "count": len(cats),
@@ -211,10 +241,16 @@ def action_full_report(conns: list[OdooConn], **kwargs) -> dict:
 
     report["counts"] = {}
     for model in [
-        "product.template", "product.product", "product.supplierinfo",
-        "product.category", "stock.quant", "res.partner",
-        "purchase.order", "purchase.order.line",
-        "sale.order", "sale.order.line",
+        "product.template",
+        "product.product",
+        "product.supplierinfo",
+        "product.category",
+        "stock.quant",
+        "res.partner",
+        "purchase.order",
+        "purchase.order.line",
+        "sale.order",
+        "sale.order.line",
     ]:
         report["counts"][model] = action_count(live, model=model)
 
@@ -224,25 +260,64 @@ def action_full_report(conns: list[OdooConn], **kwargs) -> dict:
 
     report["samples"] = {}
     report["samples"]["product.template"] = action_sample(
-        live, model="product.template", limit=3,
+        live,
+        model="product.template",
+        limit=3,
         fields=[
-            "id", "name", "default_code", "categ_id", "barcode", "weight",
-            "standard_price", "list_price", "description", "description_sale",
-            "active", "type", "uom_id", "seller_ids",
+            "id",
+            "name",
+            "default_code",
+            "categ_id",
+            "barcode",
+            "weight",
+            "standard_price",
+            "list_price",
+            "description",
+            "description_sale",
+            "active",
+            "type",
+            "uom_id",
+            "seller_ids",
         ],
     )
     report["samples"]["product.product"] = action_sample(
-        live, model="product.product", limit=3,
+        live,
+        model="product.product",
+        limit=3,
         fields=["id", "name", "default_code", "product_tmpl_id", "barcode", "qty_available"],
     )
     report["samples"]["product.supplierinfo"] = action_sample(
-        live, model="product.supplierinfo", limit=3,
-        fields=["id", "partner_id", "product_tmpl_id", "product_code", "price", "currency_id", "min_qty", "delay"],
+        live,
+        model="product.supplierinfo",
+        limit=3,
+        fields=[
+            "id",
+            "partner_id",
+            "product_tmpl_id",
+            "product_code",
+            "price",
+            "currency_id",
+            "min_qty",
+            "delay",
+        ],
     )
     report["samples"]["res.partner"] = action_sample(
-        live, model="res.partner", limit=3,
-        fields=["id", "name", "email", "phone", "street", "city", "zip", "country_id", "lang",
-                "customer_rank", "supplier_rank"],
+        live,
+        model="res.partner",
+        limit=3,
+        fields=[
+            "id",
+            "name",
+            "email",
+            "phone",
+            "street",
+            "city",
+            "zip",
+            "country_id",
+            "lang",
+            "customer_rank",
+            "supplier_rank",
+        ],
     )
     report["categories"] = action_categories(live)
     return report
@@ -267,7 +342,9 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=5)
         parser.add_argument("--fields", nargs="*", default=None)
         parser.add_argument(
-            "--only", choices=["v16", "v19"], default=None,
+            "--only",
+            choices=["v16", "v19"],
+            default=None,
             help="Restrict to a single instance.",
         )
 

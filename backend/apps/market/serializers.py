@@ -26,13 +26,14 @@ class MarketParameterSerializer(serializers.ModelSerializer):
         elif ptype == MarketParameterType.FX_RATE:
             if not attrs.get("fx_rate") and not getattr(self.instance, "fx_rate", None):
                 raise serializers.ValidationError({"fx_rate": "Required for fx_rate."})
-            if not attrs.get("fx_from_currency") or not attrs.get("fx_to_currency"):
-                # allow partial update if both are already on instance
-                if not (
-                    getattr(self.instance, "fx_from_currency", "")
-                    and getattr(self.instance, "fx_to_currency", "")
-                ):
-                    raise serializers.ValidationError(
-                        "fx_from_currency / fx_to_currency required for fx_rate."
-                    )
+            # allow partial update if both currencies are already on instance
+            missing_payload = not attrs.get("fx_from_currency") or not attrs.get("fx_to_currency")
+            missing_instance = not (
+                getattr(self.instance, "fx_from_currency", "")
+                and getattr(self.instance, "fx_to_currency", "")
+            )
+            if missing_payload and missing_instance:
+                raise serializers.ValidationError(
+                    "fx_from_currency / fx_to_currency required for fx_rate."
+                )
         return attrs

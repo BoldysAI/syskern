@@ -20,6 +20,7 @@ Usage (once implemented by a concrete command):
 The guard-rail MIGRATION_LOCKED=true (CDC §8.9) is enforced here so that every
 loader respects it without each command having to implement it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,7 +47,7 @@ class BaseLoaderCommand(BaseCommand):
 
     loader_class: type[BaseExcelLoader]
     default_sheet: str | int | None = None  # None → first sheet
-    default_header_row: int = 0             # 0-based
+    default_header_row: int = 0  # 0-based
 
     # ── Argument parsing ──────────────────────────────────────────────────────
 
@@ -61,10 +62,7 @@ class BaseLoaderCommand(BaseCommand):
             "--sheet",
             default=None,
             metavar="SHEET",
-            help=(
-                "Sheet name or 0-based index to load.  "
-                f"Defaults to {self.default_sheet!r}."
-            ),
+            help=(f"Sheet name or 0-based index to load.  Defaults to {self.default_sheet!r}."),
         )
         parser.add_argument(
             "--header-row",
@@ -132,7 +130,7 @@ class BaseLoaderCommand(BaseCommand):
                 self.style.WARNING(
                     f"\n{report.rows_quarantined} row(s) sent to quarantine "
                     f"(migration_unmatched).  Review in the admin or via:\n"
-                    f"  python manage.py shell -c \""
+                    f'  python manage.py shell -c "'
                     f"from apps.data_migration.models import MigrationUnmatched; "
                     f"print(MigrationUnmatched.objects.filter("
                     f"source_file='{report.source_file}').count())\""

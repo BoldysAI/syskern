@@ -13,4 +13,5 @@ urlpatterns = [
     path("", include(router.urls)),
     path("offers/dashboard", views.OfferDashboardView.as_view(), name="dashboard"),
     path("offers/expiring-soon", views.OffersExpiringSoonView.as_view(), name="expiring-soon"),
+    path("offers/alert-settings", views.OfferAlertSettingsView.as_view(), name="alert-settings"),
 ]

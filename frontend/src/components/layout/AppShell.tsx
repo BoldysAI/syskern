@@ -13,6 +13,8 @@ import {
   Users,
   PanelLeftClose,
   PanelLeftOpen,
+  FileWarning,
+  Library,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -25,10 +27,24 @@ const NAV_ITEMS = [
   { label: "Catalogue", href: "/catalog", icon: LayoutGrid },
   { label: "Simulations", href: "/simulator", icon: Calculator },
   { label: "Offres", href: "/offers", icon: FileText },
+  { label: "Bibliothèque", href: "/library", icon: Library },
 ] as const;
 
-const SETTINGS_ITEM = { label: "Paramètres", href: "/settings", icon: Settings } as const;
-const USERS_ITEM = { label: "Utilisateurs", href: "/admin/users", icon: Users } as const;
+const SETTINGS_ITEM = {
+  label: "Paramètres",
+  href: "/settings",
+  icon: Settings,
+} as const;
+const USERS_ITEM = {
+  label: "Utilisateurs",
+  href: "/admin/users",
+  icon: Users,
+} as const;
+const QUARANTINE_ITEM = {
+  label: "Quarantaine migration",
+  href: "/admin/migration-quarantine",
+  icon: FileWarning,
+} as const;
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -131,14 +147,24 @@ function Sidebar({
         />
 
         {role === "admin" && (
-          <NavItem
-            href={USERS_ITEM.href}
-            icon={USERS_ITEM.icon}
-            label={USERS_ITEM.label}
-            active={pathname.startsWith(USERS_ITEM.href)}
-            collapsed={collapsed}
-            onClick={onClose}
-          />
+          <>
+            <NavItem
+              href={USERS_ITEM.href}
+              icon={USERS_ITEM.icon}
+              label={USERS_ITEM.label}
+              active={pathname.startsWith(USERS_ITEM.href)}
+              collapsed={collapsed}
+              onClick={onClose}
+            />
+            <NavItem
+              href={QUARANTINE_ITEM.href}
+              icon={QUARANTINE_ITEM.icon}
+              label={QUARANTINE_ITEM.label}
+              active={pathname.startsWith(QUARANTINE_ITEM.href)}
+              collapsed={collapsed}
+              onClick={onClose}
+            />
+          </>
         )}
       </nav>
 
@@ -223,7 +249,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 md:hidden transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <Sidebar pathname={pathname} onClose={() => setMobileOpen(false)} />

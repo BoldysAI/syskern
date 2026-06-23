@@ -1,4 +1,5 @@
 """Celery tasks for Odoo synchronisation."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,7 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
-from .adapters.factory import get_odoo_adapter, get_odoo_adapter_for
+from .adapters.factory import get_odoo_adapter_for
 from .models import SyncScope, SyncType
 from .schemas import OdooProduct
 from .serializers import SyncLogSerializer
@@ -53,8 +54,14 @@ def _product_to_odoo_dto(product) -> OdooProduct:
     )
 
 
-@shared_task(name="odoo_sync.push_product_task", bind=True, autoretry_for=(Exception,),
-             retry_backoff=True, retry_backoff_max=60, max_retries=3)
+@shared_task(
+    name="odoo_sync.push_product_task",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=60,
+    max_retries=3,
+)
 def push_product_task(self, product_pk: str, api_version: str = "v19") -> dict:
     """Push a platform Product to Odoo (CDC §5.3, §5.4.3 — on-demand).
 
@@ -70,8 +77,8 @@ def push_product_task(self, product_pk: str, api_version: str = "v19") -> dict:
 
     try:
         product = Product.objects.get(pk=product_pk)
-    except Product.DoesNotExist:
-        raise ValueError(f"Product pk={product_pk} not found")
+    except Product.DoesNotExist as exc:
+        raise ValueError(f"Product pk={product_pk} not found") from exc
 
     if api_version not in ("v16", "v19"):
         raise ValueError(f"Invalid api_version={api_version!r} (expected v16 or v19)")
@@ -98,20 +105,30 @@ def push_product_task(self, product_pk: str, api_version: str = "v19") -> dict:
         product.save(update_fields=["odoo_sync_status", "odoo_sync_error", "updated_at"])
         logger.warning(
             "push_product_task failed sku=%s api=%s err=%s",
-            product.sku_code, api_version, exc,
+            product.sku_code,
+            api_version,
+            exc,
         )
         raise  # bubbles up → Celery autoretry kicks in
 
     product.odoo_sync_status = "synced"
     product.odoo_sync_error = ""
     product.odoo_last_sync_at = timezone.now()
-    product.save(update_fields=[
-        id_field, "odoo_sync_status", "odoo_sync_error",
-        "odoo_last_sync_at", "updated_at",
-    ])
+    product.save(
+        update_fields=[
+            id_field,
+            "odoo_sync_status",
+            "odoo_sync_error",
+            "odoo_last_sync_at",
+            "updated_at",
+        ]
+    )
     logger.info(
         "push_product_task %s sku=%s api=%s odoo_id=%s",
-        action, product.sku_code, api_version, odoo_id,
+        action,
+        product.sku_code,
+        api_version,
+        odoo_id,
     )
     return {"action": action, "api_version": api_version, "odoo_id": odoo_id}
 

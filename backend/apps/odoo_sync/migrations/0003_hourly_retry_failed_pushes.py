@@ -3,8 +3,8 @@ for products stuck in pending or failed sync (CDC §5.4.3 + §5.5).
 
 Idempotent: relies on django-celery-beat update_or_create.
 """
-from django.db import migrations
 
+from django.db import migrations
 
 SCHEDULE_NAME = "Hourly retry of failed Odoo product pushes"
 TASK_NAME = "odoo_sync.retry_failed_product_pushes"
@@ -36,7 +36,6 @@ def remove_schedule(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("odoo_sync", "0002_daily_sync_periodic_task"),
         ("django_celery_beat", "0019_alter_periodictasks_options"),

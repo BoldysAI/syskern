@@ -13,19 +13,39 @@ function Skeleton({ className }: { className?: string }) {
 
 function StatusBadge({ status, dirty }: { status: Simulation["status"]; dirty?: boolean }) {
   const map = {
-    finalized: { label: "Finalisé", cls: "bg-green-100 text-green-700", Icon: FileCheck },
-    archived: { label: "Archivé", cls: "bg-slate-100 text-slate-500", Icon: Archive },
-    draft: { label: "Brouillon", cls: "bg-amber-100 text-amber-700", Icon: Clock },
+    finalized: {
+      label: "Finalisé",
+      cls: "bg-green-100 text-green-700",
+      Icon: FileCheck,
+    },
+    archived: {
+      label: "Archivé",
+      cls: "bg-slate-100 text-slate-500",
+      Icon: Archive,
+    },
+    draft: {
+      label: "Brouillon",
+      cls: "bg-amber-100 text-amber-700",
+      Icon: Clock,
+    },
   } as const;
   const { label, cls, Icon } = map[status] ?? map.draft;
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold", cls)}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold",
+          cls,
+        )}
+      >
         <Icon size={11} />
         {label}
       </span>
       {dirty && status === "draft" && (
-        <span className="inline-flex w-2 h-2 rounded-full bg-orange-400" title="Recalcul nécessaire" />
+        <span
+          className="inline-flex w-2 h-2 rounded-full bg-orange-400"
+          title="Recalcul nécessaire"
+        />
       )}
     </span>
   );
@@ -48,7 +68,8 @@ export default function SimulatorPage() {
           <h1 className="text-xl font-semibold text-slate-900">Simulations</h1>
           {!isLoading && simulations && (
             <p className="text-sm text-slate-500 mt-0.5">
-              {simulations.length} simulation{simulations.length !== 1 ? "s" : ""}
+              {simulations.length} simulation
+              {simulations.length !== 1 ? "s" : ""}
             </p>
           )}
         </div>
@@ -98,7 +119,10 @@ export default function SimulatorPage() {
             <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
               <tr>
                 {COLS.map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                  >
                     {h}
                   </th>
                 ))}
@@ -133,7 +157,10 @@ export default function SimulatorPage() {
             <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
               <tr>
                 {COLS.map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                  >
                     {h}
                   </th>
                 ))}
@@ -149,7 +176,9 @@ export default function SimulatorPage() {
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800">
                     {sim.label}
                     {sim.project_name && (
-                      <span className="block text-xs font-normal text-slate-400">{sim.project_name}</span>
+                      <span className="block text-xs font-normal text-slate-400">
+                        {sim.project_name}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">

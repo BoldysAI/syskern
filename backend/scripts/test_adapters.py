@@ -5,7 +5,11 @@ Run via:
 
 All operations are READ-ONLY.  No writes happen.
 """
-import os, sys, django
+
+import os
+import sys
+
+import django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 sys.path.insert(0, "/app")
@@ -16,9 +20,9 @@ from apps.odoo_sync.adapters.v19 import OdooAdapterV19
 
 
 def banner(msg):
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print(f"  {msg}")
-    print(f"{'─'*60}")
+    print(f"{'─' * 60}")
 
 
 def _run_adapter_test(label: str, adapter):
@@ -32,8 +36,10 @@ def _run_adapter_test(label: str, adapter):
     products = adapter.list_products(limit=5)
     print(f"  ✓ list_products → {len(products)} records")
     for p in products[:3]:
-        print(f"    id={p.odoo_id}  sku={p.sku_code!r:<30}  "
-              f"universe={p.universe!r}  suppliers={len(p.suppliers)}")
+        print(
+            f"    id={p.odoo_id}  sku={p.sku_code!r:<30}  "
+            f"universe={p.universe!r}  suppliers={len(p.suppliers)}"
+        )
 
     if not products:
         print("  ! No products returned — skipping downstream tests")
@@ -42,8 +48,10 @@ def _run_adapter_test(label: str, adapter):
     # ── get_product (single) ────────────────────────────────────
     first = products[0]
     detail = adapter.get_product(first.odoo_id)
-    print(f"  ✓ get_product id={detail.odoo_id}  weight={detail.weight_kg}  "
-          f"price_eur={detail.standard_price_eur}")
+    print(
+        f"  ✓ get_product id={detail.odoo_id}  weight={detail.weight_kg}  "
+        f"price_eur={detail.standard_price_eur}"
+    )
 
     # ── stock ───────────────────────────────────────────────────
     ids = [p.odoo_id for p in products]
@@ -98,11 +106,11 @@ for label, adapter in [("OdooAdapterV16", v16), ("OdooAdapterV19", v19)]:
 
 print()
 if errors:
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  FAILURES: {len(errors)}")
     for label, exc in errors:
         print(f"  • {label}: {exc}")
     sys.exit(1)
 else:
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("  ALL ADAPTERS PASSED ✅")

@@ -14,6 +14,7 @@ Scenarios covered:
   8. Rules 1 and 2 miss → rule 3 match (cascade behaviour)
   9. All rules miss → NO_MATCH
 """
+
 from __future__ import annotations
 
 import uuid
@@ -53,6 +54,7 @@ def make_matcher() -> ProductMatcher:
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
+
 
 class TestProductMatcher:
     def setup_method(self) -> None:
@@ -94,9 +96,7 @@ class TestProductMatcher:
 
     # 5. Ambiguous on rule 2 → DUPLICATE_MATCH, no cascade
     def test_rule2_ambiguous_stops_cascade(self) -> None:
-        result = self.m.match(
-            MatchHint(parent_reference="AMBIGUOUS_PARENT", factory_code="21")
-        )
+        result = self.m.match(MatchHint(parent_reference="AMBIGUOUS_PARENT", factory_code="21"))
         assert result.product_id is None
         assert result.reason == UnmatchedReason.DUPLICATE_MATCH
         assert result.rule_used == "parent_factory"

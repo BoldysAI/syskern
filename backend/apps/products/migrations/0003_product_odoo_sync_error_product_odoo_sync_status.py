@@ -4,20 +4,29 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('products', '0002_odoo_version_ids'),
+        ("products", "0002_odoo_version_ids"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='product',
-            name='odoo_sync_error',
-            field=models.TextField(blank=True, default=''),
+            model_name="product",
+            name="odoo_sync_error",
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
-            model_name='product',
-            name='odoo_sync_status',
-            field=models.CharField(choices=[('not_synced', 'Not synced'), ('pending_odoo_sync', 'Pending push to Odoo'), ('synced', 'In sync with Odoo'), ('sync_failed', 'Push failed')], db_index=True, default='not_synced', max_length=20),
+            model_name="product",
+            name="odoo_sync_status",
+            field=models.CharField(
+                choices=[
+                    ("not_synced", "Not synced"),
+                    ("pending_odoo_sync", "Pending push to Odoo"),
+                    ("synced", "In sync with Odoo"),
+                    ("sync_failed", "Push failed"),
+                ],
+                db_index=True,
+                default="not_synced",
+                max_length=20,
+            ),
         ),
     ]

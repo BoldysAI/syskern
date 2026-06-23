@@ -153,7 +153,10 @@ function SaveIndicator({
 }) {
   if (error) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600" title={error}>
+      <span
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600"
+        title={error}
+      >
         <AlertCircle size={15} />
         Erreur de sauvegarde
       </span>
@@ -216,9 +219,17 @@ function ProductPageContent() {
   const attrsKey = useMemo(() => (decodedSku ? ["product-attrs", decodedSku] : null), [decodedSku]);
   const { mutate } = useSWRConfig();
 
-  const { data: product, isLoading, error } = useSWR<ProductDetail>(productKey, () => getProduct(decodedSku));
-  const { data: attrsData } = useSWR<ProductAttributeValue[]>(attrsKey, () => getProductAttributes(decodedSku));
-  const { data: registry } = useSWR<AttributeRegistry[]>("attr-registry", () => getAttributeRegistry());
+  const {
+    data: product,
+    isLoading,
+    error,
+  } = useSWR<ProductDetail>(productKey, () => getProduct(decodedSku));
+  const { data: attrsData } = useSWR<ProductAttributeValue[]>(attrsKey, () =>
+    getProductAttributes(decodedSku),
+  );
+  const { data: registry } = useSWR<AttributeRegistry[]>("attr-registry", () =>
+    getAttributeRegistry(),
+  );
   const { data: history6m } = useSWR(decodedSku ? ["price-history", decodedSku, "6m"] : null, () =>
     getPriceHistory(decodedSku, "6m"),
   );
@@ -393,7 +404,9 @@ function ProductPageContent() {
     }
   }, [product, coreDraft, attrDraft, attrMap, fieldValidity, mutate, productKey, attrsKey]);
 
-  const { status, error: autosaveError } = useAutosave(draft, persist, { enabled: !!product });
+  const { status, error: autosaveError } = useAutosave(draft, persist, {
+    enabled: !!product,
+  });
 
   const handleRecalc = async () => {
     if (!decodedSku) return;
@@ -413,7 +426,7 @@ function ProductPageContent() {
     const label = product.sku_code || decodedSku;
     if (
       !confirm(
-        `Supprimer le produit « ${label} » ?\n\nLe produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`
+        `Supprimer le produit « ${label} » ?\n\nLe produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`,
       )
     ) {
       return;
@@ -459,7 +472,17 @@ function ProductPageContent() {
       attrValue,
       setAttr,
     };
-  }, [product, editing, coreValue, setCore, descValue, setDesc, attrsByCategory, attrValue, setAttr]);
+  }, [
+    product,
+    editing,
+    coreValue,
+    setCore,
+    descValue,
+    setDesc,
+    attrsByCategory,
+    attrValue,
+    setAttr,
+  ]);
 
   const odooUrl = buildOdooUrl(product?.odoo_id);
 
@@ -542,9 +565,7 @@ function ProductPageContent() {
                         disabled={deleting || !product.is_active}
                         className="flex items-center gap-2 px-3 py-2 text-sm border border-red-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
-                          product.is_active
-                            ? "Désactiver ce produit"
-                            : "Produit déjà désactivé"
+                          product.is_active ? "Désactiver ce produit" : "Produit déjà désactivé"
                         }
                       >
                         <Trash2 size={14} />

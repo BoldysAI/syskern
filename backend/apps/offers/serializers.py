@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import Offer, OfferLine, OfferStatus, OfferType
+from apps.clients.models import Client
+from apps.core.models import Currency, Language
+
+from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
+from .services.excel import validate_columns
 
 
 class OfferLineSerializer(serializers.ModelSerializer):
@@ -44,8 +48,13 @@ class OfferListSerializer(serializers.ModelSerializer):
             "valid_from",
             "valid_to",
             "project_name",
+            "client_ids",
             "version_number",
             "line_count",
+            "generation_status",
+            "generated_file_url",
+            "gamma_document_id",
+            "generation_error",
             "created_at",
             "updated_at",
         )
@@ -105,3 +114,64 @@ class OfferWriteSerializer(serializers.ModelSerializer):
 class StatusTransitionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=OfferStatus.choices)
     lost_reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class ExtendExpirationSerializer(serializers.Serializer):
+    new_date = serializers.DateField()
+
+
+class OfferAlertConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfferAlertConfig
+        fields = ("recipients",)
+
+
+class GenerateTariffOffersSerializer(serializers.Serializer):
+    """Input for `POST /api/simulations/{id}/generate-tariff-offers` (CDC §7.2)."""
+
+    client_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    columns = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    target_currency = serializers.ChoiceField(choices=Currency.choices, default=Currency.EUR)
+    language = serializers.ChoiceField(choices=Language.choices, default=Language.FR)
+    expiration_date = serializers.DateField(required=False, allow_null=True)
+    incoterm = serializers.CharField(required=False, allow_blank=True, default="EXW")
+    label = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate_columns(self, value: list[str]) -> list[str]:
+        if value:
+            try:
+                validate_columns(value)
+            except ValueError as exc:
+                raise serializers.ValidationError(str(exc)) from exc
+        return value
+
+    def validate_client_ids(self, value: list) -> list:
+        existing = set(Client.objects.filter(id__in=value).values_list("id", flat=True))
+        missing = [str(v) for v in value if v not in existing]
+        if missing:
+            raise serializers.ValidationError(f"Clients introuvables : {missing}")
+        return value
+
+
+class GenerateProjectOfferSerializer(serializers.Serializer):
+    """Input for `POST /api/simulations/{id}/generate-project-offer` (CDC §7.3)."""
+
+    client_id = serializers.UUIDField()
+    project_name = serializers.CharField(max_length=255)
+    quantities = serializers.DictField(child=serializers.FloatField(), allow_empty=False)
+    language = serializers.ChoiceField(choices=Language.choices, default=Language.FR)
+    expiration_date = serializers.DateField(required=False, allow_null=True)
+    ai_instructions = serializers.CharField(required=False, allow_blank=True, default="")
+    sections_config = serializers.DictField(
+        child=serializers.BooleanField(), required=False, allow_null=True
+    )
+
+    def validate_client_id(self, value):
+        if not Client.objects.filter(id=value).exists():
+            raise serializers.ValidationError(f"Client introuvable : {value}")
+        return value
+
+    def validate_quantities(self, value: dict) -> dict:
+        if any(q <= 0 for q in value.values()):
+            raise serializers.ValidationError("Les quantités doivent être strictement positives.")
+        return value

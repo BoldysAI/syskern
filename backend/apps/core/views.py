@@ -1,8 +1,10 @@
 """Auth proxy endpoints + generic Celery task polling."""
+
 from __future__ import annotations
 
 from celery.result import AsyncResult
-from django.contrib.auth import authenticate, login, logout as auth_logout
+from django.contrib.auth import authenticate, login
+from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
 from rest_framework import status
@@ -12,11 +14,27 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.serializers import UserInfoSerializer
+from apps.core import rate_limit
 
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_view(request: Request) -> Response:
+    # ─── Rate limit (CDC §9.2) ───────────────────────────────────────────
+    # 5 failed attempts per IP within 15 minutes → 429 + Retry-After.
+    decision = rate_limit.check(request)
+    if not decision.allowed:
+        return Response(
+            {
+                "detail": (
+                    "Trop de tentatives. Réessaye dans "
+                    f"{max(decision.retry_after_seconds // 60, 1)} minutes."
+                )
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
     email = (request.data or {}).get("email", "")
     password = (request.data or {}).get("password", "")
 
@@ -29,12 +47,21 @@ def login_view(request: Request) -> Response:
     try:
         user_obj = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
-        return Response({"detail": "Identifiants incorrects."}, status=status.HTTP_401_UNAUTHORIZED)
+        rate_limit.register_failure(request)
+        return Response(
+            {"detail": "Identifiants incorrects."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
     user = authenticate(request, username=user_obj.username, password=password)
     if user is None:
-        return Response({"detail": "Identifiants incorrects."}, status=status.HTTP_401_UNAUTHORIZED)
+        rate_limit.register_failure(request)
+        return Response(
+            {"detail": "Identifiants incorrects."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
+    rate_limit.clear(request)
     login(request, user)
     # Force Django to emit the csrftoken cookie in this response.
     # Without this, @api_view (csrf_exempt) never triggers get_token() and the
@@ -77,8 +104,10 @@ def session_view(request: Request) -> Response:
     # Always ensure the csrftoken cookie is present so the frontend can read it.
     get_token(request)
     if request.user.is_authenticated:
-        return Response({
-            "authenticated": True,
-            "user": UserInfoSerializer(request.user).data,
-        })
+        return Response(
+            {
+                "authenticated": True,
+                "user": UserInfoSerializer(request.user).data,
+            }
+        )
     return Response({"authenticated": False, "user": None})

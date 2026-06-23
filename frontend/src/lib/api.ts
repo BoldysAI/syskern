@@ -20,10 +20,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
   }
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  return res.json() as Promise<T>;
 }
 
 // ── Celery polling helpers ───────────────────────────────────────────────
@@ -37,15 +34,13 @@ interface TaskResponse<T> {
 /** Poll `/api/tasks/{id}` until terminal state, then return result or throw. */
 async function pollTask<T>(
   taskId: string,
-  opts: { intervalMs?: number; timeoutMs?: number } = {}
+  opts: { intervalMs?: number; timeoutMs?: number } = {},
 ): Promise<T> {
   const intervalMs = opts.intervalMs ?? 800;
   const timeoutMs = opts.timeoutMs ?? 120_000;
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const r = await apiFetch<TaskResponse<T>>(
-      `/api/tasks/${encodeURIComponent(taskId)}/`
-    );
+    const r = await apiFetch<TaskResponse<T>>(`/api/tasks/${encodeURIComponent(taskId)}/`);
     if (r.status === "SUCCESS") return r.result as T;
     if (r.status === "FAILURE") throw new Error(r.error || "Tâche échouée");
     if (r.status === "REVOKED") throw new Error("Tâche annulée");
@@ -58,15 +53,23 @@ async function pollTask<T>(
 async function dispatchAndPoll<T>(
   path: string,
   options?: RequestInit,
-  pollOpts?: { intervalMs?: number; timeoutMs?: number }
+  pollOpts?: { intervalMs?: number; timeoutMs?: number },
 ): Promise<T> {
   const dispatch = await apiFetch<{ task_id: string }>(path, options);
   return pollTask<T>(dispatch.task_id, pollOpts);
 }
 
-/** Catalog filter state — mirrors `ProductFilter` query params (CDC §4.1.1). */
+export interface ProductListParams {
+  universe?: string;
+  family?: string;
+  range?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** Catalog sidebar filter state (multi-select, persisted in localStorage). */
 export interface CatalogFilters {
-  /** Full-text search (Postgres tsvector, FR + simple). */
   q?: string;
   universe?: string[];
   family?: string[];
@@ -74,45 +77,14 @@ export interface CatalogFilters {
   sub_range?: string[];
   brand?: string[];
   supplier?: string[];
-  /** En stock (stock > 0). Combinable avec stock_out ; les deux cochés = pas de filtre stock. */
   stock_in?: boolean;
-  /** Rupture (stock ≤ 0 ou null). Combinable avec stock_in. */
   stock_out?: boolean;
   stock_min?: number | null;
-  /** Dynamic attribute filters keyed by attribute code (`attr_<code>`). */
-  attrs?: Record<string, string | string[]>;
+  /** Dynamic attribute filters, keyed by attribute code (value or values). */
+  attrs?: Record<string, string | string[] | undefined>;
 }
 
-export interface ProductListParams extends CatalogFilters {
-  ordering?: string;
-  page?: number;
-  limit?: number;
-}
-
-/** Build the shared query string for `GET /api/products` and the export task. */
-export function buildCatalogQuery(filters: CatalogFilters): Record<string, string> {
-  const params: Record<string, string> = {};
-  if (filters.q) params.q = filters.q;
-  if (filters.universe?.length) params.universe = filters.universe.join(",");
-  if (filters.family?.length) params.family = filters.family.join(",");
-  if (filters.range?.length) params.range = filters.range.join(",");
-  if (filters.sub_range?.length) params.sub_range = filters.sub_range.join(",");
-  if (filters.brand?.length) params.brand = filters.brand.join(",");
-  if (filters.supplier?.length) params.supplier = filters.supplier.join(",");
-  const { stock_in: inStock, stock_out: outStock } = filters;
-  if (inStock && !outStock) params.in_stock = "true";
-  else if (outStock && !inStock) params.in_stock = "false";
-  if (filters.stock_min != null && filters.stock_min > 0) {
-    params.stock_min = String(filters.stock_min);
-  }
-  for (const [code, value] of Object.entries(filters.attrs ?? {})) {
-    const v = Array.isArray(value) ? value.join(",") : value;
-    if (v) params[`attr_${code}`] = v;
-  }
-  return params;
-}
-
-/** Purchase currencies supported by the platform (core.models.Currency). */
+/** Supported currencies (mirrors core.models.Currency). */
 export type Currency = "EUR" | "USD" | "RMB";
 
 /** Supplier embedded in product list/detail */
@@ -130,7 +102,7 @@ export interface ProductSupplier {
   is_active: boolean;
 }
 
-/** Writable shape for creating/updating a supplier (Decimal fields as string). */
+/** Writable supplier payload (create / update on a product). */
 export interface ProductSupplierInput {
   supplier_name: string;
   factory_code?: string;
@@ -199,13 +171,7 @@ export type AttributeCategory =
   | "commercial"
   | "logistic";
 
-export type AttributeDataType =
-  | "text"
-  | "number"
-  | "boolean"
-  | "date"
-  | "select"
-  | "multiselect";
+export type AttributeDataType = "text" | "number" | "boolean" | "date" | "select" | "multiselect";
 
 /** One choice for a select / multiselect attribute. */
 export interface AttributeOption {
@@ -224,9 +190,10 @@ export interface AttributeRegistry {
   unit: string;
   is_required: boolean;
   is_searchable: boolean;
-  is_filterable: boolean;
+  /** Exposed as a catalog sidebar filter (CDC §4.1.1). */
+  is_filterable?: boolean;
   display_order: number;
-  /** Number of product_attribute_values rows cascade-deleted with this attribute. */
+  /** Count of product values using this attribute (for cascade-delete warning). */
   value_count?: number;
   created_at?: string;
   updated_at?: string;
@@ -555,37 +522,70 @@ export interface SyncStatus {
 }
 
 export function getProducts(params?: ProductListParams): Promise<PaginatedProducts> {
-  const q = new URLSearchParams(buildCatalogQuery(params ?? {}));
+  const q = new URLSearchParams();
   const limit = params?.limit ?? 20;
   const page = params?.page ?? 1;
   const offset = (page - 1) * limit;
-  if (params?.ordering) q.set("ordering", params.ordering);
+  if (params?.universe) q.set("universe", params.universe);
+  if (params?.family) q.set("family", params.family);
+  if (params?.range) q.set("range", params.range);
+  if (params?.search) q.set("search", params.search);
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
 }
 
-/** Trigger an async Excel export (Celery task), then download the file (CDC §4.1.1).
- *
- * Sends the active filters and chosen columns in the body. When `ids` is
- * provided, only that selection is exported.
- */
+/** Map the sidebar filter state to backend `ProductFilter` query params. */
+function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (f.q?.trim()) p.q = f.q.trim();
+  const csvKeys: (keyof CatalogFilters)[] = [
+    "universe",
+    "family",
+    "range",
+    "sub_range",
+    "brand",
+    "supplier",
+  ];
+  for (const k of csvKeys) {
+    const v = f[k];
+    if (Array.isArray(v) && v.length) p[k] = v.join(",");
+  }
+  if (f.stock_in && !f.stock_out) p.in_stock = "true";
+  if (f.stock_min != null && f.stock_min > 0) p.stock_min = String(f.stock_min);
+  for (const [code, raw] of Object.entries(f.attrs ?? {})) {
+    if (raw == null) continue;
+    p[`attr_${code}`] = Array.isArray(raw) ? raw.join(",") : String(raw);
+  }
+  return p;
+}
+
+/** Trigger an async Excel export (Celery task), then download the file.
+ *  Accepts the simple {search, universe} shape (catalog header) or the rich
+ *  {filters, columns, ids} shape (export modal). */
 export async function exportProducts(opts?: {
+  search?: string;
+  universe?: string;
   filters?: CatalogFilters;
   columns?: string[];
   ids?: string[];
 }): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (opts?.filters) {
+    body.filters = catalogFiltersToParams(opts.filters);
+  } else if (opts?.search || opts?.universe) {
+    const filters: Record<string, string> = {};
+    if (opts.search) filters.q = opts.search;
+    if (opts.universe) filters.universe = opts.universe;
+    body.filters = filters;
+  }
+  if (opts?.columns) body.columns = opts.columns;
+  if (opts?.ids) body.ids = opts.ids;
+
   const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
-    "/api/products/export/",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        filters: buildCatalogQuery(opts?.filters ?? {}),
-        columns: opts?.columns,
-        ids: opts?.ids,
-      }),
-    },
-    { timeoutMs: 180_000 }
+    `/api/products/export/`,
+    { method: "POST", body: JSON.stringify(body) },
+    { timeoutMs: 180_000 },
   );
   // Trigger the browser download via a short-lived anchor.
   const a = document.createElement("a");
@@ -598,52 +598,9 @@ export async function exportProducts(opts?: {
 
 /** Distinct universe values actually present in the catalog (CDC §4.4). */
 export function getUniverses(): Promise<string[]> {
-  return getHierarchyLevel("universe");
-}
-
-export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
-
-/** Distinct hierarchy values, optionally filtered by parent selections. */
-export function getHierarchyLevel(
-  level: HierarchyLevel,
-  parents?: { universe?: string; family?: string; range?: string }
-): Promise<string[]> {
-  const q = new URLSearchParams({ level });
-  if (parents?.universe) q.set("universe", parents.universe);
-  if (parents?.family) q.set("family", parents.family);
-  if (parents?.range) q.set("range", parents.range);
   return apiFetch<{ level: string; values: string[] }>(
-    `/api/hierarchy/distinct?${q.toString()}`
+    "/api/hierarchy/distinct?level=universe",
   ).then((r) => r.values);
-}
-
-/** Distinct supplier names already used in the catalog. */
-export function getSupplierNames(): Promise<string[]> {
-  return apiFetch<{ values: string[] }>("/api/supplier-names").then((r) => r.values);
-}
-
-/** Distinct brand values present in the catalog (CDC §4.1.1). */
-export function getBrands(): Promise<string[]> {
-  return apiFetch<{ values: string[] }>("/api/brands").then((r) => r.values);
-}
-
-/** Distinct factory codes present in the catalog (CDC §4.1.1). */
-export function getFactoryCodes(): Promise<string[]> {
-  return apiFetch<{ values: string[] }>("/api/factory-codes").then((r) => r.values);
-}
-
-/** Attributes flagged `is_filterable` — rendered as catalog sidebar filters. */
-export function getFilterableAttributes(): Promise<AttributeRegistry[]> {
-  return apiFetch<PaginatedResponse<AttributeRegistry>>(
-    "/api/attributes/?limit=500"
-  ).then((r) => r.results.filter((a) => a.is_filterable));
-}
-
-/** Default commercial fields for a known supplier name (latest row). */
-export function getSupplierTemplate(name: string): Promise<ProductSupplier> {
-  return apiFetch<ProductSupplier>(
-    `/api/supplier-names/template?name=${encodeURIComponent(name)}`
-  );
 }
 
 export function getProduct(sku: string): Promise<ProductDetail> {
@@ -667,10 +624,10 @@ export interface PriceHistory {
 /** Trailing PA/PR/PV points from finalized simulations (CDC §4.1.6). */
 export function getPriceHistory(
   sku: string,
-  period: "3m" | "6m" | "12m" = "6m"
+  period: "3m" | "6m" | "12m" = "6m",
 ): Promise<PriceHistory> {
   return apiFetch<PriceHistory>(
-    `/api/products/${encodeURIComponent(sku)}/price-history/?period=${period}`
+    `/api/products/${encodeURIComponent(sku)}/price-history/?period=${period}`,
   );
 }
 
@@ -679,26 +636,23 @@ export function refreshPamp(sku: string): Promise<ProductDetail> {
   return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/refresh-pamp/`,
     { method: "POST" },
-    { timeoutMs: 60_000 }
+    { timeoutMs: 60_000 },
   );
 }
 
 /** Translate the FR descriptions to EN/ES via DeepL (Celery task). */
-export function translateProduct(
-  sku: string,
-  targetLang: "en" | "es"
-): Promise<ProductDetail> {
+export function translateProduct(sku: string, targetLang: "en" | "es"): Promise<ProductDetail> {
   return dispatchAndPoll<ProductDetail>(
     `/api/products/${encodeURIComponent(sku)}/translate/`,
     { method: "POST", body: JSON.stringify({ target_lang: targetLang }) },
-    { timeoutMs: 60_000 }
+    { timeoutMs: 60_000 },
   );
 }
 
 /** Partially update a product's core fields (CDC §4.3 — édition en place). */
 export function updateProduct(
   idOrSku: string,
-  patch: Partial<ProductDetail>
+  patch: Partial<ProductDetail>,
 ): Promise<ProductDetail> {
   return apiFetch<ProductDetail>(`/api/products/${encodeURIComponent(idOrSku)}/`, {
     method: "PATCH",
@@ -706,150 +660,31 @@ export function updateProduct(
   });
 }
 
-/** Soft-delete a product (`is_active = false`, CDC §4.6). Accepts UUID or SKU. */
-export function deleteProduct(idOrSku: string): Promise<void> {
-  return apiFetch<void>(`/api/products/${encodeURIComponent(idOrSku)}/`, {
-    method: "DELETE",
-  });
-}
-
 /** Attribute values currently set on a product (plain array, not paginated). */
-export function getProductAttributes(
-  idOrSku: string
-): Promise<ProductAttributeValue[]> {
+export function getProductAttributes(idOrSku: string): Promise<ProductAttributeValue[]> {
   return apiFetch<ProductAttributeValue[]>(
-    `/api/products/${encodeURIComponent(idOrSku)}/attributes/`
+    `/api/products/${encodeURIComponent(idOrSku)}/attributes/`,
   );
 }
 
 /** Attribute registry definitions, optionally filtered by category. */
-export function getAttributeRegistry(
-  category?: AttributeCategory
-): Promise<AttributeRegistry[]> {
+export function getAttributeRegistry(category?: AttributeCategory): Promise<AttributeRegistry[]> {
   const q = new URLSearchParams({ limit: "500" });
   if (category) q.set("category", category);
-  return apiFetch<PaginatedResponse<AttributeRegistry>>(
-    `/api/attributes/?${q.toString()}`
-  ).then((r) => r.results);
-}
-
-/** Full attribute registry (admin page `/settings/attributes`, CDC §4.1.4). */
-export function listAttributes(): Promise<AttributeRegistry[]> {
-  return apiFetch<PaginatedResponse<AttributeRegistry>>(
-    "/api/attributes/?limit=500"
-  ).then((r) => r.results);
-}
-
-/** Create a new attribute definition in the registry. */
-export function createAttribute(
-  data: Partial<AttributeRegistry>
-): Promise<AttributeRegistry> {
-  return apiFetch<AttributeRegistry>("/api/attributes/", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-/** Update an attribute definition (`code` is immutable server-side). */
-export function updateAttribute(
-  id: string,
-  patch: Partial<AttributeRegistry>
-): Promise<AttributeRegistry> {
-  return apiFetch<AttributeRegistry>(
-    `/api/attributes/${encodeURIComponent(id)}/`,
-    { method: "PATCH", body: JSON.stringify(patch) }
+  return apiFetch<PaginatedResponse<AttributeRegistry>>(`/api/attributes/?${q.toString()}`).then(
+    (r) => r.results,
   );
-}
-
-/** Delete an attribute; cascade-deletes its product_attribute_values. */
-export function deleteAttribute(id: string): Promise<void> {
-  return apiFetch<void>(`/api/attributes/${encodeURIComponent(id)}/`, {
-    method: "DELETE",
-  });
-}
-
-/** Persist a new display order; `ids` is the ordered list for one category. */
-export function reorderAttributes(ids: string[]): Promise<{ reordered: number }> {
-  return apiFetch<{ reordered: number }>("/api/attributes/reorder/", {
-    method: "POST",
-    body: JSON.stringify({ ids }),
-  });
 }
 
 /** Upsert one attribute value on a product (PUT, body `{value}`). */
 export function setProductAttribute(
   productId: string,
   attributeId: string,
-  value: unknown
+  value: unknown,
 ): Promise<ProductAttributeValue> {
   return apiFetch<ProductAttributeValue>(
     `/api/products/${encodeURIComponent(productId)}/attributes/${encodeURIComponent(attributeId)}/`,
-    { method: "PUT", body: JSON.stringify({ value }) }
-  );
-}
-
-/** Create a product (CDC §4.1.3). Odoo push is dispatched async server-side. */
-export function createProduct(data: Partial<ProductDetail>): Promise<ProductDetail> {
-  return apiFetch<ProductDetail>("/api/products/", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-/** Derive parent_reference + factory_code from a raw SKU (wizard pre-fill). */
-export function parseSku(
-  sku: string
-): Promise<{ sku: string; parent_reference: string | null; factory_code: string | null }> {
-  return apiFetch("/api/products/parse-sku/", {
-    method: "POST",
-    body: JSON.stringify({ sku }),
-  });
-}
-
-// ─── Product suppliers (nested under a product, CDC §4.1.3 / §4.3) ───────────
-
-export function getProductSuppliers(productId: string): Promise<ProductSupplier[]> {
-  return apiFetch<ProductSupplier[]>(
-    `/api/products/${encodeURIComponent(productId)}/suppliers/`
-  );
-}
-
-export function createSupplier(
-  productId: string,
-  data: ProductSupplierInput
-): Promise<ProductSupplier> {
-  return apiFetch<ProductSupplier>(
-    `/api/products/${encodeURIComponent(productId)}/suppliers/`,
-    { method: "POST", body: JSON.stringify(data) }
-  );
-}
-
-export function updateSupplier(
-  productId: string,
-  supplierId: string,
-  patch: Partial<ProductSupplierInput>
-): Promise<ProductSupplier> {
-  return apiFetch<ProductSupplier>(
-    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
-    { method: "PATCH", body: JSON.stringify(patch) }
-  );
-}
-
-export function deleteSupplier(productId: string, supplierId: string): Promise<void> {
-  return apiFetch<void>(
-    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
-    { method: "DELETE" }
-  );
-}
-
-/** Activate a supplier; the backend deactivates the others atomically. */
-export function activateSupplier(
-  productId: string,
-  supplierId: string
-): Promise<ProductSupplier> {
-  return apiFetch<ProductSupplier>(
-    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/activate/`,
-    { method: "POST" }
+    { method: "PUT", body: JSON.stringify({ value }) },
   );
 }
 
@@ -906,10 +741,7 @@ export function deleteSimulation(id: string): Promise<void> {
 }
 
 /** Attach products to a simulation (creates lines). */
-export function addSimulationLines(
-  id: string,
-  productIds: string[]
-): Promise<unknown> {
+export function addSimulationLines(id: string, productIds: string[]): Promise<unknown> {
   return apiFetch(`/api/simulations/${encodeURIComponent(id)}/lines/`, {
     method: "POST",
     body: JSON.stringify({ product_ids: productIds }),
@@ -918,7 +750,10 @@ export function addSimulationLines(
 
 export function updateSimulationLine(
   lineId: string,
-  patch: { margin_override?: string | null; stock_purchase_mix_pct_override?: number | null }
+  patch: {
+    margin_override?: string | null;
+    stock_purchase_mix_pct_override?: number | null;
+  },
 ): Promise<SimulationLine> {
   return apiFetch<SimulationLine>(`/api/simulation-lines/${encodeURIComponent(lineId)}/`, {
     method: "PATCH",
@@ -1095,10 +930,9 @@ export async function exportSimulation(id: string): Promise<void> {
 }
 
 export function finalizeSimulation(id: string): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
-    `/api/simulations/${encodeURIComponent(id)}/finalize/`,
-    { method: "POST" }
-  );
+  return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/finalize/`, {
+    method: "POST",
+  });
 }
 
 export function duplicateSimulation(id: string, label?: string): Promise<SimulationDetail> {
@@ -1133,13 +967,11 @@ export function listMarketParameters(filter?: {
   q.set("limit", "200");
   const qs = q.toString();
   return apiFetch<{ count: number; results: MarketParameter[] }>(
-    `/api/market-parameters/${qs ? "?" + qs : ""}`
+    `/api/market-parameters/${qs ? "?" + qs : ""}`,
   ).then((r) => r.results);
 }
 
-export function createMarketParameter(
-  data: Partial<MarketParameter>
-): Promise<MarketParameter> {
+export function createMarketParameter(data: Partial<MarketParameter>): Promise<MarketParameter> {
   return apiFetch<MarketParameter>("/api/market-parameters/", {
     method: "POST",
     body: JSON.stringify(data),
@@ -1148,7 +980,7 @@ export function createMarketParameter(
 
 export function updateMarketParameter(
   id: string,
-  patch: Partial<MarketParameter>
+  patch: Partial<MarketParameter>,
 ): Promise<MarketParameter> {
   return apiFetch<MarketParameter>(`/api/market-parameters/${id}/`, {
     method: "PATCH",
@@ -1185,14 +1017,12 @@ export function listIncoterms(): Promise<IncotermRef[]> {
 
 export function listTransportModes(activeOnly = false): Promise<TransportMode[]> {
   const qs = activeOnly ? "?is_active=true" : "";
-  return apiFetch<{ count: number; results: TransportMode[] }>(
-    `/api/transport-modes/${qs}`
-  ).then((r) => r.results);
+  return apiFetch<{ count: number; results: TransportMode[] }>(`/api/transport-modes/${qs}`).then(
+    (r) => r.results,
+  );
 }
 
-export function createTransportMode(
-  data: Partial<TransportMode>
-): Promise<TransportMode> {
+export function createTransportMode(data: Partial<TransportMode>): Promise<TransportMode> {
   return apiFetch<TransportMode>("/api/transport-modes/", {
     method: "POST",
     body: JSON.stringify(data),
@@ -1201,7 +1031,7 @@ export function createTransportMode(
 
 export function updateTransportMode(
   id: string,
-  patch: Partial<TransportMode>
+  patch: Partial<TransportMode>,
 ): Promise<TransportMode> {
   return apiFetch<TransportMode>(`/api/transport-modes/${id}/`, {
     method: "PATCH",
@@ -1215,9 +1045,9 @@ export function deleteTransportMode(id: string): Promise<void> {
 
 // ── Odoo sync (settings) ─────────────────────────────────────────────────
 export function listSyncLogs(limit = 20): Promise<SyncLog[]> {
-  return apiFetch<{ count: number; results: SyncLog[] }>(
-    `/api/odoo/sync/logs?limit=${limit}`
-  ).then((r) => r.results);
+  return apiFetch<{ count: number; results: SyncLog[] }>(`/api/odoo/sync/logs?limit=${limit}`).then(
+    (r) => r.results,
+  );
 }
 
 export function getSyncStatus(): Promise<SyncStatus> {
@@ -1231,12 +1061,145 @@ export function getOdooHealth(): Promise<{ ok: boolean }> {
 /** Trigger an async Odoo sync (Celery task). Returns the SyncLog row. */
 export function triggerOdooSync(
   scope: "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales" = "all",
-  api_version: "v16" | "v19" = "v19"
+  api_version: "v16" | "v19" = "v19",
 ): Promise<SyncLog> {
   return dispatchAndPoll<SyncLog>(
     "/api/odoo/sync/trigger",
     { method: "POST", body: JSON.stringify({ scope, api_version }) },
-    { timeoutMs: 600_000 }
+    { timeoutMs: 600_000 },
   );
 }
 
+// ── Product create / delete / suppliers / SKU parsing (CDC §4.1.3) ────────
+
+/** Soft-delete a product (is_active = false). */
+export function deleteProduct(idOrSku: string): Promise<void> {
+  return apiFetch<void>(`/api/products/${encodeURIComponent(idOrSku)}/`, { method: "DELETE" });
+}
+
+/** Create a product (core fields); Odoo sync happens server-side, async. */
+export function createProduct(payload: Partial<ProductDetail>): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>("/api/products/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Add a supplier source to a product. */
+export function createSupplier(
+  productId: string,
+  input: ProductSupplierInput,
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(`/api/products/${encodeURIComponent(productId)}/suppliers/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface ParsedSku {
+  sku: string;
+  parent_reference: string | null;
+  factory_code: string | null;
+}
+
+/** Derive parent_reference + factory_code from a SKU (wizard auto-fill). */
+export function parseSku(sku: string): Promise<ParsedSku> {
+  return apiFetch<ParsedSku>("/api/products/parse-sku/", {
+    method: "POST",
+    body: JSON.stringify({ sku }),
+  });
+}
+
+// ── Distinct catalog facets (filters / wizard) ────────────────────────────
+
+/** Distinct values for a hierarchy level, optionally scoped by parent levels
+ *  (cascade: family within a universe, range within universe+family, …). */
+export function getHierarchyLevel(
+  level: "universe" | "family" | "range" | "sub_range",
+  parents?: { universe?: string; family?: string; range?: string },
+): Promise<string[]> {
+  const q = new URLSearchParams({ level });
+  if (parents?.universe) q.set("universe", parents.universe);
+  if (parents?.family) q.set("family", parents.family);
+  if (parents?.range) q.set("range", parents.range);
+  return apiFetch<{ level: string; values: string[] }>(
+    `/api/hierarchy/distinct?${q.toString()}`,
+  ).then((r) => r.values);
+}
+
+/** Distinct brand values present in the catalog. */
+export function getBrands(): Promise<string[]> {
+  return apiFetch<{ values: string[] }>("/api/brands").then((r) => r.values);
+}
+
+/** Distinct supplier names across the catalog. */
+export function getSupplierNames(): Promise<string[]> {
+  return apiFetch<{ values: string[] }>("/api/supplier-names").then((r) => r.values);
+}
+
+/** Defaults for an existing supplier name (latest row), to pre-fill the form. */
+export function getSupplierTemplate(name: string): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(`/api/supplier-names/template?name=${encodeURIComponent(name)}`);
+}
+
+// ── Attribute registry admin (CDC §4.1.4) ─────────────────────────────────
+
+/** Full attribute registry (no category filter), with value_count annotations. */
+export function listAttributes(): Promise<AttributeRegistry[]> {
+  return apiFetch<PaginatedResponse<AttributeRegistry>>("/api/attributes/?limit=500").then(
+    (r) => r.results,
+  );
+}
+
+/** Attributes flagged filterable, for the catalog sidebar. */
+export function getFilterableAttributes(): Promise<AttributeRegistry[]> {
+  return apiFetch<PaginatedResponse<AttributeRegistry>>(
+    "/api/attributes/?is_filterable=true&limit=500",
+  ).then((r) => r.results);
+}
+
+export function createAttribute(input: Partial<AttributeRegistry>): Promise<AttributeRegistry> {
+  return apiFetch<AttributeRegistry>("/api/attributes/", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAttribute(
+  id: string,
+  patch: Partial<AttributeRegistry>,
+): Promise<AttributeRegistry> {
+  return apiFetch<AttributeRegistry>(`/api/attributes/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteAttribute(id: string): Promise<void> {
+  return apiFetch<void>(`/api/attributes/${encodeURIComponent(id)}/`, { method: "DELETE" });
+}
+
+/** Persist a new display order for the given attribute ids (single category). */
+export function reorderAttributes(ids: string[]): Promise<{ reordered: number }> {
+  return apiFetch<{ reordered: number }>("/api/attributes/reorder/", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+// ── Offer expiration-alert recipients (UI-editable, CDC §7.6) ──────────────
+
+export interface OfferAlertSettings {
+  recipients: string[];
+}
+
+export function getOfferAlertSettings(): Promise<OfferAlertSettings> {
+  return apiFetch<OfferAlertSettings>("/api/offers/alert-settings");
+}
+
+export function updateOfferAlertSettings(recipients: string[]): Promise<OfferAlertSettings> {
+  return apiFetch<OfferAlertSettings>("/api/offers/alert-settings", {
+    method: "PUT",
+    body: JSON.stringify({ recipients }),
+  });
+}

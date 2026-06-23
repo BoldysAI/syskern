@@ -13,14 +13,19 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from apps.offers.models import Offer
+from apps.offers.serializers import (
+    GenerateProjectOfferSerializer,
+    GenerateTariffOffersSerializer,
+)
+from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
 
 from .models import (
     SavedComparison,
     Simulation,
     SimulationLine,
-    SimulationRecalculation,
     SimulationStatus,
+    SimulationType,
 )
 from .serializers import (
     AddLinesSerializer,
@@ -204,6 +209,75 @@ class SimulationViewSet(viewsets.ModelViewSet):
         simulation.status = SimulationStatus.FINALIZED
         simulation.save(update_fields=["status", "updated_at"])
         return Response(SimulationDetailSerializer(simulation).data)
+
+    # ─── /generate-tariff-offers (CDC §7.2) ───────────────────────────
+    @action(detail=True, methods=["post"], url_path="generate-tariff-offers")
+    def generate_tariff_offers(self, request, pk=None):
+        """Generate one tariff Excel offer per client (async, CDC §7.2).
+
+        Requires a finalized, tariff-type simulation. Returns 202 + task_id;
+        the client polls /api/tasks/{task_id}/ for the per-client results.
+        """
+        simulation = self.get_object()
+        if simulation.status != SimulationStatus.FINALIZED:
+            raise ValidationError("La simulation doit être finalisée.")
+        if simulation.simulation_type != SimulationType.TARIFF:
+            raise ValidationError("Génération tarifaire réservée aux simulations de type tarif.")
+
+        ser = GenerateTariffOffersSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        # Make the payload JSON-serializable for Celery.
+        payload = {
+            "client_ids": [str(c) for c in data["client_ids"]],
+            "columns": data.get("columns") or [],
+            "target_currency": data["target_currency"],
+            "language": data["language"],
+            "expiration_date": (
+                data["expiration_date"].isoformat() if data.get("expiration_date") else None
+            ),
+            "incoterm": data.get("incoterm") or "EXW",
+            "label": data.get("label") or "",
+        }
+        task = generate_tariff_offers_task.delay(str(simulation.id), payload)
+        return Response(
+            {"task_id": task.id, "status": "PENDING", "client_count": len(payload["client_ids"])},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    # ─── /generate-project-offer (CDC §7.3) ───────────────────────────
+    @action(detail=True, methods=["post"], url_path="generate-project-offer")
+    def generate_project_offer(self, request, pk=None):
+        """Generate a Gamma project quote (async, CDC §7.3).
+
+        Requires a finalized, project-type simulation. Returns 202 + task_id;
+        the client polls /api/tasks/{task_id}/ for the offer + generation status.
+        """
+        simulation = self.get_object()
+        if simulation.status != SimulationStatus.FINALIZED:
+            raise ValidationError("La simulation doit être finalisée.")
+        if simulation.simulation_type != SimulationType.PROJECT:
+            raise ValidationError("Génération projet réservée aux simulations de type projet.")
+
+        ser = GenerateProjectOfferSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        payload = {
+            "client_id": str(data["client_id"]),
+            "project_name": data["project_name"],
+            "quantities": data["quantities"],
+            "language": data["language"],
+            "expiration_date": (
+                data["expiration_date"].isoformat() if data.get("expiration_date") else None
+            ),
+            "ai_instructions": data.get("ai_instructions") or "",
+            "sections_config": data.get("sections_config"),
+        }
+        task = generate_project_offer_task.delay(str(simulation.id), payload)
+        return Response(
+            {"task_id": task.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     # ─── /archive  /unarchive  (CDC §6.9.11) ──────────────────────────
     @action(detail=True, methods=["post"])

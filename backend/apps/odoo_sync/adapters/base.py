@@ -5,11 +5,11 @@ an instance of `OdooAdapterV16` or `OdooAdapterV19` based on the
 `ODOO_API_VERSION` setting.  No code outside this package should know
 which Odoo version is currently in use (CDC §5.1).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
 
 from apps.odoo_sync.schemas import (
     OdooClient,
@@ -37,7 +37,7 @@ class OdooAdapter(ABC):
     @abstractmethod
     def list_products(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooProduct]: ...
@@ -70,7 +70,7 @@ class OdooAdapter(ABC):
     @abstractmethod
     def list_clients(
         self,
-        modified_since: Optional[datetime] = None,
+        modified_since: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[OdooClient]: ...

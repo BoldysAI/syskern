@@ -1,28 +1,36 @@
 """Vérifie la qualité des données synchros en base."""
-import os, sys, django
+
+import os
+import sys
+
+import django
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 sys.path.insert(0, "/app")
 django.setup()
 
-from apps.products.models import Product, ProductSupplier
 from apps.clients.models import Client
+from apps.products.models import Product, ProductSupplier
 
 # ── Stats générales ──────────────────────────────────────────────────────
 total = Product.objects.filter(odoo_id__isnull=False).count()
 with_universe = Product.objects.filter(odoo_id__isnull=False).exclude(universe="").count()
-with_supplier = Product.objects.filter(odoo_id__isnull=False, suppliers__is_active=True).distinct().count()
-with_pamp     = Product.objects.filter(odoo_id__isnull=False, pamp_eur__gt=0).count()
-with_stock    = Product.objects.filter(odoo_id__isnull=False, stock_quantity__gt=0).count()
+with_supplier = (
+    Product.objects.filter(odoo_id__isnull=False, suppliers__is_active=True).distinct().count()
+)
+with_pamp = Product.objects.filter(odoo_id__isnull=False, pamp_eur__gt=0).count()
+with_stock = Product.objects.filter(odoo_id__isnull=False, stock_quantity__gt=0).count()
 
 print("── Produits ─────────────────────────────────────────────────────")
 print(f"  Total synchro       : {total}")
-print(f"  Avec univers        : {with_universe}  ({100*with_universe//total}%)")
-print(f"  Avec fournisseur    : {with_supplier}  ({100*with_supplier//total}%)")
-print(f"  Avec PAMP > 0       : {with_pamp}  ({100*with_pamp//total}%)")
-print(f"  Avec stock > 0      : {with_stock}  ({100*with_stock//total}%)")
+print(f"  Avec univers        : {with_universe}  ({100 * with_universe // total}%)")
+print(f"  Avec fournisseur    : {with_supplier}  ({100 * with_supplier // total}%)")
+print(f"  Avec PAMP > 0       : {with_pamp}  ({100 * with_pamp // total}%)")
+print(f"  Avec stock > 0      : {with_stock}  ({100 * with_stock // total}%)")
 
 # ── Breakdown par univers ────────────────────────────────────────────────
 from django.db.models import Count
+
 by_universe = (
     Product.objects.filter(odoo_id__isnull=False)
     .values("universe")
@@ -57,17 +65,41 @@ print()
 print("── Probe v19 customer_rank > 0 ──────────────────────────────────")
 import httpx
 from django.conf import settings
+
 cfg = settings.ODOO
-url  = cfg["BASE_URL"].rstrip("/")
-db   = cfg["DB_NAME"]
+url = cfg["BASE_URL"].rstrip("/")
+db = cfg["DB_NAME"]
 user = cfg["API_USER"]
-pwd  = cfg["API_PASSWORD"]
+pwd = cfg["API_PASSWORD"]
 with httpx.Client(verify=False, timeout=30) as c:
-    r = c.post(url + "/jsonrpc", json={"jsonrpc":"2.0","method":"call","params":{
-        "service":"common","method":"login","args":[db,user,pwd]}})
+    r = c.post(
+        url + "/jsonrpc",
+        json={
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {"service": "common", "method": "login", "args": [db, user, pwd]},
+        },
+    )
     uid = r.json()["result"]
-    r2 = c.post(url + "/jsonrpc", json={"jsonrpc":"2.0","method":"call","params":{
-        "service":"object","method":"execute_kw","args":[db,uid,pwd,
-        "res.partner","search_count",[[["customer_rank",">",0]]],{}]}})
-    count = r2.json().get("result",0)
+    r2 = c.post(
+        url + "/jsonrpc",
+        json={
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+                "service": "object",
+                "method": "execute_kw",
+                "args": [
+                    db,
+                    uid,
+                    pwd,
+                    "res.partner",
+                    "search_count",
+                    [[["customer_rank", ">", 0]]],
+                    {},
+                ],
+            },
+        },
+    )
+    count = r2.json().get("result", 0)
     print(f"  res.partner avec customer_rank > 0 : {count}")

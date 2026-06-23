@@ -1,4 +1,5 @@
 """User management endpoints (admin only)."""
+
 from __future__ import annotations
 
 from django.contrib.auth.models import User
@@ -38,7 +39,9 @@ def user_detail(request: Request, user_id: int) -> Response:
 
     if request.method == "DELETE":
         if user == request.user:
-            return Response({"detail": "Vous ne pouvez pas supprimer votre propre compte."}, status=400)
+            return Response(
+                {"detail": "Vous ne pouvez pas supprimer votre propre compte."}, status=400
+            )
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -51,4 +54,5 @@ def user_detail(request: Request, user_id: int) -> Response:
 
 def _deny():
     from rest_framework.exceptions import PermissionDenied
+
     raise PermissionDenied("Accès réservé aux administrateurs.")

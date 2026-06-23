@@ -40,6 +40,7 @@ quarantined (InvalidRowError).
 is_active is left at its current DB value — Olivier activates the preferred
 supplier manually after migration (or the derivation step does it).
 """
+
 from __future__ import annotations
 
 import logging
@@ -131,7 +132,7 @@ class POFournisseursLoader(BaseExcelLoader):
             if not row or row[1] is None:
                 continue
             supplier_id = str(row[1]).strip()  # e.g. "ZD", "HT"
-            raw_code = row[2]               # e.g. 17.0, "E02"
+            raw_code = row[2]  # e.g. 17.0, "E02"
             if raw_code is None:
                 continue
             # Normalise numeric codes to strings without trailing .0
@@ -243,7 +244,11 @@ class POFournisseursLoader(BaseExcelLoader):
         universe = row.data.get("universe") or ""
         rng = row.data.get("range") or ""
         sub = row.data.get("sub_range") or ""
-        category = f"{universe.upper()}|{rng.upper()}|{sub.upper()}|" if any([universe, rng, sub]) else None
+        category = (
+            f"{universe.upper()}|{rng.upper()}|{sub.upper()}|"
+            if any([universe, rng, sub])
+            else None
+        )
 
         return MatchHint(
             sku_code=sku,

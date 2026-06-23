@@ -1,4 +1,5 @@
 """Probe a few candidate hostnames for the v19 instance."""
+
 import httpx
 
 for url in [
@@ -8,8 +9,11 @@ for url in [
     try:
         r = httpx.post(
             f"{url}/jsonrpc",
-            json={"jsonrpc": "2.0", "method": "call",
-                  "params": {"service": "common", "method": "version", "args": []}},
+            json={
+                "jsonrpc": "2.0",
+                "method": "call",
+                "params": {"service": "common", "method": "version", "args": []},
+            },
             timeout=15.0,
         )
         ver = r.json().get("result", {}).get("server_version")

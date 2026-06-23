@@ -12,6 +12,7 @@ Retry policy (CDC §5.5)
 - Session expiry / access denied during execute_kw: re-authenticate
   once and retry the same call.
 """
+
 from __future__ import annotations
 
 import logging
@@ -83,7 +84,9 @@ class JsonRpcMixin:
             else:
                 if resp.status_code >= 500:
                     last_exc = httpx.HTTPStatusError(
-                        f"Odoo returned {resp.status_code}", request=resp.request, response=resp,
+                        f"Odoo returned {resp.status_code}",
+                        request=resp.request,
+                        response=resp,
                     )
                 elif resp.status_code >= 400:
                     resp.raise_for_status()  # bubbles up immediately, no retry
@@ -91,10 +94,13 @@ class JsonRpcMixin:
                     return resp.json()
 
             if attempt < max_attempts:
-                sleep_s = 2 ** attempt
+                sleep_s = 2**attempt
                 logger.warning(
                     "Odoo RPC transient failure (attempt %d/%d), retrying in %ds: %s",
-                    attempt, max_attempts, sleep_s, last_exc,
+                    attempt,
+                    max_attempts,
+                    sleep_s,
+                    last_exc,
                 )
                 time.sleep(sleep_s)
 
@@ -103,11 +109,13 @@ class JsonRpcMixin:
 
     def _call(self, service: str, method: str, args: list) -> Any:
         """Low-level JSON-RPC call. Raises on HTTP error or Odoo-level error."""
-        body = self._post_jsonrpc({
-            "jsonrpc": "2.0",
-            "method": "call",
-            "params": {"service": service, "method": method, "args": args},
-        })
+        body = self._post_jsonrpc(
+            {
+                "jsonrpc": "2.0",
+                "method": "call",
+                "params": {"service": service, "method": method, "args": args},
+            }
+        )
         if body.get("error"):
             err = body["error"]
             msg = err.get("data", {}).get("message") or str(err)
@@ -161,7 +169,8 @@ class JsonRpcMixin:
                 raise
             logger.warning(
                 "Odoo session likely expired on %s.%s — re-authenticating and retrying once",
-                model, method,
+                model,
+                method,
             )
             self._uid = None
             uid = self._ensure_auth()

@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,14 +14,27 @@ from rest_framework.views import APIView
 
 from apps.simulations.models import Simulation, SimulationStatus
 
-from .models import Offer, OfferLine, OfferStatus, OfferType
+from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
 from .serializers import (
+    ExtendExpirationSerializer,
+    OfferAlertConfigSerializer,
     OfferDetailSerializer,
     OfferLineSerializer,
     OfferListSerializer,
     OfferWriteSerializer,
     StatusTransitionSerializer,
 )
+from .tasks import offer_export_path
+
+# User-driven status transitions (CDC §7.5.1). `expired` is set only by the
+# daily cron; reactivation goes through extend-expiration, not /status.
+ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    OfferStatus.DRAFT: {OfferStatus.SENT},
+    OfferStatus.SENT: {OfferStatus.WON, OfferStatus.LOST},
+    OfferStatus.WON: set(),
+    OfferStatus.LOST: set(),
+    OfferStatus.EXPIRED: set(),
+}
 
 
 class OfferViewSet(viewsets.ModelViewSet):
@@ -50,8 +64,16 @@ class OfferViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         new_status = ser.validated_data["status"]
 
+        # Enforce the lifecycle order (e.g. draft→won is rejected; pass via sent).
+        if new_status != offer.status and new_status not in ALLOWED_TRANSITIONS.get(
+            offer.status, set()
+        ):
+            raise ValidationError(f"Transition {offer.status} → {new_status} non autorisée.")
         # `won` / `lost` only apply to project offers (CDC §7.5.1).
-        if new_status in {OfferStatus.WON, OfferStatus.LOST} and offer.offer_type != OfferType.PROJECT:
+        if (
+            new_status in {OfferStatus.WON, OfferStatus.LOST}
+            and offer.offer_type != OfferType.PROJECT
+        ):
             raise ValidationError("won/lost transitions only apply to project offers.")
 
         now = timezone.now()
@@ -66,13 +88,9 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer.save()
         return Response(OfferDetailSerializer(offer).data)
 
-    # ─── /duplicate (new version of a project offer) ─────────────────
-    @action(detail=True, methods=["post"])
-    @transaction.atomic
-    def duplicate(self, request, pk=None):
-        src = self.get_object()
-        if src.offer_type != OfferType.PROJECT:
-            raise ValidationError("Only project offers can be versioned.")
+    @staticmethod
+    def _create_next_version(src: Offer) -> Offer:
+        """Clone a project offer as V(n+1): previous_offer chain + copied lines."""
         copy = Offer.objects.create(
             simulation=src.simulation,
             offer_type=src.offer_type,
@@ -105,7 +123,40 @@ class OfferViewSet(viewsets.ModelViewSet):
                 quantity=line.quantity,
                 display_order=line.display_order,
             )
+        return copy
+
+    # ─── /duplicate · /new-version (new version of a project offer) ──────
+    @action(detail=True, methods=["post"], url_path="new-version")
+    @transaction.atomic
+    def new_version(self, request, pk=None):
+        """Create V(n+1) of a project offer (CDC §7.5). Project offers only."""
+        src = self.get_object()
+        if src.offer_type != OfferType.PROJECT:
+            raise ValidationError("Seules les offres projet sont versionnables.")
+        copy = self._create_next_version(src)
         return Response(OfferDetailSerializer(copy).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def duplicate(self, request, pk=None):
+        """Backward-compatible alias of new-version."""
+        return self.new_version(request, pk=pk)
+
+    # ─── /extend-expiration ───────────────────────────────────────────
+    @action(detail=True, methods=["post"], url_path="extend-expiration")
+    def extend_expiration(self, request, pk=None):
+        """Push the validity date out (CDC §7.5). Reactivates an expired offer."""
+        offer = self.get_object()
+        ser = ExtendExpirationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_date = ser.validated_data["new_date"]
+        if new_date <= timezone.now().date() + timedelta(days=7):
+            raise ValidationError("La nouvelle date doit être à plus de 7 jours.")
+        offer.valid_to = new_date
+        if offer.status == OfferStatus.EXPIRED:
+            offer.status = OfferStatus.SENT  # reactivate (expired only comes from sent)
+        offer.save(update_fields=["valid_to", "status", "updated_at"])
+        return Response(OfferDetailSerializer(offer).data)
 
     # ─── /versions ───────────────────────────────────────────────────
     @action(detail=True, methods=["get"])
@@ -125,6 +176,45 @@ class OfferViewSet(viewsets.ModelViewSet):
                     chain.append(follower)
         return Response(OfferListSerializer(chain, many=True).data)
 
+    # ─── /regenerate (retry Gamma generation — CDC §7.6.3) ───────────
+    @action(detail=True, methods=["post"])
+    def regenerate(self, request, pk=None):
+        """Retry the Gamma generation of a project offer that errored.
+
+        Returns 202 + task_id; poll /api/tasks/{task_id}/.
+        """
+        from .tasks import regenerate_project_offer_task
+
+        offer = self.get_object()
+        if offer.offer_type != OfferType.PROJECT:
+            raise ValidationError("La régénération concerne les offres projet.")
+        task = regenerate_project_offer_task.delay(str(offer.id))
+        return Response({"task_id": task.id, "status": "PENDING"}, status=status.HTTP_202_ACCEPTED)
+
+    # ─── /tariff-columns (catalogue for the generation wizard) ───────
+    @action(detail=False, methods=["get"], url_path="tariff-columns")
+    def tariff_columns(self, request):
+        """Available tariff-Excel columns ([{key, label}]) translated by ?lang."""
+        from .services.excel import available_columns
+
+        lang = request.query_params.get("lang", "fr")
+        return Response(available_columns(lang))
+
+    # ─── /download (generated Excel/PDF) ─────────────────────────────
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """Stream the generated tariff Excel (CDC §7.8 — GET /offers/{id}/download)."""
+        offer = self.get_object()
+        path = offer_export_path(offer.id)
+        if not path.is_file():
+            raise Http404("Document non généré ou expiré.")
+        return FileResponse(
+            path.open("rb"),
+            as_attachment=True,
+            filename=f"tarif_{offer.id}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
     # ─── /generate (stub) ────────────────────────────────────────────
     @action(detail=True, methods=["post"])
     def generate(self, request, pk=None):
@@ -141,8 +231,10 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer.generated_file_url = ""  # real flow uploads to storage and stores URL
         offer.save(update_fields=["gamma_document_id", "generated_file_url", "updated_at"])
         return Response(
-            {"detail": "Generation stub — Gamma integration pending.",
-             "gamma_document_id": offer.gamma_document_id},
+            {
+                "detail": "Generation stub — Gamma integration pending.",
+                "gamma_document_id": offer.gamma_document_id,
+            },
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -165,9 +257,7 @@ class OfferLineViewSet(viewsets.ModelViewSet):
 class OfferDashboardView(APIView):
     def get(self, request):
         now = timezone.now()
-        counts = (
-            Offer.objects.values("status").annotate(n=Count("id")).order_by()
-        )
+        counts = Offer.objects.values("status").annotate(n=Count("id")).order_by()
         status_counts = {row["status"]: row["n"] for row in counts}
 
         project_qs = Offer.objects.filter(offer_type=OfferType.PROJECT)
@@ -207,3 +297,17 @@ class OffersExpiringSoonView(APIView):
             Q(valid_to__isnull=False, valid_to__lte=deadline, valid_to__gte=now.date())
         ).order_by("valid_to")
         return Response(OfferListSerializer(offers, many=True).data)
+
+
+class OfferAlertSettingsView(APIView):
+    """Recipients of the J-7 expiration alert — UI-editable (CDC §7.6)."""
+
+    def get(self, request):
+        return Response(OfferAlertConfigSerializer(OfferAlertConfig.load()).data)
+
+    def put(self, request):
+        cfg = OfferAlertConfig.load()
+        ser = OfferAlertConfigSerializer(cfg, data=request.data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)

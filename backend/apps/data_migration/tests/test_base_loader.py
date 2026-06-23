@@ -13,6 +13,7 @@ DB setup:
   matcher rules.  A fourth product row is intentionally duplicated in the
   factory-category index to trigger DUPLICATE_MATCH on row 5.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -134,17 +135,41 @@ class TestDummyLoaderReport:
 
     def setup_method(self) -> None:
         # Product for row 1 (exact SKU match)
-        make_product("KCFU64PZHDGR5", parent_reference="KCFU64PZHDGR5", factory_code="21",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6")
+        make_product(
+            "KCFU64PZHDGR5",
+            parent_reference="KCFU64PZHDGR5",
+            factory_code="21",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+        )
         # Product for row 2 (parent+factory)  — same product, already created above
         # Product for row 3 (factory + category "91" + "COPPER|DATA CABLES|SOLID CABLE CAT6|F/UTP")
-        make_product("OEFU64PXSDWHT5", factory_code="91",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="F/UTP")
+        make_product(
+            "OEFU64PXSDWHT5",
+            factory_code="91",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="F/UTP",
+        )
         # Two products sharing factory "E02" + category "AMBIGUOUS" → DUPLICATE_MATCH on row 5
-        make_product("AMBIG1", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
-        make_product("AMBIG2", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
+        make_product(
+            "AMBIG1",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
+        make_product(
+            "AMBIG2",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
 
     def test_report_total_rows(self) -> None:
         report = DummyLoader().run(default_config())
@@ -169,9 +194,7 @@ class TestDummyLoaderReport:
 
     def test_migration_unmatched_records_created(self) -> None:
         DummyLoader().run(default_config())
-        assert MigrationUnmatched.objects.filter(
-            source_file="sample_minimal.xlsx"
-        ).count() == 2
+        assert MigrationUnmatched.objects.filter(source_file="sample_minimal.xlsx").count() == 2
 
     def test_unmatched_no_sku_has_raw_data(self) -> None:
         DummyLoader().run(default_config())
@@ -195,14 +218,38 @@ class TestDummyLoaderSavepointRollback:
     """apply_update raises on one product → that row quarantined, rest commits."""
 
     def setup_method(self) -> None:
-        make_product("KCFU64PZHDGR5", parent_reference="KCFU64PZHDGR5", factory_code="21",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6")
-        make_product("OEFU64PXSDWHT5", factory_code="91",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="F/UTP")
-        make_product("AMBIG1", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
-        make_product("AMBIG2", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
+        make_product(
+            "KCFU64PZHDGR5",
+            parent_reference="KCFU64PZHDGR5",
+            factory_code="21",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+        )
+        make_product(
+            "OEFU64PXSDWHT5",
+            factory_code="91",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="F/UTP",
+        )
+        make_product(
+            "AMBIG1",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
+        make_product(
+            "AMBIG2",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
 
     def test_failed_apply_quarantines_row_not_entire_batch(self) -> None:
         loader = DummyLoader()
@@ -225,14 +272,38 @@ class TestDummyLoaderDryRun:
     """dry_run=True must not write any rows to DB."""
 
     def setup_method(self) -> None:
-        make_product("KCFU64PZHDGR5", parent_reference="KCFU64PZHDGR5", factory_code="21",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6")
-        make_product("OEFU64PXSDWHT5", factory_code="91",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="F/UTP")
-        make_product("AMBIG1", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
-        make_product("AMBIG2", factory_code="E02",
-                     universe="COPPER", family="DATA CABLES", range_="SOLID CABLE CAT6", sub_range="AMBIGUOUS")
+        make_product(
+            "KCFU64PZHDGR5",
+            parent_reference="KCFU64PZHDGR5",
+            factory_code="21",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+        )
+        make_product(
+            "OEFU64PXSDWHT5",
+            factory_code="91",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="F/UTP",
+        )
+        make_product(
+            "AMBIG1",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
+        make_product(
+            "AMBIG2",
+            factory_code="E02",
+            universe="COPPER",
+            family="DATA CABLES",
+            range_="SOLID CABLE CAT6",
+            sub_range="AMBIGUOUS",
+        )
 
     def test_dry_run_no_quarantine_records(self) -> None:
         DummyLoader().run(default_config(dry_run=True))

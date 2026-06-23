@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { getSession, loginApi, logoutApi, type AuthUser, type Role } from "@/lib/auth";
 
@@ -48,11 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [router]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const u = await loginApi(email, password);
-    setUser(u);
-    router.push("/catalog");
-  }, [router]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const u = await loginApi(email, password);
+      setUser(u);
+      router.push("/catalog");
+    },
+    [router],
+  );
 
   const logout = useCallback(async () => {
     await logoutApi();

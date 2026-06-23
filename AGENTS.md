@@ -205,6 +205,8 @@ Avant de considérer une tâche **terminée**, parcours cette checklist et mets 
 - frontend → `docs/agent/frontend.md`
 - dev local sans Docker → `docs/agent/local-dev.md`
 - PIM (catalogue, attributs, seeds référence) → `pim.md`
+- migration initiale one-shot (orchestrateur, loaders, reset, dérivations) → `migration.md`
+- offres (génération tarif/projet, Excel/Gamma, suivi) → `offers.md`
 - sinon → `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`
 
 ### Règles de forme

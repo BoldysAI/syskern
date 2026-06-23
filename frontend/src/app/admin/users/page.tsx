@@ -47,7 +47,10 @@ async function apiCall(url: string, method: string, body?: unknown) {
   const res = await fetch(url, {
     method,
     credentials: "include",
-    headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -57,13 +60,7 @@ async function apiCall(url: string, method: string, body?: unknown) {
   return res.status === 204 ? null : res.json();
 }
 
-function UserModal({
-  user,
-  onClose,
-}: {
-  user?: PlatformUser;
-  onClose: () => void;
-}) {
+function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void }) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [firstName, setFirstName] = useState(user?.first_name ?? "");
   const [lastName, setLastName] = useState(user?.last_name ?? "");
@@ -77,7 +74,12 @@ function UserModal({
     setError(null);
     setLoading(true);
     try {
-      const body: Record<string, string> = { email, first_name: firstName, last_name: lastName, role };
+      const body: Record<string, string> = {
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+      };
       if (password) body.password = password;
       if (!user) body.password = password || "";
       if (user) {
@@ -264,7 +266,12 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">{u.email}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold", ROLE_COLORS[u.role])}>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold",
+                        ROLE_COLORS[u.role],
+                      )}
+                    >
                       {u.role === "admin" && <UserCheck size={11} />}
                       {ROLE_LABELS[u.role]}
                     </span>

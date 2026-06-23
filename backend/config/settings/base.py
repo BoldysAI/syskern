@@ -5,6 +5,7 @@ Per-environment settings live in `config.settings.local` and
 `config.settings.production`.  They import everything from this module and
 override what they need.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -142,12 +143,8 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 # ─── DRF ──────────────────────────────────────────────────────────────────────
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "apps.core.authentication.CsrfExemptSessionAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.core.authentication.CsrfExemptSessionAuthentication",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
@@ -219,11 +216,78 @@ GAMMA = {
 
 DEEPL_API_KEY = env("DEEPL_API_KEY", default="")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+# Model for offer copy generation (CDC §7.6.1) — overridable per the evolving
+# model landscape (Annexe Technique §3.6).
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
+
+# ─── Email (offer expiration alerts, technical alerts — CDC §7.5.4) ───────────
+# Dev: console backend (mails printed to logs). Prod: configure SMTP via env.
+EMAIL_BACKEND = env(
+    "DJANGO_EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = env("DJANGO_DEFAULT_FROM_EMAIL", default="noreply@syskern.local")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+
+# ─── Offer lifecycle (CDC §7.5 / §7.6) ────────────────────────────────────────
+# Alert recipients are configured from the UI (DB: OfferAlertConfig), not env.
+OFFERS = {
+    # Killswitch for the daily expiration cron (auto-expire + J-7 alert).
+    "EXPIRATION_CRON_ENABLED": env.bool("EXPIRATION_CRON_ENABLED", default=True),
+    # Base URL for clickable offer links in the alert email.
+    "FRONTEND_BASE_URL": env("OFFER_FRONTEND_BASE_URL", default="http://localhost:3000"),
+}
+
+# ─── Initial data migration (one-shot — CDC §8) ───────────────────────────────
+# The migration is operated by Boldys at deployment. `LOCKED` is the guard-rail
+# (CDC §8.9): once true (post go-live) `run_migration` and `migration_reset`
+# refuse to run so an accidental re-run cannot clobber data Olivier enriched.
+# `STATE_FILE` holds the resume checkpoint (survives a DB reset — it is on disk,
+# not in Postgres). `SOURCES_DIR` defaults to the repo-root `migration/sources/`
+# (mounted at /migration/sources inside the backend container).
+MIGRATION = {
+    "LOCKED": env.bool("MIGRATION_LOCKED", default=False),
+    "STATE_FILE": env("MIGRATION_STATE_FILE", default=str(BASE_DIR / ".migration_state.json")),
+    "SOURCES_DIR": env(
+        "MIGRATION_SOURCES_DIR", default=str(BASE_DIR.parent / "migration" / "sources")
+    ),
+    # Optional path to a JSON manifest listing the Excel sources to load
+    # (see docs/runbooks/migration.md). Empty → step 2 auto-discovers nothing.
+    "MANIFEST": env("MIGRATION_MANIFEST", default=""),
+    # Final report (CDC §8.8): where migration_report_<date>.xlsx is written,
+    # and the cross-validation recipients for `migration_report --email`.
+    "REPORT_DIR": env(
+        "MIGRATION_REPORT_DIR", default=str(BASE_DIR.parent / "migration" / "reports")
+    ),
+    "REPORT_RECIPIENTS": env.list("MIGRATION_REPORT_RECIPIENTS", default=[]),
+}
 
 # Supabase (production only)
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")
 SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
+
+# ─── Cache (Redis) ────────────────────────────────────────────────────────────
+# Shared between gunicorn / worker / beat so primitives like the login
+# rate limiter see the same counters regardless of which process serves
+# the request. Falls back to LocMemCache (per-process) only in test contexts
+# where REDIS_URL isn't reachable.
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
+        "KEY_PREFIX": "syskern",
+        "TIMEOUT": 300,  # 5 min default for ad-hoc keys; rate-limiter sets its own
+    }
+}
+
+# ─── Login rate limit (CDC §9.2) ──────────────────────────────────────────────
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(env("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", default=5))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(env("LOGIN_RATE_LIMIT_WINDOW_SECONDS", default=900))  # 15 min
 
 # ─── Celery ───────────────────────────────────────────────────────────────────
 

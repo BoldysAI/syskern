@@ -50,6 +50,7 @@ pre_run() calls get_or_create() once per AttributeRegistry code so the
 registry entries exist before any row is processed.  apply_update() then
 calls update_or_create() on ProductAttributeValue with the non-null value.
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,7 +79,9 @@ from .types import LoaderConfig, LoaderReport, MatchHint, NormalizedRow, RowOutc
 
 logger = logging.getLogger(__name__)
 
-_TECH_FILE_PATH_DEFAULT = "data/Base Technique/UKN all items list - GTIN code & packing details.xlsx"
+_TECH_FILE_PATH_DEFAULT = (
+    "data/Base Technique/UKN all items list - GTIN code & packing details.xlsx"
+)
 
 # Excel error strings to treat as missing
 _EXCEL_ERRORS = {"#REF!", "#N/A", "#DIV/0!", "#VALUE!", "#NAME?", "#NULL!", "#NUM!", "#ERROR!"}
@@ -93,6 +96,7 @@ def _clean(value: object) -> str | None:
 
 # ── EAV attribute definitions ──────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class _EAVDef:
     code: str
@@ -104,31 +108,48 @@ class _EAVDef:
 
 
 _EAV_ATTRS: ClassVar[list[_EAVDef]] = [
-    _EAVDef("cpr_level", "Niveau CPR", "CPR Level", AttributeDataType.TEXT, AttributeCategory.TECHNICAL),
-    _EAVDef("od_mm", "Diamètre extérieur (mm)", "Outer Diameter (mm)", AttributeDataType.TEXT, AttributeCategory.TECHNICAL, unit="mm"),
-    _EAVDef("uid_code", "Code UID produit", "Product UID Code", AttributeDataType.TEXT, AttributeCategory.STRUCTURAL),
+    _EAVDef(
+        "cpr_level", "Niveau CPR", "CPR Level", AttributeDataType.TEXT, AttributeCategory.TECHNICAL
+    ),
+    _EAVDef(
+        "od_mm",
+        "Diamètre extérieur (mm)",
+        "Outer Diameter (mm)",
+        AttributeDataType.TEXT,
+        AttributeCategory.TECHNICAL,
+        unit="mm",
+    ),
+    _EAVDef(
+        "uid_code",
+        "Code UID produit",
+        "Product UID Code",
+        AttributeDataType.TEXT,
+        AttributeCategory.STRUCTURAL,
+    ),
 ]
 
 # ── Sheet profile ──────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class TechSheetProfile:
     """Column layout and processing flags for one technical sheet."""
+
     sheet_name: str
-    brand_tag: str           # sentinel stored in __brand__ column
+    brand_tag: str  # sentinel stored in __brand__ column
     # Canonical column names used AFTER column_mapping() rename
-    sku_col: str             # always 'sku_code' after rename
+    sku_col: str  # always 'sku_code' after rename
     internal_code_col: str | None
     desc_en_col: str
-    cpr_col: str             # CPR level canonical name
-    od_col: str | None       # OD (mm) — absent on NEXKERN/ORSEAN
+    cpr_col: str  # CPR level canonical name
+    od_col: str | None  # OD (mm) — absent on NEXKERN/ORSEAN
     cu_col: str
     net_content_col: str
     net_unit_col: str
     gtin_col: str
     pallet_col: str
-    uid_col: str | None      # UID Code — absent on ORSEAN
-    dop_col: str | None      # DoP — absent on ORSEAN
+    uid_col: str | None  # UID Code — absent on ORSEAN
+    dop_col: str | None  # DoP — absent on ORSEAN
     sticker_en_col: str
     sticker_fr_col: str
     has_dedup: bool

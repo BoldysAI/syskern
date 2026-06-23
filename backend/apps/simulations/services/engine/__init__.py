@@ -10,6 +10,7 @@ Public surface:
         quantize,
     )
 """
+
 from .chain import (
     ChainResult,
     build_purchase_modules,

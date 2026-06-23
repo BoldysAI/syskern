@@ -69,8 +69,36 @@ et serializers sont ajoutés au fur et à mesure des briques.
 
 ### Prérequis
 
-- **Docker** (optionnel) : Docker Desktop ≥ 24 + `docker compose` v2
-- **Sans Docker** : Postgres 16 + Redis 7 + Python 3.12 (`uv`) + Node 20 — voir [docs/agent/local-dev.md](docs/agent/local-dev.md)
+- **Docker** (recommandé) : Docker Desktop ≥ 24 + `docker compose` v2
+- **Python 3.12** (pour les outils dev — pre-commit, ruff, commitizen)
+- **Node 20+** (pour eslint/prettier locaux et `npm ci`)
+- **Sans Docker** : Postgres 16 + Redis 7 — voir [docs/agent/local-dev.md](docs/agent/local-dev.md)
+
+### Setup en une commande
+
+Pour un nouveau clone, une seule cible Make installe **tout** (deps Python+Node,
+git hooks pre-commit, templates `.env`) :
+
+```bash
+make setup
+```
+
+Concrètement, ça :
+
+1. installe les deps backend (`uv sync --extra dev`, fallback `pip install -e .[dev]`)
+2. installe les deps frontend (`npm ci`)
+3. installe les outils repo (`pre-commit`, `commitizen`, `detect-secrets`)
+4. installe les git hooks (`pre-commit install --hook-type pre-commit --hook-type commit-msg`)
+5. copie `backend/.env.example` → `backend/.env` et `frontend/.env.example` → `frontend/.env.local` si absents
+
+Une fois `make setup` passé, tu peux démarrer la stack :
+
+```bash
+make up        # docker compose up -d : Postgres + Redis + backend + worker + beat + frontend
+```
+
+Autres raccourcis utiles : `make lint`, `make fmt`, `make typecheck`, `make test`,
+`make pre-commit` (rejoue tous les hooks sur tout le repo). `make` seul liste tout.
 
 ### Développement sans Docker (2 terminaux)
 
@@ -242,6 +270,78 @@ docker run --env-file .env.prod -p 8000:8000 syskern-backend:prod
 `config/settings/production.py` impose `sslmode=require`, HSTS, le proxy
 HTTPS header, et lit `ALLOWED_HOSTS` / `CORS_ALLOWED_ORIGINS` depuis
 l'environnement.
+
+---
+
+## Qualité — pre-commit & conventions de commit
+
+Le repo embarque un setup `pre-commit` qui tourne automatiquement à chaque
+`git commit`, configuré dans `.pre-commit-config.yaml`. Installé par `make setup`.
+
+**Hooks transverses** (sur tous les fichiers) :
+
+- `trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`
+- `check-yaml`, `check-json`, `check-toml`, `check-merge-conflict`,
+  `check-added-large-files` (limite 512 KB), `check-case-conflict`,
+  `detect-private-key`
+- `detect-secrets` (baseline dans `.secrets.baseline`)
+
+**Hooks backend** (Python, `^backend/.*\.py$`) :
+
+- `ruff --fix` (lint + auto-fix)
+- `ruff-format` (formatter)
+
+**Hooks frontend** (`^frontend/src/.*`) :
+
+- `eslint --max-warnings=0`
+- `prettier --write`
+
+### Convention de commit — Conventional Commits
+
+Chaque message de commit est validé via **commitizen** (hook `commit-msg`).
+Format obligatoire :
+
+```
+<type>(<scope>): <description courte>
+
+[corps optionnel — multi-ligne]
+
+[footer optionnel — BREAKING CHANGE, refs issues, etc.]
+```
+
+| Type | Quand |
+|---|---|
+| `feat` | nouvelle fonctionnalité |
+| `fix` | bug fix |
+| `refactor` | restructuration sans changement de comportement |
+| `docs` | documentation pure (README, CDC, docstrings) |
+| `test` | ajout / modif de tests |
+| `chore` | tooling, deps, config (ex: bump version) |
+| `ci` | configuration CI/CD |
+| `perf` | amélioration de performance |
+| `style` | format/blanc — pas le contenu |
+
+Exemples bien formés :
+
+```
+feat(catalog): bouton export Excel avec filtres univers
+fix(odoo): re-authentifier après session expirée
+chore(deps): bump celery 5.6 → 5.7
+docs(readme): documenter le `make setup`
+refactor(simulations): extraire la résolution de marge en helper
+```
+
+Bypass en urgence (déconseillé) : `git commit --no-verify`.
+
+### Cibles Make pour la qualité
+
+```bash
+make lint        # ruff check + eslint (lecture seule)
+make fmt         # ruff format + prettier (applique les fixes)
+make typecheck   # mypy backend + tsc --noEmit frontend
+make test        # pytest backend
+make pre-commit  # rejoue tous les hooks sur 100% du repo
+```
 
 ---
 

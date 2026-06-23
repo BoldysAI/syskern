@@ -4,19 +4,19 @@ The adapters (`OdooAdapterV16`, `OdooAdapterV19`) read whatever Odoo
 returns and normalise to these dataclasses.  Nothing in the rest of the
 codebase should ever touch raw Odoo payloads.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 
 @dataclass
 class OdooSupplierLink:
     name: str
     factory_code: str = ""
-    price: Optional[Decimal] = None
+    price: Decimal | None = None
     currency: str = "RMB"
     incoterm: str = ""
 
@@ -46,18 +46,18 @@ class OdooProduct:
     description_technical_fr: str = ""
     gtin: str = ""
     hs_code: str = ""
-    weight_kg: Optional[Decimal] = None
-    standard_price_eur: Optional[Decimal] = None
+    weight_kg: Decimal | None = None
+    standard_price_eur: Decimal | None = None
     suppliers: list[OdooSupplierLink] = field(default_factory=list)
     is_active: bool = True
-    last_modified: Optional[datetime] = None
+    last_modified: datetime | None = None
 
 
 @dataclass
 class OdooStock:
     quantity: Decimal
     available_quantity: Decimal
-    standard_price_eur: Optional[Decimal] = None
+    standard_price_eur: Decimal | None = None
 
 
 @dataclass
@@ -72,7 +72,7 @@ class OdooClient:
     address_country: str = ""
     preferred_language: str = "fr"
     is_customer: bool = True
-    last_modified: Optional[datetime] = None
+    last_modified: datetime | None = None
 
 
 @dataclass
@@ -80,4 +80,4 @@ class OdooPurchaseLine:
     quantity: Decimal
     price_unit: Decimal
     currency: str
-    expected_date: Optional[datetime] = None
+    expected_date: datetime | None = None
