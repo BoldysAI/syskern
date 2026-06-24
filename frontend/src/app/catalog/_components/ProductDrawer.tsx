@@ -3,7 +3,7 @@
 import Link from "next/link";
 import useSWR from "swr";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight, X } from "@phosphor-icons/react";
 import { getProduct, type ProductDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

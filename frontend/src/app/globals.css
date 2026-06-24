@@ -3,10 +3,12 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant motion-safe (@media (prefers-reduced-motion: no-preference));
 
 @theme {
   /* Brand primitives — Unikkern guideline */
   --color-brand-navy: #162f56;
+  --color-brand-navy-dark: #0f2444;
   --color-brand-green: #649e5f;
   --color-brand-orange: #f78f26;
   --color-brand-blue: #09b0e6;
@@ -30,6 +32,13 @@
   --shadow-soft: 0 1px 2px rgb(22 47 86 / 0.04), 0 2px 8px rgb(22 47 86 / 0.06);
   --shadow-card: 0 1px 3px rgb(22 47 86 / 0.05), 0 4px 16px rgb(22 47 86 / 0.08);
   --shadow-elevated: 0 4px 6px rgb(22 47 86 / 0.05), 0 12px 32px rgb(22 47 86 / 0.12);
+
+  /* Z-index scale */
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-sheet: 30;
+  --z-dialog: 40;
+  --z-toast: 50;
 }
 
 *,
@@ -83,6 +92,12 @@ body {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-inset: var(--surface-inset);
+  --color-data-positive: var(--data-positive);
+  --color-data-negative: var(--data-negative);
+  --color-data-dirty: var(--data-dirty);
+  --font-mono: var(--font-mono);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -112,6 +127,11 @@ body {
   --input: #e2e8f0;
   --ring: #649e5f;
   --warm: #f78f26;
+  --surface-elevated: #ffffff;
+  --surface-inset: #f1f5f9;
+  --data-positive: #4a7d46;
+  --data-negative: #c92359;
+  --data-dirty: #d97a15;
   --chart-1: #649e5f;
   --chart-2: #f78f26;
   --chart-3: #09b0e6;
@@ -166,6 +186,9 @@ body {
   }
   html {
     @apply font-sans;
+  }
+  .font-data {
+    @apply font-mono tabular-nums;
   }
 }
 

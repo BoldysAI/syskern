@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, LayoutGrid, Table2 } from "lucide-react";
+import { ChartBar, SquaresFour, Table } from "@phosphor-icons/react";
 import {
   Bar,
   BarChart,
@@ -26,7 +26,6 @@ interface Props {
   onToggleSort: () => void;
   commonOnly: boolean;
   onToggleCommon: () => void;
-  expandedMetrics: boolean;
 }
 
 type ViewMode = "heatmap" | "chart" | "detail";
@@ -100,7 +99,7 @@ function metricChanged(
 }
 
 function heatmapBg(deltaPct: number | null): string {
-  if (deltaPct == null) return "bg-slate-50";
+  if (deltaPct == null) return "bg-muted";
   const a = Math.abs(deltaPct);
   if (a < 0.5) return "bg-emerald-50/80";
   if (a < 2) return "bg-emerald-100/60";
@@ -116,7 +115,6 @@ export function CompareSkuTable({
   onToggleSort,
   commonOnly,
   onToggleCommon,
-  expandedMetrics,
 }: Props) {
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
@@ -162,12 +160,12 @@ export function CompareSkuTable({
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <input
               type="checkbox"
               checked={commonOnly}
               onChange={onToggleCommon}
-              className="h-4 w-4 rounded border-slate-300 accent-primary"
+              className="h-4 w-4 rounded border-border accent-primary"
             />
             Lignes communes
           </label>
@@ -178,23 +176,22 @@ export function CompareSkuTable({
               "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
               sortByDelta
                 ? "border-primary bg-accent text-accent-foreground"
-                : "border-border text-slate-600 hover:bg-slate-50"
+                : "border-border text-muted-foreground hover:bg-muted"
             )}
           >
             {sortByDelta ? "Tri : écart PV ↓" : "Trier par écart PV"}
           </button>
-          <span className="text-xs text-slate-400">{rows.length} lignes</span>
+          <span className="text-xs text-muted-foreground">{rows.length} lignes</span>
         </div>
-        <div className="flex rounded-lg border border-border bg-white p-0.5">
-          <ViewBtn active={viewMode === "heatmap"} onClick={() => setViewMode("heatmap")} icon={<LayoutGrid size={14} />} label="Heatmap" />
-          <ViewBtn active={viewMode === "chart"} onClick={() => setViewMode("chart")} icon={<BarChart3 size={14} />} label="Graphique" />
-          <ViewBtn active={viewMode === "detail"} onClick={() => setViewMode("detail")} icon={<Table2 size={14} />} label="Détail" />
+        <div className="flex rounded-lg border border-border bg-card p-0.5">
+          <ViewBtn active={viewMode === "heatmap"} onClick={() => setViewMode("heatmap")} icon={<SquaresFour size={14} />} label="Heatmap" />
+          <ViewBtn active={viewMode === "chart"} onClick={() => setViewMode("chart")} icon={<ChartBar size={14} />} label="Graphique" />
+          <ViewBtn active={viewMode === "detail"} onClick={() => setViewMode("detail")} icon={<Table size={14} />} label="Détail" />
         </div>
       </div>
 
-      {/* Heatmap legend */}
-      {viewMode === "heatmap" && (
-        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+      {(viewMode === "heatmap" || viewMode === "detail") && (
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
           <span className="font-semibold">Écart PV :</span>
           {[
             { label: "< 0,5 %", cls: "bg-emerald-100" },
@@ -212,8 +209,8 @@ export function CompareSkuTable({
       )}
 
       {viewMode === "chart" && chartRows.length > 0 && (
-        <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">PV par SKU (top {chartRows.length})</h3>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">PV par SKU (top {chartRows.length})</h3>
           <ResponsiveContainer width="100%" height={Math.max(280, chartRows.length * 36)}>
             <BarChart data={chartRows} layout="vertical" margin={{ left: 8, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
@@ -234,7 +231,7 @@ export function CompareSkuTable({
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-background">
-                <th className="sticky left-0 z-10 bg-background px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="sticky left-0 z-10 bg-background px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   SKU
                 </th>
                 {visuals.map((v, i) => (
@@ -248,7 +245,7 @@ export function CompareSkuTable({
                       </span>
                       <Link
                         href={`/simulator/${columns[i].simulation_id}`}
-                        className="max-w-[120px] truncate text-[11px] font-semibold text-slate-700 hover:text-warm"
+                        className="max-w-[120px] truncate text-[11px] font-semibold text-foreground hover:text-warm"
                         title={v.label}
                       >
                         {v.shortLabel}
@@ -262,10 +259,10 @@ export function CompareSkuTable({
               {rows.map((p) => {
                 const basePv = pvNum(p.values[baseKey]?.pv_eur);
                 return (
-                  <tr key={p.product_id} className="border-b border-slate-100">
-                    <td className="sticky left-0 z-10 max-w-[200px] bg-white px-4 py-2">
+                  <tr key={p.product_id} className="border-b border-border">
+                    <td className="sticky left-0 z-10 max-w-[200px] bg-card px-4 py-2">
                       <span className="block font-mono text-xs font-bold text-warm">{p.product_sku}</span>
-                      <span className="block truncate text-[10px] text-slate-400" title={p.product_name}>
+                      <span className="block truncate text-[10px] text-muted-foreground" title={p.product_name}>
                         {p.product_name}
                       </span>
                     </td>
@@ -278,7 +275,7 @@ export function CompareSkuTable({
                           ? ((pv - basePv) / basePv) * 100
                           : null;
 
-                      if (viewMode === "detail" || (expandedMetrics && viewMode === "heatmap")) {
+                      if (viewMode === "detail") {
                         return (
                           <td key={c.key} className="px-2 py-2 align-top">
                             <div className="space-y-0.5">
@@ -293,13 +290,13 @@ export function CompareSkuTable({
                                     className={cn(
                                       "flex justify-between gap-1 rounded px-1.5 py-0.5 text-[10px] tabular-nums",
                                       m.key === "pv_eur" && i > 0 && deltaPct != null && heatmapBg(deltaPct),
-                                      changed && m.key !== "pv_eur" && "bg-amber-50"
+                                      changed && m.key !== "pv_eur" && "bg-warm/10"
                                     )}
                                   >
-                                    <span className="font-medium text-slate-400">{m.label}</span>
-                                    <span className="font-semibold text-slate-800">
+                                    <span className="font-medium text-muted-foreground">{m.label}</span>
+                                    <span className="font-semibold text-foreground">
                                       {val}
-                                      {delta && <span className="ml-1 text-amber-600">{delta}</span>}
+                                      {delta && <span className="ml-1 text-warm">{delta}</span>}
                                     </span>
                                   </div>
                                 );
@@ -314,10 +311,10 @@ export function CompareSkuTable({
                           <div
                             className={cn(
                               "flex flex-col items-center justify-center rounded-lg px-2 py-3 text-center transition-colors",
-                              i === 0 ? "bg-orange-50/60 ring-1 ring-orange-100" : heatmapBg(deltaPct)
+                              i === 0 ? "bg-warm/10/60 ring-1 ring-orange-100" : heatmapBg(deltaPct)
                             )}
                           >
-                            <div className="text-sm font-bold tabular-nums text-slate-900">
+                            <div className="text-sm font-bold font-data text-foreground">
                               {fmtEur(cell?.pv_eur)}
                             </div>
                             {deltaPct != null && i > 0 && (
@@ -332,7 +329,7 @@ export function CompareSkuTable({
                                 {deltaPct.toFixed(1)} %
                               </span>
                             )}
-                            <div className="mt-1.5 text-[9px] text-slate-400">
+                            <div className="mt-1.5 text-[9px] text-muted-foreground">
                               PR {fmtEur(cell?.pr_eur)}
                             </div>
                           </div>
@@ -344,7 +341,7 @@ export function CompareSkuTable({
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-4 py-12 text-center text-sm text-slate-400">
+                  <td colSpan={columns.length + 1} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Aucune ligne à comparer.
                   </td>
                 </tr>
@@ -374,7 +371,7 @@ function ViewBtn({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-        active ? "bg-accent text-accent-foreground shadow-sm" : "text-slate-500 hover:bg-slate-50"
+        active ? "bg-accent text-accent-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"
       )}
     >
       {icon}

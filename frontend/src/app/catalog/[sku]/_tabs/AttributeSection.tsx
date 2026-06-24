@@ -2,6 +2,7 @@
 
 import type { AttributeCategory } from "@/lib/api";
 import { AttributeRenderer } from "@/components/AttributeRenderer";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEdit } from "./edit-context";
 
 interface AttributeSectionProps {
@@ -17,25 +18,31 @@ export function AttributeSection({ category, title, emptyLabel }: AttributeSecti
 
   if (attrs.length === 0) {
     return (
-      <div className="bg-white border border-border rounded-xl p-8 text-center text-sm text-slate-400 shadow-sm">
-        {emptyLabel ?? "Aucun attribut défini pour cette catégorie."}
-      </div>
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          {emptyLabel ?? "Aucun attribut défini pour cette catégorie."}
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3">{title}</h3>
-      {attrs.map((attr) => (
-        <AttributeRenderer
-          key={attr.id}
-          attribute={attr}
-          value={attrValue(attr.id)}
-          mode={mode}
-          lang={lang}
-          onChange={(v, valid) => setAttr(attr.id, v, valid)}
-        />
-      ))}
-    </div>
+    <Card>
+      <CardHeader className="border-none pb-0">
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        {attrs.map((attr) => (
+          <AttributeRenderer
+            key={attr.id}
+            attribute={attr}
+            value={attrValue(attr.id)}
+            mode={mode}
+            lang={lang}
+            onChange={(v, valid) => setAttr(attr.id, v, valid)}
+          />
+        ))}
+      </CardContent>
+    </Card>
   );
 }

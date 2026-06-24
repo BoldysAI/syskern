@@ -36,8 +36,8 @@ export function DashboardQuickActions({ items, loading }: DashboardQuickActionsP
           key={item.href}
           href={item.href}
           className={cn(
-            "group flex items-start gap-3 rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)] transition-all duration-200",
-            "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-card)]",
+            "group flex items-start gap-3 rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)] transition-colors duration-200",
+            "hover:border-primary/30 hover:shadow-[var(--shadow-soft)]",
           )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">

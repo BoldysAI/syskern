@@ -4,17 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import * as Select from "@radix-ui/react-select";
 import {
-  AlertCircle,
   ArrowLeft,
   ArrowRight,
+  CaretRight,
   Check,
-  ChevronDown,
-  ChevronRight,
-  Loader2,
+  CircleNotch,
   Package,
-} from "lucide-react";
+  WarningCircle,
+} from "@phosphor-icons/react";
 import {
   createProduct,
   createSupplier,
@@ -30,7 +28,20 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { AttributeRenderer, validateAttributeValue } from "@/components/AttributeRenderer";
+import { FormField } from "@/components/FormField";
 import { SupplierManager } from "@/components/SupplierManager";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 const DRAFT_KEY = "syskern:new-product-draft:v1";
 const SKU_RE = /^[A-Z0-9-]+$/;
@@ -92,11 +103,6 @@ function loadDraft(): WizardDraft {
   }
 }
 
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
-
-// ─── Small bound inputs ──────────────────────────────────────────────────────
-
 function TextField({
   label,
   value,
@@ -106,6 +112,7 @@ function TextField({
   onBlur,
   placeholder,
   mono,
+  error,
 }: {
   label: string;
   value: string;
@@ -115,21 +122,18 @@ function TextField({
   onBlur?: () => void;
   placeholder?: string;
   mono?: boolean;
+  error?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">
-        {label}
-        {required && <span className="text-red-400 ml-0.5">*</span>}
-      </span>
-      <input
+    <FormField label={label} required={required} error={invalid ? error : undefined}>
+      <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
-        className={cn(inputCls, mono && "font-mono", invalid && "border-red-400 focus:ring-red-200")}
+        className={cn(mono && "font-mono", invalid && "border-destructive")}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -139,26 +143,24 @@ function AreaField({
   onChange,
   required,
   invalid,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
   invalid?: boolean;
+  error?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">
-        {label}
-        {required && <span className="text-red-400 ml-0.5">*</span>}
-      </span>
-      <textarea
+    <FormField label={label} required={required} error={invalid ? error : undefined}>
+      <Textarea
         value={value}
         rows={3}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(inputCls, "resize-y", invalid && "border-red-400 focus:ring-red-200")}
+        className={cn("resize-y", invalid && "border-destructive")}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -176,24 +178,23 @@ function NumberField({
   integer?: boolean;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+    <FormField label={label}>
       <div className="relative">
-        <input
+        <Input
           type="number"
           inputMode={integer ? "numeric" : "decimal"}
           step={integer ? 1 : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={cn(inputCls, unit && "pr-12")}
+          className={cn(unit && "pr-12")}
         />
         {unit && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
             {unit}
           </span>
         )}
       </div>
-    </label>
+    </FormField>
   );
 }
 
@@ -213,48 +214,24 @@ function SelectField({
   placeholder?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <Select.Root
+    <FormField label={label}>
+      <Select
         value={value || undefined}
-        onValueChange={onChange}
+        onValueChange={(v) => onChange(v ?? "")}
         disabled={disabled}
       >
-        <Select.Trigger
-          className={cn(
-            inputCls,
-            "flex items-center justify-between gap-2 text-left disabled:opacity-50 disabled:cursor-not-allowed",
-          )}
-        >
-          <Select.Value placeholder={placeholder ?? "Sélectionner…"} />
-          <Select.Icon>
-            <ChevronDown size={15} className="text-slate-400" />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Content
-            position="popper"
-            sideOffset={4}
-            className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
-          >
-            <Select.Viewport className="p-1">
-              {options.map((opt) => (
-                <Select.Item
-                  key={opt.value}
-                  value={opt.value}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                >
-                  <Select.ItemText>{opt.label}</Select.ItemText>
-                  <Select.ItemIndicator>
-                    <Check size={14} className="text-warm" />
-                  </Select.ItemIndicator>
-                </Select.Item>
-              ))}
-            </Select.Viewport>
-          </Select.Content>
-        </Select.Portal>
-      </Select.Root>
-    </label>
+        <SelectTrigger className="w-full bg-background">
+          <SelectValue placeholder={placeholder ?? "Sélectionner…"} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
   );
 }
 
@@ -269,34 +246,20 @@ function ToggleField({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={value}
-        onClick={() => onChange(!value)}
-        className={cn(
-          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-          value ? "bg-primary" : "bg-slate-300",
-        )}
-      >
-        <span
-          className={cn(
-            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-            value ? "translate-x-6" : "translate-x-1",
-          )}
-        />
-      </button>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
+      <Switch checked={value} onCheckedChange={onChange} />
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3">{title}</h3>
-      {children}
-    </div>
+    <Card>
+      <CardHeader className="border-none pb-0">
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -581,7 +544,7 @@ export default function NewProductPage() {
   // ── Step renderers ─────────────────────────────────────────────────────────
   const renderIdentification = () => (
     <div className="flex flex-col gap-6">
-      <Card title="Identification">
+      <SectionCard title="Identification">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField
             label="SKU"
@@ -591,6 +554,7 @@ export default function NewProductPage() {
             required
             mono
             invalid={showErrors && !!errors.sku_code}
+            error={errors.sku_code}
             placeholder="ex. KCFF6A4PZHDBL5-21"
           />
           <TextField
@@ -599,6 +563,7 @@ export default function NewProductPage() {
             onChange={(v) => set("name", v)}
             required
             invalid={showErrors && !!errors.name}
+            error={errors.name}
           />
           <TextField
             label="Référence parent (auto)"
@@ -619,9 +584,9 @@ export default function NewProductPage() {
           <TextField label="Marque" value={str("brand")} onChange={(v) => set("brand", v)} />
           <TextField label="Code article" value={str("item_code")} onChange={(v) => set("item_code", v)} />
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card title="Hiérarchie">
+      <SectionCard title="Hiérarchie">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
             label="Univers"
@@ -656,9 +621,9 @@ export default function NewProductPage() {
             onChange={(v) => set("sub_range", v)}
           />
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card title="Descriptions multilingues">
+      <SectionCard title="Descriptions multilingues">
         <div className="flex flex-col gap-4">
           <AreaField
             label="Description marketing (FR)"
@@ -666,26 +631,27 @@ export default function NewProductPage() {
             onChange={(v) => setDesc("fr", v)}
             required
             invalid={showErrors && !!errors.description_fr}
+            error={errors.description_fr}
           />
           <AreaField label="Description marketing (EN)" value={desc("en")} onChange={(v) => setDesc("en", v)} />
           <AreaField label="Description marketing (ES)" value={desc("es")} onChange={(v) => setDesc("es", v)} />
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card title="Identifiants">
+      <SectionCard title="Identifiants">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField label="GTIN" value={str("gtin")} onChange={(v) => set("gtin", v)} />
           <TextField label="Code HS" value={str("hs_code")} onChange={(v) => set("hs_code", v)} />
           <TextField label="N° DOP" value={str("dop_number")} onChange={(v) => set("dop_number", v)} />
         </div>
-      </Card>
+      </SectionCard>
     </div>
   );
 
   const renderTechnical = () => (
-    <Card title="Caractéristiques techniques">
+    <SectionCard title="Caractéristiques techniques">
       {(technicalAttrs ?? []).length === 0 ? (
-        <p className="text-sm text-slate-400">Aucun attribut technique défini dans le registre.</p>
+        <p className="text-sm text-muted-foreground">Aucun attribut technique défini dans le registre.</p>
       ) : (
         (technicalAttrs ?? [])
           .slice()
@@ -703,30 +669,30 @@ export default function NewProductPage() {
             />
           ))
       )}
-    </Card>
+    </SectionCard>
   );
 
   const renderLogistics = () => (
     <div className="flex flex-col gap-6">
-      <Card title="Poids & unité">
+      <SectionCard title="Poids & unité">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField label="Poids unitaire" value={str("unit_weight_kg")} onChange={(v) => set("unit_weight_kg", v)} unit="kg" />
           <SelectField label="Unité de base" value={str("base_unit")} options={BASE_UNIT_OPTIONS} onChange={(v) => set("base_unit", v)} />
           <SelectField label="Approvisionnement" value={str("supply_policy")} options={SUPPLY_POLICY_OPTIONS} onChange={(v) => set("supply_policy", v)} />
           <ToggleField label="Stockable" value={core.is_stockable === true} onChange={(v) => set("is_stockable", v)} />
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card title="Conditionnement">
+      <SectionCard title="Conditionnement">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField label="Qté colisage primaire" value={str("primary_packaging_qty")} onChange={(v) => set("primary_packaging_qty", v)} integer />
           <NumberField label="Qté colisage secondaire" value={str("secondary_packaging_qty")} onChange={(v) => set("secondary_packaging_qty", v)} integer />
           <NumberField label="Qté colisage tertiaire" value={str("tertiary_packaging_qty")} onChange={(v) => set("tertiary_packaging_qty", v)} integer />
           <NumberField label="Qté palette" value={str("pallet_qty")} onChange={(v) => set("pallet_qty", v)} integer />
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card title="Indexation cuivre">
+      <SectionCard title="Indexation cuivre">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <ToggleField label="Indexé cuivre" value={core.is_copper_indexed === true} onChange={(v) => set("is_copper_indexed", v)} />
           {core.is_copper_indexed === true && (
@@ -738,13 +704,13 @@ export default function NewProductPage() {
             </div>
           )}
         </div>
-      </Card>
+      </SectionCard>
     </div>
   );
 
   const renderSuppliers = () => (
-    <Card title="Fournisseur(s)">
-      <p className="text-sm text-slate-500 mb-4">
+    <SectionCard title="Fournisseur(s)">
+      <p className="mb-4 text-sm text-muted-foreground">
         Ajoutez le premier fournisseur du produit. La source active fournit les paramètres de calcul
         lors des simulations.
       </p>
@@ -755,13 +721,13 @@ export default function NewProductPage() {
         onDelete={supplierDelete}
         onActivate={supplierActivate}
       />
-    </Card>
+    </SectionCard>
   );
 
   const renderReview = () => {
     const activeSupplier = suppliers.find((s) => s.is_active) ?? suppliers[0];
     return (
-      <Card title="Récapitulatif">
+      <SectionCard title="Récapitulatif">
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
           <Recap label="SKU" value={str("sku_code")} mono />
           <Recap label="Nom" value={str("name")} />
@@ -776,11 +742,11 @@ export default function NewProductPage() {
           <Recap label="Fournisseurs" value={String(suppliers.length)} />
           <Recap label="Fournisseur actif" value={activeSupplier?.supplier_name ?? "—"} />
         </dl>
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-muted-foreground">
           La synchronisation vers Odoo est déclenchée automatiquement après la création et n&apos;empêche
           pas la création locale en cas d&apos;indisponibilité.
         </p>
-      </Card>
+      </SectionCard>
     );
   };
 
@@ -804,11 +770,11 @@ export default function NewProductPage() {
   // ── Guards ─────────────────────────────────────────────────────────────────
   if (!authLoading && !userCanEdit) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 p-10">
-        <AlertCircle size={40} className="text-amber-300" />
-        <p className="font-medium">Accès restreint</p>
-        <p className="text-sm text-slate-400">La création de produit est réservée aux rôles admin et commercial.</p>
-        <Link href="/catalog" className="text-sm text-warm hover:text-accent-foreground font-medium">
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
+        <WarningCircle size={40} weight="duotone" className="text-warm" />
+        <p className="font-medium text-foreground">Accès restreint</p>
+        <p className="text-sm">La création de produit est réservée aux rôles admin et commercial.</p>
+        <Link href="/catalog" className="text-sm font-medium text-warm hover:text-accent-foreground">
           Retour au catalogue
         </Link>
       </div>
@@ -816,76 +782,64 @@ export default function NewProductPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-5xl bg-background p-6">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
-        <Link href="/catalog" className="hover:text-slate-700 transition-colors">
+      <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link href="/catalog" className="transition-colors hover:text-foreground">
           Catalogue
         </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <span className="text-slate-800 font-medium">Nouveau produit</span>
+        <CaretRight size={14} />
+        <span className="font-medium text-foreground">Nouveau produit</span>
       </nav>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Package size={20} className="text-warm" />
-          <h1 className="text-xl font-semibold text-slate-900">Créer un produit</h1>
+          <Package size={20} weight="duotone" className="text-warm" />
+          <h1 className="text-xl font-semibold text-foreground">Créer un produit</h1>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <span>Formulaire complet</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={fullForm}
-            onClick={() => setFullForm((f) => !f)}
-            className={cn(
-              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-              fullForm ? "bg-primary" : "bg-slate-300",
-            )}
-          >
-            <span
-              className={cn(
-                "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-                fullForm ? "translate-x-6" : "translate-x-1",
-              )}
-            />
-          </button>
+          <Switch checked={fullForm} onCheckedChange={setFullForm} />
         </label>
       </div>
 
       {/* Progress indicator (wizard mode only) */}
       {!fullForm && (
-        <ol className="flex items-center gap-2 mb-6 overflow-x-auto">
+        <ol className="mb-6 flex items-center gap-2 overflow-x-auto">
           {STEPS.map((s, idx) => {
             const active = idx === step;
             const done = idx < step;
             const err = showErrors && stepHasError(idx);
             return (
-              <li key={s.id} className="flex items-center gap-2 flex-shrink-0">
+              <li key={s.id} className="flex flex-shrink-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setStep(idx)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                    "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                     active
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-primary-foreground"
                       : done
                         ? "bg-accent text-accent-foreground"
-                        : "text-slate-500 hover:bg-slate-100",
+                        : "text-muted-foreground hover:bg-muted",
                   )}
                 >
                   <span
                     className={cn(
                       "flex h-5 w-5 items-center justify-center rounded-full text-xs",
-                      active ? "bg-white/20" : done ? "bg-primary text-white" : "bg-slate-200 text-slate-600",
-                      err && "bg-red-500 text-white",
+                      active
+                        ? "bg-primary-foreground/20"
+                        : done
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground",
+                      err && "bg-destructive text-destructive-foreground",
                     )}
                   >
-                    {done ? <Check size={12} /> : idx + 1}
+                    {done ? <Check size={12} weight="bold" /> : idx + 1}
                   </span>
                   {s.label}
                 </button>
-                {idx < STEPS.length - 1 && <ChevronRight size={14} className="text-slate-300" />}
+                {idx < STEPS.length - 1 && <CaretRight size={14} className="text-muted-foreground/40" />}
               </li>
             );
           })}
@@ -897,7 +851,7 @@ export default function NewProductPage() {
         <div className="flex flex-col gap-8">
           {STEPS.filter((s) => s.id !== "review").map((s, idx) => (
             <section key={s.id}>
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-400 mb-3">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">
                 {idx + 1}. {s.label}
               </h2>
               {renderStep(STEPS.findIndex((x) => x.id === s.id))}
@@ -909,52 +863,36 @@ export default function NewProductPage() {
       )}
 
       {submitError && (
-        <div className="mt-6 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+        <div className="mt-6 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <WarningCircle size={16} className="mt-0.5 flex-shrink-0" weight="duotone" />
           <span>{submitError}</span>
         </div>
       )}
 
       {/* Footer navigation */}
-      <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-border">
+      <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-4">
         {!fullForm && step > 0 ? (
-          <button
-            type="button"
-            onClick={goPrev}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-border rounded-lg hover:bg-slate-50"
-          >
+          <Button type="button" variant="outline" onClick={goPrev}>
             <ArrowLeft size={15} />
             Précédent
-          </button>
+          </Button>
         ) : (
-          <Link
-            href="/catalog"
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-border rounded-lg hover:bg-slate-50"
-          >
+          <Button nativeButton={false} variant="outline" render={<Link href="/catalog" />}>
             <ArrowLeft size={15} />
             Annuler
-          </Link>
+          </Button>
         )}
 
         {fullForm || step === STEPS.length - 1 ? (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting && <Loader2 size={15} className="animate-spin" />}
+          <Button type="button" onClick={handleSubmit} disabled={submitting}>
+            {submitting && <CircleNotch size={15} className="animate-spin" />}
             {submitting ? "Création…" : "Créer et synchroniser vers Odoo"}
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={goNext}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90"
-          >
+          <Button type="button" onClick={goNext}>
             Suivant
             <ArrowRight size={15} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -963,10 +901,10 @@ export default function NewProductPage() {
 
 function Recap({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex justify-between gap-3 py-1.5 border-b border-[#F1F5F9]">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={cn("font-medium text-slate-800 text-right", mono && "font-mono")}>
-        {value || <span className="text-slate-300">—</span>}
+    <div className="flex justify-between gap-3 border-b border-border py-1.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn("text-right font-medium text-foreground", mono && "font-mono")}>
+        {value || <span className="text-muted-foreground/50">—</span>}
       </dd>
     </div>
   );

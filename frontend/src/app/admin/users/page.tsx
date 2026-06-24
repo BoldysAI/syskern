@@ -1,14 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { Plus, Pencil, Trash2, UserCheck } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { PencilSimple, Plus, ShieldCheck, Trash, UserPlus } from "@phosphor-icons/react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
+import { DataTable } from "@/components/data-table";
+import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
+import { cycleSortField } from "@/components/data-table/types";
+import { AppModal } from "@/components/AppModal";
+import { FormField } from "@/components/FormField";
+import { AppIcon } from "@/components/AppIcon";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/EmptyState";
+import { StatusBadge } from "@/components/StatusBadge";
 import type { Role } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PlatformUser {
   id: number;
@@ -27,11 +45,18 @@ const ROLE_LABELS: Record<Role, string> = {
   viewer: "Lecteur",
 };
 
-const ROLE_COLORS: Record<Role, string> = {
-  admin: "bg-purple-100 text-purple-700",
-  commercial: "bg-blue-100 text-blue-700",
-  viewer: "bg-slate-100 text-slate-600",
-};
+function roleBadgeVariant(role: Role) {
+  switch (role) {
+    case "admin":
+      return "oem" as const;
+    case "commercial":
+      return "info" as const;
+    default:
+      return "draft" as const;
+  }
+}
+
+const DEFAULT_SORT: DataTableSortState = { field: "email", dir: "asc" };
 
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
@@ -62,7 +87,15 @@ async function apiCall(url: string, method: string, body?: unknown) {
   return res.status === 204 ? null : res.json();
 }
 
-function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void }) {
+function UserModal({
+  user,
+  open,
+  onClose,
+}: {
+  user?: PlatformUser;
+  open: boolean;
+  onClose: () => void;
+}) {
   const [email, setEmail] = useState(user?.email ?? "");
   const [firstName, setFirstName] = useState(user?.first_name ?? "");
   const [lastName, setLastName] = useState(user?.last_name ?? "");
@@ -99,95 +132,73 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h2 className="text-lg font-semibold text-slate-900 mb-5">
-          {user ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
-        </h2>
+    <AppModal
+      open={open}
+      onOpenChange={(v) => !v && onClose()}
+      title={user ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
+      size="md"
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {error}
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Prénom">
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </FormField>
+          <FormField label="Nom">
+            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </FormField>
+        </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Prénom</label>
-              <input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Nom</label>
-              <input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-            </div>
-          </div>
+        <FormField label="E-mail" required>
+          <Input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">E-mail *</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            />
-          </div>
+        <FormField
+          label={user ? "Mot de passe (laisser vide pour ne pas changer)" : "Mot de passe"}
+          required={!user}
+        >
+          <Input
+            type="password"
+            required={!user}
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Mot de passe {user ? "(laisser vide pour ne pas changer)" : "*"}
-            </label>
-            <input
-              type="password"
-              required={!user}
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            />
-          </div>
+        <FormField label="Rôle" required>
+          <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Administrateur</SelectItem>
+              <SelectItem value="commercial">Commercial</SelectItem>
+              <SelectItem value="viewer">Lecteur</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Rôle *</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
-            >
-              <option value="admin">Administrateur</option>
-              <option value="commercial">Commercial</option>
-              <option value="viewer">Lecteur</option>
-            </select>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-60"
-            >
-              {loading ? "Enregistrement..." : user ? "Mettre à jour" : "Créer"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button type="submit" disabled={loading} className="flex-1">
+            {loading ? "Enregistrement..." : user ? "Mettre à jour" : "Créer"}
+          </Button>
+        </div>
+      </form>
+    </AppModal>
   );
 }
 
@@ -196,8 +207,92 @@ export default function UsersPage() {
   const { role } = useAuth();
   const router = useRouter();
   const [modalUser, setModalUser] = useState<PlatformUser | "new" | null>(null);
+  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
 
   const { data: users, isLoading, error } = useSWR<PlatformUser[]>("platform-users", fetchUsers);
+
+  const sortedUsers = useMemo(() => {
+    if (!users) return [];
+    const copy = [...users];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (sort.field === "email") cmp = a.email.localeCompare(b.email);
+      else if (sort.field === "role") cmp = a.role.localeCompare(b.role);
+      else if (sort.field === "last_login") {
+        const aTime = a.last_login ? new Date(a.last_login).getTime() : 0;
+        const bTime = b.last_login ? new Date(b.last_login).getTime() : 0;
+        cmp = aTime - bTime;
+      }
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [users, sort]);
+
+  const columns = useMemo<DataTableColumnDef<PlatformUser>[]>(
+    () => [
+      {
+        key: "user",
+        label: "Utilisateur",
+        width: 260,
+        render: (u) => (
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-navy">
+              <span className="text-xs font-bold text-primary-foreground">
+                {u.first_name?.[0] ?? u.email[0].toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-foreground">
+                {u.first_name || u.last_name ? `${u.first_name} ${u.last_name}`.trim() : "—"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Créé le {new Date(u.date_joined).toLocaleDateString("fr-FR")}
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "email",
+        label: "E-mail",
+        width: 220,
+        sortField: "email",
+        render: (u) => <span className="text-sm text-muted-foreground">{u.email}</span>,
+      },
+      {
+        key: "role",
+        label: "Rôle",
+        width: 150,
+        sortField: "role",
+        render: (u) => (
+          <StatusBadge variant={roleBadgeVariant(u.role)} className="gap-1">
+            {u.role === "admin" && <AppIcon icon={ShieldCheck} size="sm" />}
+            {ROLE_LABELS[u.role]}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "last_login",
+        label: "Dernière connexion",
+        width: 180,
+        sortField: "last_login",
+        render: (u) => (
+          <span className="text-sm text-muted-foreground">
+            {u.last_login
+              ? new Date(u.last_login).toLocaleDateString("fr-FR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Jamais"}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
 
   if (role !== "admin") {
     router.replace("/catalog");
@@ -206,132 +301,93 @@ export default function UsersPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Utilisateurs</h1>
-          {!isLoading && users && (
-            <p className="text-sm text-slate-500 mt-0.5">
-              {users.length} utilisateur{users.length !== 1 ? "s" : ""}
-            </p>
-          )}
-        </div>
-        <button
-          onClick={() => setModalUser("new")}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
-        >
-          <Plus size={16} />
-          Nouvel utilisateur
-        </button>
-      </div>
+      <PageHeader
+        title="Utilisateurs"
+        description={
+          !isLoading && users
+            ? `${users.length} utilisateur${users.length !== 1 ? "s" : ""}`
+            : undefined
+        }
+        actions={
+          <Button onClick={() => setModalUser("new")}>
+            <AppIcon icon={UserPlus} size="sm" />
+            Nouvel utilisateur
+          </Button>
+        }
+      />
 
-      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-        {error ? (
-          <div className="py-16 text-center text-slate-400 text-sm">
-            Impossible de charger les utilisateurs.
-          </div>
-        ) : isLoading ? (
-          <div className="py-16 text-center text-slate-400 text-sm">Chargement…</div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-background border-b border-border">
-              <tr>
-                {["Utilisateur", "E-mail", "Rôle", "Dernière connexion", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {users?.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[brand-navy] flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-xs font-bold">
-                          {u.first_name?.[0] ?? u.email[0].toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-slate-800">
-                          {u.first_name || u.last_name
-                            ? `${u.first_name} ${u.last_name}`.trim()
-                            : "—"}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          Créé le {new Date(u.date_joined).toLocaleDateString("fr-FR")}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold",
-                        ROLE_COLORS[u.role],
-                      )}
-                    >
-                      {u.role === "admin" && <UserCheck size={11} />}
-                      {ROLE_LABELS[u.role]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {u.last_login
-                      ? new Date(u.last_login).toLocaleDateString("fr-FR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Jamais"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setModalUser(u)}
-                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg transition-colors"
-                        title="Modifier"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: "Supprimer l'utilisateur",
-                            description: `Supprimer ${u.email} ?`,
-                            confirmLabel: "Supprimer",
-                            destructive: true,
-                          });
-                          if (!ok) return;
-                          try {
-                            await apiCall(`/api/users/${u.id}/`, "DELETE");
-                            await mutate("platform-users");
-                          } catch (err: unknown) {
-                            toast.error(err instanceof Error ? err.message : "Erreur");
-                          }
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="overflow-hidden py-0">
+        <DataTable
+          columns={columns}
+          rows={sortedUsers}
+          rowKey={(u) => String(u.id)}
+          storageKey="admin-users"
+          sort={sort}
+          defaultSort={DEFAULT_SORT}
+          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          isLoading={isLoading}
+          trailingWidth={88}
+          renderTrailingCell={(u) => (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setModalUser(u)}
+                title="Modifier"
+              >
+                <AppIcon icon={PencilSimple} size="sm" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Supprimer l'utilisateur",
+                    description: `Supprimer ${u.email} ?`,
+                    confirmLabel: "Supprimer",
+                    destructive: true,
+                  });
+                  if (!ok) return;
+                  try {
+                    await apiCall(`/api/users/${u.id}/`, "DELETE");
+                    await mutate("platform-users");
+                  } catch (err: unknown) {
+                    toast.error(err instanceof Error ? err.message : "Erreur");
+                  }
+                }}
+                title="Supprimer"
+              >
+                <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
+              </Button>
+            </div>
+          )}
+          errorState={
+            error ? (
+              <EmptyState
+                icon={<AppIcon icon={UserPlus} size="lg" />}
+                title="Impossible de charger les utilisateurs"
+              />
+            ) : undefined
+          }
+          emptyState={
+            <EmptyState
+              icon={<AppIcon icon={UserPlus} size="lg" />}
+              title="Aucun utilisateur"
+              action={
+                <Button onClick={() => setModalUser("new")}>
+                  <AppIcon icon={Plus} size="sm" />
+                  Nouvel utilisateur
+                </Button>
+              }
+            />
+          }
+        />
+      </Card>
 
       {modalUser !== null && (
         <UserModal
           user={modalUser === "new" ? undefined : modalUser}
+          open
           onClose={() => setModalUser(null)}
         />
       )}

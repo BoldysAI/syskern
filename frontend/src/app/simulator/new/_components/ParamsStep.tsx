@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Pencil, Wand2 } from "lucide-react";
+import { PencilSimple, MagicWand } from "@phosphor-icons/react";
 import { listTransportModes, type TransportMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
@@ -42,15 +42,15 @@ interface Props {
   introText?: string;
 }
 
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
+const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
 const inputCls =
   "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 function MarketValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-800 tabular-nums">{value || "—"}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground tabular-nums">{value || "—"}</span>
     </div>
   );
 }
@@ -103,28 +103,28 @@ export function ParamsStep({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">{introText}</p>
+        <p className="text-sm text-muted-foreground">{introText}</p>
         <button
           type="button"
           onClick={applyPreset}
           className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50"
         >
-          <Wand2 size={15} />
+          <MagicWand size={15} />
           Preset « Standard import Chine »
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Market params */}
-        <div className="border border-border rounded-xl bg-white shadow-sm p-4 flex flex-col gap-3">
+        <div className="border border-border rounded-xl bg-card shadow-sm p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800">Marché</h3>
+            <h3 className="text-sm font-bold text-foreground">Marché</h3>
             <button
               type="button"
               onClick={() => setMarketOpen(true)}
               className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
             >
-              <Pencil size={13} />
+              <PencilSimple size={13} />
               Modifier
             </button>
           </div>
@@ -135,8 +135,8 @@ export function ParamsStep({
         </div>
 
         {/* Global params */}
-        <div className="border border-border rounded-xl bg-white shadow-sm p-4 flex flex-col gap-4 lg:col-span-2">
-          <h3 className="text-sm font-bold text-slate-800">Paramètres globaux</h3>
+        <div className="border border-border rounded-xl bg-card shadow-sm p-4 flex flex-col gap-4 lg:col-span-2">
+          <h3 className="text-sm font-bold text-foreground">Paramètres globaux</h3>
 
           <StockPurchaseMixSlider
             title="Mix stock / achat global"
@@ -183,7 +183,7 @@ export function ParamsStep({
                     "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                     symeaPosition === pos
                       ? "border-primary bg-accent text-accent-foreground"
-                      : "border-border text-slate-600 hover:bg-slate-50"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   )}
                 >
                   {pos === "after_transports" ? "Après transports" : "Avant transports"}
@@ -194,8 +194,8 @@ export function ParamsStep({
         </div>
       </div>
 
-      <div className="border border-border rounded-xl bg-white shadow-sm p-4">
-        <h3 className="text-sm font-bold text-slate-800 mb-3">Incoterm de vente</h3>
+      <div className="border border-border rounded-xl bg-card shadow-sm p-4">
+        <h3 className="text-sm font-bold text-foreground mb-3">Incoterm de vente</h3>
         <SaleIncotermFields
           incoterm={saleIncoterm}
           location={saleIncotermLocation}

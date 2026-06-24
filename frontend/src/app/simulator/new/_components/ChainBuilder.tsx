@@ -17,7 +17,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { DotsSixVertical, Plus, Trash } from "@phosphor-icons/react";
+import { FilterSelect } from "@/components/FilterSelect";
 import { LocationSelectField } from "@/components/LocationSelectField";
 import type { TransportMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,7 @@ function SortableTransport({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex gap-2 p-3 border border-border rounded-lg bg-white",
+        "flex gap-2 p-3 border border-border rounded-lg bg-card",
         isDragging && "opacity-60 shadow-md"
       )}
     >
@@ -74,33 +75,30 @@ function SortableTransport({
         type="button"
         {...attributes}
         {...listeners}
-        className="touch-none text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+        className="touch-none text-muted-foreground/60 hover:text-muted-foreground cursor-grab active:cursor-grabbing"
         aria-label="Réordonner ce transport"
       >
-        <GripVertical size={18} />
+        <DotsSixVertical size={18} />
       </button>
 
       <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
         <div className="col-span-2 sm:col-span-1">
-          <select
+          <FilterSelect
             value={transport.transport_mode_code}
-            onChange={(e) => {
-              const mode = modes.find((m) => m.code === e.target.value);
+            onChange={(code) => {
+              const mode = modes.find((m) => m.code === code);
               set({
-                transport_mode_code: e.target.value,
+                transport_mode_code: code,
                 category: mode?.category ?? transport.category,
               });
             }}
-            className={fieldCls}
-            aria-label="Mode de transport"
-          >
-            <option value="">Mode…</option>
-            {modes.map((m) => (
-              <option key={m.id} value={m.code}>
-                {localizeLabel(m.label, m.code)}
-              </option>
-            ))}
-          </select>
+            placeholder="Mode…"
+            options={modes.map((m) => ({
+              value: m.code,
+              label: localizeLabel(m.label, m.code),
+            }))}
+            className="text-sm"
+          />
         </div>
         <input
           value={transport.global_cost}
@@ -110,18 +108,13 @@ function SortableTransport({
           className={fieldCls}
           aria-label="Coût global"
         />
-        <select
+        <FilterSelect
           value={transport.currency}
-          onChange={(e) => set({ currency: e.target.value })}
-          className={fieldCls}
-          aria-label="Devise"
-        >
-          {CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={(currency) => set({ currency })}
+          placeholder="Devise"
+          options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+          className="text-sm"
+        />
         <input
           value={transport.pallet_count}
           onChange={(e) => set({ pallet_count: e.target.value })}
@@ -149,10 +142,10 @@ function SortableTransport({
       <button
         type="button"
         onClick={onRemove}
-        className="text-slate-400 hover:text-red-500 self-start p-1"
+        className="text-muted-foreground hover:text-red-500 self-start p-1"
         aria-label="Supprimer ce transport"
       >
-        <Trash2 size={16} />
+        <Trash size={16} />
       </button>
     </div>
   );
@@ -201,26 +194,26 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
     onChange({ ...chain, transports: chain.transports.filter((x) => x.uid !== uidKey) });
 
   return (
-    <div className="border border-border rounded-xl bg-white shadow-sm p-4 flex flex-col gap-4">
-      <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+    <div className="border border-border rounded-xl bg-card shadow-sm p-4 flex flex-col gap-4">
+      <h3 className="text-sm font-bold text-foreground">{title}</h3>
 
       {isPurchase && (
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={chain.copper_variation}
               onChange={(e) => onChange({ ...chain, copper_variation: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300 accent-primary"
+              className="w-4 h-4 rounded border-border accent-primary"
             />
             Variation cuivre
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={chain.currency_conversion}
               onChange={(e) => onChange({ ...chain, currency_conversion: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300 accent-primary"
+              className="w-4 h-4 rounded border-border accent-primary"
             />
             Conversion en EUR
           </label>
@@ -228,11 +221,11 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
       )}
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Transports {chain.transports.length > 0 && `(${chain.transports.length})`}
         </span>
         {chain.transports.length === 0 ? (
-          <p className="text-sm text-slate-400">Aucun transport. Ajoutez-en si nécessaire.</p>
+          <p className="text-sm text-muted-foreground">Aucun transport. Ajoutez-en si nécessaire.</p>
         ) : (
           <DndContext
             sensors={sensors}
@@ -268,20 +261,20 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
       </div>
 
       <div className="flex flex-col gap-2 border-t border-[#F1F5F9] pt-3">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-foreground">
           <input
             type="checkbox"
             checked={chain.customs.enabled}
             onChange={(e) =>
               onChange({ ...chain, customs: { ...chain.customs, enabled: e.target.checked } })
             }
-            className="w-4 h-4 rounded border-slate-300 accent-primary"
+            className="w-4 h-4 rounded border-border accent-primary"
           />
           Douane
         </label>
         {chain.customs.enabled && (
           <div className="pl-6">
-            <label className="mb-1 block text-xs font-semibold text-slate-600">
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
               Taux de douane (%)
             </label>
             <input
@@ -294,7 +287,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
               className={fieldCls}
               aria-label="Taux de douane en pourcentage"
             />
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-[11px] text-muted-foreground">
               Majoration en pourcentage sur le prix d&apos;entrée (ex. 5 % → prix × 1,05).
             </p>
           </div>

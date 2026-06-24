@@ -6,14 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import {
   ArrowLeft,
-  BarChart3,
+  ChartBar,
   Bookmark,
-  GitCompare,
-  Layers,
-  Save,
-  Search,
-  Settings2,
-} from "lucide-react";
+  GitDiff,
+  Stack,
+  FloppyDisk,
+  MagnifyingGlass,
+  Gear,
+} from "@phosphor-icons/react";
 import {
   compareSimulations,
   getSavedComparison,
@@ -35,12 +35,20 @@ const MAX_COLUMNS = 4;
 type TabId = "overview" | "context" | "products";
 type AsideTab = "pick" | "saved";
 
-export default function CompareSimulationsPage() {
+function CompareSimulationsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-400">Chargement…</div>}>
-      <CompareContent />
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+      <CompareWithKey />
     </Suspense>
   );
+}
+
+export default CompareSimulationsPage;
+
+function CompareWithKey() {
+  const searchParams = useSearchParams();
+  const remountKey = `${searchParams.get("sims") ?? ""}-${searchParams.get("recalc") ?? ""}-${searchParams.get("saved") ?? ""}`;
+  return <CompareContent key={remountKey} />;
 }
 
 function buildCompareUrl(item: {
@@ -77,19 +85,12 @@ function CompareContent() {
   const [query, setQuery] = useState("");
   const [sortByDelta, setSortByDelta] = useState(true);
   const [commonOnly, setCommonOnly] = useState(true);
-  const [expandedMetrics, setExpandedMetrics] = useState(false);
   const [tab, setTab] = useState<TabId>("overview");
   const [asideTab, setAsideTab] = useState<AsideTab>(
     savedParam || asideParam === "saved" ? "saved" : "pick"
   );
   const [saveOpen, setSaveOpen] = useState(false);
   const [activeSavedId, setActiveSavedId] = useState<string | null>(savedParam);
-
-  // Sync selection from URL when navigating (saved load, browser back).
-  useEffect(() => {
-    setSelected(initialSims);
-    setActiveSavedId(savedParam);
-  }, [initialSims, savedParam]);
 
   // Deep-link: /simulator/compare?saved=<id> resolves to full column params.
   useEffect(() => {
@@ -177,7 +178,7 @@ function CompareContent() {
                 onClick={() => setSaveOpen(true)}
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               >
-                <Save size={16} />
+                <FloppyDisk size={16} />
                 Enregistrer
               </button>
             ) : undefined
@@ -206,7 +207,7 @@ function CompareContent() {
               {!recalcIds.length && (
                 <div className="border-b border-border p-3">
                   <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <MagnifyingGlass size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
@@ -214,13 +215,13 @@ function CompareContent() {
                       className="w-full rounded-lg border border-border py-2 pl-8 pr-3 text-sm focus:border-primary focus:outline-none"
                     />
                   </div>
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     {columnCount}/{MAX_COLUMNS} colonne{columnCount !== 1 ? "s" : ""}
                   </p>
                 </div>
               )}
               {recalcIds.length > 0 ? (
-                <div className="border-b border-border p-3 text-xs text-slate-500">
+                <div className="border-b border-border p-3 text-xs text-muted-foreground">
                   Mode snapshot : {selected.length} simulation{selected.length !== 1 ? "s" : ""} +{" "}
                   {recalcIds.length} recalcul{recalcIds.length !== 1 ? "s" : ""}.
                 </div>
@@ -233,7 +234,7 @@ function CompareContent() {
                       <li key={s.id}>
                         <label
                           className={cn(
-                            "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 text-sm hover:bg-white",
+                            "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 text-sm hover:bg-card",
                             disabled && "cursor-not-allowed opacity-40"
                           )}
                         >
@@ -245,10 +246,10 @@ function CompareContent() {
                             className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-primary"
                           />
                           <span className="min-w-0">
-                            <span className="block truncate font-medium text-slate-800">
+                            <span className="block truncate font-medium text-foreground">
                               {s.label}
                             </span>
-                            <span className="block text-xs text-slate-400">
+                            <span className="block text-xs text-muted-foreground">
                               {s.simulation_type === "tariff" ? "Tarif" : "Projet"} ·{" "}
                               {s.line_count} lignes
                             </span>
@@ -278,17 +279,17 @@ function CompareContent() {
             </div>
           )}
           {!compareKey ? (
-            <div className="flex h-full flex-col items-center justify-center text-slate-400">
-              <GitCompare size={36} className="mb-3 text-slate-200" />
+            <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+              <GitDiff size={36} className="mb-3 text-muted-foreground/40" />
               <p className="text-sm">Sélectionnez au moins 2 colonnes à comparer.</p>
               <p className="mt-1 text-xs">
                 Ou choisissez une comparaison dans l&apos;onglet « Enregistrées ».
               </p>
             </div>
           ) : isLoading ? (
-            <div className="py-10 text-center text-sm text-slate-400">Comparaison…</div>
+            <div className="py-10 text-center text-sm text-muted-foreground">Comparaison…</div>
           ) : error ? (
-            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-red-700">
               {error instanceof Error ? error.message : "Comparaison échouée."}
             </div>
           ) : data ? (
@@ -297,19 +298,19 @@ function CompareContent() {
                 <TabButton
                   active={tab === "overview"}
                   onClick={() => setTab("overview")}
-                  icon={<BarChart3 size={15} />}
+                  icon={<ChartBar size={15} />}
                   label="Synthèse"
                 />
                 <TabButton
                   active={tab === "context"}
                   onClick={() => setTab("context")}
-                  icon={<Settings2 size={15} />}
+                  icon={<Gear size={15} />}
                   label="Paramètres"
                 />
                 <TabButton
                   active={tab === "products"}
                   onClick={() => setTab("products")}
-                  icon={<Layers size={15} />}
+                  icon={<Stack size={15} />}
                   label="Lignes SKU"
                   badge={data.products.length}
                 />
@@ -320,26 +321,14 @@ function CompareContent() {
               )}
               {tab === "context" && <CompareContextDiff columns={data.columns} />}
               {tab === "products" && (
-                <>
-                  <label className="flex items-center gap-1.5 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={expandedMetrics}
-                      onChange={() => setExpandedMetrics((v) => !v)}
-                      className="h-4 w-4 rounded border-slate-300 accent-primary"
-                    />
-                    Métriques détaillées en mode heatmap
-                  </label>
-                  <CompareSkuTable
-                    columns={data.columns}
-                    products={data.products}
-                    sortByDelta={sortByDelta}
-                    onToggleSort={() => setSortByDelta((v) => !v)}
-                    commonOnly={commonOnly}
-                    onToggleCommon={() => setCommonOnly((v) => !v)}
-                    expandedMetrics={expandedMetrics}
-                  />
-                </>
+                <CompareSkuTable
+                  columns={data.columns}
+                  products={data.products}
+                  sortByDelta={sortByDelta}
+                  onToggleSort={() => setSortByDelta((v) => !v)}
+                  commonOnly={commonOnly}
+                  onToggleCommon={() => setCommonOnly((v) => !v)}
+                />
               )}
             </div>
           ) : null}
@@ -387,8 +376,8 @@ function AsideTabBtn({
       className={cn(
         "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors",
         active
-          ? "border-b-2 border-primary text-accent-foreground bg-white"
-          : "text-slate-500 hover:bg-white/60"
+          ? "border-b-2 border-primary text-accent-foreground bg-card"
+          : "text-muted-foreground hover:bg-card/60"
       )}
     >
       {icon}
@@ -418,7 +407,7 @@ function TabButton({
         "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
         active
           ? "bg-accent text-accent-foreground ring-1 ring-warm/30"
-          : "text-slate-600 hover:bg-slate-50"
+          : "text-muted-foreground hover:bg-muted"
       )}
     >
       {icon}
@@ -427,7 +416,7 @@ function TabButton({
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-bold",
-            active ? "bg-primary text-white" : "bg-slate-200 text-slate-600"
+            active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
           )}
         >
           {badge}

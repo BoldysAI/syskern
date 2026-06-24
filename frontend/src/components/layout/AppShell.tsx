@@ -11,13 +11,14 @@ import {
   GearSix,
   House,
   List,
+  Sidebar as SidebarIcon,
+  SidebarSimple,
   SignOut,
   SquaresFour,
   UserCircle,
   Users,
   Warning,
 } from "@phosphor-icons/react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/BreadcrumbContext";
@@ -99,15 +100,13 @@ function NavItem({
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm font-semibold transition-all duration-200",
-        collapsed ? "justify-center px-2 py-2.5" : "gap-3 border-l-2 px-3 py-2.5",
+        "relative flex items-center rounded-lg text-sm font-semibold transition-all duration-200",
+        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
         active
           ? collapsed
-            ? "bg-primary/20 text-white"
-            : "border-primary bg-primary/10 text-white"
-          : collapsed
-            ? "border-transparent text-white/70 hover:bg-white/10 hover:text-white"
-            : "border-transparent text-white/70 hover:bg-white/10 hover:text-white",
+            ? "bg-primary/25 text-white ring-1 ring-primary/50"
+            : "bg-primary/15 text-white before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary"
+          : "text-white/70 hover:bg-white/10 hover:text-white",
       )}
     >
       <AppIcon icon={icon} weight={active ? "duotone" : "regular"} size="sm" />
@@ -132,28 +131,29 @@ function Sidebar({
   return (
     <div
       className={cn(
-        "flex h-full flex-col bg-gradient-to-b from-brand-navy to-[#0f2444] transition-[width] duration-200 ease-out",
+        "flex h-full flex-col bg-gradient-to-b from-brand-navy to-brand-navy-dark transition-[width] duration-200 ease-out",
         collapsed ? "w-16" : "w-60",
       )}
     >
       <div
         className={cn(
-          "relative flex items-center justify-center overflow-hidden border-b border-border",
+          "flex items-center justify-center border-b border-white/10",
           SHELL_TOP_BAR_CLASS,
           collapsed ? "px-2" : "px-4",
         )}
       >
-        <div className="pointer-events-none absolute inset-0 bg-white" aria-hidden />
         <Link
           href="/"
           title="Tableau de bord"
-          className="relative z-10 flex h-full w-full items-center justify-center px-1.5 py-0.5"
+          className="flex h-full w-full items-center justify-center px-1.5 py-2"
         >
-          <BrandLogo
-            variant="syskern"
-            compact={collapsed}
-            className="h-full w-full max-h-full max-w-full min-h-0 min-w-0 object-contain"
-          />
+          <span className="flex h-full w-full max-h-10 items-center justify-center rounded-lg bg-white px-3 py-1.5 shadow-sm">
+            <BrandLogo
+              variant="syskern"
+              compact={collapsed}
+              className="h-full w-full max-h-7 max-w-full min-h-0 min-w-0 object-contain"
+            />
+          </span>
         </Link>
       </div>
 
@@ -326,7 +326,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               aria-label={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
               title={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
             >
-              {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+              {sidebarCollapsed ? (
+                <SidebarIcon size={20} weight="bold" />
+              ) : (
+                <SidebarSimple size={20} weight="bold" />
+              )}
             </Button>
 
             <div className="min-w-0 flex-1">

@@ -1,5 +1,5 @@
 import type { CompareColumn } from "@/lib/api";
-import { decToPct, fmtEur, mpStr } from "@/app/simulator/[id]/_components/sim-format";
+import { decToPct, fmtEur, mpStr, recalcTriggerLabel } from "@/app/simulator/[id]/_components/sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 export type DiffKind = "same" | "changed" | "added" | "missing";
@@ -100,15 +100,15 @@ function colContextValue(col: CompareColumn, fieldId: string): string {
     case "type":
       return col.type === "recalculation"
         ? "Snapshot recalcul"
-        : SIM_TYPE[ctx.simulation_type ?? ""] ?? ctx.simulation_type ?? "—";
+        : SIM_TYPE[ctx.simulation_type ?? ""] ?? "—";
     case "status":
-      return col.status ? (STATUS[col.status] ?? col.status) : "—";
+      return col.status ? (STATUS[col.status] ?? "—") : "—";
     case "calculated_at":
       return fmtDate(ctx.calculated_at);
     case "odoo_snapshot_at":
       return fmtDate(ctx.odoo_snapshot_at);
     case "trigger":
-      return ctx.trigger_type ?? "—";
+      return recalcTriggerLabel(ctx.trigger_type);
     case "copper_base":
       return mpStr(mp, "copper_base_price_rmb");
     case "copper_current":
@@ -124,7 +124,7 @@ function colContextValue(col: CompareColumn, fieldId: string): string {
     case "margin_symea":
       return decToPct(ctx.symea_margin_rate) ? `${decToPct(ctx.symea_margin_rate)} %` : "—";
     case "symea_position":
-      return SYMEA_POS[ctx.symea_margin_position] ?? ctx.symea_margin_position;
+      return SYMEA_POS[ctx.symea_margin_position] ?? "—";
     case "sale_incoterm":
       return formatIncotermDisplay(ctx.sale_incoterm ?? "EXW", ctx.sale_incoterm_location);
     case "chain_modules":

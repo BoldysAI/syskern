@@ -4,19 +4,17 @@ import { useCallback, useMemo, useState, Suspense, type ReactNode } from "react"
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
-import * as Tabs from "@radix-ui/react-tabs";
 import {
-  AlertCircle,
+  ArrowSquareOut,
+  ArrowsClockwise,
   Check,
-  ExternalLink,
-  History,
-  Loader2,
+  ClockCounterClockwise,
   Package,
-  Pencil,
+  PencilSimple,
   Plus,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+  Trash,
+  WarningCircle,
+} from "@phosphor-icons/react";
 import {
   deleteProduct,
   getAttributeRegistry,
@@ -37,7 +35,11 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
 import { KpiCard } from "@/components/KpiCard";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -65,8 +67,8 @@ function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
 }
 
-function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse bg-slate-200 rounded", className)} />;
+function SkeletonBlock({ className }: { className?: string }) {
+  return <Skeleton className={cn("rounded", className)} />;
 }
 
 function eq(a: unknown, b: unknown): boolean {
@@ -91,9 +93,9 @@ function buildOdooUrl(odooId?: number | null): string | null {
 
 function InfoLine({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 py-2 border-b border-border last:border-0">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-sm font-medium text-slate-800 text-right">{value}</span>
+    <div className="flex justify-between gap-3 border-b border-border py-2 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-right text-sm font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -108,20 +110,15 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
   return (
     <Card className="lg:sticky lg:top-6 shadow-sm">
       <CardContent className="p-5">
-      <div className="aspect-square w-full rounded-lg bg-muted flex items-center justify-center mb-4">
-        <Package size={48} className="text-muted-foreground/40" />
+      <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-lg bg-muted">
+        <Package size={48} weight="duotone" className="text-muted-foreground/40" />
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap mb-1">
-        <h1 className="text-lg font-bold font-mono text-primary">{product.sku_code}</h1>
-        <span
-          className={cn(
-            "inline-flex px-2 py-0.5 rounded text-xs font-semibold",
-            product.is_active ? "bg-brand-green/10 text-brand-green" : "bg-muted text-muted-foreground",
-          )}
-        >
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h1 className="font-mono text-lg font-bold text-primary">{product.sku_code}</h1>
+        <StatusBadge variant={product.is_active ? "success" : "draft"}>
           {product.is_active ? "Actif" : "Inactif"}
-        </span>
+        </StatusBadge>
       </div>
       <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
 
@@ -172,26 +169,26 @@ function SaveIndicator({
   if (error) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive"
         title={error}
       >
-        <AlertCircle size={15} />
+        <WarningCircle size={15} weight="duotone" />
         Erreur de sauvegarde
       </span>
     );
   }
   if (status === "saving") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600">
-        <Loader2 size={15} className="animate-spin" />
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warm">
+        <ArrowsClockwise size={15} className="animate-spin" />
         Modifications en cours…
       </span>
     );
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
-        <Check size={15} />
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-green">
+        <Check size={15} weight="bold" />
         Enregistré
       </span>
     );
@@ -219,8 +216,8 @@ export default function ProductPage() {
 function ProductPageSkeleton() {
   return (
     <div className="p-6">
-      <Skeleton className="h-8 w-48 mb-6" />
-      <Skeleton className="h-64 w-full" />
+      <SkeletonBlock className="mb-6 h-8 w-48" />
+      <SkeletonBlock className="h-64 w-full" />
     </div>
   );
 }
@@ -278,21 +275,21 @@ function ProductPageContent() {
 
     if (from === "simulation" && simId) {
       return [
-        { href: "/catalog", label: "Accueil" },
+        { href: "/", label: "Tableau de bord" },
         { href: "/simulator", label: "Simulations" },
         { href: `/simulator/${simId}`, label: simLabel || "Simulation" },
-        { label: decodedSku },
+        { label: product?.name || decodedSku },
       ];
     }
 
     const crumbs: BreadcrumbCrumb[] = [
-      { href: "/catalog", label: "Accueil" },
+      { href: "/", label: "Tableau de bord" },
       { href: "/catalog", label: "Catalogue" },
     ];
     if (product?.universe) {
       crumbs.push({ label: product.universe });
     }
-    crumbs.push({ label: decodedSku });
+    crumbs.push({ label: product?.name || decodedSku });
     return crumbs;
   }, [searchParams, product, decodedSku]);
 
@@ -507,19 +504,16 @@ function ProductPageContent() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 p-10">
-        <AlertCircle size={40} className="text-red-300" />
-        <p className="font-medium">Produit introuvable</p>
-        <p className="text-sm text-slate-400">{error?.message}</p>
-        <div className="flex items-center gap-3 mt-2">
-          <button
-            onClick={() => mutate(productKey)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <RefreshCw size={14} />
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
+        <WarningCircle size={40} weight="duotone" className="text-destructive/60" />
+        <p className="font-medium text-foreground">Produit introuvable</p>
+        <p className="text-sm">{error?.message}</p>
+        <div className="mt-2 flex items-center gap-3">
+          <Button onClick={() => mutate(productKey)}>
+            <ArrowsClockwise size={14} />
             Réessayer
-          </button>
-          <Link href="/catalog" className="text-sm text-warm hover:text-accent-foreground font-medium">
+          </Button>
+          <Link href="/catalog" className="text-sm font-medium text-warm hover:text-accent-foreground">
             Retour au catalogue
           </Link>
         </div>
@@ -528,163 +522,145 @@ function ProductPageContent() {
   }
 
   return (
-    <div className="p-6">
+    <div className="bg-background p-6">
       {isLoading || !product ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Skeleton className="h-96 lg:col-span-1" />
-          <div className="lg:col-span-2 flex flex-col gap-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-64 w-full" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(280px,1fr)_2fr]">
+          <SkeletonBlock className="h-96" />
+          <div className="flex flex-col gap-4">
+            <SkeletonBlock className="h-10 w-full" />
+            <SkeletonBlock className="h-64 w-full" />
           </div>
         </div>
       ) : (
         <EditContext.Provider value={editContext!}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left — key info */}
-            <aside className="lg:col-span-1">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(280px,1fr)_2fr]">
+            {/* Left — sticky identity card */}
+            <aside>
               <KeyInfoCard product={product} latestPv={latestPv} />
             </aside>
 
             {/* Right — actions + tabs */}
-            <div className="lg:col-span-2 flex flex-col gap-4 min-w-0">
+            <div className="flex min-w-0 flex-col gap-4">
               {/* Action bar */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   {(editing || status === "saving" || saveError || autosaveError) && (
                     <SaveIndicator status={status} error={saveError ?? autosaveError} />
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleRecalc}
                     disabled={recalcing}
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Recharger le PAMP et le stock depuis Odoo"
                   >
-                    <RefreshCw size={14} className={cn(recalcing && "animate-spin")} />
+                    <ArrowsClockwise size={14} className={cn(recalcing && "animate-spin")} />
                     {recalcing ? "Recalcul…" : "Recalculer PAMP"}
-                  </button>
+                  </Button>
                   {userCanEdit && (
                     <>
-                      <button
+                      <Button
+                        size="sm"
+                        variant={editing ? "default" : "outline"}
                         onClick={() => setManualEditing(editing ? false : true)}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-medium transition-colors",
-                          editing
-                            ? "bg-primary text-white hover:bg-primary/90"
-                            : "border border-border text-slate-600 hover:bg-slate-50",
-                        )}
                       >
-                        {editing ? <Check size={14} /> : <Pencil size={14} />}
+                        {editing ? <Check size={14} weight="bold" /> : <PencilSimple size={14} />}
                         {editing ? "Terminer" : "Modifier"}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={handleDelete}
                         disabled={deleting || !product.is_active}
-                        className="flex items-center gap-2 px-3 py-2 text-sm border border-red-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="border-destructive/30 text-destructive hover:bg-destructive/10"
                         title={
                           product.is_active ? "Désactiver ce produit" : "Produit déjà désactivé"
                         }
                       >
-                        <Trash2 size={14} />
+                        <Trash size={14} />
                         {deleting ? "Suppression…" : "Supprimer"}
-                      </button>
+                      </Button>
                     </>
                   )}
                 </div>
               </div>
 
               {/* Tabs */}
-              <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-                <Tabs.List className="flex gap-0.5 bg-white border border-border rounded-xl p-1 shadow-sm overflow-x-auto">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="h-auto w-full flex-wrap justify-start overflow-x-auto">
                   {TABS.map((tab) => (
-                    <Tabs.Trigger
-                      key={tab.id}
-                      value={tab.id}
-                      className={cn(
-                        "flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                        "text-slate-500 hover:text-slate-800",
-                        "data-[state=active]:bg-primary data-[state=active]:text-white",
-                      )}
-                    >
+                    <TabsTrigger key={tab.id} value={tab.id} className="flex-shrink-0 px-4 py-2">
                       {tab.label}
-                    </Tabs.Trigger>
+                    </TabsTrigger>
                   ))}
-                </Tabs.List>
+                </TabsList>
 
                 <div className="mt-4">
-                  <Tabs.Content value="general">
+                  <TabsContent value="general">
                     <GeneralTab onTranslate={handleTranslate} translating={translating} />
-                  </Tabs.Content>
-                  <Tabs.Content value="technical">
+                  </TabsContent>
+                  <TabsContent value="technical">
                     <TechnicalTab onTranslate={handleTranslate} translating={translating} />
-                  </Tabs.Content>
-                  <Tabs.Content value="marketing">
+                  </TabsContent>
+                  <TabsContent value="marketing">
                     <MarketingTab />
-                  </Tabs.Content>
-                  <Tabs.Content value="logistics">
+                  </TabsContent>
+                  <TabsContent value="logistics">
                     <LogisticsTab />
-                  </Tabs.Content>
-                  <Tabs.Content value="commercial">
+                  </TabsContent>
+                  <TabsContent value="commercial">
                     <CommercialTab />
-                  </Tabs.Content>
-                  <Tabs.Content value="media">
+                  </TabsContent>
+                  <TabsContent value="media">
                     <MediaTab />
-                  </Tabs.Content>
+                  </TabsContent>
                 </div>
-              </Tabs.Root>
+              </Tabs>
 
               {/* Footer actions (CDC §4.3) */}
-              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
                 {odooUrl ? (
-                  <a
-                    href={odooUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
-                  >
-                    <ExternalLink size={14} />
+                  <Button variant="outline" size="sm" nativeButton={false} render={<a href={odooUrl} target="_blank" rel="noopener noreferrer" />}>
+                    <ArrowSquareOut size={14} />
                     Voir dans Odoo
-                  </a>
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled
                     title={
                       ODOO_BASE_URL
                         ? "Ce produit n'a pas d'identifiant Odoo."
                         : "URL Odoo non configurée (NEXT_PUBLIC_ODOO_BASE_URL)."
                     }
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg text-slate-300 cursor-not-allowed"
                   >
-                    <ExternalLink size={14} />
+                    <ArrowSquareOut size={14} />
                     Voir dans Odoo
-                  </button>
+                  </Button>
                 )}
 
                 <AddToSimulationDialog productIds={[product.id]} productLabel={product.sku_code}>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors"
-                  >
-                    <Plus size={14} />
+                  <Button size="sm">
+                    <Plus size={14} weight="bold" />
                     Ajouter à une simulation
-                  </button>
+                  </Button>
                 </AddToSimulationDialog>
 
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled
                   title="Disponible en MVP2"
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg text-slate-300 cursor-not-allowed"
                 >
-                  <History size={14} />
+                  <ClockCounterClockwise size={14} />
                   Historique des modifications
-                  <span className="ml-1 inline-flex px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold">
+                  <StatusBadge variant="warning" className="ml-1 px-1.5 py-0 text-[10px]">
                     MVP2
-                  </span>
-                </button>
+                  </StatusBadge>
+                </Button>
               </div>
             </div>
           </div>

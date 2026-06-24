@@ -4,26 +4,42 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import {
-  Activity,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
+  Pulse,
+  ArrowsClockwise,
+  CheckCircle,
   CircleDashed,
-  Truck,
+  CircleNotch,
   Coins,
   Database,
-  Mail,
-  X,
-} from "lucide-react";
+  Envelope,
+  PencilSimple,
+  Plus,
+  Trash,
+  Truck,
+  Warning,
+  XCircle,
+} from "@phosphor-icons/react";
 import SettingsNav from "./_components/SettingsNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
+import { AppModal } from "@/components/AppModal";
+import { FormField } from "@/components/FormField";
+import { AppIcon } from "@/components/AppIcon";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   listMarketParameters,
   createMarketParameter,
@@ -48,36 +64,15 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
-
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ── Generic modal shell ──────────────────────────────────────────────────
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function ActiveBadge({ active }: { active: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
+    <StatusBadge variant={active ? "success" : "draft"}>
+      {active ? "Oui" : "Non"}
+    </StatusBadge>
   );
 }
 
@@ -134,196 +129,162 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
   };
 
   return (
-    <Modal
+    <AppModal
+      open
+      onOpenChange={(open) => !open && onClose()}
       title={param ? "Modifier le paramètre marché" : "Nouveau paramètre marché"}
-      onClose={onClose}
+      size="lg"
     >
       {error && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <div>
-          <label className={labelCls}>Type</label>
+        <FormField label="Type">
           <div className="flex gap-2">
             {(["copper_price", "fx_rate"] as MarketParameterType[]).map((t) => (
-              <button
+              <Button
                 type="button"
                 key={t}
+                variant={type === t ? "default" : "outline"}
+                className="flex-1"
                 onClick={() => setType(t)}
                 disabled={!!param}
-                className={cn(
-                  "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
-                  type === t
-                    ? "border-primary bg-accent text-accent-foreground"
-                    : "border-border text-slate-600 hover:bg-slate-50",
-                  param && "opacity-60 cursor-not-allowed",
-                )}
               >
                 {t === "copper_price" ? "Prix cuivre" : "Taux de change"}
-              </button>
+              </Button>
             ))}
           </div>
-        </div>
+        </FormField>
 
         {type === "copper_price" ? (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Marché</label>
-                <select
-                  value={copperMarket ?? ""}
-                  onChange={(e) => setCopperMarket(e.target.value as "LME" | "SHE")}
-                  className={inputCls}
+              <FormField label="Marché">
+                <Select
+                  value={copperMarket ?? "LME"}
+                  onValueChange={(v) => setCopperMarket(v as "LME" | "SHE")}
                 >
-                  <option value="LME">LME (London)</option>
-                  <option value="SHE">SHE (Shanghai)</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Devise</label>
-                <select
-                  value={copperCurrency ?? ""}
-                  onChange={(e) => setCopperCurrency(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="RMB">RMB</option>
-                </select>
-              </div>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LME">LME (London)</SelectItem>
+                    <SelectItem value="SHE">SHE (Shanghai)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Devise">
+                <Select value={copperCurrency ?? "USD"} onValueChange={(v) => v && setCopperCurrency(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="RMB">RMB</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Prix</label>
-                <input
+              <FormField label="Prix" required>
+                <Input
                   value={copperPrice ?? ""}
                   onChange={(e) => setCopperPrice(e.target.value)}
                   required
                   type="number"
                   step="0.0001"
-                  className={inputCls}
                 />
-              </div>
-              <div>
-                <label className={labelCls}>Unité</label>
-                <input
+              </FormField>
+              <FormField label="Unité">
+                <Input
                   value={copperUnit ?? ""}
                   onChange={(e) => setCopperUnit(e.target.value)}
                   placeholder="ton / kg"
-                  className={inputCls}
                 />
-              </div>
+              </FormField>
             </div>
           </>
         ) : (
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>De</label>
-              <input
+            <FormField label="De" required>
+              <Input
                 value={fxFrom ?? ""}
                 onChange={(e) => setFxFrom(e.target.value.toUpperCase())}
                 required
                 maxLength={3}
-                className={inputCls}
               />
-            </div>
-            <div>
-              <label className={labelCls}>Vers</label>
-              <input
+            </FormField>
+            <FormField label="Vers" required>
+              <Input
                 value={fxTo ?? ""}
                 onChange={(e) => setFxTo(e.target.value.toUpperCase())}
                 required
                 maxLength={3}
-                className={inputCls}
               />
-            </div>
-            <div>
-              <label className={labelCls}>Taux</label>
-              <input
+            </FormField>
+            <FormField label="Taux" required>
+              <Input
                 value={fxRate ?? ""}
                 onChange={(e) => setFxRate(e.target.value)}
                 required
                 type="number"
                 step="0.000001"
-                className={inputCls}
               />
-            </div>
+            </FormField>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Valide à partir du</label>
-            <input
+          <FormField label="Valide à partir du" required>
+            <Input
               value={validFrom}
               onChange={(e) => setValidFrom(e.target.value)}
               required
               type="date"
-              className={inputCls}
             />
-          </div>
-          <div>
-            <label className={labelCls}>Jusqu&apos;au (optionnel)</label>
-            <input
-              value={validTo ?? ""}
-              onChange={(e) => setValidTo(e.target.value)}
-              type="date"
-              className={inputCls}
-            />
-          </div>
+          </FormField>
+          <FormField label="Jusqu'au (optionnel)">
+            <Input value={validTo ?? ""} onChange={(e) => setValidTo(e.target.value)} type="date" />
+          </FormField>
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="market-param-active"
             checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-primary"
+            onCheckedChange={(v) => setIsActive(v === true)}
           />
-          Actif
-        </label>
+          <Label htmlFor="market-param-active" className="text-sm font-normal">
+            Actif
+          </Label>
+        </div>
 
-        <div>
-          <label className={labelCls}>Source (optionnel)</label>
-          <input
+        <FormField label="Source (optionnel)">
+          <Input
             value={source}
             onChange={(e) => setSource(e.target.value)}
             placeholder="LME, BCE, manual…"
-            className={inputCls}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className={labelCls}>Notes</label>
-          <textarea
-            value={notes ?? ""}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className={inputCls}
-          />
-        </div>
+        <FormField label="Notes">
+          <Textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2} />
+        </FormField>
 
         <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
-          >
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
             Annuler
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />}
+          </Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
             {param ? "Mettre à jour" : "Créer"}
-          </button>
+          </Button>
         </div>
       </form>
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -352,42 +313,39 @@ function TabMarche() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
           Historique versionné des prix cuivre (LME/SHE) et taux de change. Les simulations fixent
           les valeurs au moment du calcul.
         </p>
-        <button
-          onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium"
-        >
-          <Plus size={14} />
+        <Button onClick={() => setEditing("new")}>
+          <AppIcon icon={Plus} size="sm" />
           Nouveau paramètre
-        </button>
+        </Button>
       </div>
 
-      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+      <Card className="overflow-hidden py-0">
         {error ? (
-          <div className="py-12 text-center text-sm text-slate-400">
+          <div className="py-12 text-center text-sm text-muted-foreground">
             Impossible de charger les paramètres.
           </div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : !data?.length ? (
-          <div className="py-12 text-center text-slate-400">
-            <Coins size={36} className="mx-auto mb-3 text-slate-200" />
+          <div className="py-12 text-center text-muted-foreground">
+            <AppIcon icon={Coins} size="xl" className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">
               Aucun paramètre marché. Ajoutez un prix cuivre ou un taux de change.
             </p>
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-background border-b border-border">
+            <thead className="border-b border-border bg-muted/50">
               <tr>
                 {["Type", "Détail", "Valide du", "Au", "Actif", ""].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
                     {h}
                   </th>
@@ -396,43 +354,38 @@ function TabMarche() {
             </thead>
             <tbody className="divide-y divide-border">
               {data.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 text-sm font-medium text-slate-800">
+                <tr key={p.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-2.5 text-sm font-medium text-foreground">
                     {p.parameter_type === "copper_price" ? "Cuivre" : "Change"}
                   </td>
-                  <td className="px-4 py-2.5 text-sm text-slate-700">
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {p.parameter_type === "copper_price"
                       ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${p.copper_unit}`
                       : `1 ${p.fx_from_currency} = ${p.fx_rate} ${p.fx_to_currency}`}
                   </td>
-                  <td className="px-4 py-2.5 text-sm text-slate-500">{p.valid_from}</td>
-                  <td className="px-4 py-2.5 text-sm text-slate-500">{p.valid_to || "—"}</td>
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_from}</td>
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_to || "—"}</td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
-                        p.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
-                      )}
-                    >
-                      {p.is_active ? "Oui" : "Non"}
-                    </span>
+                    <ActiveBadge active={p.is_active} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => setEditing(p)}
-                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg"
                         title="Modifier"
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button
+                        <AppIcon icon={PencilSimple} size="sm" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => handleDelete(p)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                         title="Supprimer"
                       >
-                        <Trash2 size={14} />
-                      </button>
+                        <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -440,7 +393,7 @@ function TabMarche() {
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
 
       {editing !== null && (
         <MarketParamModal
@@ -485,90 +438,82 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
   };
 
   return (
-    <Modal
+    <AppModal
+      open
+      onOpenChange={(open) => !open && onClose()}
       title={mode ? "Modifier le mode de transport" : "Nouveau mode de transport"}
-      onClose={onClose}
+      size="lg"
     >
       {error && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Code *</label>
-            <input
+          <FormField label="Code" required>
+            <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               required
               maxLength={32}
-              className={inputCls}
               placeholder="MARITIME_FCL"
             />
-          </div>
-          <div>
-            <label className={labelCls}>Catégorie *</label>
-            <select
+          </FormField>
+          <FormField label="Catégorie" required>
+            <Select
               value={category}
-              onChange={(e) => setCategory(e.target.value as TransportMode["category"])}
-              className={inputCls}
+              onValueChange={(v) => setCategory(v as TransportMode["category"])}
             >
-              <option value="maritime">Maritime</option>
-              <option value="road">Route</option>
-              <option value="air">Aérien</option>
-              <option value="rail">Ferroviaire</option>
-            </select>
-          </div>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="maritime">Maritime</SelectItem>
+                <SelectItem value="road">Route</SelectItem>
+                <SelectItem value="air">Aérien</SelectItem>
+                <SelectItem value="rail">Ferroviaire</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
         </div>
-        <div>
-          <label className={labelCls}>Libellé (français) *</label>
-          <input
+        <FormField label="Libellé (français)" required>
+          <Input
             value={labelFr}
             onChange={(e) => setLabelFr(e.target.value)}
             required
-            className={inputCls}
             placeholder="Maritime conteneur complet"
           />
-        </div>
-        <div>
-          <label className={labelCls}>Capacité palette par défaut</label>
-          <input
+        </FormField>
+        <FormField label="Capacité palette par défaut">
+          <Input
             value={capacity}
             onChange={(e) => setCapacity(e.target.value)}
             type="number"
             min={0}
-            className={inputCls}
           />
-        </div>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
+        </FormField>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="transport-mode-active"
             checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-primary"
+            onCheckedChange={(v) => setIsActive(v === true)}
           />
-          Actif
-        </label>
+          <Label htmlFor="transport-mode-active" className="text-sm font-normal">
+            Actif
+          </Label>
+        </div>
         <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
-          >
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
             Annuler
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />}
+          </Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
             {mode ? "Mettre à jour" : "Créer"}
-          </button>
+          </Button>
         </div>
       </form>
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -597,37 +542,34 @@ function TabTransport() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
           Modes de transport utilisables dans les chaînes de calcul des simulations.
         </p>
-        <button
-          onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium"
-        >
-          <Plus size={14} />
+        <Button onClick={() => setEditing("new")}>
+          <AppIcon icon={Plus} size="sm" />
           Nouveau mode
-        </button>
+        </Button>
       </div>
 
-      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+      <Card className="overflow-hidden py-0">
         {error ? (
-          <div className="py-12 text-center text-sm text-slate-400">Impossible de charger.</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">Impossible de charger.</div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : !data?.length ? (
-          <div className="py-12 text-center text-slate-400">
-            <Truck size={36} className="mx-auto mb-3 text-slate-200" />
+          <div className="py-12 text-center text-muted-foreground">
+            <AppIcon icon={Truck} size="xl" className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">Aucun mode de transport. Ajoutez-en un.</p>
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-background border-b border-border">
+            <thead className="border-b border-border bg-muted/50">
               <tr>
                 {["Code", "Libellé", "Catégorie", "Capacité palette", "Actif", ""].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
                     {h}
                   </th>
@@ -636,41 +578,36 @@ function TabTransport() {
             </thead>
             <tbody className="divide-y divide-border">
               {data.map((m) => (
-                <tr key={m.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">
+                <tr key={m.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-2.5 font-mono text-sm font-semibold text-foreground">
                     {m.code}
                   </td>
-                  <td className="px-4 py-2.5 text-sm text-slate-700">{m.label?.fr ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-sm text-slate-600 capitalize">{m.category}</td>
-                  <td className="px-4 py-2.5 text-sm text-slate-600">
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">{m.label?.fr ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-sm capitalize text-muted-foreground">{m.category}</td>
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {m.default_pallet_capacity ?? "—"}
                   </td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
-                        m.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
-                      )}
-                    >
-                      {m.is_active ? "Oui" : "Non"}
-                    </span>
+                    <ActiveBadge active={m.is_active} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => setEditing(m)}
-                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg"
                         title="Modifier"
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button
+                        <AppIcon icon={PencilSimple} size="sm" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => handleDelete(m)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                         title="Supprimer"
                       >
-                        <Trash2 size={14} />
-                      </button>
+                        <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -678,7 +615,7 @@ function TabTransport() {
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
 
       {editing !== null && (
         <TransportModeModal
@@ -700,22 +637,10 @@ const SYNC_SCOPES = [
 
 function syncStatusBadge(s: SyncLog["status"]) {
   const map = {
-    success: {
-      Icon: CheckCircle2,
-      cls: "bg-green-100 text-green-700",
-      label: "Succès",
-    },
-    failed: { Icon: XCircle, cls: "bg-red-100 text-red-700", label: "Échec" },
-    partial_failure: {
-      Icon: AlertTriangle,
-      cls: "bg-amber-100 text-amber-700",
-      label: "Partiel",
-    },
-    running: {
-      Icon: CircleDashed,
-      cls: "bg-blue-100 text-blue-700",
-      label: "En cours",
-    },
+    success: { Icon: CheckCircle, variant: "success" as const, label: "Succès" },
+    failed: { Icon: XCircle, variant: "failed" as const, label: "Échec" },
+    partial_failure: { Icon: Warning, variant: "warning" as const, label: "Partiel" },
+    running: { Icon: CircleDashed, variant: "running" as const, label: "En cours" },
   } as const;
   return map[s] ?? map.running;
 }
@@ -754,92 +679,94 @@ function TabOdoo() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Health + manual trigger */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1 bg-white border border-border rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="p-5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Santé Odoo
             </span>
-            <Activity size={14} className="text-slate-400" />
+            <AppIcon icon={Pulse} size="sm" className="text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-2 mt-3">
+          <div className="mt-3 flex items-center gap-2">
             {health == null ? (
-              <span className="text-sm text-slate-400">…</span>
+              <span className="text-sm text-muted-foreground">…</span>
             ) : health.ok ? (
               <>
-                <CheckCircle2 size={20} className="text-green-600" />
-                <span className="text-base font-semibold text-green-700">Connecté</span>
+                <AppIcon icon={CheckCircle} size="md" className="text-brand-green" />
+                <span className="text-base font-semibold text-brand-green">Connecté</span>
               </>
             ) : (
               <>
-                <XCircle size={20} className="text-red-500" />
-                <span className="text-base font-semibold text-red-600">Hors ligne</span>
+                <AppIcon icon={XCircle} size="md" className="text-destructive" />
+                <span className="text-base font-semibold text-destructive">Hors ligne</span>
               </>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-2">Test toutes les 30 s</p>
-        </div>
+          <p className="mt-2 text-xs text-muted-foreground">Test toutes les 30 s</p>
+        </Card>
 
-        <div className="lg:col-span-2 bg-white border border-border rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        <Card className="p-5 lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Synchronisation manuelle
             </span>
-            <Database size={14} className="text-slate-400" />
+            <AppIcon icon={Database} size="sm" className="text-muted-foreground" />
           </div>
           {error && (
-            <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
               {error}
             </div>
           )}
-          <div className="flex items-center gap-3 flex-wrap">
-            <select
+          <div className="flex flex-wrap items-center gap-3">
+            <Select
               value={scope}
-              onChange={(e) => setScope(e.target.value as typeof scope)}
+              onValueChange={(v) => setScope(v as typeof scope)}
               disabled={syncing}
-              className="flex-1 min-w-[260px] px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
             >
-              {SYNC_SCOPES.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleTrigger}
-              disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
-            >
-              {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              <SelectTrigger className="min-w-[260px] flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SYNC_SCOPES.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleTrigger} disabled={syncing}>
+              {syncing ? (
+                <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />
+              ) : (
+                <AppIcon icon={ArrowsClockwise} size="sm" />
+              )}
               {syncing ? "Sync en cours…" : "Lancer la synchronisation"}
-            </button>
+            </Button>
           </div>
           {status?.running && (
-            <p className="text-xs text-blue-600 mt-3">
+            <p className="mt-3 text-xs text-brand-blue">
               Sync en cours (scope: {status.running.scope}) démarré le{" "}
               {new Date(status.running.started_at).toLocaleString("fr-FR")}.
             </p>
           )}
-        </div>
+        </Card>
       </div>
 
-      {/* Logs */}
-      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-slate-700">Historique des synchronisations</h3>
+      <Card className="overflow-hidden py-0">
+        <div className="border-b border-border px-5 py-3">
+          <h3 className="text-sm font-semibold text-foreground">Historique des synchronisations</h3>
         </div>
         {!logs ? (
-          <div className="py-10 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : logs.length === 0 ? (
-          <div className="py-10 text-center text-slate-400">
-            <Database size={32} className="mx-auto mb-2 text-slate-200" />
+          <div className="py-10 text-center text-muted-foreground">
+            <AppIcon icon={Database} size="lg" className="mx-auto mb-2 opacity-30" />
             <p className="text-sm">Aucune synchronisation enregistrée.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-background border-b border-border">
+              <thead className="border-b border-border bg-muted/50">
                 <tr>
                   {[
                     "Date",
@@ -853,7 +780,7 @@ function TabOdoo() {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                      className="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                     >
                       {h}
                     </th>
@@ -864,34 +791,31 @@ function TabOdoo() {
                 {logs.map((l) => {
                   const b = syncStatusBadge(l.status);
                   return (
-                    <tr key={l.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2 text-sm text-slate-700 whitespace-nowrap">
+                    <tr key={l.id} className="hover:bg-muted/30">
+                      <td className="whitespace-nowrap px-4 py-2 text-sm text-foreground">
                         {new Date(l.started_at).toLocaleString("fr-FR")}
                       </td>
-                      <td className="px-4 py-2 text-sm text-slate-600 capitalize">{l.sync_type}</td>
-                      <td className="px-4 py-2 text-sm text-slate-600">{l.scope}</td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
-                            b.cls,
-                          )}
-                        >
-                          <b.Icon size={11} />
-                          {b.label}
-                        </span>
+                      <td className="px-4 py-2 text-sm capitalize text-muted-foreground">
+                        {l.sync_type}
                       </td>
-                      <td className="px-4 py-2 text-sm text-slate-600">{l.items_created}</td>
-                      <td className="px-4 py-2 text-sm text-slate-600">{l.items_updated}</td>
+                      <td className="px-4 py-2 text-sm text-muted-foreground">{l.scope}</td>
+                      <td className="px-4 py-2">
+                        <StatusBadge variant={b.variant} className="gap-1">
+                          <AppIcon icon={b.Icon} size="sm" />
+                          {b.label}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-muted-foreground">{l.items_created}</td>
+                      <td className="px-4 py-2 text-sm text-muted-foreground">{l.items_updated}</td>
                       <td
                         className={cn(
                           "px-4 py-2 text-sm",
-                          l.items_failed ? "text-red-600 font-semibold" : "text-slate-600",
+                          l.items_failed ? "font-semibold text-destructive" : "text-muted-foreground",
                         )}
                       >
                         {l.items_failed}
                       </td>
-                      <td className="px-4 py-2 text-sm text-slate-500">{l.triggered_by}</td>
+                      <td className="px-4 py-2 text-sm text-muted-foreground">{l.triggered_by}</td>
                     </tr>
                   );
                 })}
@@ -899,7 +823,7 @@ function TabOdoo() {
             </table>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -910,8 +834,6 @@ function TabAlerts() {
     "offer-alert-settings",
     getOfferAlertSettings,
   );
-  // `draft` is null until the user edits — display falls back to fetched data
-  // (avoids a setState-in-effect to seed the form).
   const [draft, setDraft] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -941,75 +863,77 @@ function TabAlerts() {
 
   return (
     <div className="max-w-2xl">
-      <p className="text-sm text-slate-500 mb-5">
+      <p className="mb-5 text-sm text-muted-foreground">
         Destinataires de l&apos;alerte quotidienne « offres arrivant à expiration sous 7 jours »
         (CDC §7.6). L&apos;envoi tourne chaque matin (08:00 UTC). Sans destinataire, aucune alerte
         n&apos;est envoyée.
       </p>
 
-      <div className="bg-white border border-border rounded-xl shadow-sm p-5">
+      <Card className="p-5">
         {error && (
-          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             {error}
           </div>
         )}
         {isLoading ? (
-          <div className="py-6 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : (
           <>
-            <label className={labelCls}>Adresses e-mail</label>
-            <div className="flex flex-col gap-2">
-              {recipients.length === 0 && (
-                <p className="text-sm text-slate-400 py-2">
-                  Aucun destinataire. Ajoutez une adresse pour activer les alertes.
-                </p>
-              )}
-              {recipients.map((addr, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Mail size={15} className="text-slate-400 shrink-0" />
-                  <input
-                    type="email"
-                    value={addr}
-                    onChange={(e) =>
-                      edit(recipients.map((r, idx) => (idx === i ? e.target.value : r)))
-                    }
-                    placeholder="prenom@exemple.com"
-                    className={inputCls}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => edit(recipients.filter((_, idx) => idx !== i))}
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0"
-                    title="Retirer"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
+            <FormField label="Adresses e-mail">
+              <div className="flex flex-col gap-2">
+                {recipients.length === 0 && (
+                  <p className="py-2 text-sm text-muted-foreground">
+                    Aucun destinataire. Ajoutez une adresse pour activer les alertes.
+                  </p>
+                )}
+                {recipients.map((addr, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <AppIcon icon={Envelope} size="sm" className="shrink-0 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={addr}
+                      onChange={(e) =>
+                        edit(recipients.map((r, idx) => (idx === i ? e.target.value : r)))
+                      }
+                      placeholder="prenom@exemple.com"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => edit(recipients.filter((_, idx) => idx !== i))}
+                      title="Retirer"
+                    >
+                      <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </FormField>
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-3"
               onClick={() => edit([...recipients, ""])}
-              className="mt-3 flex items-center gap-1.5 text-sm text-warm hover:text-accent-foreground font-medium"
             >
-              <Plus size={14} /> Ajouter une adresse
-            </button>
+              <AppIcon icon={Plus} size="sm" />
+              Ajouter une adresse
+            </Button>
 
-            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-border">
-              <button
-                onClick={save}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
-              >
-                {saving && <Loader2 size={14} className="animate-spin" />}
+            <div className="mt-5 flex items-center gap-3 border-t border-border pt-4">
+              <Button onClick={save} disabled={saving}>
+                {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
                 Enregistrer
-              </button>
-              {saved && <span className="text-sm text-green-600">Enregistré ✓</span>}
+              </Button>
+              {saved && (
+                <span className="text-sm text-brand-green">Enregistré ✓</span>
+              )}
             </div>
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -1047,13 +971,15 @@ export default function SettingsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Paramètres</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h1 className="text-xl font-semibold text-foreground">Paramètres</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Configuration de la plateforme — réservé aux administrateurs.
         </p>
       </div>
 
-      <Suspense fallback={<div className="py-12 text-center text-sm text-slate-400">Chargement…</div>}>
+      <Suspense
+        fallback={<div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>}
+      >
         <SettingsContent />
       </Suspense>
     </div>

@@ -60,6 +60,9 @@ export interface DataTableProps<T> {
   pagination?: DataTablePaginationConfig;
   scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string;
+  /** Compact rows for dense pricing tables */
+  density?: "default" | "compact";
+  selectedRowKeys?: Set<string>;
 }
 
 /** Tri cyclique : asc → desc → défaut (catalogue + simulation). */

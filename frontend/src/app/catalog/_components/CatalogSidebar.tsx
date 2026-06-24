@@ -58,7 +58,7 @@ export function CatalogSidebar({
   className,
 }: CatalogSidebarProps) {
   const boundsFilters = useMemo(() => {
-    const { pamp_min, pamp_max, stock_min, ...rest } = filters;
+    const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, ...rest } = filters;
     return rest;
   }, [filters]);
 

@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import * as Dialog from "@radix-ui/react-dialog";
+import { Warning, ArrowLeft, ArrowRight, CaretRight } from "@phosphor-icons/react";
 import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  ChevronRight,
-  X,
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { SimulationLine } from "@/lib/api";
 import { listTransportModes } from "@/lib/api";
 import { transportModeLabelMap } from "@/lib/transport-modes";
@@ -34,7 +35,7 @@ function StepBadge({ applied }: { applied: boolean }) {
     <span
       className={cn(
         "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        applied ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+        applied ? "border border-primary/20 bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
       )}
     >
       {applied ? "Appliqué" : "Ignoré"}
@@ -52,9 +53,9 @@ function StepDetailBlock({
   const details = formatBreakdownStepDetails(step, { transportLabels });
   if (details.length === 0) return null;
   return (
-    <div className="mt-3 space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+    <div className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted px-3 py-2.5">
       {details.map((line, i) => (
-        <p key={i} className="text-sm leading-snug text-slate-700">
+        <p key={i} className="text-sm leading-snug text-foreground">
           {line}
         </p>
       ))}
@@ -73,7 +74,7 @@ function ChainSteps({
 }) {
   if (steps.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-muted-foreground">
         Aucune étape enregistrée pour la chaîne {chainLabel}.
       </p>
     );
@@ -84,27 +85,27 @@ function ChainSteps({
       {steps.map((step, idx) => (
         <li
           key={`${step.module}-${step.order ?? idx}`}
-          className="rounded-lg border border-border bg-white p-4"
+          className="rounded-lg border border-border bg-card p-4"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
               {step.order ?? idx + 1}
             </span>
-            <span className="text-sm font-semibold text-slate-800">
+            <span className="text-sm font-semibold text-foreground">
               {moduleLabel(step.module)}
             </span>
             <StepBadge applied={step.applied} />
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <div className="rounded border border-slate-200 bg-white px-2 py-1">
-              <span className="text-[10px] font-semibold uppercase text-slate-400">Entrée</span>
-              <p className="tabular-nums text-slate-700">{fmtPrice(step.input_price)}</p>
+            <div className="rounded border border-border bg-card px-2 py-1">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Entrée</span>
+              <p className="tabular-nums text-foreground">{fmtPrice(step.input_price)}</p>
             </div>
-            <ChevronRight size={16} className="shrink-0 text-slate-300" />
-            <div className="rounded border border-orange-100 bg-orange-50/50 px-2 py-1">
-              <span className="text-[10px] font-semibold uppercase text-orange-600">Sortie</span>
-              <p className="font-medium tabular-nums text-slate-900">{fmtPrice(step.output_price)}</p>
+            <CaretRight size={16} className="shrink-0 text-muted-foreground/60" />
+            <div className="rounded border border-warm/30 bg-warm/10/50 px-2 py-1">
+              <span className="text-[10px] font-semibold uppercase text-warm">Sortie</span>
+              <p className="font-medium tabular-nums text-foreground">{fmtPrice(step.output_price)}</p>
             </div>
           </div>
 
@@ -115,9 +116,9 @@ function ChainSteps({
               {step.warnings.map((w, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-1.5 rounded border border-amber-100 bg-amber-50 px-2.5 py-2 text-sm text-amber-900"
+                  className="flex items-start gap-1.5 rounded border border-warm/30 bg-warm/10 px-2.5 py-2 text-sm text-foreground"
                 >
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  <Warning size={14} className="mt-0.5 shrink-0" weight="fill" />
                   {w}
                 </li>
               ))}
@@ -155,7 +156,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
   const goNext = () => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1));
 
   return (
-    <Dialog.Root
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
@@ -164,54 +165,45 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
         }
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-white shadow-xl">
-          <div className="shrink-0 border-b border-border px-5 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <Dialog.Title className="text-base font-semibold text-slate-900">
-                  Détail du calcul
-                </Dialog.Title>
-                <Dialog.Description className="mt-1 truncate font-mono text-sm text-orange-600">
-                  {line.product_sku}
-                </Dialog.Description>
-                <p className="mt-0.5 truncate text-sm text-slate-500">
-                  {line.product_designation || line.product_name}
-                </p>
-              </div>
-              <Dialog.Close className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-                <X size={18} />
-              </Dialog.Close>
-            </div>
+      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 p-0 sm:max-w-4xl">
+        <div className="shrink-0 border-b border-border px-5 py-4">
+          <DialogHeader className="gap-1 p-0">
+            <DialogTitle>Détail du calcul</DialogTitle>
+            <DialogDescription className="truncate font-mono text-sm text-warm">
+              {line.product_sku}
+            </DialogDescription>
+            <p className="truncate text-sm text-muted-foreground">
+              {line.product_designation || line.product_name}
+            </p>
+          </DialogHeader>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {STEPS.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setStepIdx(i)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                    i === stepIdx
-                      ? "bg-primary text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  )}
-                >
-                  <span className="font-bold">{i + 1}</span>
-                  {s.label}
-                </button>
-              ))}
-            </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {STEPS.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStepIdx(i)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  i === stepIdx
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                <span className="font-bold">{i + 1}</span>
+                {s.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {errors.length > 0 && !hasBreakdown && (
               <div className="mb-4 space-y-2">
                 {errors.map((msg, i) => (
                   <div
                     key={i}
-                    className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800"
+                    className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
                   >
                     {msg}
                   </div>
@@ -222,7 +214,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {currentStep === "summary" && (
               <div className="space-y-4">
                 <section>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Résultats figés
                   </h3>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -246,11 +238,11 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 </section>
 
                 {Object.keys(mpSnap).length > 0 && (
-                  <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <section className="rounded-lg border border-border bg-muted px-4 py-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Paramètres marché utilisés au calcul
                     </h3>
-                    <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    <ul className="mt-2 space-y-1 text-sm text-foreground">
                       <li>
                         Cuivre base / actuel : {mpStr(mpSnap, "copper_base_price_rmb")} /{" "}
                         {mpStr(mpSnap, "copper_current_price_rmb")} RMB
@@ -262,11 +254,11 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 )}
 
                 {(incSnap.sale_incoterm || incSnap.purchase_incoterm) && (
-                  <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <section className="rounded-lg border border-border bg-muted px-4 py-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Incoterms au calcul
                     </h3>
-                    <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    <ul className="mt-2 space-y-1 text-sm text-foreground">
                       {incSnap.sale_incoterm && (
                         <li>
                           Vente :{" "}
@@ -286,7 +278,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                         </li>
                       )}
                     </ul>
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Le PR ne dépend pas directement de l&apos;incoterm — il combine PA net et
                       PAMP via le mix. L&apos;incoterm achat contextualise la chaîne PA ; l&apos;incoterm
                       vente la chaîne PV.
@@ -294,14 +286,14 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   </section>
                 )}
 
-                <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <section className="rounded-lg border border-border bg-muted px-4 py-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Formule PR
                   </h3>
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-2 text-sm text-foreground">
                     PR = ({purchasePct} % × PA net) + ({mixPct} % × PAMP prév.)
                   </p>
-                  <p className="mt-1 text-sm tabular-nums text-slate-800">
+                  <p className="mt-1 text-sm tabular-nums text-foreground">
                     = ({purchasePct / 100} × {line.pa_net_eur ?? "?"}) + ({mixPct / 100} ×{" "}
                     {line.pamp_predictive_eur ?? "?"})
                     {" → "}
@@ -311,15 +303,15 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
 
                 {warnings.length > 0 && (
                   <section>
-                    <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-600">
-                      <AlertTriangle size={14} />
+                    <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warm">
+                      <Warning size={14} weight="fill" />
                       Avertissements ({warnings.length})
                     </h3>
                     <ul className="space-y-1.5">
                       {warnings.map((w, i) => (
                         <li
                           key={i}
-                          className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                          className="rounded-lg border border-warm/30 bg-warm/10 px-3 py-2 text-sm text-foreground"
                         >
                           {w}
                         </li>
@@ -332,10 +324,10 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
 
             {currentStep === "purchase" && (
               <div>
-                <p className="mb-4 text-sm text-slate-600">
+                <p className="mb-4 text-sm text-muted-foreground">
                   Chaîne d&apos;achat : du prix PO fournisseur au PA net en EUR.
                   {breakdown.purchase?.final_amount && (
-                    <span className="ml-1 font-medium text-slate-800">
+                    <span className="ml-1 font-medium text-foreground">
                       Résultat :{" "}
                       {fmtPrice({
                         amount: breakdown.purchase.final_amount,
@@ -350,10 +342,10 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
 
             {currentStep === "sale" && (
               <div>
-                <p className="mb-4 text-sm text-slate-600">
+                <p className="mb-4 text-sm text-muted-foreground">
                   Chaîne de vente : du PR au PV final en EUR.
                   {breakdown.sale?.final_amount && (
-                    <span className="ml-1 font-medium text-slate-800">
+                    <span className="ml-1 font-medium text-foreground">
                       Résultat :{" "}
                       {fmtPrice({
                         amount: breakdown.sale.final_amount,
@@ -367,32 +359,21 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between border-t border-border px-5 py-3">
-            <button
-              type="button"
-              onClick={goPrev}
-              disabled={stepIdx === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
-            >
-              <ArrowLeft size={14} />
-              Précédent
-            </button>
-            <span className="text-xs text-slate-400">
-              Étape {stepIdx + 1} / {STEPS.length}
-            </span>
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={stepIdx >= STEPS.length - 1}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-40"
-            >
-              Suivant
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        <div className="flex shrink-0 items-center justify-between border-t border-border px-5 py-3">
+          <Button type="button" variant="outline" size="sm" onClick={goPrev} disabled={stepIdx === 0} className="gap-1.5">
+            <ArrowLeft size={14} />
+            Précédent
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Étape {stepIdx + 1} / {STEPS.length}
+          </span>
+          <Button type="button" size="sm" onClick={goNext} disabled={stepIdx >= STEPS.length - 1} className="gap-1.5">
+            Suivant
+            <ArrowRight size={14} />
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -406,12 +387,12 @@ function SummaryCell({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={cn(
           "mt-0.5 text-sm tabular-nums",
-          highlight ? "font-semibold text-slate-900" : "text-slate-700"
+          highlight ? "font-semibold text-foreground" : "text-foreground"
         )}
       >
         {value}

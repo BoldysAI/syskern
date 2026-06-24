@@ -133,7 +133,7 @@ function SupplierFields({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs font-medium text-slate-500">Nom du fournisseur *</span>
+        <span className="text-xs font-medium text-muted-foreground">Nom du fournisseur *</span>
         {nameMode === "existing" && existingNames && existingNames.length > 0 ? (
           <div className="relative">
             <Select.Root
@@ -150,9 +150,9 @@ function SupplierFields({
                 <Select.Value placeholder="Choisir un fournisseur existant…" />
                 <Select.Icon>
                   {loadingTemplate ? (
-                    <Loader2 size={15} className="animate-spin text-slate-400" />
+                    <Loader2 size={15} className="animate-spin text-muted-foreground" />
                   ) : (
-                    <ChevronDown size={15} className="text-slate-400" />
+                    <ChevronDown size={15} className="text-muted-foreground" />
                   )}
                 </Select.Icon>
               </Select.Trigger>
@@ -160,7 +160,7 @@ function SupplierFields({
                 <Select.Content
                   position="popper"
                   sideOffset={4}
-                  className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
+                  className="z-50 min-w-[var(--radix-select-trigger-width)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
                 >
                   <Select.Viewport className="p-1 max-h-56">
                     {existingNames.map((name) => (
@@ -192,7 +192,7 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Code usine</span>
+        <span className="text-xs font-medium text-muted-foreground">Code usine</span>
         <input
           value={value.factory_code ?? ""}
           disabled={disabled}
@@ -202,8 +202,8 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">PO base</span>
-        <span className="text-[11px] leading-tight text-slate-400">
+        <span className="text-xs font-medium text-muted-foreground">PO base</span>
+        <span className="text-[11px] leading-tight text-muted-foreground">
           Prix d&apos;achat fournisseur (devise d&apos;origine) — point de départ du calcul PA
         </span>
         <input
@@ -218,7 +218,7 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Devise PO</span>
+        <span className="text-xs font-medium text-muted-foreground">Devise PO</span>
         <CurrencySelect
           value={value.po_currency ?? "RMB"}
           disabled={disabled}
@@ -227,7 +227,7 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Incoterm</span>
+        <span className="text-xs font-medium text-muted-foreground">Incoterm</span>
         <IncotermSelect
           value={value.incoterm ?? ""}
           disabled={disabled}
@@ -236,7 +236,7 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500">Localisation incoterm</span>
+        <span className="text-xs font-medium text-muted-foreground">Localisation incoterm</span>
         <input
           value={value.incoterm_location ?? ""}
           disabled={disabled}
@@ -247,7 +247,7 @@ function SupplierFields({
       </label>
 
       <div className="flex items-center justify-between gap-3 sm:col-span-2 py-1">
-        <span className="text-xs font-medium text-slate-500">Indexation cuivre</span>
+        <span className="text-xs font-medium text-muted-foreground">Indexation cuivre</span>
         <button
           type="button"
           role="switch"
@@ -256,12 +256,12 @@ function SupplierFields({
           onClick={() => onChange({ is_copper_indexed: !(value.is_copper_indexed === true) })}
           className={cn(
             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50",
-            value.is_copper_indexed ? "bg-primary" : "bg-slate-300",
+            value.is_copper_indexed ? "bg-primary" : "bg-muted-foreground/30",
           )}
         >
           <span
             className={cn(
-              "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+              "inline-block h-4 w-4 transform rounded-full bg-popover shadow transition-transform",
               value.is_copper_indexed ? "translate-x-6" : "translate-x-1",
             )}
           />
@@ -270,7 +270,7 @@ function SupplierFields({
 
       {value.is_copper_indexed && (
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="text-xs font-medium text-slate-500">Base cuivre</span>
+          <span className="text-xs font-medium text-muted-foreground">Base cuivre</span>
           <input
             type="number"
             inputMode="decimal"
@@ -285,7 +285,7 @@ function SupplierFields({
       )}
 
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs font-medium text-slate-500">Notes</span>
+        <span className="text-xs font-medium text-muted-foreground">Notes</span>
         <textarea
           value={value.notes ?? ""}
           disabled={disabled}
@@ -312,14 +312,14 @@ function CurrencySelect({
       <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left disabled:opacity-50")}>
         <Select.Value />
         <Select.Icon>
-          <ChevronDown size={15} className="text-slate-400" />
+          <ChevronDown size={15} className="text-muted-foreground" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {CURRENCIES.map((c) => (
@@ -358,14 +358,14 @@ function IncotermSelect({
       <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left disabled:opacity-50")}>
         <Select.Value placeholder="—" />
         <Select.Icon>
-          <ChevronDown size={15} className="text-slate-400" />
+          <ChevronDown size={15} className="text-muted-foreground" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
+          className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {codes.map((code) => {
@@ -424,7 +424,7 @@ function SupplierCard({
   return (
     <div
       className={cn(
-        "rounded-xl border p-4 shadow-sm bg-white",
+        "rounded-xl border p-4 shadow-sm bg-popover",
         supplier.is_active ? "border-primary" : "border-border",
       )}
     >
@@ -432,7 +432,7 @@ function SupplierCard({
         <span
           className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold",
-            supplier.is_active ? "bg-accent text-accent-foreground" : "bg-slate-100 text-slate-500",
+            supplier.is_active ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground",
           )}
         >
           {supplier.is_active && <Star size={12} className="fill-warm text-warm" />}
@@ -468,7 +468,7 @@ function SupplierCard({
             type="button"
             disabled={busy}
             onClick={() => setDraft(toInput(supplier))}
-            className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-50"
+            className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted text-muted-foreground disabled:opacity-50"
           >
             Annuler
           </button>
@@ -504,24 +504,24 @@ function DeleteSupplierButton({
           type="button"
           disabled={disabled}
           aria-label="Supprimer le fournisseur"
-          className="inline-flex items-center justify-center h-8 w-8 text-slate-400 border border-border rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          className="inline-flex items-center justify-center h-8 w-8 text-muted-foreground border border-border rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         >
           <Trash2 size={14} />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 shadow-xl focus:outline-none">
-          <Dialog.Title className="text-base font-semibold text-slate-900">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-popover p-5 shadow-xl focus:outline-none">
+          <Dialog.Title className="text-base font-semibold text-foreground">
             Supprimer le fournisseur
           </Dialog.Title>
-          <Dialog.Description className="mt-2 text-sm text-slate-500">
+          <Dialog.Description className="mt-2 text-sm text-muted-foreground">
             Confirmez-vous la suppression de{" "}
-            <span className="font-medium text-slate-700">{label}</span> ? Cette action est
+            <span className="font-medium text-foreground">{label}</span> ? Cette action est
             irréversible.
           </Dialog.Description>
           <div className="flex justify-end gap-3 mt-5">
-            <Dialog.Close className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600">
+            <Dialog.Close className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted text-muted-foreground">
               Annuler
             </Dialog.Close>
             <button
@@ -598,7 +598,7 @@ export function SupplierManager({
   return (
     <div className="flex flex-col gap-4">
       {suppliers.length === 0 && !adding && (
-        <p className="text-sm text-slate-400">Aucun fournisseur enregistré.</p>
+        <p className="text-sm text-muted-foreground">Aucun fournisseur enregistré.</p>
       )}
 
       {suppliers.map((s) => (
@@ -615,7 +615,7 @@ export function SupplierManager({
       {adding && !readOnly && (
         <div className="rounded-xl border border-dashed border-primary/40 p-4 bg-[#FFFBF5]">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-slate-700">Nouveau fournisseur</h4>
+            <h4 className="text-sm font-semibold text-foreground">Nouveau fournisseur</h4>
             <button
               type="button"
               aria-label="Annuler l'ajout"
@@ -624,7 +624,7 @@ export function SupplierManager({
                 setNewSupplier(emptySupplier(suppliers.length === 0));
                 setLinkMode(hasExisting ? "existing" : "new");
               }}
-              className="text-slate-400 hover:text-slate-600"
+              className="text-muted-foreground hover:text-muted-foreground"
             >
               <X size={18} />
             </button>
@@ -644,7 +644,7 @@ export function SupplierManager({
                     "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                     linkMode === mode
                       ? "border-primary bg-accent text-accent-foreground"
-                      : "border-border text-slate-600 hover:bg-slate-50",
+                      : "border-border text-muted-foreground hover:bg-muted",
                   )}
                 >
                   {mode === "existing" ? "Fournisseur existant" : "Nouveau fournisseur"}

@@ -39,7 +39,7 @@ export function DashboardKpiGrid({ items, loading }: DashboardKpiGridProps) {
           href={item.href}
           className={cn(
             "group rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)] transition-all duration-200",
-            "hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]",
+            "motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[var(--shadow-card)]",
           )}
         >
           <div className="flex items-start justify-between gap-3">

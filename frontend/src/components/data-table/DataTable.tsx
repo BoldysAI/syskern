@@ -44,9 +44,14 @@ export function DataTable<T>({
   pagination,
   scrollRef,
   className,
+  density = "default",
+  selectedRowKeys,
 }: DataTableProps<T>) {
   const defaultWidths = Object.fromEntries(columns.map((c) => [c.key, c.width]));
   const { widths, startResize, resizingKey } = useColumnWidths(defaultWidths, storageKey);
+
+  const cellPy = density === "compact" ? "py-2" : "py-3";
+  const headerPy = density === "compact" ? "py-2.5" : "py-3.5";
 
   const hasLeading = !!renderLeadingHeader || !!renderLeadingCell;
   const hasTrailing = !!renderTrailingCell;
@@ -103,7 +108,8 @@ export function DataTable<T>({
                           type="button"
                           onClick={() => onSort(col.sortField!)}
                           className={cn(
-                            "flex min-w-0 flex-1 items-center gap-1 px-4 py-3.5",
+                            "flex min-w-0 flex-1 items-center gap-1 px-4",
+                            headerPy,
                             col.align === "right" && "justify-end text-right",
                             col.align === "center" && "justify-center",
                             "transition-colors hover:text-foreground",
@@ -120,7 +126,8 @@ export function DataTable<T>({
                       ) : (
                         <span
                           className={cn(
-                            "flex flex-1 items-center truncate px-4 py-3.5",
+                            "flex flex-1 items-center truncate px-4",
+                            headerPy,
                             col.align === "right" && "justify-end",
                             col.align === "center" && "justify-center"
                           )}
@@ -191,18 +198,23 @@ export function DataTable<T>({
               rows.map((row) => {
                 const key = rowKey(row);
                 const extraRowClass = rowClassName?.(row);
+                const isSelected = selectedRowKeys?.has(key);
                 return (
                   <tr
                     key={key}
                     className={cn(
-                      "border-b border-border transition-colors",
+                      "border-b border-border transition-colors duration-200",
                       onRowClick && "cursor-pointer",
-                      extraRowClass ?? "bg-card even:bg-muted/30 hover:bg-accent/50"
+                      isSelected && "bg-primary/5 hover:bg-primary/10",
+                      extraRowClass ??
+                        (isSelected
+                          ? undefined
+                          : "bg-card even:bg-muted/30 hover:bg-accent/50")
                     )}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {hasLeading && (
-                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className={cn("px-3", cellPy)} onClick={(e) => e.stopPropagation()}>
                         {renderLeadingCell?.(row)}
                       </td>
                     )}
@@ -215,7 +227,8 @@ export function DataTable<T>({
                         <td
                           key={col.key}
                           className={cn(
-                            "overflow-hidden px-4 py-3",
+                            "overflow-hidden px-4",
+                            cellPy,
                             alignClass(col.align),
                             cellClass
                           )}

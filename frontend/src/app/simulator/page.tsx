@@ -3,7 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Plus, Calculator, Clock, FileCheck, Archive, GitCompare, Bookmark } from "lucide-react";
+import {
+  Plus,
+  Calculator,
+  Clock,
+  SealCheck,
+  Archive,
+  GitDiff,
+  Bookmark,
+} from "@phosphor-icons/react";
 import { getSimulations, type Simulation } from "@/lib/api";
 import { DataTable } from "@/components/data-table";
 import type { DataTableColumnDef } from "@/components/data-table/types";
@@ -20,7 +28,7 @@ const DEFAULT_SORT: DataTableSortState = { field: "updated_at", dir: "desc" };
 
 function SimulationStatusCell({ status, dirty }: { status: Simulation["status"]; dirty?: boolean }) {
   const config = {
-    finalized: { label: "Finalisé", variant: "success" as const, Icon: FileCheck },
+    finalized: { label: "Finalisé", variant: "success" as const, Icon: SealCheck },
     archived: { label: "Archivé", variant: "draft" as const, Icon: Archive },
     draft: { label: "Brouillon", variant: "warning" as const, Icon: Clock },
   };
@@ -29,7 +37,7 @@ function SimulationStatusCell({ status, dirty }: { status: Simulation["status"];
   return (
     <span className="inline-flex items-center gap-1.5">
       <StatusBadge variant={variant} className="gap-1">
-        <Icon size={11} />
+        <Icon size={11} weight="bold" />
         {label}
       </StatusBadge>
       {dirty && status === "draft" && (
@@ -82,7 +90,7 @@ export default function SimulatorPage() {
         width: 80,
         align: "right",
         render: (sim) => (
-          <span className="tabular-nums text-sm text-muted-foreground">{sim.line_count}</span>
+          <span className="font-data text-sm text-muted-foreground">{sim.line_count}</span>
         ),
       },
       {
@@ -145,7 +153,7 @@ export default function SimulatorPage() {
               </Label>
             </div>
             <Button variant="outline" onClick={() => router.push("/simulator/compare")}>
-              <GitCompare size={16} />
+              <GitDiff size={16} />
               Comparer
             </Button>
             <Button
@@ -178,7 +186,7 @@ export default function SimulatorPage() {
           errorState={
             error ? (
               <EmptyState
-                icon={<Calculator size={28} />}
+                icon={<Calculator size={28} weight="duotone" />}
                 title="Impossible de charger les simulations"
                 description={error.message}
               />
@@ -186,7 +194,7 @@ export default function SimulatorPage() {
           }
           emptyState={
             <EmptyState
-              icon={<Calculator size={28} />}
+              icon={<Calculator size={28} weight="duotone" />}
               title="Aucune simulation"
               description='Créez votre première simulation en cliquant sur "Nouvelle simulation".'
               action={

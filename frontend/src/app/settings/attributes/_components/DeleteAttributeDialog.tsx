@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { CircleNotch, Warning } from "@phosphor-icons/react";
 import { deleteAttribute, type AttributeRegistry } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import Modal from "./Modal";
-
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 font-mono";
+import { AppModal } from "@/components/AppModal";
+import { FormField } from "@/components/FormField";
+import { AppIcon } from "@/components/AppIcon";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Explicit delete confirmation (CDC §4.1.4). Shows how many
@@ -45,16 +45,16 @@ export default function DeleteAttributeDialog({
   };
 
   return (
-    <Modal title="Supprimer l'attribut" onClose={onClose}>
+    <AppModal open onOpenChange={(open) => !open && onClose()} title="Supprimer l'attribut">
       {error && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="flex gap-3 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
-        <AlertTriangle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-red-700">
+      <div className="mb-4 flex gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+        <AppIcon icon={Warning} size="md" className="mt-0.5 shrink-0 text-destructive" />
+        <div className="text-sm text-destructive">
           <p className="font-semibold">Cette action est irréversible.</p>
           <p className="mt-1">
             L&apos;attribut <span className="font-mono font-semibold">{attribute.code}</span> et{" "}
@@ -67,39 +67,35 @@ export default function DeleteAttributeDialog({
         </div>
       </div>
 
-      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-        Saisissez le code <span className="font-mono text-slate-800">{attribute.code}</span> pour
-        confirmer
-      </label>
-      <input
-        value={confirmText}
-        onChange={(e) => setConfirmText(e.target.value)}
-        className={inputCls}
-        placeholder={attribute.code}
-        autoFocus
-      />
+      <FormField
+        label={`Saisissez le code ${attribute.code} pour confirmer`}
+        htmlFor="confirm-code"
+      >
+        <Input
+          id="confirm-code"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          className="font-mono"
+          placeholder={attribute.code}
+          autoFocus
+        />
+      </FormField>
 
       <div className="flex gap-3 pt-5">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
-        >
+        <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
           Annuler
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="destructive"
+          className="flex-1"
           onClick={handleDelete}
           disabled={!matches || deleting}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm rounded-lg font-semibold text-white",
-            "bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          )}
         >
-          {deleting && <Loader2 size={14} className="animate-spin" />}
+          {deleting && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
           Supprimer définitivement
-        </button>
+        </Button>
       </div>
-    </Modal>
+    </AppModal>
   );
 }

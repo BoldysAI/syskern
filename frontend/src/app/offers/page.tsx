@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
+
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import {
@@ -18,7 +18,11 @@ import { KpiCard } from "@/components/KpiCard";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterSelect } from "@/components/FilterSelect";
 import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
+import { DataTable } from "@/components/data-table";
+import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
+import { cycleSortField } from "@/components/data-table/types";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -74,6 +78,35 @@ const STATUS_LABELS: Record<string, string> = {
   lost: "Perdue",
   expired: "Expirée",
 };
+
+const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
+
+function sortOffers(rows: OfferRow[], sort: DataTableSortState): OfferRow[] {
+  const out = [...rows];
+  out.sort((a, b) => {
+    let av: string | number = "";
+    let bv: string | number = "";
+    switch (sort.field) {
+      case "label":
+        av = a.label;
+        bv = b.label;
+        break;
+      case "valid_to":
+        av = a.valid_to ? new Date(a.valid_to).getTime() : 0;
+        bv = b.valid_to ? new Date(b.valid_to).getTime() : 0;
+        break;
+      case "created_at":
+        av = new Date(a.created_at).getTime();
+        bv = new Date(b.created_at).getTime();
+        break;
+      default:
+        return 0;
+    }
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sort.dir === "asc" ? cmp : -cmp;
+  });
+  return out;
+}
 
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
@@ -161,6 +194,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
       <a
         href={`/api/offers/${offer.id}/download/`}
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        onClick={(e) => e.stopPropagation()}
       >
         <DownloadSimple size={14} weight="duotone" />
         Excel
@@ -181,7 +215,10 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         type="button"
         variant="ghost"
         size="sm"
-        onClick={onRetry}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRetry();
+        }}
         title={offer.generation_error}
         className="h-auto px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
       >
@@ -197,6 +234,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        onClick={(e) => e.stopPropagation()}
       >
         <ArrowSquareOut size={14} weight="duotone" />
         Gamma
@@ -209,9 +247,11 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
+  const router = useRouter();
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ ordering: "-created_at", limit: "100" });
@@ -240,15 +280,83 @@ export default function OffersPage() {
     return (ids: string[]) => ids.map((i) => map.get(i) ?? "—").join(", ") || "—";
   }, [clientsResp]);
 
-  const retry = async (id: string) => {
-    try {
-      await postJson(`/api/offers/${id}/regenerate/`);
-    } finally {
-      mutate(`offers:${query}`);
-    }
-  };
+  const retry = useCallback(
+    async (id: string) => {
+      try {
+        await postJson(`/api/offers/${id}/regenerate/`);
+      } finally {
+        mutate(`offers:${query}`);
+      }
+    },
+    [query],
+  );
 
-  const offers = data?.results ?? [];
+  const sortedOffers = useMemo(
+    () => sortOffers(data?.results ?? [], sort),
+    [data?.results, sort],
+  );
+
+  const columns = useMemo<DataTableColumnDef<OfferRow>[]>(
+    () => [
+      {
+        key: "label",
+        label: "Offre",
+        width: 240,
+        sortField: "label",
+        render: (o) => (
+          <div>
+            <span className="text-sm font-medium text-foreground">{o.label}</span>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-data">{o.line_count}</span> ligne(s) · {o.currency}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "offer_type",
+        label: "Type",
+        width: 100,
+        render: (o) => (
+          <StatusBadge variant={o.offer_type === "project" ? "info" : "running"}>
+            {o.offer_type === "project" ? "Projet" : "Tarif"}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "clients",
+        label: "Client(s)",
+        width: 180,
+        cellClassName: "text-sm text-muted-foreground truncate",
+        render: (o) => clientName(o.client_ids),
+      },
+      {
+        key: "status",
+        label: "Statut",
+        width: 110,
+        render: (o) => (
+          <StatusBadge variant={offerStatusVariant(o.status)}>
+            {STATUS_LABELS[o.status] ?? o.status}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "valid_to",
+        label: "Validité",
+        width: 120,
+        sortField: "valid_to",
+        cellClassName: "text-sm text-muted-foreground font-data",
+        render: (o) =>
+          o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—",
+      },
+      {
+        key: "document",
+        label: "Document",
+        width: 130,
+        render: (o) => <GenerationCell offer={o} onRetry={() => retry(o.id)} />,
+      },
+    ],
+    [clientName, retry],
+  );
 
   return (
     <div className="p-6">
@@ -315,83 +423,42 @@ export default function OffersPage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-soft)]">
-        {error ? (
-          <EmptyState
-            className="border-none bg-transparent py-16 shadow-none"
-            icon={<FileText size={28} weight="duotone" />}
-            title="Impossible de charger les offres"
-          />
-        ) : isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : offers.length === 0 ? (
-          <EmptyState
-            className="border-none bg-transparent py-16 shadow-none"
-            icon={<FilePlus size={28} weight="duotone" />}
-            title="Aucune offre"
-            description="Cliquez « Nouvelle offre » pour en générer une."
-            action={
-              <Button onClick={() => setShowNew(true)}>
-                <Plus size={16} weight="bold" />
-                Nouvelle offre
-              </Button>
-            }
-          />
-        ) : (
-          <table className="w-full">
-            <thead className="border-b border-border bg-muted/40">
-              <tr>
-                {["Offre", "Type", "Client(s)", "Statut", "Validité", "Document"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {offers.map((o) => (
-                <tr key={o.id} className="transition-colors hover:bg-muted/30">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/offers/${o.id}`}
-                      className="text-sm font-medium text-foreground hover:text-warm"
-                    >
-                      {o.label}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {o.line_count} ligne(s) · {o.currency}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge variant={o.offer_type === "project" ? "info" : "running"}>
-                      {o.offer_type === "project" ? "Projet" : "Tarif"}
-                    </StatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{clientName(o.client_ids)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge variant={offerStatusVariant(o.status)}>
-                      {STATUS_LABELS[o.status] ?? o.status}
-                    </StatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-sm tabular-nums text-muted-foreground">
-                    {o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <GenerationCell offer={o} onRetry={() => retry(o.id)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="overflow-hidden py-0">
+        <DataTable
+          columns={columns}
+          rows={sortedOffers}
+          rowKey={(o) => o.id}
+          storageKey="offers-list"
+          sort={sort}
+          defaultSort={DEFAULT_SORT}
+          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          isLoading={isLoading}
+          onRowClick={(o) => router.push(`/offers/${o.id}`)}
+          errorState={
+            error ? (
+              <EmptyState
+                className="border-none bg-transparent py-16 shadow-none"
+                icon={<FileText size={28} weight="duotone" />}
+                title="Impossible de charger les offres"
+              />
+            ) : undefined
+          }
+          emptyState={
+            <EmptyState
+              className="border-none bg-transparent py-16 shadow-none"
+              icon={<FilePlus size={28} weight="duotone" />}
+              title="Aucune offre"
+              description="Cliquez « Nouvelle offre » pour en générer une."
+              action={
+                <Button onClick={() => setShowNew(true)}>
+                  <Plus size={16} weight="bold" />
+                  Nouvelle offre
+                </Button>
+              }
+            />
+          }
+        />
+      </Card>
 
       <NewOfferModal open={showNew} onClose={() => setShowNew(false)} />
     </div>

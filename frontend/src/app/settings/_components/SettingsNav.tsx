@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Coins, Truck, Database, Tags, Bell } from "lucide-react";
+import { Bell, Coins, Database, Tag, Truck } from "@phosphor-icons/react";
+import { AppIcon } from "@/components/AppIcon";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,11 +13,11 @@ import { cn } from "@/lib/utils";
  * `/settings/attributes`.
  */
 const ITEMS = [
-  { id: "marche", label: "Paramètres marché", href: "/settings?tab=marche", Icon: Coins },
-  { id: "transport", label: "Modes de transport", href: "/settings?tab=transport", Icon: Truck },
-  { id: "odoo", label: "Synchronisation Odoo", href: "/settings?tab=odoo", Icon: Database },
-  { id: "alerts", label: "Alertes offres", href: "/settings?tab=alerts", Icon: Bell },
-  { id: "attributes", label: "Attributs dynamiques", href: "/settings/attributes", Icon: Tags },
+  { id: "marche", label: "Paramètres marché", href: "/settings?tab=marche", icon: Coins },
+  { id: "transport", label: "Modes de transport", href: "/settings?tab=transport", icon: Truck },
+  { id: "odoo", label: "Synchronisation Odoo", href: "/settings?tab=odoo", icon: Database },
+  { id: "alerts", label: "Alertes offres", href: "/settings?tab=alerts", icon: Bell },
+  { id: "attributes", label: "Attributs dynamiques", href: "/settings/attributes", icon: Tag },
 ] as const;
 
 export default function SettingsNav() {
@@ -26,8 +27,8 @@ export default function SettingsNav() {
   const activeTab = searchParams.get("tab") ?? "marche";
 
   return (
-    <div className="flex gap-0.5 bg-white border border-border rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
-      {ITEMS.map(({ id, label, href, Icon }) => {
+    <div className="mb-6 flex gap-0.5 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm">
+      {ITEMS.map(({ id, label, href, icon }) => {
         const active = id === "attributes" ? onAttributes : !onAttributes && activeTab === id;
         return (
           <Link
@@ -35,13 +36,13 @@ export default function SettingsNav() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              "flex flex-shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
               active
-                ? "bg-primary text-white"
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <Icon size={14} />
+            <AppIcon icon={icon} size="sm" />
             {label}
           </Link>
         );

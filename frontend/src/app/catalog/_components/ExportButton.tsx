@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, Download, Loader2 } from "lucide-react";
+import { CaretDown, CircleNotch, Download } from "@phosphor-icons/react";
 import { exportProducts, type CatalogFilters } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
           className="rounded-r-none border-r-0"
           title={hasSelection ? "Exporter la sélection" : "Exporter le résultat filtré"}
         >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+          {busy ? <CircleNotch size={15} className="animate-spin" /> : <Download size={15} />}
           <span className="hidden sm:inline">
             {busy ? "Export…" : hasSelection ? `Exporter (${selectedIds!.length})` : "Exporter"}
           </span>
@@ -71,7 +71,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
               className="rounded-l-none"
               title="Choisir les colonnes"
             >
-              <ChevronDown size={15} />
+              <CaretDown size={15} />
             </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>

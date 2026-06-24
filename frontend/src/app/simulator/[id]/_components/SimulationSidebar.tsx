@@ -2,19 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import * as Dialog from "@radix-ui/react-dialog";
-import useSWR from "swr";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Archive,
-  ArchiveRestore,
-  CheckCircle2,
+  ArrowCounterClockwise,
+  CheckCircle,
   Copy,
-  Loader2,
-  PanelLeftClose,
-  Pencil,
-  Trash2,
-  X,
-} from "lucide-react";
+  CircleNotch,
+  SidebarSimple,
+  PencilSimple,
+  Trash,
+} from "@phosphor-icons/react";
 import {
   archiveSimulation,
   deleteSimulation,
@@ -24,13 +28,14 @@ import {
   type SimulationDetail,
   type TransportMode,
 } from "@/lib/api";
+import useSWR from "swr";
 import { FinalizeModal } from "./FinalizeModal";
 import { DuplicateModal } from "./DuplicateModal";
 import { cn } from "@/lib/utils";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
 import {
@@ -56,7 +61,7 @@ import {
   type WizardDraft,
 } from "../../new/_components/wizard-draft";
 
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
+const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
 const inputCls =
   "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
@@ -71,8 +76,8 @@ interface Props {
 function MarketValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-800 tabular-nums">{value || "—"}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground font-data">{value || "—"}</span>
     </div>
   );
 }
@@ -175,18 +180,18 @@ export function SimulationSidebar({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-white p-4">
+      <div className="sticky top-0 z-10 border-b border-border bg-card p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="truncate text-base font-bold text-slate-900">{sim.label}</h2>
+              <h2 className="truncate text-base font-bold text-foreground">{sim.label}</h2>
               {!readOnly && (
                 <button
                   onClick={() => setContextOpen(true)}
-                  className="shrink-0 text-slate-400 hover:text-warm"
+                  className="shrink-0 text-muted-foreground hover:text-warm"
                   aria-label="Modifier le contexte"
                 >
-                  <Pencil size={14} />
+                  <PencilSimple size={14} />
                 </button>
               )}
             </div>
@@ -210,7 +215,7 @@ export function SimulationSidebar({
                 <span
                   className={cn(
                     "text-xs",
-                    status === "error" ? "text-red-600" : "text-slate-400"
+                    status === "error" ? "text-destructive" : "text-muted-foreground"
                   )}
                 >
                   {saveLabel}
@@ -220,15 +225,15 @@ export function SimulationSidebar({
           </div>
           <button
             onClick={onCollapse}
-            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Réduire le panneau"
           >
-            <PanelLeftClose size={18} />
+            <SidebarSimple size={18} />
           </button>
         </div>
 
         {!readOnly && error && (
-          <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{error}</p>
+          <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p>
         )}
 
         {/* Header actions */}
@@ -240,7 +245,7 @@ export function SimulationSidebar({
               title={sim.is_dirty ? "Recalculez avant de finaliser" : undefined}
               className="flex items-center gap-1.5 rounded-lg border border-green-300 px-2.5 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CheckCircle2 size={13} />
+              <CheckCircle size={13} />
               Finaliser
             </button>
           )}
@@ -248,7 +253,7 @@ export function SimulationSidebar({
             <button
               onClick={() => runAction("archive", () => archiveSimulation(sim.id))}
               disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
             >
               <Archive size={13} />
               Archiver
@@ -258,16 +263,16 @@ export function SimulationSidebar({
             <button
               onClick={() => runAction("unarchive", () => unarchiveSimulation(sim.id))}
               disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
             >
-              <ArchiveRestore size={13} />
+              <ArrowCounterClockwise size={13} />
               Désarchiver
             </button>
           )}
           <button
             onClick={() => setDuplicateOpen(true)}
             disabled={busy !== null}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
           >
             <Copy size={13} />
             Dupliquer
@@ -288,9 +293,9 @@ export function SimulationSidebar({
                 });
               }}
               disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-destructive/30 px-2.5 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
-              <Trash2 size={13} />
+              <Trash size={13} />
               Supprimer
             </button>
           )}
@@ -299,15 +304,15 @@ export function SimulationSidebar({
 
       <div className="flex flex-col gap-4 p-4">
         {/* Market params */}
-        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800">Marché</h3>
+            <h3 className="text-sm font-bold text-foreground">Marché</h3>
             {!readOnly && (
               <button
                 onClick={() => setMarketOpen(true)}
                 className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
               >
-                <Pencil size={13} />
+                <PencilSimple size={13} />
                 Modifier
               </button>
             )}
@@ -324,8 +329,8 @@ export function SimulationSidebar({
         </section>
 
         {/* Sale incoterm (CDC §6.8.3) */}
-        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-slate-800">Incoterm de vente</h3>
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold text-foreground">Incoterm de vente</h3>
           <SaleIncotermFields
             incoterm={draft.saleIncoterm}
             location={draft.saleIncotermLocation}
@@ -336,8 +341,8 @@ export function SimulationSidebar({
         </section>
 
         {/* Global params */}
-        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-slate-800">Paramètres globaux</h3>
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold text-foreground">Paramètres globaux</h3>
           <div className="flex flex-col gap-4">
             <StockPurchaseMixSlider
               value={draft.mixPct}
@@ -385,7 +390,7 @@ export function SimulationSidebar({
                       "flex-1 rounded-lg border py-2 text-xs font-medium transition-colors disabled:opacity-50",
                       draft.symeaPosition === pos
                         ? "border-primary bg-accent text-accent-foreground"
-                        : "border-border text-slate-600 hover:bg-slate-50"
+                        : "border-border text-muted-foreground hover:bg-muted"
                     )}
                   >
                     {pos === "after_transports" ? "Après transports" : "Avant transports"}
@@ -447,44 +452,36 @@ export function SimulationSidebar({
       />
 
       {/* Context modal (type / clients / project name) */}
-      <Dialog.Root open={contextOpen} onOpenChange={setContextOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-            <div className="flex items-center justify-between border-b border-border p-5">
-              <Dialog.Title className="text-lg font-semibold text-slate-900">
-                Contexte de la simulation
-              </Dialog.Title>
-              <Dialog.Close className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
-                <X size={20} />
-              </Dialog.Close>
-            </div>
-            <div className="max-h-[70vh] overflow-y-auto p-5">
-              <TypeStep
-                label={draft.label}
-                type={draft.type}
-                clientIds={draft.clientIds}
-                projectName={draft.projectName}
-                onLabel={(v) => update({ label: v })}
-                onType={(v) => update({ type: v })}
-                onClientIds={(v) => update({ clientIds: v })}
-                onProjectName={(v) => update({ projectName: v })}
-              />
-            </div>
-            <div className="flex justify-end border-t border-border p-4">
-              <Dialog.Close className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90">
-                Fermer
-              </Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <Dialog open={contextOpen} onOpenChange={setContextOpen}>
+        <DialogContent className="max-w-lg gap-0 p-0">
+          <DialogHeader className="border-b border-border p-5">
+            <DialogTitle>Contexte de la simulation</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto p-5">
+            <TypeStep
+              label={draft.label}
+              type={draft.type}
+              clientIds={draft.clientIds}
+              projectName={draft.projectName}
+              onLabel={(v) => update({ label: v })}
+              onType={(v) => update({ type: v })}
+              onClientIds={(v) => update({ clientIds: v })}
+              onProjectName={(v) => update({ projectName: v })}
+            />
+          </div>
+          <DialogFooter className="border-t border-border p-4">
+            <Button type="button" onClick={() => setContextOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {prefillModal}
 
       {busy && (
-        <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-slate-900/90 px-3 py-2 text-sm text-white">
-          <Loader2 size={14} className="animate-spin" />
+        <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-foreground/90 px-3 py-2 text-sm text-background">
+          <CircleNotch size={14} className="animate-spin" />
           Traitement…
         </div>
       )}

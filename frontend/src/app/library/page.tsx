@@ -2,16 +2,40 @@
 
 import { useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { Download, Eye, FileText, History, Plus, Trash2, Upload, X } from "lucide-react";
+import {
+  DownloadSimple,
+  Eye,
+  FileText,
+  ClockCounterClockwise,
+  Plus,
+  Trash,
+  UploadSimple,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterSelect } from "@/components/FilterSelect";
+import { FormField } from "@/components/FormField";
+import { DataTable } from "@/components/data-table";
+import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
+import { cycleSortField } from "@/components/data-table/types";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,9 +103,38 @@ function docLabel(d: Doc): string {
   return d.name?.fr || d.name?.en || d.file_name || "—";
 }
 
-// ── Upload modal ──────────────────────────────────────────────────────────────
+const DEFAULT_SORT: DataTableSortState = { field: "name", dir: "asc" };
 
-function UploadModal({ onClose }: { onClose: () => void }) {
+function sortDocs(rows: Doc[], sort: DataTableSortState): Doc[] {
+  const out = [...rows];
+  out.sort((a, b) => {
+    let av: string | number = "";
+    let bv: string | number = "";
+    switch (sort.field) {
+      case "name":
+        av = docLabel(a);
+        bv = docLabel(b);
+        break;
+      case "version":
+        av = a.version;
+        bv = b.version;
+        break;
+      case "size":
+        av = a.file_size_bytes ?? 0;
+        bv = b.file_size_bytes ?? 0;
+        break;
+      default:
+        return 0;
+    }
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sort.dir === "asc" ? cmp : -cmp;
+  });
+  return out;
+}
+
+// ── Upload dialog ─────────────────────────────────────────────────────────────
+
+function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState("cgv");
   const [language, setLanguage] = useState("fr");
@@ -93,7 +146,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: productsResp } = useSWR("products:lite", () =>
+  const { data: productsResp } = useSWR(open ? "products:lite" : null, () =>
     getJson<Paginated<ProductLite> | ProductLite[]>("/api/products/?limit=1000"),
   );
   const products = useMemo<ProductLite[]>(
@@ -156,17 +209,14 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Ajouter un document</h2>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600">
-            <X size={18} />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Ajouter un document</DialogTitle>
+        </DialogHeader>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             {error}
           </div>
         )}
@@ -184,13 +234,13 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           }}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "mb-4 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center text-sm",
-            dragOver ? "border-primary bg-accent" : "border-border text-slate-500",
+            "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center text-sm",
+            dragOver ? "border-primary bg-accent" : "border-border text-muted-foreground",
           )}
         >
-          <Upload size={22} className="text-slate-400" />
+          <UploadSimple size={22} className="text-muted-foreground" />
           {file ? (
-            <span className="font-medium text-slate-700">
+            <span className="font-medium text-foreground">
               {file.name} · {humanSize(file.size)}
             </span>
           ) : (
@@ -206,102 +256,97 @@ function UploadModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Catégorie</Label>
+          <FormField label="Catégorie">
             <FilterSelect
               value={category}
               onChange={setCategory}
               placeholder="Choisir…"
               options={CATEGORIES.map((c) => ({ value: c.code, label: c.label }))}
             />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Langue</Label>
+          </FormField>
+          <FormField label="Langue">
             <FilterSelect
               value={language}
               onChange={setLanguage}
               placeholder="Choisir…"
               options={LANGS.map((l) => ({ value: l.code, label: l.label }))}
             />
-          </div>
+          </FormField>
         </div>
 
-        <div className="relative mt-3">
-          <Label className="mb-1 block text-xs font-medium text-muted-foreground">
-            Produit lié (optionnel)
-          </Label>
-          <Input
-            value={productQuery}
-            onChange={(e) => {
-              setProductQuery(e.target.value);
-              setProductId("");
-            }}
-            placeholder="Rechercher un SKU ou un nom…"
-          />
+        <div className="relative">
+          <FormField label="Produit lié (optionnel)">
+            <Input
+              value={productQuery}
+              onChange={(e) => {
+                setProductQuery(e.target.value);
+                setProductId("");
+              }}
+              placeholder="Rechercher un SKU ou un nom…"
+            />
+          </FormField>
           {productId && (
-            <span className="mt-1 inline-block text-xs text-green-600">Produit lié ✓</span>
+            <span className="mt-1 inline-block text-xs text-brand-green">Produit lié ✓</span>
           )}
           {productMatches.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-white shadow-lg">
+            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
               {productMatches.map((p) => (
                 <button
                   key={p.id}
+                  type="button"
                   onClick={() => {
                     setProductId(p.id);
                     setProductQuery(`${p.sku_code} — ${p.name}`);
                   }}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/50"
                 >
                   <span className="font-medium">{p.sku_code}</span>{" "}
-                  <span className="text-slate-500">{p.name}</span>
+                  <span className="text-muted-foreground">{p.name}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="mt-3">
-          <Label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</Label>
+        <FormField label="Notes">
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
+        </FormField>
 
-        <div className="mt-5 flex gap-3">
-          <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="button" onClick={submit} disabled={!file || busy} className="flex-1">
+          <Button type="button" onClick={submit} disabled={!file || busy}>
             {busy ? "Envoi…" : "Uploader"}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ── Preview + versions modals ──────────────────────────────────────────────────
+// ── Preview sheet ─────────────────────────────────────────────────────────────
 
-function PreviewModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+function PreviewSheet({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   const isImage = doc.mime_type.startsWith("image/");
   const isPdf = doc.mime_type === "application/pdf";
   const src = `${doc.download_url}?inline=1`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[85vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <span className="truncate text-sm font-medium text-slate-800">{docLabel(doc)}</span>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-50 p-4">
+    <Sheet open onOpenChange={(v) => !v && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-4xl">
+        <SheetHeader>
+          <SheetTitle className="truncate">{docLabel(doc)}</SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-1 items-center justify-center overflow-auto bg-muted/30 p-4">
           {isPdf ? (
             <iframe src={src} title={docLabel(doc)} className="h-full w-full rounded-lg border-0" />
           ) : isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={src} alt={docLabel(doc)} className="max-h-full max-w-full object-contain" />
           ) : (
-            <div className="text-center text-sm text-slate-500">
-              <FileText size={40} className="mx-auto mb-2 text-slate-300" />
+            <div className="text-center text-sm text-muted-foreground">
+              <FileText size={40} weight="duotone" className="mx-auto mb-2 text-muted-foreground/50" />
               Aperçu indisponible pour ce format.
               <a href={doc.download_url} className="mt-2 block font-medium text-warm">
                 Télécharger
@@ -309,24 +354,24 @@ function PreviewModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+// ── Versions dialog ───────────────────────────────────────────────────────────
+
+function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   const { data } = useSWR<Doc[]>(`versions:${doc.id}`, () =>
     getJson<Doc[]>(`/api/document-library/${doc.id}/versions/`),
   );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Versions — {doc.file_name}</h2>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600">
-            <X size={18} />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Versions — {doc.file_name}</DialogTitle>
+        </DialogHeader>
         <div className="flex flex-col gap-1.5">
           {(data ?? []).map((v) => (
             <div
@@ -334,8 +379,8 @@ function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
               className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
             >
               <span>
-                <span className="font-medium">v{v.version}</span>{" "}
-                <span className="text-slate-400">
+                <span className="font-data font-medium">v{v.version}</span>{" "}
+                <span className="text-muted-foreground">
                   · {new Date(v.created_at).toLocaleDateString("fr-FR")}
                 </span>
               </span>
@@ -345,8 +390,8 @@ function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -359,6 +404,7 @@ export default function LibraryPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [preview, setPreview] = useState<Doc | null>(null);
   const [versions, setVersions] = useState<Doc | null>(null);
+  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ limit: "200" });
@@ -370,7 +416,10 @@ export default function LibraryPage() {
   const { data, isLoading, error } = useSWR<Paginated<Doc>>(`library:${query}`, () =>
     getJson<Paginated<Doc>>(`/api/document-library/?${query}`),
   );
-  const docs = data?.results ?? [];
+  const sortedDocs = useMemo(
+    () => sortDocs(data?.results ?? [], sort),
+    [data?.results, sort],
+  );
 
   const remove = async (d: Doc) => {
     const ok = await confirm({
@@ -388,6 +437,63 @@ export default function LibraryPage() {
     mutate(`library:${query}`);
   };
 
+  const columns = useMemo<DataTableColumnDef<Doc>[]>(
+    () => [
+      {
+        key: "name",
+        label: "Document",
+        width: 240,
+        sortField: "name",
+        render: (d) => (
+          <div>
+            <div className="text-sm font-medium text-foreground">{docLabel(d)}</div>
+            <div className="text-xs text-muted-foreground">{d.file_name}</div>
+          </div>
+        ),
+      },
+      {
+        key: "category",
+        label: "Catégorie",
+        width: 140,
+        cellClassName: "text-sm text-muted-foreground",
+        render: (d) => CAT_LABEL[d.category] ?? d.category,
+      },
+      {
+        key: "language",
+        label: "Langue",
+        width: 80,
+        cellClassName: "text-sm uppercase text-muted-foreground",
+        render: (d) => d.language || "multi",
+      },
+      {
+        key: "product",
+        label: "Produit",
+        width: 120,
+        cellClassName: "text-sm text-muted-foreground",
+        render: (d) => d.product_sku ?? "—",
+      },
+      {
+        key: "version",
+        label: "Ver.",
+        width: 60,
+        align: "right",
+        sortField: "version",
+        cellClassName: "text-sm text-muted-foreground font-data",
+        render: (d) => `v${d.version}`,
+      },
+      {
+        key: "size",
+        label: "Taille",
+        width: 80,
+        align: "right",
+        sortField: "size",
+        cellClassName: "text-sm text-muted-foreground font-data",
+        render: (d) => humanSize(d.file_size_bytes),
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="p-6">
       <PageHeader
@@ -395,7 +501,7 @@ export default function LibraryPage() {
         description="Pièces jointes réutilisables pour les offres projet (CDC §7.4)"
         actions={
           <Button onClick={() => setShowUpload(true)}>
-            <Plus size={16} />
+            <Plus size={16} weight="bold" />
             Ajouter
           </Button>
         }
@@ -416,95 +522,66 @@ export default function LibraryPage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        {error ? (
-          <div className="p-6">
+      <Card className="overflow-hidden py-0">
+        <DataTable
+          columns={columns}
+          rows={sortedDocs}
+          rowKey={(d) => d.id}
+          storageKey="library-list"
+          sort={sort}
+          defaultSort={DEFAULT_SORT}
+          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          isLoading={isLoading}
+          trailingWidth={140}
+          renderTrailingCell={(d) => (
+            <div className="flex items-center justify-end gap-0.5">
+              <IconBtn title="Aperçu" onClick={() => setPreview(d)}>
+                <Eye size={15} />
+              </IconBtn>
+              <a
+                href={d.download_url}
+                title="Télécharger"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-warm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DownloadSimple size={15} />
+              </a>
+              <IconBtn title="Versions" onClick={() => setVersions(d)}>
+                <ClockCounterClockwise size={15} />
+              </IconBtn>
+              <IconBtn title="Supprimer" danger onClick={() => remove(d)}>
+                <Trash size={15} />
+              </IconBtn>
+            </div>
+          )}
+          errorState={
+            error ? (
+              <EmptyState
+                icon={<FileText size={24} weight="duotone" />}
+                title="Erreur de chargement"
+                description="Impossible de charger les documents."
+              />
+            ) : undefined
+          }
+          emptyState={
             <EmptyState
-              icon={<FileText size={24} />}
-              title="Erreur de chargement"
-              description="Impossible de charger les documents."
-            />
-          </div>
-        ) : isLoading ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">Chargement…</div>
-        ) : docs.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              icon={<FileText size={24} />}
+              icon={<FileText size={24} weight="duotone" />}
               title="Aucun document"
               description='Cliquez « Ajouter » pour en uploader un.'
               action={
                 <Button onClick={() => setShowUpload(true)}>
-                  <Plus size={16} />
+                  <Plus size={16} weight="bold" />
                   Ajouter
                 </Button>
               }
             />
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="border-b border-border bg-background">
-              <tr>
-                {["Document", "Catégorie", "Langue", "Produit", "Ver.", "Taille", "Actions"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {docs.map((d) => (
-                <tr key={d.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-slate-800">{docLabel(d)}</div>
-                    <div className="text-xs text-slate-400">{d.file_name}</div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">
-                    {CAT_LABEL[d.category] ?? d.category}
-                  </td>
-                  <td className="px-4 py-3 text-sm uppercase text-slate-500">
-                    {d.language || "multi"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{d.product_sku ?? "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">v{d.version}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {humanSize(d.file_size_bytes)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <IconBtn title="Aperçu" onClick={() => setPreview(d)}>
-                        <Eye size={15} />
-                      </IconBtn>
-                      <a
-                        href={d.download_url}
-                        title="Télécharger"
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-accent/50 hover:text-warm"
-                      >
-                        <Download size={15} />
-                      </a>
-                      <IconBtn title="Versions" onClick={() => setVersions(d)}>
-                        <History size={15} />
-                      </IconBtn>
-                      <IconBtn title="Supprimer" danger onClick={() => remove(d)}>
-                        <Trash2 size={15} />
-                      </IconBtn>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+          }
+        />
+      </Card>
 
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-      {preview && <PreviewModal doc={preview} onClose={() => setPreview(null)} />}
-      {versions && <VersionsModal doc={versions} onClose={() => setVersions(null)} />}
+      <UploadDialog open={showUpload} onClose={() => setShowUpload(false)} />
+      {preview && <PreviewSheet doc={preview} onClose={() => setPreview(null)} />}
+      {versions && <VersionsDialog doc={versions} onClose={() => setVersions(null)} />}
     </div>
   );
 }
@@ -522,11 +599,15 @@ function IconBtn({
 }) {
   return (
     <button
+      type="button"
       title={title}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       className={cn(
-        "rounded-lg p-1.5 text-slate-400 transition-colors",
-        danger ? "hover:bg-red-50 hover:text-red-500" : "hover:bg-accent/50 hover:text-warm",
+        "rounded-lg p-1.5 text-muted-foreground transition-colors",
+        danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-accent/50 hover:text-warm",
       )}
     >
       {children}

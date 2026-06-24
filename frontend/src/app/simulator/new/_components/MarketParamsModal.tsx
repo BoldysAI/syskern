@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Loader2, Sparkles, X } from "lucide-react";
+import { CircleNotch, Sparkle } from "@phosphor-icons/react";
 import { getCurrentMarketParameter } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { MarketParamsDraft } from "./wizard-draft";
 
 interface Props {
@@ -14,15 +21,14 @@ interface Props {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
+const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
 
 export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) {
   const [draft, setDraft] = useState<MarketParamsDraft>(value);
   const [prefilling, setPrefilling] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  // Sync local state when the dialog (re)opens with fresh props.
   const handleOpenChange = (next: boolean) => {
     if (next) {
       setDraft(value);
@@ -78,92 +84,85 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between p-5 border-b border-border">
-            <Dialog.Title className="text-lg font-semibold text-slate-900">
-              Paramètres marché
-            </Dialog.Title>
-            <Dialog.Close className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
-              <X size={20} />
-            </Dialog.Close>
-          </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md gap-0 p-0">
+        <DialogHeader className="border-b border-border p-5">
+          <DialogTitle>Paramètres marché</DialogTitle>
+        </DialogHeader>
 
-          <div className="p-5 flex flex-col gap-4">
-            <button
-              type="button"
-              onClick={prefill}
-              disabled={prefilling}
-              className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
-            >
-              {prefilling ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-              Pré-remplir depuis les paramètres actifs
-            </button>
-            {note && <p className="text-xs text-slate-500">{note}</p>}
+        <div className="flex flex-col gap-4 p-5">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={prefill}
+            disabled={prefilling}
+            className="gap-2"
+          >
+            {prefilling ? <CircleNotch size={15} className="animate-spin" /> : <Sparkle size={15} />}
+            Pré-remplir depuis les paramètres actifs
+          </Button>
+          {note && <p className="text-xs text-muted-foreground">{note}</p>}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Cuivre base (RMB)</label>
-                <input
-                  value={draft.copper_base_price_rmb}
-                  onChange={(e) => set({ copper_base_price_rmb: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="70000"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Cuivre actuel (RMB)</label>
-                <input
-                  value={draft.copper_current_price_rmb}
-                  onChange={(e) => set({ copper_current_price_rmb: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="97000"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>FX EUR→RMB</label>
-                <input
-                  value={draft.fx_eur_rmb}
-                  onChange={(e) => set({ fx_eur_rmb: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="7.95"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>FX EUR→USD</label>
-                <input
-                  value={draft.fx_eur_usd}
-                  onChange={(e) => set({ fx_eur_usd: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="1.15"
-                  className={inputCls}
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Cuivre base (RMB)</label>
+              <input
+                value={draft.copper_base_price_rmb}
+                onChange={(e) => set({ copper_base_price_rmb: e.target.value })}
+                inputMode="decimal"
+                placeholder="70000"
+                className={inputCls}
+              />
             </div>
-
-            <div className="flex gap-3 pt-2">
-              <Dialog.Close className="flex-1 text-center py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600">
-                Annuler
-              </Dialog.Close>
-              <button
-                type="button"
-                onClick={() => {
-                  onSave(draft);
-                  onOpenChange(false);
-                }}
-                className="flex-1 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold"
-              >
-                Enregistrer
-              </button>
+            <div>
+              <label className={labelCls}>Cuivre actuel (RMB)</label>
+              <input
+                value={draft.copper_current_price_rmb}
+                onChange={(e) => set({ copper_current_price_rmb: e.target.value })}
+                inputMode="decimal"
+                placeholder="97000"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>FX EUR→RMB</label>
+              <input
+                value={draft.fx_eur_rmb}
+                onChange={(e) => set({ fx_eur_rmb: e.target.value })}
+                inputMode="decimal"
+                placeholder="7.95"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>FX EUR→USD</label>
+              <input
+                value={draft.fx_eur_usd}
+                onChange={(e) => set({ fx_eur_usd: e.target.value })}
+                inputMode="decimal"
+                placeholder="1.15"
+                className={inputCls}
+              />
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </div>
+
+        <DialogFooter className="gap-3 border-t border-border p-4 sm:justify-stretch">
+          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+            Annuler
+          </Button>
+          <Button
+            type="button"
+            className="flex-1"
+            onClick={() => {
+              onSave(draft);
+              onOpenChange(false);
+            }}
+          >
+            Enregistrer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

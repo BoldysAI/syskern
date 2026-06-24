@@ -13,6 +13,11 @@ const statusBadgeVariants = cva(
         warning: "border-warm/30 bg-warm/10 text-warm",
         info: "border-brand-blue/30 bg-brand-blue/10 text-brand-blue",
         success: "border-brand-green/30 bg-brand-green/10 text-brand-green",
+        copper: "border-warm/30 bg-warm/10 text-warm",
+        optical: "border-brand-blue/30 bg-brand-blue/10 text-brand-blue",
+        oem: "border-primary/30 bg-primary/10 text-primary",
+        rack: "border-border bg-muted text-muted-foreground",
+        residential: "border-brand-green/30 bg-brand-green/10 text-brand-green",
         default: "border-border bg-secondary text-secondary-foreground",
       },
     },
@@ -69,4 +74,15 @@ export function offerStatusVariant(
     default:
       return "default";
   }
+}
+
+/** Map cable universe names to badge variants */
+export function universeBadgeVariant(universe: string): VariantProps<typeof statusBadgeVariants>["variant"] {
+  const u = universe.toUpperCase();
+  if (u.includes("COPPER")) return "copper";
+  if (u.includes("OPTICAL") || u.includes("FIBER") || u.includes("FIBRE")) return "optical";
+  if (u.includes("OEM")) return "oem";
+  if (u.includes("RACK")) return "rack";
+  if (u.includes("RESIDENTIAL")) return "residential";
+  return "default";
 }

@@ -17,7 +17,7 @@ import { canEdit } from "@/lib/auth";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { SearchInput } from "@/components/SearchInput";
-import { StatusBadge } from "@/components/StatusBadge";
+import { StatusBadge, universeBadgeVariant } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CatalogSidebar } from "./_components/CatalogSidebar";
@@ -51,23 +51,9 @@ function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
 }
 
-function universeColor(universe: string): string {
-  const u = universe.toUpperCase();
-  if (u.includes("COPPER")) return "bg-amber-100 text-amber-800";
-  if (u.includes("OPTICAL")) return "bg-blue-100 text-blue-800";
-  if (u.includes("OEM")) return "bg-purple-100 text-purple-800";
-  if (u.includes("RACK")) return "bg-muted text-muted-foreground";
-  if (u.includes("RESIDENTIAL")) return "bg-primary/10 text-primary";
-  return "bg-muted text-muted-foreground";
-}
-
 function UniverseBadge({ universe }: { universe: string }) {
   if (!universe) return <span className="text-muted-foreground/50">—</span>;
-  return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", universeColor(universe))}>
-      {universe}
-    </span>
-  );
+  return <StatusBadge variant={universeBadgeVariant(universe)}>{universe}</StatusBadge>;
 }
 
 export default function CatalogPage() {
@@ -277,7 +263,7 @@ export default function CatalogPage() {
   const activeFilterCount = countActiveFilters(filters);
 
   return (
-    <div className="flex h-full bg-surface">
+    <div className="flex h-full bg-background">
       {/* Filters sidebar — desktop */}
       <aside className="hidden lg:flex w-80 flex-shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)]">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-gradient-to-b from-card to-muted/30 px-4 py-4 backdrop-blur-sm">

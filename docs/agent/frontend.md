@@ -434,17 +434,27 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 | Token Tailwind | HEX | Usage |
 |---|---|---|
 | `brand-navy` | `#162F56` | Sidebar, texte principal |
+| `brand-navy-dark` | `#0F2444` | Dégradés sidebar / panneau login |
 | `brand-green` / `primary` | `#649E5F` | CTA primaire, nav active, succès |
 | `brand-orange` / `warm` | `#F78F26` | Accent pricing, liens SKU, KPIs cuivre |
 | `brand-blue` | `#09B0E6` | Info, états en cours |
 | `brand-pink` / `destructive` | `#C92359` | Erreur, actions destructives |
 
 Tokens sémantiques shadcn dans `globals.css` (`:root` + `@theme`). **Ne pas** hardcoder les anciennes
-couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
+couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-dessus.
+
+**Tokens surface & données** (en plus de shadcn) :
+
+| Token | Usage |
+|---|---|
+| `surface-elevated` | Cartes/modales au-dessus du fond (`bg-surface-elevated`) |
+| `surface-inset` | Zones en retrait (filtres, champs groupés) |
+| `data-positive` / `data-negative` / `data-dirty` | Variations chiffrées (vert / rose / orange) |
 
 ### Typographie
 
 - Police UI : **Plus Jakarta Sans** (`next/font/google`, weights 400/500/600/700/800) — variable CSS `--font-sans`.
+- Police données : **JetBrains Mono** (`--font-mono`) — SKU, montants, codes ; combiner avec `tabular-nums` sur les KPI.
 - Écart assumé aux brand guidelines Unikkern (Nunito) : tracé dans `decisions.md` (2026-06-24).
 - Titres page : `font-bold` ; labels/boutons : `font-semibold` ; corps : `font-normal`.
 - Données tabulaires : `tabular-nums` ou `font-mono` pour les colonnes prix.
@@ -468,7 +478,8 @@ couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
 | Composant | Fichier | Rôle |
 |---|---|---|
 | `BrandLogo` | `components/BrandLogo.tsx` | Logos syskern / Unikkern |
-| `PageHeader` | `components/PageHeader.tsx` | Titre page + actions |
+| `PageHeader` | `components/PageHeader.tsx` | Titre page + actions ; variants `default` \| `dense` \| `hero` |
+| `AppModal` | `components/AppModal.tsx` | Modale standard (Dialog + tailles sm/md/lg/xl) |
 | `EmptyState` | `components/EmptyState.tsx` | États vides |
 | `FormField` | `components/FormField.tsx` | Label + erreur sous champ |
 | `StatusBadge` | `components/StatusBadge.tsx` | Badges statut sémantiques |
@@ -480,6 +491,13 @@ couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
 | `SearchInput` | `components/SearchInput.tsx` | Recherche avec icône + clear |
 | `RangeFilterSlider` | `components/RangeFilterSlider.tsx` | Slider simple ou fourchette (PAMP, stock, attributs) |
 | `MixSlider` | `components/MixSlider.tsx` | Slider mix stock/achat (shadcn Slider) |
+| `AppModal` | `components/AppModal.tsx` | Wrapper Dialog standard (remplace modals maison) |
+
+`PageHeader` : variants `default` | `dense` | `hero` + slot `meta` (badges statut).
+
+`DataTable` : prop `density="compact"` pour tables pricing ; `selectedRowKeys` pour sélection visuelle.
+
+`StatusBadge` : variants univers câble (`copper`, `optical`, `oem`, …) via `universeBadgeVariant()`.
 
 `StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
 
@@ -493,6 +511,18 @@ couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
 **Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : `HierarchyFilterPanel` → `FilterSelect`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
 
 Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
+
+### Fils d'Ariane
+
+- Premier crumb : **Tableau de bord** (`href="/"`), pas « Accueil » ni lien catalogue.
+- **Jamais** d'UUID, SKU seul ou clé technique dans le fil d'Ariane visible : `buildAutoBreadcrumbs` fournit des libellés génériques ; les pages entité chargent un titre via `useBreadcrumbOverride`.
+- Overrides obligatoires : simulation (`sim.label`), offre (`offer.label`), fiche produit (`product.name` + hiérarchie).
+
+### Modales et contenu dense
+
+- Contenu riche (historique recalcul, breakdown calcul, édition groupée, formulaires admin) : **`AppModal` `size="xl"` ou `2xl`**, ou `DialogContent` avec `max-w-4xl` / `max-w-6xl`, `max-h-[90vh]`, corps scrollable (`overflow-y-auto`).
+- Formulaires simples (confirmation, doublon, 1–2 champs) : `md` / `lg` suffisent.
+- **Aucune variable interne visible** (`trigger_type`, `simulation_type`, ids, codes attributs bruts) : toujours un libellé français (`recalcTriggerLabel`, maps statut/type, `StatusBadge`).
 
 ---
 
@@ -508,7 +538,7 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
   (`@theme` + variables CSS shadcn). Consulte Context7 pour la syntaxe Tailwind 4.
 - **shadcn/ui** : `npx shadcn@latest add <component>` pour ajouter des composants. Config dans `components.json`.
 - CTA primaire : `bg-primary` (vert brand). Accent pricing : `text-warm` / `border-warm`.
-- Composants primitifs → shadcn/ui (`components/ui/`). Icônes → Lucide React.
+- Composants primitifs → shadcn/ui (`components/ui/`). Icônes métier → Phosphor via `AppIcon` (Lucide réservé aux primitives shadcn).
 - Skeleton loading → `<Skeleton />` shadcn ou `animate-pulse bg-muted rounded`.
 
 ---
@@ -529,7 +559,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - ❌ Arithmetic sur les `string` Decimal (`pamp_eur`, `pa_net_eur`…) — le moteur de calcul est backend.
 - ❌ Implémenter le polling manuellement — utiliser `dispatchAndPoll`.
 - ❌ Comparer les rôles inline — utiliser `canEdit` / `isAdmin`.
-- ❌ Supposer une API Tailwind/Next.js de mémoire — Context7 d'abord.
+- ❌ `text-slate-*` / `bg-white` dans les pages — utiliser tokens sémantiques (`foreground`, `muted-foreground`, `bg-card`).
+- ❌ Modals maison `fixed inset-0` — utiliser `AppModal`, `Dialog` ou `Sheet` shadcn.
 
 ---
 

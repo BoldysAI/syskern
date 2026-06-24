@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { Check, Search, X } from "lucide-react";
+import { Check, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { getClients, type Client, type SimulationType } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ interface Props {
 
 const inputCls =
   "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
+const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
 
 export function TypeStep({
   label,
@@ -31,12 +31,12 @@ export function TypeStep({
   onClientIds,
   onProjectName,
 }: Props) {
-  const [search, setSearch] = useState("");
+  const [search, setMagnifyingGlass] = useState("");
   const [debounced, setDebounced] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onSearchChange = (v: string) => {
-    setSearch(v);
+  const onMagnifyingGlassChange = (v: string) => {
+    setMagnifyingGlass(v);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setDebounced(v), 300);
   };
@@ -90,7 +90,7 @@ export function TypeStep({
                 "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                 type === t
                   ? "border-primary bg-accent text-accent-foreground"
-                  : "border-border text-slate-600 hover:bg-slate-50"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {t === "tariff" ? "Tarif (multi-clients)" : "Projet (1 client)"}
@@ -139,10 +139,10 @@ export function TypeStep({
         )}
 
         <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => onMagnifyingGlassChange(e.target.value)}
             placeholder="Rechercher un client…"
             className={cn(inputCls, "pl-9")}
           />
@@ -150,9 +150,9 @@ export function TypeStep({
 
         <div className="mt-2 border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-[#F1F5F9]">
           {isLoading ? (
-            <p className="py-6 text-center text-sm text-slate-400">Chargement…</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">Chargement…</p>
           ) : !clients?.length ? (
-            <p className="py-6 text-center text-sm text-slate-400">Aucun client trouvé.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">Aucun client trouvé.</p>
           ) : (
             clients.map((c) => {
               const selected = selectedSet.has(c.id);
@@ -162,16 +162,16 @@ export function TypeStep({
                   type="button"
                   onClick={() => (type === "tariff" ? selectMulti(c) : selectSingle(c))}
                   className={cn(
-                    "flex items-center justify-between gap-2 w-full px-3 py-2 text-left hover:bg-slate-50",
-                    selected && "bg-orange-50/70"
+                    "flex items-center justify-between gap-2 w-full px-3 py-2 text-left hover:bg-muted",
+                    selected && "bg-warm/10/70"
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium text-slate-800 truncate">
+                    <span className="block text-sm font-medium text-foreground truncate">
                       {c.name}
                     </span>
                     {(c.address_city || c.is_prospect) && (
-                      <span className="block text-xs text-slate-400">
+                      <span className="block text-xs text-muted-foreground">
                         {c.is_prospect ? "Prospect" : "Client"}
                         {c.address_city ? ` · ${c.address_city}` : ""}
                       </span>

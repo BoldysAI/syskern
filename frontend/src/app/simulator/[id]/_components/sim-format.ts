@@ -75,12 +75,19 @@ export function decToPct(v?: string | null): string {
 }
 
 export const LINE_STATUS: Record<SimulationLineStatus, { badge: string; row: string; label: string }> = {
-  ok: { badge: "bg-green-100 text-green-700", row: "", label: "OK" },
-  pending: { badge: "bg-slate-100 text-slate-500", row: "", label: "En attente" },
-  warning: { badge: "bg-amber-100 text-amber-700", row: "bg-amber-50", label: "Avertissement" },
-  error: { badge: "bg-red-100 text-red-700", row: "bg-red-50", label: "Erreur" },
-  dirty: { badge: "bg-orange-100 text-orange-700", row: "", label: "Modifié" },
+  ok: { badge: "border border-primary/20 bg-primary/10 text-primary", row: "", label: "OK" },
+  pending: { badge: "bg-muted text-muted-foreground", row: "", label: "En attente" },
+  warning: { badge: "border border-warm/30 bg-warm/10 text-warm", row: "bg-warm/5", label: "Avertissement" },
+  error: { badge: "bg-destructive/10 text-destructive", row: "bg-destructive/5", label: "Erreur" },
+  dirty: { badge: "border border-data-dirty/30 bg-data-dirty/10 text-data-dirty", row: "bg-data-dirty/10", label: "Modifié" },
 };
+
+/** Row background classes for simulation line tables. */
+export function lineRowClassName(status: SimulationLineStatus): string {
+  const st = LINE_STATUS[status] ?? LINE_STATUS.pending;
+  if (st.row) return `${st.row} hover:bg-muted/40`;
+  return "even:bg-muted/30 hover:bg-warm/10";
+}
 
 /** Read a frozen market_params value for display. */
 export function mpStr(mp: Record<string, unknown> | undefined, key: string): string {
@@ -343,22 +350,28 @@ export function fmtPrice(price?: BreakdownPrice | null): string {
 export const RECALC_TRIGGER: Record<string, { label: string; badge: string }> = {
   manual_current_params: {
     label: "Paramètres actuels",
-    badge: "bg-blue-100 text-blue-800",
+    badge: "border border-primary/20 bg-primary/10 text-primary",
   },
   manual_refresh_odoo: {
     label: "Refresh Odoo",
-    badge: "bg-violet-100 text-violet-800",
+    badge: "border border-secondary bg-secondary/50 text-secondary-foreground",
   },
   manual_full_refresh: {
     label: "Refresh complet",
-    badge: "bg-emerald-100 text-emerald-800",
+    badge: "border border-primary/30 bg-accent text-accent-foreground",
   },
   line_recalculate: {
     label: "Ligne unique",
-    badge: "bg-slate-100 text-slate-600",
+    badge: "bg-muted text-muted-foreground",
   },
   initial: {
     label: "Calcul initial",
-    badge: "bg-slate-100 text-slate-700",
+    badge: "bg-muted text-foreground",
   },
 };
+
+/** French label for a recalculation trigger — never expose raw `trigger_type` in the UI. */
+export function recalcTriggerLabel(triggerType: string | null | undefined): string {
+  if (!triggerType) return "—";
+  return RECALC_TRIGGER[triggerType]?.label ?? "Recalcul";
+}

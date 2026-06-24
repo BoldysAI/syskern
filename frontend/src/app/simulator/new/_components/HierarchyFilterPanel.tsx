@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Loader2, Plus } from "lucide-react";
+import { CircleNotch, Plus } from "@phosphor-icons/react";
 import {
   getHierarchyLevel,
   getCatalogProducts,
@@ -169,7 +169,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
           )}
         </span>
         <Button type="button" onClick={handleAddAll} disabled={!hasFilter || matchCount === 0 || adding}>
-          {adding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+          {adding ? <CircleNotch size={15} className="animate-spin" /> : <Plus size={15} />}
           Ajouter tous les SKU correspondants
         </Button>
       </div>

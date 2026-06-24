@@ -1,21 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 import {
   ArrowLeft,
   Clock,
-  Download,
-  ExternalLink,
+  DownloadSimple,
+  ArrowSquareOut,
   GitBranch,
-  Loader2,
-  Send,
+  CircleNotch,
+  PaperPlaneTilt,
   ThumbsDown,
   Trophy,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
+import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FormField } from "@/components/FormField";
+import {
+  useBreadcrumbOverride,
+  type BreadcrumbCrumb,
+} from "@/components/layout/BreadcrumbContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,13 +80,6 @@ const STATUS_LABELS: Record<string, string> = {
   won: "Gagnée",
   lost: "Perdue",
   expired: "Expirée",
-};
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  sent: "bg-blue-100 text-blue-700",
-  won: "bg-green-100 text-green-700",
-  lost: "bg-red-100 text-red-700",
-  expired: "bg-amber-100 text-amber-700",
 };
 
 function getCsrfToken(): string {
@@ -122,7 +134,7 @@ export default function OfferDetailPage() {
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDate, setExtendDate] = useState("");
 
-  const { data: offer, mutate } = useSWR<OfferDetail>(`offer:${id}`, () =>
+  const { data: offer, mutate, isLoading } = useSWR<OfferDetail>(`offer:${id}`, () =>
     getJson<OfferDetail>(`/api/offers/${id}/`),
   );
   const { data: versions } = useSWR<VersionRow[]>(
@@ -138,8 +150,29 @@ export default function OfferDetailPage() {
     return (offer?.client_ids ?? []).map((i) => map.get(i) ?? "—").join(", ") || "—";
   })();
 
-  if (!offer) {
-    return <div className="p-6 text-sm text-slate-400">Chargement…</div>;
+  const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
+    if (!offer) return null;
+    return [
+      { href: "/", label: "Tableau de bord" },
+      { href: "/offers", label: "Offres" },
+      { label: offer.label },
+    ];
+  }, [offer]);
+
+  useBreadcrumbOverride(breadcrumbCrumbs, Boolean(offer));
+
+  if (isLoading || !offer) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 p-6">
+        <Skeleton className="h-5 w-24" />
+        <Skeleton className="h-8 w-2/3" />
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const isProject = offer.offer_type === "project";
@@ -186,43 +219,29 @@ export default function OfferDetailPage() {
     <div className="mx-auto max-w-4xl p-6">
       <Link
         href="/offers"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft size={15} /> Offres
+        <ArrowLeft size={15} />
+        Offres
       </Link>
 
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-slate-900">
-              {offer.project_name || offer.label}
-            </h1>
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-semibold",
-                STATUS_COLORS[offer.status] ?? "bg-slate-100 text-slate-600",
-              )}
-            >
+      <PageHeader
+        title={offer.project_name || offer.label}
+        description={`${clientName} · ${offer.currency} · ${offer.language.toUpperCase()}`}
+        meta={
+          <>
+            <StatusBadge variant={offerStatusVariant(offer.status)}>
               {STATUS_LABELS[offer.status] ?? offer.status}
-            </span>
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-semibold",
-                isProject ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700",
-              )}
-            >
+            </StatusBadge>
+            <StatusBadge variant={isProject ? "info" : "running"}>
               {isProject ? "Projet" : "Tarif"} · V{offer.version_number}
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            {clientName} · {offer.currency} · {offer.language.toUpperCase()}
-          </p>
-        </div>
-      </div>
+            </StatusBadge>
+          </>
+        }
+      />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -239,7 +258,7 @@ export default function OfferDetailPage() {
             <span
               className={cn(
                 "inline-flex items-center gap-1.5",
-                remaining != null && remaining <= 7 ? "text-amber-600" : "text-slate-700",
+                remaining != null && remaining <= 7 ? "text-warm" : "text-foreground",
               )}
             >
               <Clock size={14} />
@@ -255,47 +274,50 @@ export default function OfferDetailPage() {
           )}
         </Info>
         <Info label="Total estimé">
-          {total.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} {offer.currency}
+          <span className="font-data">
+            {total.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} {offer.currency}
+          </span>
         </Info>
       </div>
 
       {/* Files */}
-      <div className="mb-5 rounded-xl border border-border bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Document</h2>
+      <Card className="mb-5 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Document</h2>
         {isProject ? (
           offer.generation_status === "ready" && offer.generated_file_url ? (
             <a
               href={offer.generated_file_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+              className={cn(buttonVariants(), "inline-flex gap-2")}
             >
-              Ouvrir le devis Gamma <ExternalLink size={14} />
+              Ouvrir le devis Gamma
+              <ArrowSquareOut size={14} weight="duotone" />
             </a>
           ) : offer.generation_status === "error" ? (
-            <span className="text-sm text-red-600">
+            <span className="text-sm text-destructive">
               Génération en erreur : {offer.generation_error}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
-              <Loader2 size={14} className="animate-spin" /> Génération en cours…
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <CircleNotch size={14} className="animate-spin" />
+              Génération en cours…
             </span>
           )
         ) : (
-          <a
-            href={`/api/offers/${id}/download/`}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
-          >
-            <Download size={14} /> Télécharger l&apos;Excel
+          <a href={`/api/offers/${id}/download/`} className={cn(buttonVariants(), "inline-flex gap-2")}>
+            <DownloadSimple size={14} weight="duotone" />
+            Télécharger l&apos;Excel
           </a>
         )}
-      </div>
+      </Card>
 
       {/* Version chain */}
       {isProject && versions && versions.length > 1 && (
-        <div className="mb-5 rounded-xl border border-border bg-white p-4 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <GitBranch size={15} /> Versions
+        <Card className="mb-5 p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <GitBranch size={15} />
+            Versions
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             {versions.map((v, i) => (
@@ -306,28 +328,30 @@ export default function OfferDetailPage() {
                     "rounded-lg border px-3 py-1.5 text-sm",
                     v.id === offer.id
                       ? "border-primary bg-accent font-semibold text-accent-foreground"
-                      : "border-border text-slate-600 hover:bg-slate-50",
+                      : "border-border text-muted-foreground hover:bg-muted/50",
                   )}
                 >
                   V{v.version_number}
-                  <span className="ml-1.5 text-xs text-slate-400">
+                  <span className="ml-1.5 text-xs text-muted-foreground/70">
                     {STATUS_LABELS[v.status] ?? v.status}
                   </span>
                 </Link>
-                {i < versions.length - 1 && <span className="text-slate-300">→</span>}
+                {i < versions.length - 1 && (
+                  <span className="text-muted-foreground/40">→</span>
+                )}
               </span>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Lines */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-        <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-slate-800">
+      <Card className="mb-5 overflow-hidden py-0">
+        <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
           Lignes ({offer.lines.length})
         </h2>
         <table className="w-full text-sm">
-          <thead className="bg-background text-xs uppercase text-slate-500">
+          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-4 py-2 text-left">SKU</th>
               <th className="px-4 py-2 text-left">Désignation</th>
@@ -338,15 +362,19 @@ export default function OfferDetailPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {offer.lines.map((l) => (
-              <tr key={l.id}>
-                <td className="px-4 py-2 font-medium text-slate-700">{l.product_sku}</td>
-                <td className="px-4 py-2 text-slate-600">{l.product_name}</td>
+              <tr key={l.id} className="hover:bg-muted/30">
+                <td className="px-4 py-2 font-medium text-foreground">{l.product_sku}</td>
+                <td className="px-4 py-2 text-muted-foreground">{l.product_name}</td>
                 {isProject && (
-                  <td className="px-4 py-2 text-right">{l.quantity ? Number(l.quantity) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-data">
+                    {l.quantity ? Number(l.quantity) : "—"}
+                  </td>
                 )}
-                <td className="px-4 py-2 text-right">{Number(l.final_price).toFixed(2)}</td>
+                <td className="px-4 py-2 text-right font-data">
+                  {Number(l.final_price).toFixed(2)}
+                </td>
                 {isProject && (
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right font-data">
                     {(Number(l.final_price) * (l.quantity ? Number(l.quantity) : 1)).toFixed(2)}
                   </td>
                 )}
@@ -354,120 +382,83 @@ export default function OfferDetailPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {/* Lifecycle actions */}
       <div className="flex flex-wrap gap-3">
         {offer.status === "draft" && (
-          <ActionBtn icon={Send} onClick={() => run(() => patchStatus(id, "sent"))} busy={busy}>
+          <Button onClick={() => run(() => patchStatus(id, "sent"))} disabled={busy}>
+            <PaperPlaneTilt size={15} weight="duotone" />
             Marquer envoyée
-          </ActionBtn>
+          </Button>
         )}
         {isProject && offer.status === "sent" && (
           <>
-            <ActionBtn
-              icon={Trophy}
-              tone="green"
+            <Button
+              variant="default"
+              className="bg-brand-green hover:bg-brand-green/90"
               onClick={() => run(() => patchStatus(id, "won"))}
-              busy={busy}
+              disabled={busy}
             >
+              <Trophy size={15} weight="duotone" />
               Gagnée
-            </ActionBtn>
-            <ActionBtn
-              icon={ThumbsDown}
-              tone="red"
+            </Button>
+            <Button
+              variant="destructive"
               onClick={() => run(() => patchStatus(id, "lost"))}
-              busy={busy}
+              disabled={busy}
             >
+              <ThumbsDown size={15} weight="duotone" />
               Perdue
-            </ActionBtn>
+            </Button>
           </>
         )}
-        <ActionBtn icon={Clock} tone="ghost" onClick={() => setExtendOpen(true)} busy={busy}>
+        <Button variant="outline" onClick={() => setExtendOpen(true)} disabled={busy}>
+          <Clock size={15} />
           Prolonger l&apos;expiration
-        </ActionBtn>
+        </Button>
         {isProject && (
-          <ActionBtn icon={GitBranch} tone="ghost" onClick={newVersion} busy={busy}>
+          <Button variant="outline" onClick={newVersion} disabled={busy}>
+            <GitBranch size={15} />
             Nouvelle version
-          </ActionBtn>
+          </Button>
         )}
       </div>
 
-      {extendOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900">
-              Prolonger l&apos;expiration
-            </h2>
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              Nouvelle date (&gt; 7 jours)
-            </label>
-            <input
+      <Dialog open={extendOpen} onOpenChange={setExtendOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Prolonger l&apos;expiration</DialogTitle>
+            <DialogDescription>
+              Choisissez une nouvelle date d&apos;expiration (&gt; 7 jours).
+            </DialogDescription>
+          </DialogHeader>
+          <FormField label="Nouvelle date" required>
+            <Input
               type="date"
               value={extendDate}
               onChange={(e) => setExtendDate(e.target.value)}
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => setExtendOpen(false)}
-                className="flex-1 rounded-lg border border-border py-2.5 text-sm text-slate-600 hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={extend}
-                disabled={!extendDate || busy}
-                className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
-              >
-                Valider
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </FormField>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExtendOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={extend} disabled={!extendDate || busy}>
+              Valider
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-white px-4 py-3 shadow-sm">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-sm font-medium text-slate-800">{children}</div>
-    </div>
-  );
-}
-
-function ActionBtn({
-  children,
-  icon: Icon,
-  onClick,
-  busy,
-  tone = "primary",
-}: {
-  children: React.ReactNode;
-  icon: React.ElementType;
-  onClick: () => void;
-  busy: boolean;
-  tone?: "primary" | "green" | "red" | "ghost";
-}) {
-  const tones: Record<string, string> = {
-    primary: "bg-primary text-white hover:bg-primary/90",
-    green: "bg-green-600 text-white hover:bg-green-700",
-    red: "bg-red-600 text-white hover:bg-red-700",
-    ghost: "border border-border text-slate-600 hover:bg-slate-50",
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={busy}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50",
-        tones[tone],
-      )}
-    >
-      <Icon size={15} /> {children}
-    </button>
+    <Card className="px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{children}</div>
+    </Card>
   );
 }
