@@ -4,7 +4,7 @@ import { ImageIcon } from "lucide-react";
 
 export function MediaTab() {
   return (
-    <div className="bg-white border border-dashed border-[#E2E8F0] rounded-xl p-12 flex flex-col items-center justify-center gap-3 text-center shadow-sm">
+    <div className="bg-white border border-dashed border-border rounded-xl p-12 flex flex-col items-center justify-center gap-3 text-center shadow-sm">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
         <ImageIcon size={26} className="text-slate-400" />
       </div>

@@ -66,7 +66,7 @@ export default function SimulationDetailPage() {
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-slate-500">
         <AlertCircle size={40} className="text-red-300" />
         <p className="font-medium">Simulation introuvable</p>
-        <Link href="/simulator" className="mt-2 text-sm font-medium text-[#E07200] hover:text-[#C56400]">
+        <Link href="/simulator" className="mt-2 text-sm font-medium text-warm hover:text-accent-foreground">
           Retour aux simulations
         </Link>
       </div>
@@ -76,7 +76,7 @@ export default function SimulationDetailPage() {
   if (isLoading || !sim) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E07200]/30 border-t-[#E07200]" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function SimulationDetailPage() {
     <div className="flex h-full min-h-0">
       {/* Left sidebar (collapsible) */}
       {collapsed ? (
-        <div className="flex w-12 shrink-0 flex-col items-center border-r border-[#E2E8F0] bg-white py-3">
+        <div className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-white py-3">
           <button
             onClick={() => setCollapsed(false)}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -98,7 +98,7 @@ export default function SimulationDetailPage() {
         </div>
       ) : (
         <aside
-          className="relative shrink-0 border-r border-[#E2E8F0] bg-[#FAFBFC]"
+          className="relative shrink-0 border-r border-border bg-[#FAFBFC]"
           style={{ width: sidebarWidth }}
         >
           <SimulationSidebar
@@ -116,8 +116,8 @@ export default function SimulationDetailPage() {
             onMouseDown={startResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
-              "hover:bg-[#E07200]/20",
-              isResizing && "bg-[#E07200]/30"
+              "hover:bg-primary/20",
+              isResizing && "bg-primary/30"
             )}
           >
             <span className="h-10 w-0.5 rounded-full bg-slate-300" />

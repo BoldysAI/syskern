@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { Download, ExternalLink, FileText, Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
+import { KpiCard } from "@/components/KpiCard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,7 +120,7 @@ function NewOfferModal({ onClose }: { onClose: () => void }) {
                     `/offers/new-${s.simulation_type === "project" ? "project" : "tariff"}?simulation_id=${s.id}`,
                   )
                 }
-                className="flex items-center justify-between rounded-lg border border-[#E2E8F0] px-4 py-3 text-left text-sm hover:bg-slate-50"
+                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left text-sm hover:bg-slate-50"
               >
                 <span className="font-medium text-slate-700">{s.label}</span>
                 <span
@@ -147,7 +149,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
     return (
       <a
         href={`/api/offers/${offer.id}/download/`}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#E07200] hover:bg-[#FFF3E0]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-accent/50"
       >
         <Download size={13} /> Excel
       </a>
@@ -177,7 +179,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         href={offer.generated_file_url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#E07200] hover:bg-[#FFF3E0]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-accent/50"
       >
         <ExternalLink size={13} /> Gamma
       </a>
@@ -232,34 +234,36 @@ export default function OffersPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Offres</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Gestion des offres commerciales</p>
-        </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#C56400]"
-        >
-          <Plus size={16} /> Nouvelle offre
-        </button>
-      </div>
+      <PageHeader
+        title="Offres"
+        description="Gestion des offres commerciales"
+        actions={
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"
+          >
+            <Plus size={16} /> Nouvelle offre
+          </button>
+        }
+      />
 
       {dash && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Stat label="Brouillons" value={dash.status_counts.draft ?? 0} />
-          <Stat label="Envoyées" value={dash.status_counts.sent ?? 0} />
-          <Stat label="Tarifs actifs" value={dash.tariff_active} />
-          <Stat
+          <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
+          <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
+          <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="warm" />
+          <KpiCard
             label="Conversion projets"
+            accent="green"
             value={
               dash.project_conversion_pct != null
                 ? `${dash.project_conversion_pct.toFixed(0)}%`
                 : "—"
             }
           />
-          <Stat
+          <KpiCard
             label="CA gagné (€)"
+            accent="warm"
             value={
               dash.won_total != null
                 ? Number(dash.won_total).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
@@ -273,7 +277,7 @@ export default function OffersPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           <option value="">Tous les types</option>
           <option value="tariff">Tarif</option>
@@ -282,7 +286,7 @@ export default function OffersPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           <option value="">Tous les statuts</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
@@ -293,7 +297,7 @@ export default function OffersPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
         {error ? (
           <div className="py-16 text-center text-sm text-slate-400">
             Impossible de charger les offres.
@@ -307,7 +311,7 @@ export default function OffersPage() {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="border-b border-[#E2E8F0] bg-[#F5F7FA]">
+            <thead className="border-b border-border bg-background">
               <tr>
                 {["Offre", "Type", "Client(s)", "Statut", "Validité", "Document"].map((h) => (
                   <th
@@ -319,13 +323,13 @@ export default function OffersPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {offers.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <Link
                       href={`/offers/${o.id}`}
-                      className="text-sm font-medium text-slate-800 hover:text-[#E07200]"
+                      className="text-sm font-medium text-slate-800 hover:text-warm"
                     >
                       {o.label}
                     </Link>
@@ -376,7 +380,7 @@ export default function OffersPage() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm">
+    <div className="rounded-xl border border-border bg-white px-4 py-3 shadow-sm">
       <div className="text-2xl font-semibold text-slate-800">{value}</div>
       <div className="mt-0.5 text-xs text-slate-500">{label}</div>
     </div>

@@ -14,7 +14,7 @@ import {
 } from "@/lib/incoterms";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 interface Props {
   incoterm: string;
@@ -65,20 +65,20 @@ export function SaleIncotermFields({
             <Select.Content
               position="popper"
               sideOffset={4}
-              className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+              className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
             >
               <Select.Viewport className="p-1">
                 {(incoterms ?? INCOTERMS_FALLBACK).map((item) => (
                   <Select.Item
                     key={item.code}
                     value={item.code}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>
                       {item.code} — {localizeIncotermLabel(item.label, item.code)}
                     </Select.ItemText>
                     <Select.ItemIndicator>
-                      <Check size={14} className="text-[#E07200]" />
+                      <Check size={14} className="text-warm" />
                     </Select.ItemIndicator>
                   </Select.Item>
                 ))}
@@ -102,7 +102,7 @@ export function SaleIncotermFields({
 
       {impact && (
         <p className="flex gap-2 text-xs text-slate-500 leading-relaxed">
-          <Info size={14} className="shrink-0 mt-0.5 text-[#E07200]" />
+          <Info size={14} className="shrink-0 mt-0.5 text-warm" />
           {impact}
         </p>
       )}
@@ -135,14 +135,14 @@ export function IncotermPrefillConfirm({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg text-slate-600 hover:bg-slate-50"
+            className="px-3 py-2 text-sm border border-border rounded-lg text-slate-600 hover:bg-slate-50"
           >
             Annuler
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400]"
+            className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90"
           >
             Appliquer la structure
           </button>

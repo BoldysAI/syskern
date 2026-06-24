@@ -45,7 +45,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
   };
 
   const splitBtn =
-    "inline-flex items-center justify-center h-9 text-sm bg-white border border-[#E2E8F0] hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center h-9 text-sm bg-white border border-border hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
     <div className="flex items-center">
@@ -77,7 +77,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
           <DropdownMenu.Content
             align="end"
             sideOffset={4}
-            className="z-50 max-h-80 w-56 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg"
+            className="z-50 max-h-80 w-56 overflow-y-auto rounded-lg border border-border bg-white p-2 shadow-lg"
           >
             <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
               Colonnes
@@ -90,14 +90,14 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
                 onCheckedChange={() => toggle(col.key)}
                 className={cn(
                   "flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 rounded cursor-pointer outline-none",
-                  "data-[highlighted]:bg-[#FFF3E0]"
+                  "data-[highlighted]:bg-accent"
                 )}
               >
                 <input
                   type="checkbox"
                   readOnly
                   checked={columns.includes(col.key)}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+                  className="w-4 h-4 rounded border-slate-300 accent-primary"
                 />
                 {col.label}
               </DropdownMenu.CheckboxItem>

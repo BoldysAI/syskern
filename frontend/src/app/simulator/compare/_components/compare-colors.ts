@@ -1,5 +1,5 @@
 /** Consistent palette for compare columns across charts & cards. */
-export const COLUMN_PALETTE = ["#E07200", "#3B82F6", "#8B5CF6", "#10B981"] as const;
+export const COLUMN_PALETTE = ["#F78F26", "#09B0E6", "#649E5F", "#162F56"] as const;
 
 export interface ColumnVisual {
   key: string;
@@ -25,14 +25,14 @@ function truncate(s: string, max: number): string {
 
 export function deltaColor(pct: number): string {
   const a = Math.abs(pct);
-  if (a < 1) return "#10B981";
-  if (a <= 5) return "#F59E0B";
-  return "#EF4444";
+  if (a < 1) return "#649E5F";
+  if (a <= 5) return "#F78F26";
+  return "#C92359";
 }
 
 export function deltaBg(pct: number): string {
   const a = Math.abs(pct);
-  if (a < 1) return "bg-emerald-50 border-emerald-200";
-  if (a <= 5) return "bg-amber-50 border-amber-200";
-  return "bg-red-50 border-red-200";
+  if (a < 1) return "bg-brand-green/10 border-brand-green/30";
+  if (a <= 5) return "bg-warm/10 border-warm/30";
+  return "bg-destructive/10 border-destructive/30";
 }

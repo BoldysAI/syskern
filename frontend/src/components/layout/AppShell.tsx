@@ -3,37 +3,56 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { IconProps } from "@phosphor-icons/react";
 import {
-  LayoutGrid,
-  Calculator,
-  FileText,
-  Settings,
-  Menu,
-  LogOut,
+  Books,
+  ChartLineUp,
+  Files,
+  GearSix,
+  House,
+  List,
+  SignOut,
+  SquaresFour,
+  UserCircle,
   Users,
-  PanelLeftClose,
-  PanelLeftOpen,
-  FileWarning,
-  Library,
-} from "lucide-react";
+  Warning,
+} from "@phosphor-icons/react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/BreadcrumbContext";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
+import { BrandLogo } from "@/components/BrandLogo";
+import { AppIcon } from "@/components/AppIcon";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 const MAIN_SIDEBAR_COLLAPSED_KEY = "syskern:main-sidebar-collapsed";
 
+const HOME_ITEM = {
+  label: "Tableau de bord",
+  href: "/",
+  icon: House,
+} as const;
+
 const NAV_ITEMS = [
-  { label: "Catalogue", href: "/catalog", icon: LayoutGrid },
-  { label: "Simulations", href: "/simulator", icon: Calculator },
-  { label: "Offres", href: "/offers", icon: FileText },
-  { label: "Bibliothèque", href: "/library", icon: Library },
+  { label: "Catalogue", href: "/catalog", icon: SquaresFour },
+  { label: "Simulations", href: "/simulator", icon: ChartLineUp },
+  { label: "Offres", href: "/offers", icon: Files },
+  { label: "Bibliothèque", href: "/library", icon: Books },
 ] as const;
 
 const SETTINGS_ITEM = {
   label: "Paramètres",
   href: "/settings",
-  icon: Settings,
+  icon: GearSix,
 } as const;
 const USERS_ITEM = {
   label: "Utilisateurs",
@@ -43,7 +62,7 @@ const USERS_ITEM = {
 const QUARANTINE_ITEM = {
   label: "Quarantaine migration",
   href: "/admin/migration-quarantine",
-  icon: FileWarning,
+  icon: Warning,
 } as const;
 
 const ROLE_LABELS: Record<string, string> = {
@@ -52,16 +71,21 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "Lecteur",
 };
 
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
+}
+
 function NavItem({
   href,
-  icon: Icon,
+  icon,
   label,
   active,
   collapsed,
   onClick,
 }: {
   href: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<IconProps>;
   label: string;
   active: boolean;
   collapsed?: boolean;
@@ -73,14 +97,18 @@ function NavItem({
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm font-medium transition-colors",
-        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+        "flex items-center rounded-lg text-sm font-semibold transition-all duration-200",
+        collapsed ? "justify-center px-2 py-2.5" : "gap-3 border-l-2 px-3 py-2.5",
         active
-          ? "bg-[#E07200] text-white"
-          : "text-white/70 hover:bg-[#1B3354] hover:text-white"
+          ? collapsed
+            ? "bg-primary/20 text-white"
+            : "border-primary bg-primary/10 text-white"
+          : collapsed
+            ? "border-transparent text-white/70 hover:bg-white/10 hover:text-white"
+            : "border-transparent text-white/70 hover:bg-white/10 hover:text-white",
       )}
     >
-      <Icon size={18} className="shrink-0" />
+      <AppIcon icon={icon} weight={active ? "duotone" : "regular"} size="sm" />
       {!collapsed && label}
     </Link>
   );
@@ -96,40 +124,45 @@ function Sidebar({
   onClose?: () => void;
 }) {
   const { user, role, logout } = useAuth();
+  const displayName =
+    user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email;
 
   return (
     <div
       className={cn(
-        "flex h-full flex-col bg-[#0F2137] transition-[width] duration-200",
-        collapsed ? "w-16" : "w-60"
+        "flex h-full flex-col bg-gradient-to-b from-brand-navy to-[#0f2444] transition-[width] duration-200 ease-out",
+        collapsed ? "w-16" : "w-60",
       )}
     >
-      <div className={cn("border-b border-white/10 py-5", collapsed ? "px-2" : "px-5")}>
-        {collapsed ? (
-          <div
-            className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-[#E07200] text-sm font-bold text-white"
-            title="SYSKERN"
-          >
-            S
-          </div>
-        ) : (
-          <>
-            <div className="text-xl font-bold tracking-wide text-white">SYSKERN</div>
-            <div className="mt-0.5 text-xs uppercase tracking-wider text-white/40">
-              Pricing Platform
+      <div className={cn("border-b border-white/10 py-5", collapsed ? "px-2" : "px-4")}>
+        <Link href="/" title="Tableau de bord" className="block">
+          {collapsed ? (
+            <BrandLogo variant="syskern" compact className="mx-auto" />
+          ) : (
+            <div className="rounded-lg bg-white p-3 shadow-[var(--shadow-soft)]">
+              <BrandLogo variant="syskern" className="min-w-0 max-h-9 max-w-[180px]" />
             </div>
-          </>
-        )}
+          )}
+        </Link>
       </div>
 
       <nav className={cn("flex flex-1 flex-col gap-1 py-4", collapsed ? "px-2" : "px-3")}>
+        <NavItem
+          href={HOME_ITEM.href}
+          icon={HOME_ITEM.icon}
+          label={HOME_ITEM.label}
+          active={isNavActive(pathname, HOME_ITEM.href)}
+          collapsed={collapsed}
+          onClick={onClose}
+        />
+
         {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.href}
             href={item.href}
             icon={item.icon}
             label={item.label}
-            active={pathname.startsWith(item.href)}
+            active={isNavActive(pathname, item.href)}
             collapsed={collapsed}
             onClick={onClose}
           />
@@ -137,11 +170,15 @@ function Sidebar({
 
         <div className="my-3 border-t border-white/10" />
 
+        {!collapsed && (
+          <p className="mb-1 px-3 text-xs font-medium text-white/40">Administration</p>
+        )}
+
         <NavItem
           href={SETTINGS_ITEM.href}
           icon={SETTINGS_ITEM.icon}
           label={SETTINGS_ITEM.label}
-          active={pathname.startsWith(SETTINGS_ITEM.href)}
+          active={isNavActive(pathname, SETTINGS_ITEM.href)}
           collapsed={collapsed}
           onClick={onClose}
         />
@@ -152,7 +189,7 @@ function Sidebar({
               href={USERS_ITEM.href}
               icon={USERS_ITEM.icon}
               label={USERS_ITEM.label}
-              active={pathname.startsWith(USERS_ITEM.href)}
+              active={isNavActive(pathname, USERS_ITEM.href)}
               collapsed={collapsed}
               onClick={onClose}
             />
@@ -160,7 +197,7 @@ function Sidebar({
               href={QUARANTINE_ITEM.href}
               icon={QUARANTINE_ITEM.icon}
               label={QUARANTINE_ITEM.label}
-              active={pathname.startsWith(QUARANTINE_ITEM.href)}
+              active={isNavActive(pathname, QUARANTINE_ITEM.href)}
               collapsed={collapsed}
               onClick={onClose}
             />
@@ -168,45 +205,46 @@ function Sidebar({
         )}
       </nav>
 
-      {/* User footer */}
       <div className={cn("border-t border-white/10 py-4", collapsed ? "px-2" : "px-4")}>
-        <div className={cn("mb-3 flex items-center", collapsed ? "justify-center" : "gap-3")}>
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E07200]"
-            title={
-              collapsed
-                ? user?.first_name && user?.last_name
-                  ? `${user.first_name} ${user.last_name}`
-                  : user?.email
-                : undefined
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full items-center rounded-lg text-left transition-colors hover:bg-white/10",
+                  collapsed ? "justify-center p-2" : "gap-3 p-2",
+                )}
+              />
             }
           >
-            <span className="text-xs font-bold text-white">
-              {user?.first_name?.[0] ?? user?.email?.[0]?.toUpperCase() ?? "?"}
-            </span>
-          </div>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-white">
-                {user?.first_name && user?.last_name
-                  ? `${user.first_name} ${user.last_name}`
-                  : user?.email}
-              </div>
-              <div className="text-xs text-white/40">{role ? ROLE_LABELS[role] : "—"}</div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
+              <span className="text-xs font-bold text-white">
+                {user?.first_name?.[0] ?? user?.email?.[0]?.toUpperCase() ?? "?"}
+              </span>
             </div>
-          )}
-        </div>
-        <button
-          onClick={logout}
-          title="Déconnexion"
-          className={cn(
-            "flex w-full items-center rounded-lg text-xs text-white/50 transition-colors hover:bg-white/10 hover:text-white",
-            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2 py-1.5"
-          )}
-        >
-          <LogOut size={13} />
-          {!collapsed && "Déconnexion"}
-        </button>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-white">{displayName}</div>
+                <div className="text-xs text-white/40">{role ? ROLE_LABELS[role] : "—"}</div>
+              </div>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" className="w-56">
+            <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+              {user?.email}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/settings" />}>
+              <UserCircle size={16} />
+              Paramètres
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
+              <SignOut size={16} />
+              Déconnexion
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -217,14 +255,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, , toggleSidebarCollapsed] = usePersistedBoolean(
     MAIN_SIDEBAR_COLLAPSED_KEY,
-    false
+    false,
   );
   const { isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#F5F7FA]">
-        <div className="w-8 h-8 border-2 border-[#E07200]/30 border-t-[#E07200] rounded-full animate-spin" />
+      <div className="flex h-full items-center justify-center bg-background">
+        <Skeleton className="h-8 w-8 rounded-full" />
       </div>
     );
   }
@@ -232,56 +270,56 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <BreadcrumbProvider>
       <div className="flex h-full">
-      {/* Desktop sidebar */}
-      <aside className="hidden shrink-0 transition-[width] duration-200 md:flex">
-        <Sidebar pathname={pathname} collapsed={sidebarCollapsed} />
-      </aside>
+        <aside className="hidden shrink-0 transition-[width] duration-200 md:flex">
+          <Sidebar pathname={pathname} collapsed={sidebarCollapsed} />
+        </aside>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 md:hidden transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
         )}
-      >
-        <Sidebar pathname={pathname} onClose={() => setMobileOpen(false)} />
-      </aside>
 
-      {/* Main content area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <header className="flex h-14 shrink-0 items-center gap-4 border-b border-[#E2E8F0] bg-white px-6">
-          <button
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Ouvrir le menu"
-          >
-            <Menu size={20} />
-          </button>
+        <aside
+          className={cn(
+            "fixed inset-y-0 left-0 z-50 transition-transform duration-300 md:hidden",
+            mobileOpen ? "translate-x-0" : "-translate-x-full",
+          )}
+        >
+          <Sidebar pathname={pathname} onClose={() => setMobileOpen(false)} />
+        </aside>
 
-          <button
-            className="hidden rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:inline-flex"
-            onClick={toggleSidebarCollapsed}
-            aria-label={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-            title={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
-          </button>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card/80 px-6 shadow-[var(--shadow-soft)] backdrop-blur-sm">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Ouvrir le menu"
+            >
+              <List size={20} weight="bold" />
+            </Button>
 
-          <div className="min-w-0 flex-1">
-            <AppBreadcrumb />
-          </div>
-        </header>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden md:inline-flex"
+              onClick={toggleSidebarCollapsed}
+              aria-label={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+              title={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+            </Button>
 
-        <main className="flex-1 overflow-y-auto bg-[#F5F7FA]">{children}</main>
-      </div>
+            <div className="min-w-0 flex-1">
+              <AppBreadcrumb />
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto bg-background">{children}</main>
+        </div>
       </div>
     </BreadcrumbProvider>
   );

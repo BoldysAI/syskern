@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const u = await loginApi(email, password);
       setUser(u);
-      router.push("/catalog");
+      router.push("/");
     },
     [router],
   );

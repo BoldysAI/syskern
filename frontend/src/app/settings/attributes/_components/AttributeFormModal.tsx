@@ -15,7 +15,7 @@ import Modal from "./Modal";
 import { CATEGORIES, CODE_REGEX, DATA_TYPES, slugifyCode } from "./constants";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed";
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 
 interface OptionDraft {
@@ -49,7 +49,7 @@ function Toggle({
         aria-checked={checked}
         className={cn(
           "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
-          checked ? "bg-[#E07200]" : "bg-slate-300"
+          checked ? "bg-primary" : "bg-slate-300"
         )}
       >
         <span
@@ -301,7 +301,7 @@ export default function AttributeFormModal({
             <button
               type="button"
               onClick={() => setOptions((prev) => [...prev, { value: "", labelFr: "" }])}
-              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#E07200] border border-dashed border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]"
+              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50"
             >
               <Plus size={13} />
               Ajouter une option
@@ -309,7 +309,7 @@ export default function AttributeFormModal({
           </div>
         )}
 
-        <div className="flex flex-col gap-3 pt-1 border-t border-[#E2E8F0]">
+        <div className="flex flex-col gap-3 pt-1 border-t border-border">
           <Toggle label="Obligatoire" checked={isRequired} onChange={setIsRequired} hint="Champ requis sur la fiche produit." />
           <Toggle label="Recherchable" checked={isSearchable} onChange={setIsSearchable} hint="Inclus dans la recherche full-text." />
           <Toggle label="Filtrable" checked={isFilterable} onChange={setIsFilterable} hint="Exposé comme filtre dans la sidebar du catalogue." />
@@ -319,14 +319,14 @@ export default function AttributeFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+            className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
           >
             Annuler
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {isEdit ? "Mettre à jour" : "Créer"}

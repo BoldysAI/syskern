@@ -42,9 +42,9 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+        <div className="flex items-center justify-between border-b border-border p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <History size={18} className="text-[#E07200]" />
+            <History size={18} className="text-warm" />
             Historique des recalculs
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
@@ -76,7 +76,7 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
               {hasMore && (
                 <button
                   onClick={() => setLimit((l) => l + PAGE)}
-                  className="mt-4 w-full rounded-lg border border-[#E2E8F0] py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="mt-4 w-full rounded-lg border border-border py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
                 >
                   Charger plus ({total - traces.length} restant{total - traces.length !== 1 ? "s" : ""})
                 </button>
@@ -108,7 +108,7 @@ function RecalcEntry({
   const a = r.aggregates ?? {};
 
   return (
-    <li className="rounded-xl border border-[#E2E8F0] p-3 shadow-sm">
+    <li className="rounded-xl border border-border p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold text-slate-800">
           {new Date(r.calculated_at).toLocaleString("fr-FR")}
@@ -172,14 +172,14 @@ function RecalcEntry({
       <div className="mt-3 flex gap-2">
         <button
           onClick={onDetail}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
         >
           <Eye size={13} />
           Voir détail
         </button>
         <button
           onClick={onCompare}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
         >
           <GitCompare size={13} />
           Comparer avec actuel

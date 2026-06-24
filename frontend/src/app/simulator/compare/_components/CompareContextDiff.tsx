@@ -40,7 +40,7 @@ export function CompareContextDiff({ columns }: Props) {
   return (
     <div className="space-y-5">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-gradient-to-r from-slate-50 to-white px-4 py-3">
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
           <span className="font-semibold text-slate-700">Légende</span>
           <LegendSwatch kind="same" label="Identique" />
@@ -60,7 +60,7 @@ export function CompareContextDiff({ columns }: Props) {
               type="checkbox"
               checked={showAll}
               onChange={() => setShowAll((v) => !v)}
-              className="h-3.5 w-3.5 rounded accent-[#E07200]"
+              className="h-3.5 w-3.5 rounded accent-primary"
             />
             Afficher tout
           </label>
@@ -85,7 +85,7 @@ export function CompareContextDiff({ columns }: Props) {
             </span>
             <Link
               href={`/simulator/${columns[i].simulation_id}`}
-              className="max-w-[140px] truncate font-medium text-slate-800 hover:text-[#E07200]"
+              className="max-w-[140px] truncate font-medium text-slate-800 hover:text-warm"
               title={v.label}
             >
               {v.shortLabel}
@@ -107,11 +107,11 @@ export function CompareContextDiff({ columns }: Props) {
         const sectionDiffs = section.rows.filter((r) => r.hasDiff).length;
 
         return (
-          <section key={section.title} className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+          <section key={section.title} className="rounded-xl border border-border bg-white shadow-sm">
             <button
               type="button"
               onClick={() => toggleSection(section.title)}
-              className="flex w-full items-center gap-2 border-b border-[#E2E8F0] px-4 py-3 text-left transition-colors hover:bg-slate-50"
+              className="flex w-full items-center gap-2 border-b border-border px-4 py-3 text-left transition-colors hover:bg-slate-50"
             >
               {open ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
               <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>

@@ -12,7 +12,7 @@ const LANG_LABELS: Record<string, string> = {
 };
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 interface DescriptionsEditorProps {
   which: DescriptionKind;
@@ -31,7 +31,7 @@ export function DescriptionsEditor({
   const { mode, descValue, setDesc } = useEdit();
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+    <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-700 mb-4">{title}</h3>
       <div className="flex flex-col gap-4">
         {LANGS.map((lang) => {
@@ -49,7 +49,7 @@ export function DescriptionsEditor({
                     type="button"
                     onClick={() => onTranslate?.(lang as "en" | "es")}
                     disabled={!!translating}
-                    className="flex items-center gap-1.5 text-xs font-medium text-[#E07200] hover:text-[#C56400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 text-xs font-medium text-warm hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Languages size={13} className={cn(translating === lang && "animate-pulse")} />
                     {translating === lang ? "Traduction…" : "Traduire avec DeepL"}

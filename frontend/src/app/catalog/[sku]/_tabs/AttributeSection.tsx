@@ -17,14 +17,14 @@ export function AttributeSection({ category, title, emptyLabel }: AttributeSecti
 
   if (attrs.length === 0) {
     return (
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-8 text-center text-sm text-slate-400 shadow-sm">
+      <div className="bg-white border border-border rounded-xl p-8 text-center text-sm text-slate-400 shadow-sm">
         {emptyLabel ?? "Aucun attribut défini pour cette catégorie."}
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+    <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-700 mb-3">{title}</h3>
       {attrs.map((attr) => (
         <AttributeRenderer

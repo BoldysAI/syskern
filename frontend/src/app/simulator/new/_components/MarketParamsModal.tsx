@@ -14,7 +14,7 @@ interface Props {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 
 export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) {
@@ -82,7 +82,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between p-5 border-b border-border">
             <Dialog.Title className="text-lg font-semibold text-slate-900">
               Paramètres marché
             </Dialog.Title>
@@ -96,7 +96,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
               type="button"
               onClick={prefill}
               disabled={prefilling}
-              className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-[#C56400] border border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0] disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
             >
               {prefilling ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
               Pré-remplir depuis les paramètres actifs
@@ -147,7 +147,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Dialog.Close className="flex-1 text-center py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600">
+              <Dialog.Close className="flex-1 text-center py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600">
                 Annuler
               </Dialog.Close>
               <button
@@ -156,7 +156,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
                   onSave(draft);
                   onOpenChange(false);
                 }}
-                className="flex-1 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold"
+                className="flex-1 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold"
               >
                 Enregistrer
               </button>

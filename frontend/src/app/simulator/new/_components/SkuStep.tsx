@@ -16,7 +16,7 @@ interface Props {
 }
 
 const TAB_TRIGGER =
-  "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-[#E07200] data-[state=active]:text-[#C56400] data-[state=inactive]:border-transparent data-[state=inactive]:text-slate-500 hover:text-slate-700";
+  "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-primary data-[state=active]:text-accent-foreground data-[state=inactive]:border-transparent data-[state=inactive]:text-slate-500 hover:text-slate-700";
 
 export function SkuStep({ selectedSkus, onChange }: Props) {
   const [notFound, setNotFound] = useState<string[]>([]);
@@ -54,7 +54,7 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
       <div className="flex flex-col gap-5 min-w-0">
         <Tabs.Root defaultValue="catalogue">
-          <Tabs.List className="flex items-center gap-1 border-b border-[#E2E8F0]">
+          <Tabs.List className="flex items-center gap-1 border-b border-border">
             <Tabs.Trigger value="catalogue" className={TAB_TRIGGER}>
               <ListChecks size={16} />
               Depuis le catalogue
@@ -93,10 +93,10 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
       <aside
         className={cn(
           "border rounded-xl bg-white shadow-sm h-fit lg:sticky lg:top-4",
-          notFound.length > 0 ? "border-red-200" : "border-[#E2E8F0]"
+          notFound.length > 0 ? "border-red-200" : "border-border"
         )}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <span className="text-sm font-semibold text-slate-800">
             SKU non trouvés{notFound.length > 0 ? ` (${notFound.length})` : ""}
           </span>
@@ -123,11 +123,11 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
                 </li>
               ))}
             </ul>
-            <div className="p-3 border-t border-[#E2E8F0]">
+            <div className="p-3 border-t border-border">
               <button
                 type="button"
                 onClick={downloadReport}
-                className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-semibold text-slate-600 border border-[#E2E8F0] rounded-lg hover:bg-slate-50"
+                className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-semibold text-slate-600 border border-border rounded-lg hover:bg-slate-50"
               >
                 <Download size={15} />
                 Télécharger le rapport

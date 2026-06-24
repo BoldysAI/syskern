@@ -12,10 +12,10 @@ interface Props {
 /** Cumulative list of SKU selected across the 3 methods (CDC §6.9.2). */
 export function SelectedSkuList({ skus, onRemove, onClear }: Props) {
   return (
-    <div className="border border-[#E2E8F0] rounded-xl bg-white shadow-sm">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
+    <div className="border border-border rounded-xl bg-white shadow-sm">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Package size={16} className="text-[#E07200]" />
+          <Package size={16} className="text-warm" />
           <span className="text-sm font-semibold text-slate-800">
             {skus.length} SKU sélectionné{skus.length !== 1 ? "s" : ""}
           </span>

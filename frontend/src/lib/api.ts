@@ -64,6 +64,7 @@ export interface ProductListParams {
   family?: string;
   range?: string;
   search?: string;
+  ordering?: string;
   page?: number;
   limit?: number;
 }
@@ -530,6 +531,25 @@ export function getProducts(params?: ProductListParams): Promise<PaginatedProduc
   if (params?.family) q.set("family", params.family);
   if (params?.range) q.set("range", params.range);
   if (params?.search) q.set("search", params.search);
+  if (params?.ordering) q.set("ordering", params.ordering);
+  q.set("limit", String(limit));
+  q.set("offset", String(offset));
+  return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
+}
+
+export interface CatalogListParams extends CatalogFilters {
+  ordering?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** Paginated catalog list with full sidebar filter support. */
+export function getCatalogProducts(params: CatalogListParams): Promise<PaginatedProducts> {
+  const q = new URLSearchParams(catalogFiltersToParams(params));
+  const limit = params.limit ?? 20;
+  const page = params.page ?? 1;
+  const offset = (page - 1) * limit;
+  if (params.ordering) q.set("ordering", params.ordering);
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
@@ -1114,8 +1134,10 @@ export function parseSku(sku: string): Promise<ParsedSku> {
 
 /** Distinct values for a hierarchy level, optionally scoped by parent levels
  *  (cascade: family within a universe, range within universe+family, …). */
+export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
+
 export function getHierarchyLevel(
-  level: "universe" | "family" | "range" | "sub_range",
+  level: HierarchyLevel,
   parents?: { universe?: string; family?: string; range?: string },
 ): Promise<string[]> {
   const q = new URLSearchParams({ level });
@@ -1202,4 +1224,44 @@ export function updateOfferAlertSettings(recipients: string[]): Promise<OfferAle
     method: "PUT",
     body: JSON.stringify({ recipients }),
   });
+}
+
+// ── Dashboard aggregates ───────────────────────────────────────────────────
+
+export interface OffersDashboard {
+  status_counts: Record<string, number>;
+  project_conversion_pct: number | null;
+  tariff_active: number;
+  won_total: string | null;
+}
+
+export function getOffersDashboard(): Promise<OffersDashboard> {
+  return apiFetch<OffersDashboard>("/api/offers/dashboard");
+}
+
+export interface DocumentLibraryEntry {
+  id: string;
+  label?: string;
+  created_at: string;
+}
+
+export function getDocumentLibraryCount(): Promise<number> {
+  return apiFetch<{ count: number; results: DocumentLibraryEntry[] }>(
+    "/api/document-library/?limit=1",
+  ).then((r) => r.count);
+}
+
+export interface OfferSummary {
+  id: string;
+  label: string;
+  offer_type: "tariff" | "project";
+  status: string;
+  created_at: string;
+}
+
+export function getRecentOffers(limit = 5): Promise<OfferSummary[]> {
+  const q = new URLSearchParams({ ordering: "-created_at", limit: String(limit) });
+  return apiFetch<{ count: number; results: OfferSummary[] }>(`/api/offers/?${q}`).then(
+    (r) => r.results,
+  );
 }

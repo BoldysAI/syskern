@@ -230,7 +230,7 @@ export default function OfferDetailPage() {
       {/* Info cards */}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Info label="Simulation source">
-          <Link href={`/simulator/${offer.simulation}`} className="text-[#E07200] hover:underline">
+          <Link href={`/simulator/${offer.simulation}`} className="text-warm hover:underline">
             Ouvrir
           </Link>
         </Info>
@@ -260,7 +260,7 @@ export default function OfferDetailPage() {
       </div>
 
       {/* Files */}
-      <div className="mb-5 rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+      <div className="mb-5 rounded-xl border border-border bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-slate-800">Document</h2>
         {isProject ? (
           offer.generation_status === "ready" && offer.generated_file_url ? (
@@ -268,7 +268,7 @@ export default function OfferDetailPage() {
               href={offer.generated_file_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2 text-sm font-semibold text-white hover:bg-[#C56400]"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
             >
               Ouvrir le devis Gamma <ExternalLink size={14} />
             </a>
@@ -284,7 +284,7 @@ export default function OfferDetailPage() {
         ) : (
           <a
             href={`/api/offers/${id}/download/`}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2 text-sm font-semibold text-white hover:bg-[#C56400]"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
           >
             <Download size={14} /> Télécharger l&apos;Excel
           </a>
@@ -293,7 +293,7 @@ export default function OfferDetailPage() {
 
       {/* Version chain */}
       {isProject && versions && versions.length > 1 && (
-        <div className="mb-5 rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <div className="mb-5 rounded-xl border border-border bg-white p-4 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
             <GitBranch size={15} /> Versions
           </h2>
@@ -305,8 +305,8 @@ export default function OfferDetailPage() {
                   className={cn(
                     "rounded-lg border px-3 py-1.5 text-sm",
                     v.id === offer.id
-                      ? "border-[#E07200] bg-[#FFF3E0] font-semibold text-[#C56400]"
-                      : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                      ? "border-primary bg-accent font-semibold text-accent-foreground"
+                      : "border-border text-slate-600 hover:bg-slate-50",
                   )}
                 >
                   V{v.version_number}
@@ -322,12 +322,12 @@ export default function OfferDetailPage() {
       )}
 
       {/* Lines */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-        <h2 className="border-b border-[#E2E8F0] px-4 py-3 text-sm font-semibold text-slate-800">
+      <div className="mb-5 overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+        <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-slate-800">
           Lignes ({offer.lines.length})
         </h2>
         <table className="w-full text-sm">
-          <thead className="bg-[#F5F7FA] text-xs uppercase text-slate-500">
+          <thead className="bg-background text-xs uppercase text-slate-500">
             <tr>
               <th className="px-4 py-2 text-left">SKU</th>
               <th className="px-4 py-2 text-left">Désignation</th>
@@ -336,7 +336,7 @@ export default function OfferDetailPage() {
               {isProject && <th className="px-4 py-2 text-right">Total</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {offer.lines.map((l) => (
               <tr key={l.id}>
                 <td className="px-4 py-2 font-medium text-slate-700">{l.product_sku}</td>
@@ -406,19 +406,19 @@ export default function OfferDetailPage() {
               type="date"
               value={extendDate}
               onChange={(e) => setExtendDate(e.target.value)}
-              className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             <div className="mt-5 flex gap-3">
               <button
                 onClick={() => setExtendOpen(false)}
-                className="flex-1 rounded-lg border border-[#E2E8F0] py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                className="flex-1 rounded-lg border border-border py-2.5 text-sm text-slate-600 hover:bg-slate-50"
               >
                 Annuler
               </button>
               <button
                 onClick={extend}
                 disabled={!extendDate || busy}
-                className="flex-1 rounded-lg bg-[#E07200] py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-50"
+                className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
               >
                 Valider
               </button>
@@ -432,7 +432,7 @@ export default function OfferDetailPage() {
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm">
+    <div className="rounded-xl border border-border bg-white px-4 py-3 shadow-sm">
       <div className="text-xs text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-medium text-slate-800">{children}</div>
     </div>
@@ -453,10 +453,10 @@ function ActionBtn({
   tone?: "primary" | "green" | "red" | "ghost";
 }) {
   const tones: Record<string, string> = {
-    primary: "bg-[#E07200] text-white hover:bg-[#C56400]",
+    primary: "bg-primary text-white hover:bg-primary/90",
     green: "bg-green-600 text-white hover:bg-green-700",
     red: "bg-red-600 text-white hover:bg-red-700",
-    ghost: "border border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+    ghost: "border border-border text-slate-600 hover:bg-slate-50",
   };
   return (
     <button

@@ -171,7 +171,7 @@ function ProjectWizard() {
   if (submitting) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
-        <Loader2 className="mb-4 animate-spin text-[#E07200]" size={40} />
+        <Loader2 className="mb-4 animate-spin text-warm" size={40} />
         <p className="font-medium text-slate-700">Génération du devis Gamma…</p>
         <p className="mt-1 text-sm text-slate-400">
           Argumentaires IA puis mise en page — 1 à 3 min.
@@ -203,7 +203,7 @@ function ProjectWizard() {
                 href={result.gamma_url}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
               >
                 Ouvrir dans Gamma <ExternalLink size={15} />
               </a>
@@ -221,7 +221,7 @@ function ProjectWizard() {
             <p className="mt-1 max-w-md text-sm text-slate-500">{result.error}</p>
             <button
               onClick={() => runGeneration(result.offer_id)}
-              className="mt-4 rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
+              className="mt-4 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
             >
               Réessayer
             </button>
@@ -244,7 +244,7 @@ function ProjectWizard() {
         </div>
       )}
 
-      <div className="min-h-[300px] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+      <div className="min-h-[300px] rounded-xl border border-border bg-white p-5 shadow-sm">
         {step === 0 && (
           <Section title="Client & projet">
             <div className="flex max-w-md flex-col gap-4">
@@ -253,7 +253,7 @@ function ProjectWizard() {
                 <select
                   value={clientId}
                   onChange={(e) => setClientOverride(e.target.value)}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   <option value="">— Sélectionner —</option>
                   {clients.map((c) => (
@@ -270,7 +270,7 @@ function ProjectWizard() {
                 <input
                   value={projectName}
                   onChange={(e) => setNameOverride(e.target.value)}
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
             </div>
@@ -279,16 +279,16 @@ function ProjectWizard() {
 
         {step === 1 && (
           <Section title="Quantités par SKU" hint="Quantités prévues pour le projet.">
-            <div className="overflow-hidden rounded-lg border border-[#E2E8F0]">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-[#F5F7FA] text-xs uppercase text-slate-500">
+                <thead className="bg-background text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left">SKU</th>
                     <th className="px-3 py-2 text-left">Désignation</th>
                     <th className="px-3 py-2 text-right">Quantité</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
+                <tbody className="divide-y divide-border">
                   {(sim?.lines ?? []).map((l) => (
                     <tr key={l.id}>
                       <td className="px-3 py-2 font-medium text-slate-700">{l.product_sku}</td>
@@ -304,7 +304,7 @@ function ProjectWizard() {
                               [l.product_sku]: Number(e.target.value),
                             }))
                           }
-                          className="w-24 rounded-lg border border-[#E2E8F0] px-2 py-1 text-right focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                          className="w-24 rounded-lg border border-border px-2 py-1 text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                       </td>
                     </tr>
@@ -327,8 +327,8 @@ function ProjectWizard() {
                     className={cn(
                       "rounded-lg border px-5 py-2.5 text-sm font-medium",
                       language === l.code
-                        ? "border-[#E07200] bg-[#E07200] text-white"
-                        : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                        ? "border-primary bg-primary text-white"
+                        : "border-border text-slate-600 hover:bg-slate-50",
                     )}
                   >
                     {l.label}
@@ -343,7 +343,7 @@ function ProjectWizard() {
                   type="date"
                   value={expiration}
                   onChange={(e) => setExpiration(e.target.value)}
-                  className="w-full max-w-xs rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                  className="w-full max-w-xs rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
             </div>
@@ -356,7 +356,7 @@ function ProjectWizard() {
               {SECTIONS.map((s) => (
                 <label
                   key={s.key}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm hover:bg-slate-50"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-slate-50"
                 >
                   <input
                     type="checkbox"
@@ -364,7 +364,7 @@ function ProjectWizard() {
                     onChange={() =>
                       setSectionOverride((o) => ({ ...o, [s.key]: !sectionOn(s.key) }))
                     }
-                    className="accent-[#E07200]"
+                    className="accent-primary"
                   />
                   {s.label}
                 </label>
@@ -380,7 +380,7 @@ function ProjectWizard() {
               onChange={(e) => setAiInstructions(e.target.value)}
               rows={6}
               placeholder="Ex : insister sur la conformité CPR, la garantie 30 ans, et l'expérience datacenter."
-              className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             <p className="mt-3 text-xs text-slate-500">
               {Object.values(quantities).filter((q) => q > 0).length} SKU · {language.toUpperCase()}{" "}
@@ -395,7 +395,7 @@ function ProjectWizard() {
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
-          className="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+          className="rounded-lg border border-border px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
         >
           Précédent
         </button>
@@ -404,7 +404,7 @@ function ProjectWizard() {
             type="button"
             onClick={() => setStep((s) => s + 1)}
             disabled={!canNext}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-40"
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-40"
           >
             Suivant
           </button>
@@ -412,7 +412,7 @@ function ProjectWizard() {
           <button
             type="button"
             onClick={() => runGeneration()}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
           >
             Générer le devis
           </button>
@@ -433,7 +433,7 @@ function Stepper({ step }: { step: number }) {
               i < step
                 ? "bg-green-500 text-white"
                 : i === step
-                  ? "bg-[#E07200] text-white"
+                  ? "bg-primary text-white"
                   : "bg-slate-100 text-slate-400",
             )}
           >

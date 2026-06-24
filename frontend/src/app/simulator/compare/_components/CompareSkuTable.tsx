@@ -167,7 +167,7 @@ export function CompareSkuTable({
               type="checkbox"
               checked={commonOnly}
               onChange={onToggleCommon}
-              className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+              className="h-4 w-4 rounded border-slate-300 accent-primary"
             />
             Lignes communes
           </label>
@@ -177,15 +177,15 @@ export function CompareSkuTable({
             className={cn(
               "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
               sortByDelta
-                ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+                ? "border-primary bg-accent text-accent-foreground"
+                : "border-border text-slate-600 hover:bg-slate-50"
             )}
           >
             {sortByDelta ? "Tri : écart PV ↓" : "Trier par écart PV"}
           </button>
           <span className="text-xs text-slate-400">{rows.length} lignes</span>
         </div>
-        <div className="flex rounded-lg border border-[#E2E8F0] bg-white p-0.5">
+        <div className="flex rounded-lg border border-border bg-white p-0.5">
           <ViewBtn active={viewMode === "heatmap"} onClick={() => setViewMode("heatmap")} icon={<LayoutGrid size={14} />} label="Heatmap" />
           <ViewBtn active={viewMode === "chart"} onClick={() => setViewMode("chart")} icon={<BarChart3 size={14} />} label="Graphique" />
           <ViewBtn active={viewMode === "detail"} onClick={() => setViewMode("detail")} icon={<Table2 size={14} />} label="Détail" />
@@ -212,11 +212,11 @@ export function CompareSkuTable({
       )}
 
       {viewMode === "chart" && chartRows.length > 0 && (
-        <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-slate-800">PV par SKU (top {chartRows.length})</h3>
           <ResponsiveContainer width="100%" height={Math.max(280, chartRows.length * 36)}>
             <BarChart data={chartRows} layout="vertical" margin={{ left: 8, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v} €`} />
               <YAxis type="category" dataKey="sku" tick={{ fontSize: 10 }} width={72} />
               <Tooltip formatter={(v) => [`${Number(v ?? 0).toFixed(2)} €`, ""]} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
@@ -230,11 +230,11 @@ export function CompareSkuTable({
       )}
 
       {(viewMode === "heatmap" || viewMode === "detail") && (
-        <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-border shadow-sm">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#F5F7FA]">
-                <th className="sticky left-0 z-10 bg-[#F5F7FA] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background">
+                <th className="sticky left-0 z-10 bg-background px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   SKU
                 </th>
                 {visuals.map((v, i) => (
@@ -248,7 +248,7 @@ export function CompareSkuTable({
                       </span>
                       <Link
                         href={`/simulator/${columns[i].simulation_id}`}
-                        className="max-w-[120px] truncate text-[11px] font-semibold text-slate-700 hover:text-[#E07200]"
+                        className="max-w-[120px] truncate text-[11px] font-semibold text-slate-700 hover:text-warm"
                         title={v.label}
                       >
                         {v.shortLabel}
@@ -264,7 +264,7 @@ export function CompareSkuTable({
                 return (
                   <tr key={p.product_id} className="border-b border-slate-100">
                     <td className="sticky left-0 z-10 max-w-[200px] bg-white px-4 py-2">
-                      <span className="block font-mono text-xs font-bold text-[#E07200]">{p.product_sku}</span>
+                      <span className="block font-mono text-xs font-bold text-warm">{p.product_sku}</span>
                       <span className="block truncate text-[10px] text-slate-400" title={p.product_name}>
                         {p.product_name}
                       </span>
@@ -374,7 +374,7 @@ function ViewBtn({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-        active ? "bg-[#FFF3E0] text-[#C56400] shadow-sm" : "text-slate-500 hover:bg-slate-50"
+        active ? "bg-accent text-accent-foreground shadow-sm" : "text-slate-500 hover:bg-slate-50"
       )}
     >
       {icon}

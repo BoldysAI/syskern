@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import Link from "next/link";
+import { CircleNotch, Eye, EyeSlash, SignIn } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/BrandLogo";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/FormField";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -27,91 +32,85 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex flex-col items-center">
-            <div className="w-12 h-12 rounded-xl bg-[#0F2137] flex items-center justify-center mb-3">
-              <span className="text-white font-bold text-lg">S</span>
-            </div>
-            <span className="text-2xl font-bold text-[#0F2137] tracking-wide">SYSKERN</span>
-            <span className="text-xs text-slate-400 tracking-widest uppercase mt-0.5">
-              Pricing Platform
-            </span>
-          </div>
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background p-4">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(22,47,86,0.12)_0%,_transparent_55%)]"
+        aria-hidden
+      />
+      <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
+        <div className="mb-8 flex justify-center">
+          <BrandLogo variant="syskern" />
         </div>
 
-        {/* Card */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-md p-8">
-          <h1 className="text-lg font-semibold text-slate-900 mb-1">Connexion</h1>
-          <p className="text-sm text-slate-500 mb-6">Accédez à votre espace de travail.</p>
-
-          {error && (
-            <div className="flex items-start gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              <span className="mt-0.5 flex-shrink-0">⚠</span>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Adresse e-mail
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@exemple.com"
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 pr-10 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+        <Card className="shadow-[var(--shadow-elevated)]">
+          <CardHeader>
+            <CardTitle>Connexion</CardTitle>
+            <CardDescription>Accédez à votre espace de travail.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div
+                role="alert"
+                className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                {error}
               </div>
-            </div>
+            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={cn(
-                "flex items-center justify-center gap-2 w-full py-2.5 mt-2 rounded-lg text-sm font-semibold text-white transition-colors",
-                loading ? "bg-[#E07200]/60 cursor-not-allowed" : "bg-[#E07200] hover:bg-[#C56400]",
-              )}
-            >
-              {loading ? (
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              ) : (
-                <LogIn size={15} />
-              )}
-              {loading ? "Connexion..." : "Se connecter"}
-            </button>
-          </form>
-        </div>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <FormField label="Adresse e-mail" htmlFor="email" required>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="vous@exemple.com"
+                />
+              </FormField>
+
+              <FormField label="Mot de passe" htmlFor="password" required>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                  </Button>
+                </div>
+              </FormField>
+
+              <Button type="submit" disabled={loading} className="mt-2 h-10 w-full">
+                {loading ? (
+                  <CircleNotch size={16} className="animate-spin" />
+                ) : (
+                  <SignIn size={16} weight="bold" />
+                )}
+                {loading ? "Connexion..." : "Se connecter"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <footer className="mt-8 flex flex-col items-center gap-2 text-center">
+          <p className="text-xs text-muted-foreground">Une solution Unikkern</p>
+          <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
+        </footer>
       </div>
     </div>
   );

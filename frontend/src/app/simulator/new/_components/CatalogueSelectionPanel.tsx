@@ -33,7 +33,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
 
   const { data, isLoading } = useSWR<PaginatedProducts>(
     ["sku-catalogue", debounced, page],
-    () => getProducts({ q: debounced || undefined, page, limit: PAGE_SIZE }),
+    () => getProducts({ search: debounced || undefined, page, limit: PAGE_SIZE }),
     { keepPreviousData: true }
   );
 
@@ -72,20 +72,20 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Rechercher par SKU ou désignation…"
-          className="w-full pl-9 pr-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         />
       </div>
 
-      <div className="border border-[#E2E8F0] rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+          <thead className="bg-background border-b border-border">
             <tr>
               <th className="px-3 py-2.5 w-10">
                 <input
                   type="checkbox"
                   checked={allPageSelected}
                   onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+                  className="w-4 h-4 rounded border-slate-300 accent-primary"
                   aria-label="Sélectionner toute la page"
                 />
               </th>
@@ -124,7 +124,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(p)}
-                        className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+                        className="w-4 h-4 rounded border-slate-300 accent-primary"
                         aria-label={`Sélectionner ${p.sku_code}`}
                       />
                     </td>
@@ -150,7 +150,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-slate-50"
             >
               Précédent
             </button>
@@ -161,7 +161,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-slate-50"
             >
               Suivant
             </button>

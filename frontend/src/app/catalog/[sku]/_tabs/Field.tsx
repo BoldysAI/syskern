@@ -19,7 +19,7 @@ interface FieldProps {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 function validate(kind: FieldKind, value: unknown): boolean {
   if (value === null || value === undefined || value === "") return true;
@@ -78,7 +78,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
   return (
     <div
       className={cn(
-        "gap-3 py-2.5 border-b border-[#E2E8F0] last:border-0",
+        "gap-3 py-2.5 border-b border-border last:border-0",
         isMultiline ? "flex flex-col" : "flex items-center justify-between",
       )}
     >
@@ -94,7 +94,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             onClick={() => emit(!(value === true))}
             className={cn(
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-              value === true ? "bg-[#E07200]" : "bg-slate-300",
+              value === true ? "bg-primary" : "bg-slate-300",
             )}
           >
             <span
@@ -125,18 +125,18 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
               <Select.Content
                 position="popper"
                 sideOffset={4}
-                className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+                className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
               >
                 <Select.Viewport className="p-1">
                   {options.map((opt) => (
                     <Select.Item
                       key={opt.value}
                       value={opt.value}
-                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                     >
                       <Select.ItemText>{opt.label}</Select.ItemText>
                       <Select.ItemIndicator>
-                        <Check size={14} className="text-[#E07200]" />
+                        <Check size={14} className="text-warm" />
                       </Select.ItemIndicator>
                     </Select.Item>
                   ))}

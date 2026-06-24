@@ -33,6 +33,11 @@ import {
   type ProductDetail,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { toast } from "sonner";
+import { BrandLogo } from "@/components/BrandLogo";
+import { KpiCard } from "@/components/KpiCard";
+import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -86,7 +91,7 @@ function buildOdooUrl(odooId?: number | null): string | null {
 
 function InfoLine({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 py-2 border-b border-[#E2E8F0] last:border-0">
+    <div className="flex justify-between gap-3 py-2 border-b border-border last:border-0">
       <span className="text-xs text-slate-500">{label}</span>
       <span className="text-sm font-medium text-slate-800 text-right">{value}</span>
     </div>
@@ -101,44 +106,57 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
     .join(" › ");
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm lg:sticky lg:top-6">
-      <div className="aspect-square w-full rounded-lg bg-slate-100 flex items-center justify-center mb-4">
-        <Package size={48} className="text-slate-300" />
+    <Card className="lg:sticky lg:top-6 shadow-sm">
+      <CardContent className="p-5">
+      <div className="aspect-square w-full rounded-lg bg-muted flex items-center justify-center mb-4">
+        <Package size={48} className="text-muted-foreground/40" />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap mb-1">
-        <h1 className="text-lg font-bold text-slate-900 font-mono">{product.sku_code}</h1>
+        <h1 className="text-lg font-bold text-foreground font-mono">{product.sku_code}</h1>
         <span
           className={cn(
             "inline-flex px-2 py-0.5 rounded text-xs font-semibold",
-            product.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
+            product.is_active ? "bg-brand-green/10 text-brand-green" : "bg-muted text-muted-foreground",
           )}
         >
           {product.is_active ? "Actif" : "Inactif"}
         </span>
       </div>
-      <p className="text-sm text-slate-600 mb-4">{product.name}</p>
+      <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
 
-      <InfoLine label="Hiérarchie" value={hierarchy || <span className="text-slate-300">—</span>} />
-      <InfoLine label="Marque" value={product.brand || <span className="text-slate-300">—</span>} />
+      {product.brand?.toLowerCase() === "unikkern" && (
+        <div className="mb-4 flex justify-center p-3">
+          <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
+        </div>
+      )}
+
+      <InfoLine label="Hiérarchie" value={hierarchy || <span className="text-muted-foreground/50">—</span>} />
+      <InfoLine label="Marque" value={product.brand || <span className="text-muted-foreground/50">—</span>} />
       <InfoLine label="Stock" value={`${Math.round(stock)} u`} />
-      <InfoLine
-        label="PAMP"
-        value={
-          pamp > 0
-            ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-            : "—"
-        }
-      />
-      <InfoLine
-        label="Prix de vente actuel"
-        value={
-          latestPv > 0
-            ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-            : "—"
-        }
-      />
-    </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2">
+        <KpiCard
+          label="PAMP"
+          accent="warm"
+          value={
+            pamp > 0
+              ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+              : "—"
+          }
+        />
+        <KpiCard
+          label="Prix de vente actuel"
+          accent="green"
+          value={
+            latestPv > 0
+              ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+              : "—"
+          }
+        />
+      </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -208,6 +226,7 @@ function ProductPageSkeleton() {
 }
 
 function ProductPageContent() {
+  const confirm = useConfirm();
   const params = useParams<{ sku: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -415,7 +434,7 @@ function ProductPageContent() {
       const updated = await refreshPamp(decodedSku);
       await mutate(productKey, updated, { revalidate: false });
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Échec du recalcul du PAMP");
+      toast.error(e instanceof Error ? e.message : "Échec du recalcul du PAMP");
     } finally {
       setRecalcing(false);
     }
@@ -424,19 +443,19 @@ function ProductPageContent() {
   const handleDelete = async () => {
     if (!product || !decodedSku) return;
     const label = product.sku_code || decodedSku;
-    if (
-      !confirm(
-        `Supprimer le produit « ${label} » ?\n\nLe produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Supprimer le produit",
+      description: `Supprimer le produit « ${label} » ? Le produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`,
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await deleteProduct(decodedSku);
       router.push("/catalog");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Échec de la suppression");
+      toast.error(e instanceof Error ? e.message : "Échec de la suppression");
     } finally {
       setDeleting(false);
     }
@@ -450,7 +469,7 @@ function ProductPageContent() {
         const updated = await translateProduct(decodedSku, lang);
         await mutate(productKey, updated, { revalidate: false });
       } catch (e) {
-        alert(e instanceof Error ? e.message : "Échec de la traduction");
+        toast.error(e instanceof Error ? e.message : "Échec de la traduction");
       } finally {
         setTranslating(null);
       }
@@ -495,12 +514,12 @@ function ProductPageContent() {
         <div className="flex items-center gap-3 mt-2">
           <button
             onClick={() => mutate(productKey)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
           >
             <RefreshCw size={14} />
             Réessayer
           </button>
-          <Link href="/catalog" className="text-sm text-[#E07200] hover:text-[#C56400] font-medium">
+          <Link href="/catalog" className="text-sm text-warm hover:text-accent-foreground font-medium">
             Retour au catalogue
           </Link>
         </div>
@@ -539,7 +558,7 @@ function ProductPageContent() {
                   <button
                     onClick={handleRecalc}
                     disabled={recalcing}
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Recharger le PAMP et le stock depuis Odoo"
                   >
                     <RefreshCw size={14} className={cn(recalcing && "animate-spin")} />
@@ -552,8 +571,8 @@ function ProductPageContent() {
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-medium transition-colors",
                           editing
-                            ? "bg-[#E07200] text-white hover:bg-[#C56400]"
-                            : "border border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                            ? "bg-primary text-white hover:bg-primary/90"
+                            : "border border-border text-slate-600 hover:bg-slate-50",
                         )}
                       >
                         {editing ? <Check size={14} /> : <Pencil size={14} />}
@@ -578,7 +597,7 @@ function ProductPageContent() {
 
               {/* Tabs */}
               <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-                <Tabs.List className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm overflow-x-auto">
+                <Tabs.List className="flex gap-0.5 bg-white border border-border rounded-xl p-1 shadow-sm overflow-x-auto">
                   {TABS.map((tab) => (
                     <Tabs.Trigger
                       key={tab.id}
@@ -586,7 +605,7 @@ function ProductPageContent() {
                       className={cn(
                         "flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                         "text-slate-500 hover:text-slate-800",
-                        "data-[state=active]:bg-[#E07200] data-[state=active]:text-white",
+                        "data-[state=active]:bg-primary data-[state=active]:text-white",
                       )}
                     >
                       {tab.label}
@@ -617,13 +636,13 @@ function ProductPageContent() {
               </Tabs.Root>
 
               {/* Footer actions (CDC §4.3) */}
-              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[#E2E8F0] mt-2">
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border mt-2">
                 {odooUrl ? (
                   <a
                     href={odooUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
+                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
                   >
                     <ExternalLink size={14} />
                     Voir dans Odoo
@@ -637,7 +656,7 @@ function ProductPageContent() {
                         ? "Ce produit n'a pas d'identifiant Odoo."
                         : "URL Odoo non configurée (NEXT_PUBLIC_ODOO_BASE_URL)."
                     }
-                    className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg text-slate-300 cursor-not-allowed"
+                    className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg text-slate-300 cursor-not-allowed"
                   >
                     <ExternalLink size={14} />
                     Voir dans Odoo
@@ -647,7 +666,7 @@ function ProductPageContent() {
                 <AddToSimulationDialog productIds={[product.id]} productLabel={product.sku_code}>
                   <button
                     type="button"
-                    className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors"
                   >
                     <Plus size={14} />
                     Ajouter à une simulation
@@ -658,7 +677,7 @@ function ProductPageContent() {
                   type="button"
                   disabled
                   title="Disponible en MVP2"
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg text-slate-300 cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg text-slate-300 cursor-not-allowed"
                 >
                   <History size={14} />
                   Historique des modifications

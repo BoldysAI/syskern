@@ -18,7 +18,7 @@ interface Props {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 
 export function TypeStep({
@@ -89,8 +89,8 @@ export function TypeStep({
               className={cn(
                 "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                 type === t
-                  ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                  : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+                  ? "border-primary bg-accent text-accent-foreground"
+                  : "border-border text-slate-600 hover:bg-slate-50"
               )}
             >
               {t === "tariff" ? "Tarif (multi-clients)" : "Projet (1 client)"}
@@ -122,13 +122,13 @@ export function TypeStep({
             {clientIds.map((id) => (
               <span
                 key={id}
-                className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1 text-sm rounded-full bg-[#FFF3E0] text-[#C56400] border border-[#E07200]/30"
+                className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1 text-sm rounded-full bg-accent text-accent-foreground border border-primary/30"
               >
                 {nameFor(id)}
                 <button
                   type="button"
                   onClick={() => onClientIds(clientIds.filter((x) => x !== id))}
-                  className="text-[#C56400]/70 hover:text-[#C56400]"
+                  className="text-accent-foreground/70 hover:text-accent-foreground"
                   aria-label={`Retirer ${nameFor(id)}`}
                 >
                   <X size={14} />
@@ -148,7 +148,7 @@ export function TypeStep({
           />
         </div>
 
-        <div className="mt-2 border border-[#E2E8F0] rounded-lg max-h-52 overflow-y-auto divide-y divide-[#F1F5F9]">
+        <div className="mt-2 border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-[#F1F5F9]">
           {isLoading ? (
             <p className="py-6 text-center text-sm text-slate-400">Chargement…</p>
           ) : !clients?.length ? (
@@ -177,7 +177,7 @@ export function TypeStep({
                       </span>
                     )}
                   </span>
-                  {selected && <Check size={16} className="text-[#E07200] shrink-0" />}
+                  {selected && <Check size={16} className="text-warm shrink-0" />}
                 </button>
               );
             })

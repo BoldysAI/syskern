@@ -69,7 +69,7 @@ export function DataTablePagination({
   const plural = totalCount !== 1 ? "s" : "";
 
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-[#E2E8F0] bg-white px-6 py-3">
+    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-white px-6 py-3">
       <span className="text-sm text-slate-500 tabular-nums">
         {from}–{to} sur {totalCount} {itemLabel}
         {plural}
@@ -136,7 +136,7 @@ export function DataTablePagination({
           value={jumpValue}
           onChange={(e) => setJumpValue(e.target.value)}
           placeholder={String(page)}
-          className="w-16 rounded-lg border border-[#E2E8F0] px-2 py-1.5 text-center text-sm tabular-nums focus:border-[#E07200] focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="w-16 rounded-lg border border-border px-2 py-1.5 text-center text-sm tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <span className="text-sm text-slate-400">/ {totalPages}</span>
       </form>

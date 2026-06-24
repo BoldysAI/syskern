@@ -136,11 +136,11 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
         className={cn(
           "flex flex-col items-center justify-center gap-2 py-10 px-4 rounded-xl border-2 border-dashed transition-colors text-center",
           dragOver
-            ? "border-[#E07200] bg-[#FFF3E0]"
-            : "border-[#E2E8F0] hover:border-[#E07200]/60 hover:bg-slate-50"
+            ? "border-primary bg-accent"
+            : "border-border hover:border-primary/60 hover:bg-slate-50"
         )}
       >
-        <UploadCloud size={28} className="text-[#E07200]" />
+        <UploadCloud size={28} className="text-warm" />
         <span className="text-sm font-semibold text-slate-700">
           Glissez un fichier ou cliquez pour sélectionner
         </span>
@@ -158,7 +158,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <FileSpreadsheet size={16} className="text-slate-400" />
           <span className="truncate">{fileName}</span>
-          {parsing && <Loader2 size={14} className="animate-spin text-[#E07200]" />}
+          {parsing && <Loader2 size={14} className="animate-spin text-warm" />}
         </div>
       )}
 
@@ -174,7 +174,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
               setColumn(e.target.value);
               if (e.target.value) void resolveColumn(e.target.value, rows);
             }}
-            className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
             <option value="">— Choisir une colonne —</option>
             {headers.map((h) => (

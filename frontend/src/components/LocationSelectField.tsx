@@ -13,7 +13,7 @@ import {
 } from "@/lib/incoterms";
 
 const selectItemCls =
-  "flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]";
+  "flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
 interface Props {
   value: string;
@@ -38,7 +38,7 @@ export function LocationSelectField({
 }: Props) {
   const triggerCls =
     inputClassName ??
-    "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+    "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
   const customCls = customInputClassName ?? triggerCls;
 
   const [otherExplicit, setOtherExplicit] = useState(() => {
@@ -101,27 +101,27 @@ export function LocationSelectField({
           <Select.Content
             position="popper"
             sideOffset={4}
-            className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+            className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
           >
             <Select.Viewport className="p-1">
               <Select.Item value={SALE_INCOTERM_LOCATION_NONE} className={selectItemCls}>
                 <Select.ItemText>— Non renseigné —</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
               {SALE_INCOTERM_LOCATIONS.map((place) => (
                 <Select.Item key={place} value={place} className={selectItemCls}>
                   <Select.ItemText>{place}</Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-[#E07200]" />
+                    <Check size={14} className="text-warm" />
                   </Select.ItemIndicator>
                 </Select.Item>
               ))}
               <Select.Item value={SALE_INCOTERM_LOCATION_OTHER} className={selectItemCls}>
                 <Select.ItemText>Autre…</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
             </Select.Viewport>

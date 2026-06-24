@@ -96,7 +96,7 @@ export function CompareOverview({ columns, products }: Props) {
                 <div className="min-w-0">
                   <Link
                     href={`/simulator/${col.simulation_id}`}
-                    className="block truncate text-sm font-semibold text-slate-900 hover:text-[#E07200]"
+                    className="block truncate text-sm font-semibold text-slate-900 hover:text-warm"
                     title={v.label}
                   >
                     {v.label}
@@ -147,12 +147,12 @@ export function CompareOverview({ columns, products }: Props) {
         <ChartCard title="Moyennes PA / PR / PV" subtitle="Comparaison des agrégats par colonne">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="metric" tick={{ fontSize: 11, fill: "#64748B" }} />
               <YAxis tick={{ fontSize: 11, fill: "#64748B" }} tickFormatter={(v) => `${v} €`} />
               <Tooltip
                 formatter={(v) => [`${Number(v ?? 0).toFixed(2)} €`, ""]}
-                contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {visuals.map((v) => (
@@ -261,7 +261,7 @@ export function CompareOverview({ columns, products }: Props) {
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="font-mono text-xs font-bold text-[#E07200]">{m.sku}</span>
+                    <span className="font-mono text-xs font-bold text-warm">{m.sku}</span>
                     <span className="ml-2 truncate text-xs text-slate-500">{m.name}</span>
                   </div>
                   <span className="shrink-0 text-xs text-slate-400">
@@ -344,7 +344,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}

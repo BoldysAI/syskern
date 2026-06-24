@@ -28,6 +28,10 @@ import { FinalizeModal } from "./FinalizeModal";
 import { DuplicateModal } from "./DuplicateModal";
 import { cn } from "@/lib/utils";
 import { useAutosave } from "@/hooks/useAutosave";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
 import {
   SaleIncotermFields,
@@ -54,7 +58,7 @@ import {
 
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 interface Props {
   sim: SimulationDetail;
@@ -81,6 +85,7 @@ export function SimulationSidebar({
   onMarketParamsChange,
 }: Props) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<WizardDraft>(() => simulationToEditDraft(sim));
   const [marketOpen, setMarketOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
@@ -152,7 +157,7 @@ export function SimulationSidebar({
       await fn();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Action échouée");
+      toast.error(e instanceof Error ? e.message : "Action échouée");
     } finally {
       setBusy(null);
     }
@@ -170,7 +175,7 @@ export function SimulationSidebar({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white p-4">
+      <div className="sticky top-0 z-10 border-b border-border bg-white p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -178,7 +183,7 @@ export function SimulationSidebar({
               {!readOnly && (
                 <button
                   onClick={() => setContextOpen(true)}
-                  className="shrink-0 text-slate-400 hover:text-[#E07200]"
+                  className="shrink-0 text-slate-400 hover:text-warm"
                   aria-label="Modifier le contexte"
                 >
                   <Pencil size={14} />
@@ -186,22 +191,21 @@ export function SimulationSidebar({
               )}
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <span
-                className={cn(
-                  "inline-flex rounded px-2 py-0.5 text-xs font-semibold",
+              <StatusBadge
+                variant={
                   sim.status === "finalized"
-                    ? "bg-green-100 text-green-700"
+                    ? "success"
                     : sim.status === "archived"
-                      ? "bg-slate-100 text-slate-500"
-                      : "bg-amber-100 text-amber-700"
-                )}
+                      ? "draft"
+                      : "warning"
+                }
               >
                 {sim.status === "finalized"
                   ? "Finalisé"
                   : sim.status === "archived"
                     ? "Archivé"
                     : "Brouillon"}
-              </span>
+              </StatusBadge>
               {!readOnly && saveLabel && (
                 <span
                   className={cn(
@@ -244,7 +248,7 @@ export function SimulationSidebar({
             <button
               onClick={() => runAction("archive", () => archiveSimulation(sim.id))}
               disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               <Archive size={13} />
               Archiver
@@ -254,7 +258,7 @@ export function SimulationSidebar({
             <button
               onClick={() => runAction("unarchive", () => unarchiveSimulation(sim.id))}
               disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               <ArchiveRestore size={13} />
               Désarchiver
@@ -263,15 +267,21 @@ export function SimulationSidebar({
           <button
             onClick={() => setDuplicateOpen(true)}
             disabled={busy !== null}
-            className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
           >
             <Copy size={13} />
             Dupliquer
           </button>
           {!readOnly && (
             <button
-              onClick={() => {
-                if (!confirm(`Supprimer la simulation « ${sim.label} » ?`)) return;
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Supprimer la simulation",
+                  description: `Supprimer la simulation « ${sim.label} » ?`,
+                  confirmLabel: "Supprimer",
+                  destructive: true,
+                });
+                if (!ok) return;
                 runAction("delete", async () => {
                   await deleteSimulation(sim.id);
                   router.push("/simulator");
@@ -289,13 +299,13 @@ export function SimulationSidebar({
 
       <div className="flex flex-col gap-4 p-4">
         {/* Market params */}
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800">Marché</h3>
             {!readOnly && (
               <button
                 onClick={() => setMarketOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#C56400] hover:text-[#E07200]"
+                className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
               >
                 <Pencil size={13} />
                 Modifier
@@ -314,7 +324,7 @@ export function SimulationSidebar({
         </section>
 
         {/* Sale incoterm (CDC §6.8.3) */}
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-bold text-slate-800">Incoterm de vente</h3>
           <SaleIncotermFields
             incoterm={draft.saleIncoterm}
@@ -326,7 +336,7 @@ export function SimulationSidebar({
         </section>
 
         {/* Global params */}
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-bold text-slate-800">Paramètres globaux</h3>
           <div className="flex flex-col gap-4">
             <StockPurchaseMixSlider
@@ -374,8 +384,8 @@ export function SimulationSidebar({
                     className={cn(
                       "flex-1 rounded-lg border py-2 text-xs font-medium transition-colors disabled:opacity-50",
                       draft.symeaPosition === pos
-                        ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                        : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border text-slate-600 hover:bg-slate-50"
                     )}
                   >
                     {pos === "after_transports" ? "Après transports" : "Avant transports"}
@@ -391,7 +401,7 @@ export function SimulationSidebar({
           <button
             type="button"
             onClick={applyPurchaseFromSuppliers}
-            className="self-start text-xs font-medium text-[#E07200] hover:text-[#C56400] underline-offset-2 hover:underline"
+            className="self-start text-xs font-medium text-warm hover:text-accent-foreground underline-offset-2 hover:underline"
           >
             Adapter la chaîne PA depuis les fournisseurs
           </button>
@@ -441,7 +451,7 @@ export function SimulationSidebar({
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
           <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+            <div className="flex items-center justify-between border-b border-border p-5">
               <Dialog.Title className="text-lg font-semibold text-slate-900">
                 Contexte de la simulation
               </Dialog.Title>
@@ -461,8 +471,8 @@ export function SimulationSidebar({
                 onProjectName={(v) => update({ projectName: v })}
               />
             </div>
-            <div className="flex justify-end border-t border-[#E2E8F0] p-4">
-              <Dialog.Close className="rounded-lg bg-[#E07200] px-4 py-2 text-sm font-semibold text-white hover:bg-[#C56400]">
+            <div className="flex justify-end border-t border-border p-4">
+              <Dialog.Close className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90">
                 Fermer
               </Dialog.Close>
             </div>

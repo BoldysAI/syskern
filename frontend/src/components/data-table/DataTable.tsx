@@ -7,11 +7,13 @@ import type { DataTableColumnDef, DataTableProps } from "./types";
 import { isDefaultSort } from "./types";
 import { useColumnWidths } from "./useColumnWidths";
 
-const TH_CLASS =
-  "text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap select-none";
+import { Skeleton } from "@/components/ui/skeleton";
 
-function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded bg-slate-200", className)} />;
+const TH_CLASS =
+  "text-left text-xs font-semibold text-muted-foreground whitespace-nowrap select-none";
+
+function TableSkeleton({ className }: { className?: string }) {
+  return <Skeleton className={cn("h-4 w-full", className)} />;
 }
 
 function alignClass(align: DataTableColumnDef<unknown>["align"]): string {
@@ -72,7 +74,7 @@ export function DataTable<T>({
             ))}
             {hasTrailing && <col style={{ width: trailingWidth ?? 48 }} />}
           </colgroup>
-          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 shadow-sm backdrop-blur-sm">
+          <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 shadow-sm backdrop-blur-sm">
             <tr>
               {hasLeading && (
                 <th className="px-3 py-3">{renderLeadingHeader?.()}</th>
@@ -104,8 +106,8 @@ export function DataTable<T>({
                             "flex min-w-0 flex-1 items-center gap-1 px-4 py-3.5",
                             col.align === "right" && "justify-end text-right",
                             col.align === "center" && "justify-center",
-                            "transition-colors hover:text-slate-800",
-                            showSortState && "text-slate-800"
+                            "transition-colors hover:text-foreground",
+                            showSortState && "text-foreground"
                           )}
                           title="Trier : croissant, décroissant, puis défaut"
                         >
@@ -135,14 +137,14 @@ export function DataTable<T>({
                           className={cn(
                             "relative z-20 flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center",
                             resizingKey === col.key
-                              ? "bg-orange-200/70"
-                              : "opacity-60 hover:bg-orange-100/80 group-hover:opacity-100"
+                              ? "bg-primary/20"
+                              : "opacity-60 hover:bg-accent group-hover:opacity-100"
                           )}
                         >
                           <span
                             className={cn(
                               "h-5 w-0.5 rounded-full transition-colors",
-                              resizingKey === col.key ? "bg-orange-500" : "bg-slate-300"
+                              resizingKey === col.key ? "bg-primary" : "bg-border"
                             )}
                           />
                         </span>
@@ -154,13 +156,13 @@ export function DataTable<T>({
               {hasTrailing && <th className="w-10" />}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
               Array.from({ length: loadingRowCount }).map((_, i) => (
-                <tr key={i} className="bg-white">
+                <tr key={i} className="bg-card">
                   {hasLeading && (
                     <td className="px-3 py-3">
-                      <Skeleton className="h-4 w-4" />
+                      <TableSkeleton className="h-4 w-4" />
                     </td>
                   )}
                   {columns.map((col) => (
@@ -169,12 +171,12 @@ export function DataTable<T>({
                       className="overflow-hidden px-4 py-3"
                       style={{ width: widths[col.key], maxWidth: widths[col.key] }}
                     >
-                      <Skeleton className="h-4 w-full" />
+                      <TableSkeleton />
                     </td>
                   ))}
                   {hasTrailing && (
                     <td className="px-4 py-3">
-                      <Skeleton className="h-4 w-6" />
+                      <TableSkeleton className="h-4 w-6" />
                     </td>
                   )}
                 </tr>
@@ -193,9 +195,9 @@ export function DataTable<T>({
                   <tr
                     key={key}
                     className={cn(
-                      "border-b border-slate-100 transition-colors",
+                      "border-b border-border transition-colors",
                       onRowClick && "cursor-pointer",
-                      extraRowClass ?? "bg-white even:bg-slate-50/40 hover:bg-orange-50/50"
+                      extraRowClass ?? "bg-card even:bg-muted/30 hover:bg-accent/50"
                     )}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >

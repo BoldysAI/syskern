@@ -46,8 +46,8 @@ export function CommercialTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white border-2 border-[#E07200] rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold text-[#E07200] uppercase tracking-wide mb-1">
+        <div className="bg-white border-2 border-primary rounded-xl p-5 shadow-sm">
+          <div className="text-xs font-semibold text-warm uppercase tracking-wide mb-1">
             PAMP actuel
           </div>
           <div className="text-2xl font-bold text-slate-900 mt-2">
@@ -62,7 +62,7 @@ export function CommercialTab() {
           )}
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
           <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">
             Prix de vente actuel
           </div>
@@ -74,7 +74,7 @@ export function CommercialTab() {
           <div className="text-xs text-slate-400 mt-2">Dernière simulation finalisée</div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
           <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">
             Stock disponible
           </div>
@@ -99,10 +99,10 @@ export function CommercialTab() {
         </div>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+      <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <TrendingUp size={15} className="text-[#E07200]" />
+            <TrendingUp size={15} className="text-warm" />
             <h3 className="text-sm font-semibold text-slate-700">Historique PA / PR / PV</h3>
           </div>
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
@@ -113,7 +113,7 @@ export function CommercialTab() {
                 className={cn(
                   "px-3 py-1 rounded-md text-xs font-medium transition-colors",
                   period === p.id
-                    ? "bg-white text-[#E07200] shadow-sm"
+                    ? "bg-white text-warm shadow-sm"
                     : "text-slate-500 hover:text-slate-700",
                 )}
               >
@@ -159,7 +159,7 @@ export function CommercialTab() {
                 <Line
                   type="monotone"
                   dataKey="PR"
-                  stroke="#E07200"
+                  stroke="var(--warm)"
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   connectNulls
@@ -178,13 +178,13 @@ export function CommercialTab() {
         )}
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700 px-5 pt-5 pb-3">Fournisseurs</h3>
         {suppliers.length === 0 ? (
           <p className="px-5 pb-5 text-sm text-slate-400">Aucun fournisseur enregistré.</p>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-y border-[#E2E8F0]">
+            <thead className="bg-background border-y border-border">
               <tr>
                 {["Fournisseur", "Code usine", "Prix achat", "Devise", "Incoterm", "Actif"].map(
                   (h) => (
@@ -198,7 +198,7 @@ export function CommercialTab() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {suppliers.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">

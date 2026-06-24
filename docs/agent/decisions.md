@@ -326,3 +326,20 @@ Beaucoup préexistait (`set_status`, `duplicate`/`versions`, dashboard, expiring
 - **Champs : code fait foi** — pas de `total_amount_eur` sur `Offer` (le total est calculé depuis les lignes côté front/serializer) ; `expiration_date` du ticket = champ réel `valid_to` ; `gamma_doc_id` = `gamma_document_id`.
 - **UI** : page détail `/offers/[id]` (statut/version, compte à rebours expiration coloré J-7, document, chaîne de versions, lignes lecture seule, actions cycle de vie + prolonger + nouvelle version) ; liste `/offers` (label → détail, stat « CA gagné » via `won_total`). Lint+tsc propres ; `next build` vert.
 - **Tests (14)** : transitions (draft→sent OK, draft→won 400, sent→won projet, tariff→won 400), versioning V1→V2→V3 + chaîne, extend (OK, <7j 400, réactivation), cron (auto-expire sent, won intact, alerte J-5 envoyée, J-10 non, killswitch). Vérif live `:8000` (transitions + new-version + extend), puis nettoyage. Worker+beat redéployés (tâche + schedule enregistrés).
+
+## 2026-06-23 · [P] Palette UI = brand guidelines Unikkern (refonte visuelle frontend)
+Modernisation UI Syskern alignée sur les brand guidelines Unikkern (PDF officiel). Décisions :
+- **Palette** : navy `#162F56`, vert `#649E5F` (CTA primaire + identité syskern), orange `#F78F26` (accent pricing/warm), bleu `#09B0E6` (info), rose `#C92359` (destructif). Les anciennes couleurs code (`#0F2137`, `#E07200`) étaient hors charte → remplacées par tokens CSS (`brand-*`, `primary`, `warm`) dans `globals.css`.
+- **Typo** : Nunito (guideline §5), via `next/font/google`. Remplace Inter/Plus Jakarta.
+- **Design system** : shadcn/ui (style base-nova) + Tailwind 4 `@theme`. Composants dans `components/ui/` ; wrappers métier (`BrandLogo`, `PageHeader`, `EmptyState`, `FormField`, `StatusBadge`, `KpiCard`).
+- **Logos** : `public/syskern-logo.png`, `public/unnikkern-logo.png` ; composant `BrandLogo`. Login dual-brand (syskern + mention Unikkern).
+- **Périmètre** : refonte visuelle uniquement — pas de changement logique métier MVP1. Dark mode hors scope (tokens préparés).
+
+## 2026-06-24 · [P] Refonte UI phase 1 — Plus Jakarta Sans, Phosphor, dashboard d'accueil
+Suite audit UI et modernisation démo :
+- **Typo** : **Plus Jakarta Sans** remplace Nunito pour un rendu SaaS B2B plus contemporain. Écart assumé aux brand guidelines Unikkern (§5 Nunito) — palette couleurs inchangée.
+- **Icônes** : `@phosphor-icons/react` + wrapper `AppIcon` (duotone nav/dashboard). Lucide conservé pour primitives shadcn internes.
+- **Accueil** : `/` = tableau de bord simplifié (KPIs Catalogue/Simulations/Offres/Bibliothèque, raccourcis, activité récente) au lieu de `redirect("/catalog")`. Post-login → `/`.
+- **Composants** : primitives shadcn ajoutées (`slider`, `sheet`, `popover`, `accordion`, `command`, `radio-group`) ; wrappers `FilterSection`, `FilterCheckboxGroup`, `MixSlider`.
+- **Ombres** : tokens `--shadow-soft`, `--shadow-card`, `--shadow-elevated` dans `globals.css`.
+- Dark mode et vue carte mobile catalogue : **hors scope** explicite.

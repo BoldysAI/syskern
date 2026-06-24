@@ -40,7 +40,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
             "flex flex-col focus:outline-none data-[state=open]:animate-in"
           )}
         >
-          <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between p-5 border-b border-border">
             <Dialog.Title className="text-base font-semibold text-slate-900 font-mono truncate">
               {sku}
             </Dialog.Title>
@@ -98,11 +98,11 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
             )}
           </div>
 
-          <div className="p-5 border-t border-[#E2E8F0]">
+          <div className="p-5 border-t border-border">
             {sku && (
               <Link
                 href={`/catalog/${encodeURIComponent(sku)}`}
-                className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors"
+                className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Ouvrir la fiche complète
                 <ArrowUpRight size={16} />

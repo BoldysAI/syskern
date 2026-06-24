@@ -34,7 +34,7 @@ const INCOTERMS_FALLBACK = [
 const CURRENCIES: Currency[] = ["EUR", "USD", "RMB"];
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 export interface SupplierManagerProps {
   suppliers: ProductSupplier[];
@@ -160,18 +160,18 @@ function SupplierFields({
                 <Select.Content
                   position="popper"
                   sideOffset={4}
-                  className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+                  className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
                 >
                   <Select.Viewport className="p-1 max-h-56">
                     {existingNames.map((name) => (
                       <Select.Item
                         key={name}
                         value={name}
-                        className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                        className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                       >
                         <Select.ItemText>{name}</Select.ItemText>
                         <Select.ItemIndicator>
-                          <Check size={14} className="text-[#E07200]" />
+                          <Check size={14} className="text-warm" />
                         </Select.ItemIndicator>
                       </Select.Item>
                     ))}
@@ -256,7 +256,7 @@ function SupplierFields({
           onClick={() => onChange({ is_copper_indexed: !(value.is_copper_indexed === true) })}
           className={cn(
             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50",
-            value.is_copper_indexed ? "bg-[#E07200]" : "bg-slate-300",
+            value.is_copper_indexed ? "bg-primary" : "bg-slate-300",
           )}
         >
           <span
@@ -319,18 +319,18 @@ function CurrencySelect({
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {CURRENCIES.map((c) => (
               <Select.Item
                 key={c}
                 value={c}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
               >
                 <Select.ItemText>{c}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -365,7 +365,7 @@ function IncotermSelect({
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+          className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {codes.map((code) => {
@@ -375,13 +375,13 @@ function IncotermSelect({
                 <Select.Item
                   key={code}
                   value={code}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                 >
                   <Select.ItemText>
                     {code} — {label}
                   </Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-[#E07200]" />
+                    <Check size={14} className="text-warm" />
                   </Select.ItemIndicator>
                 </Select.Item>
               );
@@ -425,17 +425,17 @@ function SupplierCard({
     <div
       className={cn(
         "rounded-xl border p-4 shadow-sm bg-white",
-        supplier.is_active ? "border-[#E07200]" : "border-[#E2E8F0]",
+        supplier.is_active ? "border-primary" : "border-border",
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-3">
         <span
           className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold",
-            supplier.is_active ? "bg-[#FFF3E0] text-[#C56400]" : "bg-slate-100 text-slate-500",
+            supplier.is_active ? "bg-accent text-accent-foreground" : "bg-slate-100 text-slate-500",
           )}
         >
-          {supplier.is_active && <Star size={12} className="fill-[#E07200] text-[#E07200]" />}
+          {supplier.is_active && <Star size={12} className="fill-warm text-warm" />}
           {supplier.is_active ? "Source active" : "Inactive"}
         </span>
         {!readOnly && (
@@ -445,7 +445,7 @@ function SupplierCard({
                 type="button"
                 disabled={busy}
                 onClick={() => run(() => onActivate(supplier.id))}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#E07200] border border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-warm border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
               >
                 <Star size={13} />
                 Définir comme active
@@ -468,7 +468,7 @@ function SupplierCard({
             type="button"
             disabled={busy}
             onClick={() => setDraft(toInput(supplier))}
-            className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-50"
+            className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-50"
           >
             Annuler
           </button>
@@ -476,7 +476,7 @@ function SupplierCard({
             type="button"
             disabled={busy || !isValid(draft)}
             onClick={() => run(() => onUpdate(supplier.id, sanitize(draft)))}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
             Enregistrer
@@ -504,7 +504,7 @@ function DeleteSupplierButton({
           type="button"
           disabled={disabled}
           aria-label="Supprimer le fournisseur"
-          className="inline-flex items-center justify-center h-8 w-8 text-slate-400 border border-[#E2E8F0] rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          className="inline-flex items-center justify-center h-8 w-8 text-slate-400 border border-border rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         >
           <Trash2 size={14} />
         </button>
@@ -521,7 +521,7 @@ function DeleteSupplierButton({
             irréversible.
           </Dialog.Description>
           <div className="flex justify-end gap-3 mt-5">
-            <Dialog.Close className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600">
+            <Dialog.Close className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600">
               Annuler
             </Dialog.Close>
             <button
@@ -613,7 +613,7 @@ export function SupplierManager({
       ))}
 
       {adding && !readOnly && (
-        <div className="rounded-xl border border-dashed border-[#E07200]/40 p-4 bg-[#FFFBF5]">
+        <div className="rounded-xl border border-dashed border-primary/40 p-4 bg-[#FFFBF5]">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-slate-700">Nouveau fournisseur</h4>
             <button
@@ -643,8 +643,8 @@ export function SupplierManager({
                   className={cn(
                     "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                     linkMode === mode
-                      ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                      : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                      ? "border-primary bg-accent text-accent-foreground"
+                      : "border-border text-slate-600 hover:bg-slate-50",
                   )}
                 >
                   {mode === "existing" ? "Fournisseur existant" : "Nouveau fournisseur"}
@@ -666,7 +666,7 @@ export function SupplierManager({
               type="button"
               disabled={busy || !isValid(newSupplier)}
               onClick={handleCreate}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
               Ajouter le fournisseur
@@ -679,7 +679,7 @@ export function SupplierManager({
         <button
           type="button"
           onClick={openAddForm}
-          className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm font-medium text-[#E07200] border border-dashed border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]"
+          className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50"
         >
           <Plus size={15} />
           Ajouter un fournisseur

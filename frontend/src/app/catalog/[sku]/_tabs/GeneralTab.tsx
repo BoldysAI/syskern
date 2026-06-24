@@ -13,7 +13,7 @@ export function GeneralTab({ onTranslate, translating }: GeneralTabProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Informations générales</h3>
           <Field field="sku_code" label="SKU" readOnly />
           <Field field="name" label="Nom" />
@@ -24,7 +24,7 @@ export function GeneralTab({ onTranslate, translating }: GeneralTabProps) {
           <Field field="sub_range" label="Sous-gamme" />
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Identifiants</h3>
           <Field field="gtin" label="GTIN" />
           <Field field="hs_code" label="Code HS" />

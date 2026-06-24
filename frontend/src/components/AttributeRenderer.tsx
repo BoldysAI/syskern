@@ -19,7 +19,7 @@ interface AttributeRendererProps {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:bg-slate-50 disabled:text-slate-400";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400";
 
 /** Pick the best localized string from a multilingual map. */
 export function localize(map: Record<string, string> | undefined | null, lang = "fr"): string {
@@ -198,7 +198,7 @@ function EditWidget({
           onClick={() => emit(!on)}
           className={cn(
             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-            on ? "bg-[#E07200]" : "bg-slate-300",
+            on ? "bg-primary" : "bg-slate-300",
           )}
         >
           <span
@@ -261,18 +261,18 @@ function SelectWidget({
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {(attribute.options ?? []).map((opt) => (
               <Select.Item
                 key={opt.value}
                 value={opt.value}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
               >
                 <Select.ItemText>{localize(opt.label, lang)}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -303,7 +303,7 @@ function MultiSelectWidget({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-[#E2E8F0] rounded-lg">
+      <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-border rounded-lg">
         {selected.length === 0 && (
           <span className="text-sm text-slate-300 px-1 py-0.5">Aucune sélection</span>
         )}
@@ -312,14 +312,14 @@ function MultiSelectWidget({
           return (
             <span
               key={v}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#FFF3E0] text-[#C56400] text-xs font-medium"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent text-accent-foreground text-xs font-medium"
             >
               {opt ? localize(opt.label, lang) : v}
               <button
                 type="button"
                 onClick={() => remove(v)}
                 aria-label={`Retirer ${v}`}
-                className="hover:text-[#E07200]"
+                className="hover:text-warm"
               >
                 <X size={12} />
               </button>
@@ -329,7 +329,7 @@ function MultiSelectWidget({
       </div>
       {remaining.length > 0 && (
         <Select.Root value="" onValueChange={(v) => v && add(v)}>
-          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-[#E07200] border border-dashed border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]">
+          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50">
             <Plus size={13} />
             Ajouter
           </Select.Trigger>
@@ -337,14 +337,14 @@ function MultiSelectWidget({
             <Select.Content
               position="popper"
               sideOffset={4}
-              className="z-50 bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+              className="z-50 bg-white border border-border rounded-lg shadow-lg overflow-hidden"
             >
               <Select.Viewport className="p-1">
                 {remaining.map((opt) => (
                   <Select.Item
                     key={opt.value}
                     value={opt.value}
-                    className="px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                    className="px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>{localize(opt.label, lang)}</Select.ItemText>
                   </Select.Item>
@@ -378,7 +378,7 @@ export function AttributeRenderer({
   return (
     <div
       className={cn(
-        "gap-3 py-2.5 border-b border-[#E2E8F0] last:border-0",
+        "gap-3 py-2.5 border-b border-border last:border-0",
         isMultiline ? "flex flex-col" : "flex items-center justify-between",
       )}
     >

@@ -71,9 +71,9 @@ export function SaveComparisonModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+          <div className="flex items-center justify-between border-b border-border p-5">
             <Dialog.Title className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <Bookmark size={18} className="text-[#E07200]" />
+              <Bookmark size={18} className="text-warm" />
               Enregistrer la comparaison
             </Dialog.Title>
             <Dialog.Close
@@ -106,7 +106,7 @@ export function SaveComparisonModal({
                 }}
                 placeholder="Ex. Tarif Q2 vs Q3"
                 autoComplete="off"
-                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#E07200] focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
             <div>
@@ -119,7 +119,7 @@ export function SaveComparisonModal({
                 disabled={running}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
-                className="mt-2 w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#E07200] focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                className="mt-2 w-full resize-none rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
             {error && (
@@ -127,12 +127,12 @@ export function SaveComparisonModal({
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-[#E2E8F0] p-4">
+          <div className="flex justify-end gap-2 border-t border-border p-4">
             <button
               type="button"
               onClick={close}
               disabled={running}
-              className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Annuler
             </button>
@@ -140,7 +140,7 @@ export function SaveComparisonModal({
               type="button"
               onClick={handleSave}
               disabled={running || !label.trim()}
-              className="flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
             >
               {running && <Loader2 size={14} className="animate-spin" />}
               Enregistrer

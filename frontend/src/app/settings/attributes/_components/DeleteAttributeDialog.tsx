@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import Modal from "./Modal";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 font-mono";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 font-mono";
 
 /**
  * Explicit delete confirmation (CDC §4.1.4). Shows how many
@@ -83,7 +83,7 @@ export default function DeleteAttributeDialog({
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+          className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
         >
           Annuler
         </button>

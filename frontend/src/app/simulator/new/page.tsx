@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { addSimulationLines, createSimulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
 import { ParamsStep } from "./_components/ParamsStep";
 import { SkuStep } from "./_components/SkuStep";
 import { TypeStep } from "./_components/TypeStep";
@@ -89,7 +90,7 @@ export default function NewSimulationPage() {
         Retour aux simulations
       </Link>
 
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">Nouvelle simulation</h1>
+      <PageHeader title="Nouvelle simulation" className="mb-6" />
 
       {/* Stepper */}
       <ol className="flex items-center gap-2 mb-8">
@@ -108,10 +109,10 @@ export default function NewSimulationPage() {
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold border-2 transition-colors",
                     active
-                      ? "border-[#E07200] bg-[#E07200] text-white"
+                      ? "border-primary bg-primary text-white"
                       : done
-                        ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                        : "border-[#E2E8F0] text-slate-400"
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border text-slate-400"
                   )}
                 >
                   {s.id}
@@ -129,7 +130,7 @@ export default function NewSimulationPage() {
                 <span
                   className={cn(
                     "h-0.5 flex-1 rounded-full",
-                    step > s.id ? "bg-[#E07200]" : "bg-[#E2E8F0]"
+                    step > s.id ? "bg-primary" : "bg-border"
                   )}
                 />
               )}
@@ -193,11 +194,11 @@ export default function NewSimulationPage() {
       </div>
 
       {/* Footer nav */}
-      <div className="flex items-center justify-between border-t border-[#E2E8F0] pt-5">
+      <div className="flex items-center justify-between border-t border-border pt-5">
         <button
           type="button"
           onClick={() => (step > 1 ? setStep((s) => s - 1) : router.push("/simulator"))}
-          className="px-4 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+          className="px-4 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
         >
           {step > 1 ? "Précédent" : "Annuler"}
         </button>
@@ -206,7 +207,7 @@ export default function NewSimulationPage() {
           type="button"
           onClick={goNext}
           disabled={(step === 1 && !step1Ok) || (step === 3 && !step3Valid) || saving}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-5 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving && <Loader2 size={15} className="animate-spin" />}
           {step < 3 ? (

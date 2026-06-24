@@ -31,7 +31,7 @@ export function StockPurchaseMixSlider({
         <span className="text-xs text-slate-500">
           <span className="font-semibold text-slate-700">{purchasePct}% achat</span>
           {" · "}
-          <span className="font-semibold text-[#C56400]">{stockPct}% stock</span>
+          <span className="font-semibold text-accent-foreground">{stockPct}% stock</span>
         </span>
       </div>
 
@@ -43,7 +43,7 @@ export function StockPurchaseMixSlider({
           aria-hidden
         />
         <div
-          className="absolute inset-y-0 right-0 bg-[#E07200]/80 transition-[width] duration-75"
+          className="absolute inset-y-0 right-0 bg-primary/80 transition-[width] duration-75"
           style={{ width: `${stockPct}%` }}
           aria-hidden
         />
@@ -57,7 +57,7 @@ export function StockPurchaseMixSlider({
         disabled={disabled}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         aria-valuetext={`${purchasePct} pour cent achat, ${stockPct} pour cent stock`}
-        className="w-full accent-[#E07200]"
+        className="w-full accent-primary"
       />
 
       <div className="flex justify-between text-xs font-medium">
@@ -65,7 +65,7 @@ export function StockPurchaseMixSlider({
           <span>Achat (PA)</span>
           <span className="font-normal text-slate-400">100% achat à gauche</span>
         </span>
-        <span className="flex flex-col items-end text-[#C56400]">
+        <span className="flex flex-col items-end text-accent-foreground">
           <span>Stock (PAMP)</span>
           <span className="font-normal text-slate-400">100% stock à droite</span>
         </span>

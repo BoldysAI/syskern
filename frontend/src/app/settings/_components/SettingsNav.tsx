@@ -25,7 +25,7 @@ export default function SettingsNav() {
   const activeTab = searchParams.get("tab") ?? "marche";
 
   return (
-    <div className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
+    <div className="flex gap-0.5 bg-white border border-border rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
       {ITEMS.map(({ id, label, href, Icon }) => {
         const active = id === "attributes" ? onAttributes : !onAttributes && activeTab === id;
         return (
@@ -36,7 +36,7 @@ export default function SettingsNav() {
             className={cn(
               "flex items-center gap-2 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
               active
-                ? "bg-[#E07200] text-white"
+                ? "bg-primary text-white"
                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
             )}
           >

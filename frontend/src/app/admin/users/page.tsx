@@ -6,6 +6,8 @@ import { Plus, Pencil, Trash2, UserCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { toast } from "sonner";
 import type { Role } from "@/lib/auth";
 
 interface PlatformUser {
@@ -116,7 +118,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
             <div>
@@ -124,7 +126,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
           </div>
@@ -136,7 +138,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
           </div>
 
@@ -150,7 +152,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
           </div>
 
@@ -159,7 +161,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as Role)}
-              className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] bg-white"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
             >
               <option value="admin">Administrateur</option>
               <option value="commercial">Commercial</option>
@@ -171,14 +173,14 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
+              className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 transition-colors text-slate-600"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-60"
+              className="flex-1 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-60"
             >
               {loading ? "Enregistrement..." : user ? "Mettre à jour" : "Créer"}
             </button>
@@ -190,6 +192,7 @@ function UserModal({ user, onClose }: { user?: PlatformUser; onClose: () => void
 }
 
 export default function UsersPage() {
+  const confirm = useConfirm();
   const { role } = useAuth();
   const router = useRouter();
   const [modalUser, setModalUser] = useState<PlatformUser | "new" | null>(null);
@@ -214,14 +217,14 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setModalUser("new")}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#E07200] hover:bg-[#C56400] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
         >
           <Plus size={16} />
           Nouvel utilisateur
         </button>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         {error ? (
           <div className="py-16 text-center text-slate-400 text-sm">
             Impossible de charger les utilisateurs.
@@ -230,7 +233,7 @@ export default function UsersPage() {
           <div className="py-16 text-center text-slate-400 text-sm">Chargement…</div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+            <thead className="bg-background border-b border-border">
               <tr>
                 {["Utilisateur", "E-mail", "Rôle", "Dernière connexion", "Actions"].map((h) => (
                   <th
@@ -242,12 +245,12 @@ export default function UsersPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {users?.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#0F2137] flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-[brand-navy] flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-xs font-bold">
                           {u.first_name?.[0] ?? u.email[0].toUpperCase()}
                         </span>
@@ -291,19 +294,25 @@ export default function UsersPage() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setModalUser(u)}
-                        className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg transition-colors"
                         title="Modifier"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={async () => {
-                          if (!confirm(`Supprimer ${u.email} ?`)) return;
+                          const ok = await confirm({
+                            title: "Supprimer l'utilisateur",
+                            description: `Supprimer ${u.email} ?`,
+                            confirmLabel: "Supprimer",
+                            destructive: true,
+                          });
+                          if (!ok) return;
                           try {
                             await apiCall(`/api/users/${u.id}/`, "DELETE");
                             await mutate("platform-users");
                           } catch (err: unknown) {
-                            alert(err instanceof Error ? err.message : "Erreur");
+                            toast.error(err instanceof Error ? err.message : "Erreur");
                           }
                         }}
                         className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

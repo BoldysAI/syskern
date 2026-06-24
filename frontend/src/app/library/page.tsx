@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { Download, Eye, FileText, History, Plus, Trash2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { toast } from "sonner";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -177,7 +179,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           onClick={() => inputRef.current?.click()}
           className={cn(
             "mb-4 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center text-sm",
-            dragOver ? "border-[#E07200] bg-[#FFF3E0]" : "border-[#E2E8F0] text-slate-500",
+            dragOver ? "border-primary bg-accent" : "border-border text-slate-500",
           )}
         >
           <Upload size={22} className="text-slate-400" />
@@ -203,7 +205,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -217,7 +219,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
             >
               {LANGS.map((l) => (
                 <option key={l.code} value={l.code}>
@@ -239,13 +241,13 @@ function UploadModal({ onClose }: { onClose: () => void }) {
               setProductId("");
             }}
             placeholder="Rechercher un SKU ou un nom…"
-            className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           {productId && (
             <span className="mt-1 inline-block text-xs text-green-600">Produit lié ✓</span>
           )}
           {productMatches.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-lg">
+            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-white shadow-lg">
               {productMatches.map((p) => (
                 <button
                   key={p.id}
@@ -268,21 +270,21 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
 
         <div className="mt-5 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 rounded-lg border border-[#E2E8F0] py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+            className="flex-1 rounded-lg border border-border py-2.5 text-sm text-slate-600 hover:bg-slate-50"
           >
             Annuler
           </button>
           <button
             onClick={submit}
             disabled={!file || busy}
-            className="flex-1 rounded-lg bg-[#E07200] py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-50"
+            className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
           >
             {busy ? "Envoi…" : "Uploader"}
           </button>
@@ -301,7 +303,7 @@ function PreviewModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="flex h-[85vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-3">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <span className="truncate text-sm font-medium text-slate-800">{docLabel(doc)}</span>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600">
             <X size={18} />
@@ -317,7 +319,7 @@ function PreviewModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
             <div className="text-center text-sm text-slate-500">
               <FileText size={40} className="mx-auto mb-2 text-slate-300" />
               Aperçu indisponible pour ce format.
-              <a href={doc.download_url} className="mt-2 block font-medium text-[#E07200]">
+              <a href={doc.download_url} className="mt-2 block font-medium text-warm">
                 Télécharger
               </a>
             </div>
@@ -345,7 +347,7 @@ function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
           {(data ?? []).map((v) => (
             <div
               key={v.id}
-              className="flex items-center justify-between rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm"
+              className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
             >
               <span>
                 <span className="font-medium">v{v.version}</span>{" "}
@@ -353,7 +355,7 @@ function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
                   · {new Date(v.created_at).toLocaleDateString("fr-FR")}
                 </span>
               </span>
-              <a href={v.download_url} className="text-xs font-medium text-[#E07200]">
+              <a href={v.download_url} className="text-xs font-medium text-warm">
                 Télécharger
               </a>
             </div>
@@ -367,6 +369,7 @@ function VersionsModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
+  const confirm = useConfirm();
   const [category, setCategory] = useState("");
   const [language, setLanguage] = useState("");
   const [showUpload, setShowUpload] = useState(false);
@@ -386,7 +389,13 @@ export default function LibraryPage() {
   const docs = data?.results ?? [];
 
   const remove = async (d: Doc) => {
-    if (!confirm(`Supprimer « ${docLabel(d)} » ? (conservé 30 jours puis purgé)`)) return;
+    const ok = await confirm({
+      title: "Supprimer le document",
+      description: `Supprimer « ${docLabel(d)} » ? (conservé 30 jours puis purgé)`,
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/document-library/${d.id}/`, {
       method: "DELETE",
       credentials: "include",
@@ -406,7 +415,7 @@ export default function LibraryPage() {
         </div>
         <button
           onClick={() => setShowUpload(true)}
-          className="flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#C56400]"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"
         >
           <Plus size={16} /> Ajouter
         </button>
@@ -416,7 +425,7 @@ export default function LibraryPage() {
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm"
+          className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
         >
           <option value="">Toutes catégories</option>
           {CATEGORIES.map((c) => (
@@ -428,7 +437,7 @@ export default function LibraryPage() {
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm"
+          className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
         >
           <option value="">Toutes langues</option>
           {LANGS.filter((l) => l.code).map((l) => (
@@ -439,7 +448,7 @@ export default function LibraryPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
         {error ? (
           <div className="py-16 text-center text-sm text-slate-400">Erreur de chargement.</div>
         ) : isLoading ? (
@@ -451,7 +460,7 @@ export default function LibraryPage() {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="border-b border-[#E2E8F0] bg-[#F5F7FA]">
+            <thead className="border-b border-border bg-background">
               <tr>
                 {["Document", "Catégorie", "Langue", "Produit", "Ver.", "Taille", "Actions"].map(
                   (h) => (
@@ -465,7 +474,7 @@ export default function LibraryPage() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {docs.map((d) => (
                 <tr key={d.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
@@ -491,7 +500,7 @@ export default function LibraryPage() {
                       <a
                         href={d.download_url}
                         title="Télécharger"
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-[#FFF3E0] hover:text-[#E07200]"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-accent/50 hover:text-warm"
                       >
                         <Download size={15} />
                       </a>
@@ -534,7 +543,7 @@ function IconBtn({
       onClick={onClick}
       className={cn(
         "rounded-lg p-1.5 text-slate-400 transition-colors",
-        danger ? "hover:bg-red-50 hover:text-red-500" : "hover:bg-[#FFF3E0] hover:text-[#E07200]",
+        danger ? "hover:bg-red-50 hover:text-red-500" : "hover:bg-accent/50 hover:text-warm",
       )}
     >
       {children}

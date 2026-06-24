@@ -36,8 +36,8 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[#E2E8F0] bg-white shadow-xl">
-          <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-white shadow-xl">
+          <div className="flex items-start justify-between border-b border-border px-5 py-4">
             <div className="min-w-0 pr-4">
               <Dialog.Title className="text-base font-semibold text-slate-900">
                 Diagnostic de calcul
@@ -67,7 +67,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
             </div>
 
             {(incCtx?.sale_incoterm || incCtx?.purchase_incoterm) && (
-              <section className="rounded-lg border border-[#E2E8F0] bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+              <section className="rounded-lg border border-border bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Incoterms au calcul
                 </h3>
@@ -140,10 +140,10 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
             )}
           </div>
 
-          <div className="flex justify-end border-t border-[#E2E8F0] px-5 py-3">
+          <div className="flex justify-end border-t border-border px-5 py-3">
             <Link
               href={productEditHref(line.product_sku, [...errors, ...warnings], fromSimulation)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#C56400]"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
             >
               <Pencil size={14} />
               Modifier le produit

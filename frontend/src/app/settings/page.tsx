@@ -23,6 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { toast } from "sonner";
 import {
   listMarketParameters,
   createMarketParameter,
@@ -48,7 +50,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 
 function todayIso(): string {
@@ -68,7 +70,7 @@ function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
+        <div className="flex items-center justify-between p-5 border-b border-border">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={20} />
@@ -155,8 +157,8 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                   type === t
-                    ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                    : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                    ? "border-primary bg-accent text-accent-foreground"
+                    : "border-border text-slate-600 hover:bg-slate-50",
                   param && "opacity-60 cursor-not-allowed",
                 )}
               >
@@ -279,7 +281,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
             type="checkbox"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+            className="w-4 h-4 rounded border-slate-300 accent-primary"
           />
           Actif
         </label>
@@ -308,14 +310,14 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+            className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
           >
             Annuler
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {param ? "Mettre à jour" : "Créer"}
@@ -327,18 +329,25 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
 }
 
 function TabMarche() {
+  const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<MarketParameter[]>("market-params", () =>
     listMarketParameters(),
   );
   const [editing, setEditing] = useState<MarketParameter | "new" | null>(null);
 
   const handleDelete = async (p: MarketParameter) => {
-    if (!confirm("Supprimer ce paramètre ?")) return;
+    const ok = await confirm({
+      title: "Supprimer le paramètre",
+      description: "Supprimer ce paramètre ?",
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deleteMarketParameter(p.id);
       await globalMutate("market-params");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Suppression échouée");
+      toast.error(e instanceof Error ? e.message : "Suppression échouée");
     }
   };
 
@@ -351,14 +360,14 @@ function TabMarche() {
         </p>
         <button
           onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium"
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium"
         >
           <Plus size={14} />
           Nouveau paramètre
         </button>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         {error ? (
           <div className="py-12 text-center text-sm text-slate-400">
             Impossible de charger les paramètres.
@@ -374,7 +383,7 @@ function TabMarche() {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+            <thead className="bg-background border-b border-border">
               <tr>
                 {["Type", "Détail", "Valide du", "Au", "Actif", ""].map((h) => (
                   <th
@@ -386,7 +395,7 @@ function TabMarche() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {data.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 text-sm font-medium text-slate-800">
@@ -413,7 +422,7 @@ function TabMarche() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setEditing(p)}
-                        className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg"
+                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg"
                         title="Modifier"
                       >
                         <Pencil size={14} />
@@ -538,7 +547,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
             type="checkbox"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+            className="w-4 h-4 rounded border-slate-300 accent-primary"
           />
           Actif
         </label>
@@ -546,14 +555,14 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+            className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
           >
             Annuler
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {mode ? "Mettre à jour" : "Créer"}
@@ -565,18 +574,25 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
 }
 
 function TabTransport() {
+  const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<TransportMode[]>("transport-modes", () =>
     listTransportModes(),
   );
   const [editing, setEditing] = useState<TransportMode | "new" | null>(null);
 
   const handleDelete = async (m: TransportMode) => {
-    if (!confirm(`Supprimer le mode "${m.code}" ?`)) return;
+    const ok = await confirm({
+      title: "Supprimer le mode de transport",
+      description: `Supprimer le mode « ${m.code} » ?`,
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deleteTransportMode(m.id);
       await globalMutate("transport-modes");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Suppression échouée");
+      toast.error(e instanceof Error ? e.message : "Suppression échouée");
     }
   };
 
@@ -588,14 +604,14 @@ function TabTransport() {
         </p>
         <button
           onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium"
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium"
         >
           <Plus size={14} />
           Nouveau mode
         </button>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         {error ? (
           <div className="py-12 text-center text-sm text-slate-400">Impossible de charger.</div>
         ) : isLoading ? (
@@ -607,7 +623,7 @@ function TabTransport() {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+            <thead className="bg-background border-b border-border">
               <tr>
                 {["Code", "Libellé", "Catégorie", "Capacité palette", "Actif", ""].map((h) => (
                   <th
@@ -619,7 +635,7 @@ function TabTransport() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {data.map((m) => (
                 <tr key={m.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">
@@ -644,7 +660,7 @@ function TabTransport() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setEditing(m)}
-                        className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg"
+                        className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg"
                         title="Modifier"
                       >
                         <Pencil size={14} />
@@ -741,7 +757,7 @@ function TabOdoo() {
     <div className="flex flex-col gap-6">
       {/* Health + manual trigger */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1 bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="lg:col-span-1 bg-white border border-border rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
               Santé Odoo
@@ -766,7 +782,7 @@ function TabOdoo() {
           <p className="text-xs text-slate-400 mt-2">Test toutes les 30 s</p>
         </div>
 
-        <div className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+        <div className="lg:col-span-2 bg-white border border-border rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
               Synchronisation manuelle
@@ -783,7 +799,7 @@ function TabOdoo() {
               value={scope}
               onChange={(e) => setScope(e.target.value as typeof scope)}
               disabled={syncing}
-              className="flex-1 min-w-[260px] px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:opacity-50"
+              className="flex-1 min-w-[260px] px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
             >
               {SYNC_SCOPES.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -794,7 +810,7 @@ function TabOdoo() {
             <button
               onClick={handleTrigger}
               disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
             >
               {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
               {syncing ? "Sync en cours…" : "Lancer la synchronisation"}
@@ -810,8 +826,8 @@ function TabOdoo() {
       </div>
 
       {/* Logs */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#E2E8F0]">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-border">
           <h3 className="text-sm font-semibold text-slate-700">Historique des synchronisations</h3>
         </div>
         {!logs ? (
@@ -824,7 +840,7 @@ function TabOdoo() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+              <thead className="bg-background border-b border-border">
                 <tr>
                   {[
                     "Date",
@@ -845,7 +861,7 @@ function TabOdoo() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0]">
+              <tbody className="divide-y divide-border">
                 {logs.map((l) => {
                   const b = syncStatusBadge(l.status);
                   return (
@@ -932,7 +948,7 @@ function TabAlerts() {
         n&apos;est envoyée.
       </p>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-5">
+      <div className="bg-white border border-border rounded-xl shadow-sm p-5">
         {error && (
           <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             {error}
@@ -976,16 +992,16 @@ function TabAlerts() {
             <button
               type="button"
               onClick={() => edit([...recipients, ""])}
-              className="mt-3 flex items-center gap-1.5 text-sm text-[#E07200] hover:text-[#C56400] font-medium"
+              className="mt-3 flex items-center gap-1.5 text-sm text-warm hover:text-accent-foreground font-medium"
             >
               <Plus size={14} /> Ajouter une adresse
             </button>
 
-            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-[#E2E8F0]">
+            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-border">
               <button
                 onClick={save}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-50"
               >
                 {saving && <Loader2 size={14} className="animate-spin" />}
                 Enregistrer
@@ -1026,7 +1042,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs.Root defaultValue="marche">
-        <Tabs.List className="flex gap-0.5 bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
+        <Tabs.List className="flex gap-0.5 bg-white border border-border rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
           {TABS.map(({ id, label, Icon }) => (
             <Tabs.Trigger
               key={id}
@@ -1034,7 +1050,7 @@ export default function SettingsPage() {
               className={cn(
                 "flex items-center gap-2 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                 "text-slate-500 hover:text-slate-800",
-                "data-[state=active]:bg-[#E07200] data-[state=active]:text-white",
+                "data-[state=active]:bg-primary data-[state=active]:text-white",
               )}
             >
               <Icon size={14} />

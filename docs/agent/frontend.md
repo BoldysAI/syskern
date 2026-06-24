@@ -24,8 +24,9 @@ Tiens compte de toutes les dépréciations.
 | React 19 | UI |
 | TypeScript 5 | Typage |
 | Tailwind CSS 4 | Styles (config PostCSS — PAS de `tailwind.config.js`) |
+| shadcn/ui (base-nova) | Composants UI (`components/ui/`) — Button, Card, Dialog, etc. |
 | SWR 2 | Data fetching / cache client |
-| Radix UI | Primitives headless (Dialog, Select, Tabs, Tooltip…) |
+| Radix UI / Base UI | Primitives headless sous shadcn |
 | Lucide React | Icônes |
 | Recharts | Graphiques (PA/PR/PV) |
 | `clsx` + `tailwind-merge` | `cn()` utilitaire dans `lib/utils.ts` |
@@ -423,6 +424,67 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 
 ---
 
+## Identité visuelle (Unikkern brand guidelines)
+
+### Palette officielle
+
+| Token Tailwind | HEX | Usage |
+|---|---|---|
+| `brand-navy` | `#162F56` | Sidebar, texte principal |
+| `brand-green` / `primary` | `#649E5F` | CTA primaire, nav active, succès |
+| `brand-orange` / `warm` | `#F78F26` | Accent pricing, liens SKU, KPIs cuivre |
+| `brand-blue` | `#09B0E6` | Info, états en cours |
+| `brand-pink` / `destructive` | `#C92359` | Erreur, actions destructives |
+
+Tokens sémantiques shadcn dans `globals.css` (`:root` + `@theme`). **Ne pas** hardcoder les anciennes
+couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
+
+### Typographie
+
+- Police UI : **Plus Jakarta Sans** (`next/font/google`, weights 400/500/600/700/800) — variable CSS `--font-sans`.
+- Écart assumé aux brand guidelines Unikkern (Nunito) : tracé dans `decisions.md` (2026-06-24).
+- Titres page : `font-bold` ; labels/boutons : `font-semibold` ; corps : `font-normal`.
+- Données tabulaires : `tabular-nums` ou `font-mono` pour les colonnes prix.
+
+### Icônes
+
+- **Navigation / dashboard / empty states** : `@phosphor-icons/react` via `components/AppIcon.tsx` (poids `duotone` ou `regular`, tailles tokenisées `sm|md|lg|xl`).
+- **Primitives shadcn** (checkbox, dialog…) : Lucide (interne au design system) — ne pas mélanger dans les primitives.
+- Migration progressive : shell + dashboard d'abord, puis pages métier.
+
+### Ombres (tokens CSS)
+
+- `--shadow-soft`, `--shadow-card`, `--shadow-elevated` dans `globals.css` `@theme` — préférer ces tokens aux `shadow-md` ad hoc.
+
+### Logos
+
+- Assets : `public/syskern-logo.png`, `public/unnikkern-logo.png`, `public/favicon.png`.
+- Composant : `components/BrandLogo.tsx` (`variant="syskern" | "unnikkern"`).
+- Règles : largeur min 150px digital, pas de filtre CSS / recadrage / changement de couleur.
+
+### Composants métier UI
+
+| Composant | Fichier | Rôle |
+|---|---|---|
+| `BrandLogo` | `components/BrandLogo.tsx` | Logos syskern / Unikkern |
+| `PageHeader` | `components/PageHeader.tsx` | Titre page + actions |
+| `EmptyState` | `components/EmptyState.tsx` | États vides |
+| `FormField` | `components/FormField.tsx` | Label + erreur sous champ |
+| `StatusBadge` | `components/StatusBadge.tsx` | Badges statut sémantiques |
+| `KpiCard` | `components/KpiCard.tsx` | Cartes KPI |
+| `AppIcon` | `components/AppIcon.tsx` | Icônes Phosphor (taille/poids/couleur) |
+| `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable |
+| `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) |
+| `MixSlider` | `components/MixSlider.tsx` | Slider mix stock/achat (shadcn Slider) |
+
+**Page d'accueil** : `/` = tableau de bord (`app/(home)/page.tsx`) avec KPIs briques métier, raccourcis, activité récente. Post-login → `/` (plus `/catalog`).
+
+**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux.
+
+Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
+
+---
+
 ## Styles
 
 ```typescript
@@ -431,11 +493,12 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 <div className={cn("base-class", condition && "conditional-class", props.className)} />
 ```
 
-- **Tailwind 4** : config via `postcss.config.mjs`, pas de `tailwind.config.js`. Consulte Context7
-  pour la syntaxe Tailwind 4 avant d'utiliser de nouvelles utilitaires.
-- Couleur brand : `#E07200` (orange Syskern) — utiliser `text-[#E07200]` / `bg-[#E07200]`.
-- Composants primitifs → Radix UI. Icônes → Lucide React.
-- Skeleton loading → `animate-pulse bg-slate-200 rounded` (voir pattern dans `catalog/page.tsx`).
+- **Tailwind 4** : config via `postcss.config.mjs`, pas de `tailwind.config.js`. Tokens dans `globals.css`
+  (`@theme` + variables CSS shadcn). Consulte Context7 pour la syntaxe Tailwind 4.
+- **shadcn/ui** : `npx shadcn@latest add <component>` pour ajouter des composants. Config dans `components.json`.
+- CTA primaire : `bg-primary` (vert brand). Accent pricing : `text-warm` / `border-warm`.
+- Composants primitifs → shadcn/ui (`components/ui/`). Icônes → Lucide React.
+- Skeleton loading → `<Skeleton />` shadcn ou `animate-pulse bg-muted rounded`.
 
 ---
 

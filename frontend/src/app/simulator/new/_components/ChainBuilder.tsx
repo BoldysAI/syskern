@@ -35,7 +35,7 @@ interface Props {
 const CURRENCIES = ["EUR", "USD", "RMB"];
 
 const fieldCls =
-  "w-full px-2 py-1.5 text-sm border border-[#E2E8F0] rounded-md focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-2 py-1.5 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 function uid(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -66,7 +66,7 @@ function SortableTransport({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex gap-2 p-3 border border-[#E2E8F0] rounded-lg bg-white",
+        "flex gap-2 p-3 border border-border rounded-lg bg-white",
         isDragging && "opacity-60 shadow-md"
       )}
     >
@@ -201,7 +201,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
     onChange({ ...chain, transports: chain.transports.filter((x) => x.uid !== uidKey) });
 
   return (
-    <div className="border border-[#E2E8F0] rounded-xl bg-white shadow-sm p-4 flex flex-col gap-4">
+    <div className="border border-border rounded-xl bg-white shadow-sm p-4 flex flex-col gap-4">
       <h3 className="text-sm font-bold text-slate-800">{title}</h3>
 
       {isPurchase && (
@@ -211,7 +211,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
               type="checkbox"
               checked={chain.copper_variation}
               onChange={(e) => onChange({ ...chain, copper_variation: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+              className="w-4 h-4 rounded border-slate-300 accent-primary"
             />
             Variation cuivre
           </label>
@@ -220,7 +220,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
               type="checkbox"
               checked={chain.currency_conversion}
               onChange={(e) => onChange({ ...chain, currency_conversion: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+              className="w-4 h-4 rounded border-slate-300 accent-primary"
             />
             Conversion en EUR
           </label>
@@ -260,7 +260,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
         <button
           type="button"
           onClick={addTransport}
-          className="flex items-center gap-1.5 self-start px-3 py-1.5 text-sm font-medium text-[#C56400] border border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]"
+          className="flex items-center gap-1.5 self-start px-3 py-1.5 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50"
         >
           <Plus size={15} />
           Transport
@@ -275,7 +275,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
             onChange={(e) =>
               onChange({ ...chain, customs: { ...chain.customs, enabled: e.target.checked } })
             }
-            className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+            className="w-4 h-4 rounded border-slate-300 accent-primary"
           />
           Douane
         </label>

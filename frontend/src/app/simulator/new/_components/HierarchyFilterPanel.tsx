@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { Loader2, Plus } from "lucide-react";
 import {
   getHierarchyLevel,
-  getProducts,
+  getCatalogProducts,
   type CatalogFilters,
   type HierarchyLevel,
 } from "@/lib/api";
@@ -18,7 +18,7 @@ interface Props {
 }
 
 const selectCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:bg-slate-50 disabled:text-slate-400";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400";
 
 function LevelSelect({
   label,
@@ -84,7 +84,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
   const hasFilter = !!universe;
   const { data: preview } = useSWR(
     hasFilter ? ["hierarchy-count", JSON.stringify(filters)] : null,
-    () => getProducts({ ...filters, limit: 1, page: 1 })
+    () => getCatalogProducts({ ...filters, limit: 1, page: 1 })
   );
   const matchCount = preview?.count ?? 0;
 
@@ -98,7 +98,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
       // Page through every matching product, deduplicating against the
       // current selection.
       for (;;) {
-        const res = await getProducts({ ...filters, limit, page });
+        const res = await getCatalogProducts({ ...filters, limit, page });
         for (const p of res.results) {
           if (!selectedIds.has(p.id)) {
             collected.push({ id: p.id, sku_code: p.sku_code, name: p.name });
@@ -183,7 +183,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
           disabled={!hasFilter || matchCount === 0 || adding}
           className={cn(
             "flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
-            "bg-[#E07200] text-white hover:bg-[#C56400] disabled:opacity-50 disabled:cursor-not-allowed"
+            "bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           )}
         >
           {adding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}

@@ -12,6 +12,7 @@ import {
   type BulkEditFilter,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
 
 interface Props {
@@ -25,9 +26,10 @@ type ActionType = "set_margin" | "set_mix" | "reset";
 
 const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
+  const confirm = useConfirm();
   const [filter, setFilter] = useState<BulkEditFilter>({});
   const [action, setAction] = useState<ActionType>("set_margin");
   const [marginPct, setMarginPct] = useState("");
@@ -76,7 +78,12 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
         return;
       }
     }
-    if (!confirm(`Appliquer à ${count ?? 0} ligne(s) ?`)) return;
+    const ok = await confirm({
+      title: "Appliquer la modification",
+      description: `Appliquer à ${count ?? 0} ligne(s) ?`,
+      confirmLabel: "Appliquer",
+    });
+    if (!ok) return;
 
     setApplying(true);
     try {
@@ -103,7 +110,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+          <div className="flex items-center justify-between border-b border-border p-5">
             <Dialog.Title className="text-lg font-semibold text-slate-900">
               Édition groupée
             </Dialog.Title>
@@ -194,7 +201,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
                     type="checkbox"
                     checked={!!filter.has_warning}
                     onChange={(e) => setFlt({ has_warning: e.target.checked || undefined })}
-                    className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+                    className="h-4 w-4 rounded border-slate-300 accent-primary"
                   />
                   Avertissements
                 </label>
@@ -203,7 +210,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
                     type="checkbox"
                     checked={!!filter.has_error}
                     onChange={(e) => setFlt({ has_error: e.target.checked || undefined })}
-                    className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+                    className="h-4 w-4 rounded border-slate-300 accent-primary"
                   />
                   Erreurs
                 </label>
@@ -217,7 +224,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
                 </span>
               ) : (
                 <span>
-                  <span className="font-bold text-[#C56400]">{count ?? 0}</span> ligne
+                  <span className="font-bold text-accent-foreground">{count ?? 0}</span> ligne
                   {(count ?? 0) !== 1 ? "s" : ""} seront impactées
                 </span>
               )}
@@ -239,8 +246,8 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
                   className={cn(
                     "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                     action === id
-                      ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                      : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+                      ? "border-primary bg-accent text-accent-foreground"
+                      : "border-border text-slate-600 hover:bg-slate-50"
                   )}
                 >
                   {label}
@@ -279,12 +286,12 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-[#E2E8F0] p-4">
+          <div className="flex justify-end gap-2 border-t border-border p-4">
             <button
               type="button"
               onClick={onClose}
               disabled={applying}
-              className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Annuler
             </button>
@@ -292,7 +299,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
               type="button"
               onClick={handleApply}
               disabled={applying || (count ?? 0) === 0}
-              className="flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
             >
               {applying && <Loader2 size={14} className="animate-spin" />}
               Appliquer

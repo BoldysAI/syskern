@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { Search, Package, Plus, X, Sparkles } from "lucide-react";
 import {
   getProducts,
+  getCatalogProducts,
   getFilterableAttributes,
   type CatalogFilters,
   type PaginatedProducts,
@@ -108,7 +109,7 @@ export default function CatalogPage() {
   const filtersKey = JSON.stringify(filters);
   const { data, isLoading, error } = useSWR<PaginatedProducts>(
     ["products", filtersKey, ordering, page],
-    () => getProducts({ ...filters, ordering, page, limit: PAGE_SIZE }),
+    () => getCatalogProducts({ ...filters, ordering, page, limit: PAGE_SIZE }),
     { keepPreviousData: true }
   );
 
@@ -126,7 +127,7 @@ export default function CatalogPage() {
         render: (product) => (
           <Link
             href={`/catalog/${encodeURIComponent(product.sku_code)}`}
-            className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+            className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
           >
             {product.sku_code}
           </Link>
@@ -412,7 +413,7 @@ export default function CatalogPage() {
                 productLabel={`${selected.size} produit${selected.size > 1 ? "s" : ""}`}
                 onAdded={() => setSelected(new Set())}
               >
-                <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors">
+                <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors">
                   <Plus size={15} />
                   Ajouter à simulation
                 </button>
@@ -481,7 +482,7 @@ export default function CatalogPage() {
               type="checkbox"
               checked={allPageSelected}
               onChange={toggleSelectPage}
-              className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+              className="h-4 w-4 rounded border-slate-300 accent-primary"
               aria-label="Tout sélectionner"
             />
           )}
@@ -490,7 +491,7 @@ export default function CatalogPage() {
               type="checkbox"
               checked={selected.has(product.id)}
               onChange={() => toggleRow(product.id)}
-              className="h-4 w-4 rounded border-slate-300 accent-[#E07200]"
+              className="h-4 w-4 rounded border-slate-300 accent-primary"
               aria-label={`Sélectionner ${product.sku_code}`}
             />
           )}

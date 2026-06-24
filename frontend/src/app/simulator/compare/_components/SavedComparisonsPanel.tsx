@@ -9,6 +9,7 @@ import {
   type SavedComparison,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Props {
   activeId?: string | null;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
+  const confirm = useConfirm();
   const { data, isLoading, mutate } = useSWR<SavedComparison[]>(
     "saved-comparisons",
     getSavedComparisons
@@ -23,7 +25,13 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette comparaison enregistrée ?")) return;
+    const ok = await confirm({
+      title: "Supprimer la comparaison",
+      description: "Supprimer cette comparaison enregistrée ?",
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await deleteSavedComparison(id);
@@ -61,8 +69,8 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
             className={cn(
               "group relative rounded-lg border transition-colors",
               active
-                ? "border-[#E07200] bg-[#FFF3E0]"
-                : "border-transparent hover:border-[#E2E8F0] hover:bg-white"
+                ? "border-primary bg-accent"
+                : "border-transparent hover:border-border hover:bg-white"
             )}
           >
             <button

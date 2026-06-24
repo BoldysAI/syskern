@@ -73,7 +73,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+          <div className="flex items-center justify-between border-b border-border p-5">
             <Dialog.Title className="flex items-center gap-2 text-lg font-semibold text-slate-900">
               <Lock size={18} className="text-green-600" />
               Finaliser la simulation
@@ -118,7 +118,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
                 }}
                 placeholder="Recopiez le libellé exact"
                 autoComplete="off"
-                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#E07200] focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
@@ -136,12 +136,12 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-[#E2E8F0] p-4">
+          <div className="flex justify-end gap-2 border-t border-border p-4">
             <button
               type="button"
               onClick={close}
               disabled={running}
-              className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
               Annuler
             </button>

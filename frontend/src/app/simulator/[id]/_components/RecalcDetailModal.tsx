@@ -25,7 +25,7 @@ export function RecalcDetailModal({ simId, recalcId, onClose }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] flex max-h-[85vh] w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] p-5">
+          <div className="flex items-center justify-between border-b border-border p-5">
             <Dialog.Title className="text-lg font-semibold text-slate-900">
               Détail du recalcul
             </Dialog.Title>
@@ -106,9 +106,9 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
       {/* Per-line breakdown (read-only) */}
       <section>
         <h3 className="mb-2 text-sm font-semibold text-slate-800">Résultats par ligne (figés)</h3>
-        <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-xs">
-            <thead className="bg-[#F5F7FA] text-slate-500">
+            <thead className="bg-background text-slate-500">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold">SKU</th>
                 <th className="px-3 py-2 text-left font-semibold">Désignation</th>
@@ -119,7 +119,7 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
                 <th className="px-3 py-2 text-right font-semibold">Mix</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {snapshots.map((s) => (
                 <tr key={s.product_id} className="bg-white even:bg-slate-50/40">
                   <td className="px-3 py-2 font-mono font-semibold text-orange-600">{s.sku}</td>

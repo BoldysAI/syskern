@@ -93,7 +93,7 @@ function loadDraft(): WizardDraft {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 // ─── Small bound inputs ──────────────────────────────────────────────────────
 
@@ -235,18 +235,18 @@ function SelectField({
           <Select.Content
             position="popper"
             sideOffset={4}
-            className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+            className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-border rounded-lg shadow-lg overflow-hidden"
           >
             <Select.Viewport className="p-1">
               {options.map((opt) => (
                 <Select.Item
                   key={opt.value}
                   value={opt.value}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                 >
                   <Select.ItemText>{opt.label}</Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-[#E07200]" />
+                    <Check size={14} className="text-warm" />
                   </Select.ItemIndicator>
                 </Select.Item>
               ))}
@@ -277,7 +277,7 @@ function ToggleField({
         onClick={() => onChange(!value)}
         className={cn(
           "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-          value ? "bg-[#E07200]" : "bg-slate-300",
+          value ? "bg-primary" : "bg-slate-300",
         )}
       >
         <span
@@ -293,7 +293,7 @@ function ToggleField({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
+    <div className="bg-white border border-border rounded-xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-700 mb-3">{title}</h3>
       {children}
     </div>
@@ -808,7 +808,7 @@ export default function NewProductPage() {
         <AlertCircle size={40} className="text-amber-300" />
         <p className="font-medium">Accès restreint</p>
         <p className="text-sm text-slate-400">La création de produit est réservée aux rôles admin et commercial.</p>
-        <Link href="/catalog" className="text-sm text-[#E07200] hover:text-[#C56400] font-medium">
+        <Link href="/catalog" className="text-sm text-warm hover:text-accent-foreground font-medium">
           Retour au catalogue
         </Link>
       </div>
@@ -828,7 +828,7 @@ export default function NewProductPage() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <div className="flex items-center gap-2">
-          <Package size={20} className="text-[#E07200]" />
+          <Package size={20} className="text-warm" />
           <h1 className="text-xl font-semibold text-slate-900">Créer un produit</h1>
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
@@ -840,7 +840,7 @@ export default function NewProductPage() {
             onClick={() => setFullForm((f) => !f)}
             className={cn(
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-              fullForm ? "bg-[#E07200]" : "bg-slate-300",
+              fullForm ? "bg-primary" : "bg-slate-300",
             )}
           >
             <span
@@ -868,16 +868,16 @@ export default function NewProductPage() {
                   className={cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-[#E07200] text-white"
+                      ? "bg-primary text-white"
                       : done
-                        ? "bg-[#FFF3E0] text-[#C56400]"
+                        ? "bg-accent text-accent-foreground"
                         : "text-slate-500 hover:bg-slate-100",
                   )}
                 >
                   <span
                     className={cn(
                       "flex h-5 w-5 items-center justify-center rounded-full text-xs",
-                      active ? "bg-white/20" : done ? "bg-[#E07200] text-white" : "bg-slate-200 text-slate-600",
+                      active ? "bg-white/20" : done ? "bg-primary text-white" : "bg-slate-200 text-slate-600",
                       err && "bg-red-500 text-white",
                     )}
                   >
@@ -916,12 +916,12 @@ export default function NewProductPage() {
       )}
 
       {/* Footer navigation */}
-      <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-[#E2E8F0]">
+      <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-border">
         {!fullForm && step > 0 ? (
           <button
             type="button"
             onClick={goPrev}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-[#E2E8F0] rounded-lg hover:bg-slate-50"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-border rounded-lg hover:bg-slate-50"
           >
             <ArrowLeft size={15} />
             Précédent
@@ -929,7 +929,7 @@ export default function NewProductPage() {
         ) : (
           <Link
             href="/catalog"
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-[#E2E8F0] rounded-lg hover:bg-slate-50"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-border rounded-lg hover:bg-slate-50"
           >
             <ArrowLeft size={15} />
             Annuler
@@ -941,7 +941,7 @@ export default function NewProductPage() {
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting && <Loader2 size={15} className="animate-spin" />}
             {submitting ? "Création…" : "Créer et synchroniser vers Odoo"}
@@ -950,7 +950,7 @@ export default function NewProductPage() {
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400]"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90"
           >
             Suivant
             <ArrowRight size={15} />

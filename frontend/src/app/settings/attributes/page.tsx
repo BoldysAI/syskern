@@ -109,7 +109,7 @@ export default function AttributesAdminPage() {
         </p>
         <button
           onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium flex-shrink-0"
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-medium flex-shrink-0"
         >
           <Plus size={14} />
           Nouvel attribut
@@ -134,7 +134,7 @@ export default function AttributesAdminPage() {
         </div>
       )}
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         {error ? (
           <div className="py-12 text-center text-sm text-slate-400">
             Impossible de charger les attributs.
@@ -195,7 +195,7 @@ function AttributesTable({
 }) {
   const table = (
     <table className="w-full">
-      <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+      <thead className="bg-background border-b border-border">
         <tr>
           {COLUMNS.map((h, i) => (
             <th
@@ -207,7 +207,7 @@ function AttributesTable({
           ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#E2E8F0]">
+      <tbody className="divide-y divide-border">
         {dndEnabled ? (
           <SortableContext
             items={attributes.map((a) => a.id)}
@@ -256,8 +256,8 @@ function Chip({
       className={cn(
         "px-3 py-1.5 text-sm font-medium rounded-full border transition-colors",
         active
-          ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-          : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+          ? "border-primary bg-accent text-accent-foreground"
+          : "border-border text-slate-600 hover:bg-slate-50"
       )}
     >
       {children}

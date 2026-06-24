@@ -113,7 +113,7 @@ function DetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
               {row.source_file}
@@ -138,7 +138,7 @@ function DetailModal({
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
               Données brutes
             </h3>
-            <pre className="text-xs bg-[#F5F7FA] border border-[#E2E8F0] rounded-lg p-4 overflow-x-auto text-slate-700">
+            <pre className="text-xs bg-background border border-border rounded-lg p-4 overflow-x-auto text-slate-700">
               {JSON.stringify(row.raw_data, null, 2)}
             </pre>
           </div>
@@ -177,7 +177,7 @@ function DetailModal({
                   type="email"
                   value={resolvedBy}
                   onChange={(e) => setResolvedBy(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
               <div>
@@ -187,20 +187,20 @@ function DetailModal({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   placeholder="Ex : produit créé manuellement (SKU …), ou ligne ignorée car doublon."
-                  className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
+                  className="flex-1 py-2.5 text-sm border border-border rounded-lg hover:bg-slate-50 text-slate-600"
                 >
                   Annuler
                 </button>
                 <button
                   onClick={handleResolve}
                   disabled={loading || !resolvedBy}
-                  className="flex-1 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-60"
+                  className="flex-1 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold disabled:opacity-60"
                 >
                   {loading ? "Enregistrement…" : "Marquer résolu"}
                 </button>
@@ -215,7 +215,7 @@ function DetailModal({
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl px-4 py-3 shadow-sm">
+    <div className="bg-white border border-border rounded-xl px-4 py-3 shadow-sm">
       <div className={cn("text-2xl font-semibold", tone)}>{value}</div>
       <div className="text-xs text-slate-500 mt-0.5">{label}</div>
     </div>
@@ -284,7 +284,7 @@ export default function MigrationQuarantinePage() {
             setSourceFile(e.target.value);
             resetPaging();
           }}
-          className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           <option value="">Tous les fichiers</option>
           {facets?.source_files.map((f) => (
@@ -299,7 +299,7 @@ export default function MigrationQuarantinePage() {
             setReason(e.target.value);
             resetPaging();
           }}
-          className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           <option value="">Toutes les raisons</option>
           {Object.entries(REASON_LABELS).map(([k, label]) => (
@@ -314,7 +314,7 @@ export default function MigrationQuarantinePage() {
             setStatus(e.target.value as "" | "true" | "false");
             resetPaging();
           }}
-          className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           <option value="">Tous les statuts</option>
           <option value="false">À traiter</option>
@@ -322,7 +322,7 @@ export default function MigrationQuarantinePage() {
         </select>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         {error ? (
           <div className="py-16 text-center text-slate-400 text-sm">
             Impossible de charger la quarantaine.
@@ -336,7 +336,7 @@ export default function MigrationQuarantinePage() {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+            <thead className="bg-background border-b border-border">
               <tr>
                 {["Fichier source", "Ligne", "Raison", "Statut", ""].map((h) => (
                   <th
@@ -348,7 +348,7 @@ export default function MigrationQuarantinePage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {data.results.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm text-slate-700">{r.source_file}</td>
@@ -370,7 +370,7 @@ export default function MigrationQuarantinePage() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setDetailRow(r)}
-                      className="px-3 py-1.5 text-xs font-medium text-[#E07200] hover:bg-[#FFF3E0] rounded-lg transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium text-warm hover:bg-accent/50 rounded-lg transition-colors"
                     >
                       {r.resolved_at ? "Voir" : "Voir / Résoudre"}
                     </button>
@@ -391,14 +391,14 @@ export default function MigrationQuarantinePage() {
             <button
               disabled={!data.previous}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-slate-50"
             >
               Précédent
             </button>
             <button
               disabled={!data.next}
               onClick={() => setOffset(offset + PAGE_SIZE)}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-slate-50"
             >
               Suivant
             </button>

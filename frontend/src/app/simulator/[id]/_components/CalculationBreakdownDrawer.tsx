@@ -84,7 +84,7 @@ function ChainSteps({
       {steps.map((step, idx) => (
         <li
           key={`${step.module}-${step.order ?? idx}`}
-          className="rounded-lg border border-[#E2E8F0] bg-white p-4"
+          className="rounded-lg border border-border bg-white p-4"
         >
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
@@ -166,8 +166,8 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
     >
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-[#E2E8F0] bg-white shadow-xl">
-          <div className="shrink-0 border-b border-[#E2E8F0] px-5 py-4">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-white shadow-xl">
+          <div className="shrink-0 border-b border-border px-5 py-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <Dialog.Title className="text-base font-semibold text-slate-900">
@@ -194,7 +194,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   className={cn(
                     "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                     i === stepIdx
-                      ? "bg-[#E07200] text-white"
+                      ? "bg-primary text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   )}
                 >
@@ -246,7 +246,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 </section>
 
                 {Object.keys(mpSnap).length > 0 && (
-                  <section className="rounded-lg border border-[#E2E8F0] bg-slate-50 px-4 py-3">
+                  <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Paramètres marché utilisés au calcul
                     </h3>
@@ -262,7 +262,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 )}
 
                 {(incSnap.sale_incoterm || incSnap.purchase_incoterm) && (
-                  <section className="rounded-lg border border-[#E2E8F0] bg-slate-50 px-4 py-3">
+                  <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Incoterms au calcul
                     </h3>
@@ -294,7 +294,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   </section>
                 )}
 
-                <section className="rounded-lg border border-[#E2E8F0] bg-slate-50 px-4 py-3">
+                <section className="rounded-lg border border-border bg-slate-50 px-4 py-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Formule PR
                   </h3>
@@ -367,12 +367,12 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between border-t border-[#E2E8F0] px-5 py-3">
+          <div className="flex shrink-0 items-center justify-between border-t border-border px-5 py-3">
             <button
               type="button"
               onClick={goPrev}
               disabled={stepIdx === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
             >
               <ArrowLeft size={14} />
               Précédent
@@ -384,7 +384,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
               type="button"
               onClick={goNext}
               disabled={stepIdx >= STEPS.length - 1}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#E07200] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#C56400] disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
               Suivant
               <ArrowRight size={14} />
@@ -406,7 +406,7 @@ function SummaryCell({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+    <div className="rounded-lg border border-border bg-white px-3 py-2">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <p
         className={cn(

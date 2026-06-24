@@ -36,7 +36,7 @@ function DataCells({ attribute, onEdit, onDelete }: RowProps) {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => onEdit(attribute)}
-            className="p-1.5 text-slate-400 hover:text-[#E07200] hover:bg-[#FFF3E0] rounded-lg"
+            className="p-1.5 text-slate-400 hover:text-warm hover:bg-accent/50 rounded-lg"
             title="Modifier"
             aria-label={`Modifier ${attribute.code}`}
           >
@@ -82,7 +82,7 @@ export function SortableAttributeRow(props: RowProps) {
     <tr
       ref={setNodeRef}
       style={style}
-      className={cn("hover:bg-slate-50", isDragging && "opacity-60 bg-[#FFF3E0]")}
+      className={cn("hover:bg-slate-50", isDragging && "opacity-60 bg-accent")}
     >
       <td className="px-3 py-2.5 w-10">
         <button

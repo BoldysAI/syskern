@@ -28,6 +28,7 @@ import {
   type DataTableSortState,
 } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { decToPct, fmtEur, fmtNum, lineDiagnostics, LINE_STATUS, productEditHref } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 import { LineDiagnosticsDrawer } from "./LineDiagnosticsDrawer";
@@ -87,7 +88,7 @@ function OverrideCell({
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         placeholder={effective || "—"}
-        className="w-16 rounded border border-transparent px-1.5 py-1 text-right text-sm hover:border-[#E2E8F0] focus:border-[#E07200] focus:outline-none disabled:bg-transparent disabled:hover:border-transparent"
+        className="w-16 rounded border border-transparent px-1.5 py-1 text-right text-sm hover:border-border focus:border-primary focus:outline-none disabled:bg-transparent disabled:hover:border-transparent"
       />
       <span className="text-xs text-slate-400">{suffix}</span>
     </div>
@@ -120,7 +121,7 @@ function RowMenu({
         <MoreVertical size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-border bg-white py-1 shadow-lg">
           <button
             onMouseDown={(e) => {
               e.preventDefault();
@@ -222,7 +223,7 @@ export function SimulationTable({
         await mutate();
         onChanged();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "Modification échouée");
+        toast.error(e instanceof Error ? e.message : "Modification échouée");
       } finally {
         setBusyLine(null);
       }
@@ -237,7 +238,7 @@ export function SimulationTable({
       await mutate();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Recalcul de ligne échoué");
+      toast.error(e instanceof Error ? e.message : "Recalcul de ligne échoué");
     } finally {
       setBusyLine(null);
     }
@@ -266,13 +267,13 @@ export function SimulationTable({
             <div className="flex items-center gap-1.5">
               <Link
                 href={productEditHref(line.product_sku, [], fromSimulation)}
-                className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
                 title="Modifier le produit"
               >
                 {line.product_sku}
               </Link>
               {overridden && (
-                <span className="rounded bg-[#FFF3E0] px-1.5 py-0.5 text-[10px] font-semibold text-[#C56400]">
+                <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
                   surchargé
                 </span>
               )}
@@ -288,7 +289,7 @@ export function SimulationTable({
         render: (line) => (
           <Link
             href={productEditHref(line.product_sku, [], fromSimulation)}
-            className="block truncate hover:text-[#E07200] hover:underline"
+            className="block truncate hover:text-warm hover:underline"
             title="Modifier le produit"
           >
             {line.product_designation || line.product_name}
@@ -449,7 +450,7 @@ export function SimulationTable({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[#E2E8F0] bg-white px-5 py-3">
+      <div className="border-b border-border bg-accent/40 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
             <ContextItem
@@ -489,8 +490,8 @@ export function SimulationTable({
               className={cn(
                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
                 sim.is_dirty
-                  ? "bg-[#E07200] text-white shadow-sm hover:bg-[#C56400]"
-                  : "border border-[#E2E8F0] text-slate-700 hover:bg-slate-50"
+                  ? "bg-primary text-white shadow-sm hover:bg-primary/90"
+                  : "border border-border text-slate-700 hover:bg-slate-50"
               )}
             >
               <Calculator size={15} />
@@ -502,21 +503,21 @@ export function SimulationTable({
             <button
               onClick={onBulkEdit}
               disabled={readOnly}
-              className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               Édition groupée
             </button>
             <button
               onClick={handleExport}
               disabled={exporting}
-              className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
               Exporter Excel
             </button>
             <button
               onClick={onHistory}
-              className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               Historique
             </button>
@@ -615,17 +616,17 @@ async function onExportWrap(fn: () => void | Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    alert(e instanceof Error ? e.message : "Export échoué");
+    toast.error(e instanceof Error ? e.message : "Export échoué");
   }
 }
 
 function ContextItem({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+      <span className="text-[10px] font-semibold text-muted-foreground">
         {label}
       </span>
-      <span className="font-medium text-slate-700 tabular-nums">{value}</span>
+      <span className="font-medium text-foreground tabular-nums">{value}</span>
     </span>
   );
 }
