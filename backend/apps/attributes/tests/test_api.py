@@ -54,6 +54,27 @@ class TestList:
         row = next(r for r in results if r["code"] == "cable_color")
         assert row["value_count"] == 1
 
+    def test_list_filters_by_is_filterable(self, client):
+        AttributeRegistry.objects.create(
+            code="filterable_attr",
+            label={"fr": "Filtrable"},
+            category=AttributeCategory.TECHNICAL,
+            data_type=AttributeDataType.TEXT,
+            is_filterable=True,
+        )
+        AttributeRegistry.objects.create(
+            code="hidden_attr",
+            label={"fr": "Masqué"},
+            category=AttributeCategory.TECHNICAL,
+            data_type=AttributeDataType.TEXT,
+            is_filterable=False,
+        )
+
+        resp = client.get("/api/attributes/?is_filterable=true")
+        assert resp.status_code == 200
+        codes = {r["code"] for r in resp.json()["results"]}
+        assert codes == {"filterable_attr"}
+
 
 # ─── Create (all data types) ─────────────────────────────────────────────────
 

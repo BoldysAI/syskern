@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Coins, Truck, Database, Tags } from "lucide-react";
+import { Coins, Truck, Database, Tags, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,6 +15,7 @@ const ITEMS = [
   { id: "marche", label: "Paramètres marché", href: "/settings?tab=marche", Icon: Coins },
   { id: "transport", label: "Modes de transport", href: "/settings?tab=transport", Icon: Truck },
   { id: "odoo", label: "Synchronisation Odoo", href: "/settings?tab=odoo", Icon: Database },
+  { id: "alerts", label: "Alertes offres", href: "/settings?tab=alerts", Icon: Bell },
   { id: "attributes", label: "Attributs dynamiques", href: "/settings/attributes", Icon: Tags },
 ] as const;
 

@@ -326,3 +326,10 @@ Beaucoup préexistait (`set_status`, `duplicate`/`versions`, dashboard, expiring
 - **Champs : code fait foi** — pas de `total_amount_eur` sur `Offer` (le total est calculé depuis les lignes côté front/serializer) ; `expiration_date` du ticket = champ réel `valid_to` ; `gamma_doc_id` = `gamma_document_id`.
 - **UI** : page détail `/offers/[id]` (statut/version, compte à rebours expiration coloré J-7, document, chaîne de versions, lignes lecture seule, actions cycle de vie + prolonger + nouvelle version) ; liste `/offers` (label → détail, stat « CA gagné » via `won_total`). Lint+tsc propres ; `next build` vert.
 - **Tests (14)** : transitions (draft→sent OK, draft→won 400, sent→won projet, tariff→won 400), versioning V1→V2→V3 + chaîne, extend (OK, <7j 400, réactivation), cron (auto-expire sent, won intact, alerte J-5 envoyée, J-10 non, killswitch). Vérif live `:8000` (transitions + new-version + extend), puis nettoyage. Worker+beat redéployés (tâche + schedule enregistrés).
+
+## 2026-06-18 · [P] PIM — régression attributs dynamiques (merge pricing/offres)
+Régression post-merge : `getProducts`/`buildCatalogQuery` dans `lib/api.ts` avaient été simplifiés (plus de `attrs`, `q`, stock, ordering) → filtres catalogue EAV inopérants ; `SettingsNav` déconnecté de `/settings` (retour Radix in-page, onglet Attributs inaccessible) ; filtre API `is_filterable` absent du `filterset_fields` backend. Correctifs :
+- **`lib/api.ts`** : restauration `ProductListParams extends CatalogFilters`, `buildCatalogQuery`, `getProducts` complet ; export `HierarchyLevel` ; `getFilterableAttributes` filtre côté client en secours.
+- **`/settings`** : retour à `SettingsNav` + `?tab=` (marche/transport/odoo/alerts) + `<Suspense>` ; onglet Alertes conservé dans la nav partagée.
+- **Backend** : `is_filterable` ajouté à `AttributeRegistryViewSet.filterset_fields` + test `?is_filterable=true`.
+- **Tests** : 15 tests attributes verts (`uv run pytest apps/attributes/tests/test_api.py`).
