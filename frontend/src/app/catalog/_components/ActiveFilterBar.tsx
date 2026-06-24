@@ -1,7 +1,9 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X } from "@phosphor-icons/react";
 import type { CatalogFilters } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { buildFilterChips, countActiveFilters, removeFilterChip } from "./active-filters";
 
 interface ActiveFilterBarProps {
@@ -23,39 +25,40 @@ export function ActiveFilterBar({
   if (total === 0) return null;
 
   return (
-    <div className="flex-shrink-0 px-4 py-3 bg-orange-50/60 border-b border-orange-100/80">
+    <div className="flex-shrink-0 border-b border-border bg-muted/30 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mr-1">
+        <span className="mr-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Filtres actifs
-          <span className="ml-1.5 inline-flex min-w-[1.25rem] h-5 px-1.5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold tabular-nums">
+          <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] tabular-nums">
             {total}
-          </span>
+          </Badge>
         </span>
         {chips.map((chip) => (
           <button
             key={chip.id}
             type="button"
             onClick={() => onChange(removeFilterChip(filters, chip.id))}
-            className="group inline-flex items-center gap-1.5 max-w-[220px] pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-white border border-orange-200/80 text-slate-700 shadow-sm hover:border-orange-300 hover:bg-orange-50 transition-colors"
+            className="group inline-flex max-w-[240px] items-center gap-1 rounded-full border border-border bg-card py-1 pr-1 pl-2.5 text-xs shadow-[var(--shadow-soft)] transition-colors hover:border-primary/30 hover:bg-primary/5"
             title={`Retirer : ${chip.category} — ${chip.label}`}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-orange-600/90 shrink-0">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-primary/80">
               {chip.category}
             </span>
-            <span className="truncate">{chip.label}</span>
-            <X
-              size={12}
-              className="shrink-0 text-slate-400 group-hover:text-red-500 transition-colors"
-            />
+            <span className="truncate font-medium text-foreground">{chip.label}</span>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground group-hover:bg-destructive/10 group-hover:text-destructive">
+              <X size={12} weight="bold" />
+            </span>
           </button>
         ))}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={onClearAll}
-          className="ml-auto text-xs font-semibold text-orange-600 hover:text-orange-700 px-2 py-1 rounded-md hover:bg-orange-100/80 transition-colors"
+          className="ml-auto text-primary"
         >
           Tout effacer
-        </button>
+        </Button>
       </div>
     </div>
   );

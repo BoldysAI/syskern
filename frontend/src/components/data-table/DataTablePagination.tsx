@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type PageItem = number | "ellipsis";
 
@@ -69,66 +71,65 @@ export function DataTablePagination({
   const plural = totalCount !== 1 ? "s" : "";
 
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-white px-6 py-3">
-      <span className="text-sm text-slate-500 tabular-nums">
+    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card px-6 py-3">
+      <span className="text-sm tabular-nums text-muted-foreground">
         {from}–{to} sur {totalCount} {itemLabel}
         {plural}
       </span>
 
       <nav className="flex items-center gap-1" aria-label={ariaLabel}>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           disabled={page <= 1}
           onClick={() => goToPage(page - 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Page précédente"
         >
           <ChevronLeft size={18} />
-        </button>
+        </Button>
 
         {items.map((item, idx) =>
           item === "ellipsis" ? (
             <span
               key={`ellipsis-${idx}`}
-              className="flex h-9 w-9 items-center justify-center text-sm text-slate-400"
+              className="flex h-9 w-9 items-center justify-center text-sm text-muted-foreground"
               aria-hidden
             >
               …
             </span>
           ) : (
-            <button
+            <Button
               key={item}
               type="button"
+              variant={item === page ? "default" : "outline"}
+              size="sm"
               onClick={() => goToPage(item)}
               aria-current={item === page ? "page" : undefined}
-              className={cn(
-                "h-9 min-w-[2.25rem] rounded-lg px-2 text-sm font-medium tabular-nums transition-colors",
-                item === page
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "border border-slate-200 text-slate-700 hover:bg-slate-50"
-              )}
+              className={cn("min-w-9 tabular-nums", item === page && "shadow-sm")}
             >
               {item}
-            </button>
+            </Button>
           )
         )}
 
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           disabled={page >= totalPages}
           onClick={() => goToPage(page + 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Page suivante"
         >
           <ChevronRight size={18} />
-        </button>
+        </Button>
       </nav>
 
       <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
-        <label htmlFor={jumpInputId} className="whitespace-nowrap text-sm text-slate-500">
+        <label htmlFor={jumpInputId} className="whitespace-nowrap text-sm text-muted-foreground">
           Aller à
         </label>
-        <input
+        <Input
           id={jumpInputId}
           type="number"
           min={1}
@@ -136,9 +137,9 @@ export function DataTablePagination({
           value={jumpValue}
           onChange={(e) => setJumpValue(e.target.value)}
           placeholder={String(page)}
-          className="w-16 rounded-lg border border-border px-2 py-1.5 text-center text-sm tabular-nums focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="h-8 w-16 text-center tabular-nums"
         />
-        <span className="text-sm text-slate-400">/ {totalPages}</span>
+        <span className="text-sm text-muted-foreground">/ {totalPages}</span>
       </form>
     </div>
   );

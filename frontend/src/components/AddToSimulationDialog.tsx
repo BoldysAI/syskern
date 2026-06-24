@@ -120,7 +120,7 @@ export function AddToSimulationDialog({
                 </p>
                 <Link
                   href={`/simulator/${doneSimId}`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-warm hover:text-accent-foreground"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80"
                 >
                   Voir la simulation
                   <ArrowRight size={15} />
@@ -177,7 +177,7 @@ export function AddToSimulationDialog({
                             </div>
                           </div>
                           {selectedSim === s.id && (
-                            <Check size={16} className="text-warm flex-shrink-0" />
+                            <Check size={16} className="text-primary shrink-0" />
                           )}
                         </button>
                       ))}

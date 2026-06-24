@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Search, Package, Plus, X, Sparkles } from "lucide-react";
+import { Package, Plus, Sparkle, SquaresFour, X } from "@phosphor-icons/react";
 import {
-  getProducts,
   getCatalogProducts,
   getFilterableAttributes,
   type CatalogFilters,
@@ -16,6 +15,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { SearchInput } from "@/components/SearchInput";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CatalogSidebar } from "./_components/CatalogSidebar";
 import { ProductDrawer } from "./_components/ProductDrawer";
 import { ExportButton } from "./_components/ExportButton";
@@ -52,13 +56,13 @@ function universeColor(universe: string): string {
   if (u.includes("COPPER")) return "bg-amber-100 text-amber-800";
   if (u.includes("OPTICAL")) return "bg-blue-100 text-blue-800";
   if (u.includes("OEM")) return "bg-purple-100 text-purple-800";
-  if (u.includes("RACK")) return "bg-slate-100 text-slate-700";
-  if (u.includes("RESIDENTIAL")) return "bg-green-100 text-green-700";
-  return "bg-slate-100 text-slate-600";
+  if (u.includes("RACK")) return "bg-muted text-muted-foreground";
+  if (u.includes("RESIDENTIAL")) return "bg-primary/10 text-primary";
+  return "bg-muted text-muted-foreground";
 }
 
 function UniverseBadge({ universe }: { universe: string }) {
-  if (!universe) return <span className="text-slate-300">—</span>;
+  if (!universe) return <span className="text-muted-foreground/50">—</span>;
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", universeColor(universe))}>
       {universe}
@@ -127,7 +131,7 @@ export default function CatalogPage() {
         render: (product) => (
           <Link
             href={`/catalog/${encodeURIComponent(product.sku_code)}`}
-            className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
+            className="font-mono text-sm font-semibold text-primary hover:text-primary/80 hover:underline"
           >
             {product.sku_code}
           </Link>
@@ -138,7 +142,7 @@ export default function CatalogPage() {
         label: "Désignation",
         sortField: "name",
         width: 280,
-        cellClassName: "text-sm text-slate-700 truncate",
+        cellClassName: "text-sm text-muted-foreground truncate",
         render: (product) => product.name,
       },
       {
@@ -153,14 +157,14 @@ export default function CatalogPage() {
         label: "Famille",
         sortField: "family",
         width: 150,
-        cellClassName: "text-sm text-slate-600 truncate",
+        cellClassName: "text-sm text-muted-foreground truncate",
         render: (product) => product.family || "—",
       },
       {
         key: "active_supplier",
         label: "Fournisseur actif",
         width: 170,
-        cellClassName: "text-sm text-slate-600 truncate",
+        cellClassName: "text-sm text-muted-foreground truncate",
         render: (product) => product.active_supplier || "—",
       },
       {
@@ -168,8 +172,8 @@ export default function CatalogPage() {
         label: "PAMP",
         sortField: "pamp_eur",
         width: 120,
-        align: "left",
-        cellClassName: "text-sm font-medium text-slate-800",
+        align: "right",
+        cellClassName: "text-sm font-medium tabular-nums text-primary",
         render: (product) => {
           const pamp = parseDec(product.pamp_eur);
           return pamp > 0
@@ -188,13 +192,13 @@ export default function CatalogPage() {
             <span
               className={cn(
                 "inline-flex items-center gap-1 text-sm font-medium",
-                stock > 0 ? "text-green-600" : "text-slate-400"
+                stock > 0 ? "text-brand-green" : "text-muted-foreground"
               )}
             >
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  stock > 0 ? "bg-green-500" : "bg-slate-300"
+                  stock > 0 ? "bg-brand-green" : "bg-muted-foreground/40"
                 )}
               />
               {Math.round(stock)}
@@ -207,14 +211,9 @@ export default function CatalogPage() {
         label: "Actif",
         width: 80,
         render: (product) => (
-          <span
-            className={cn(
-              "inline-flex rounded px-2 py-0.5 text-xs font-medium",
-              product.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
-            )}
-          >
+          <StatusBadge variant={product.is_active ? "success" : "draft"}>
             {product.is_active ? "Oui" : "Non"}
-          </span>
+          </StatusBadge>
         ),
       },
     ],
@@ -277,31 +276,24 @@ export default function CatalogPage() {
 
   const activeFilterCount = countActiveFilters(filters);
 
-  const searchInputCls =
-    "w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50/80 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/25 focus:border-orange-500 focus:bg-white transition-all";
-
   return (
     <div className="flex h-full bg-surface">
       {/* Filters sidebar — desktop */}
-      <aside className="hidden lg:flex flex-col w-80 flex-shrink-0 bg-white border-r border-slate-200 shadow-sm">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-4 py-4 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50/80 backdrop-blur-sm">
+      <aside className="hidden lg:flex w-80 flex-shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-gradient-to-b from-card to-muted/30 px-4 py-4 backdrop-blur-sm">
           <div>
-            <span className="text-sm font-bold text-slate-900">Filtres</span>
+            <span className="text-sm font-bold text-foreground">Filtres</span>
             {activeFilterCount > 0 && (
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {activeFilterCount} critère{activeFilterCount > 1 ? "s" : ""} actif
                 {activeFilterCount > 1 ? "s" : ""}
               </p>
             )}
           </div>
           {activeFilterCount > 0 && (
-            <button
-              type="button"
-              className="text-xs font-semibold text-orange-600 hover:text-orange-700 px-2 py-1 rounded-md hover:bg-orange-50 transition-colors"
-              onClick={resetFilters}
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
               Tout effacer
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain">
@@ -319,47 +311,37 @@ export default function CatalogPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex-shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex-shrink-0 flex items-center justify-between gap-4 border-b border-border bg-card px-4 py-4 shadow-[var(--shadow-soft)] sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <CatalogFilterTrigger
               activeCount={activeFilterCount}
               onClick={() => setMobileFiltersOpen(true)}
             />
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+              <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                <SquaresFour size={22} weight="duotone" className="shrink-0 text-primary" />
                 Catalogue produits
               </h1>
               {!isLoading && (
-                <p className="text-sm text-slate-500 mt-0.5 tabular-nums">
+                <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                   {total.toLocaleString("fr-FR")} produit{total !== 1 ? "s" : ""}
                 </p>
               )}
             </div>
-            <div className="relative hidden md:block w-72 lg:w-80 ml-2">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
-              <input
-                type="search"
-                placeholder="Recherche SKU, nom, description…"
-                value={searchInput}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className={searchInputCls}
-              />
-            </div>
+            <SearchInput
+              className="ml-2 hidden w-72 lg:block lg:w-80"
+              value={searchInput}
+              onChange={onSearchChange}
+              placeholder="Recherche SKU, nom, description…"
+            />
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <ExportButton filters={filters} disabled={total === 0} />
             {userCanEdit && (
-              <Link
-                href="/catalog/new"
-                className="flex items-center gap-2 h-9 px-4 text-sm font-semibold text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
-                title="Créer un produit"
-              >
-                <Plus size={15} />
+              <Button nativeButton={false} render={<Link href="/catalog/new" />} title="Créer un produit">
+                <Plus size={16} weight="bold" />
                 <span className="hidden sm:inline">Nouveau produit</span>
-              </Link>
+              </Button>
             )}
           </div>
         </div>
@@ -384,26 +366,18 @@ export default function CatalogPage() {
         />
 
         {/* Mobile search */}
-        <div className="md:hidden px-4 py-3 bg-white border-b border-slate-200">
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <input
-              type="search"
-              placeholder="Rechercher…"
-              value={searchInput}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className={searchInputCls}
-            />
-          </div>
+        <div className="border-b border-border bg-card px-4 py-3 md:hidden">
+          <SearchInput
+            value={searchInput}
+            onChange={onSearchChange}
+            placeholder="Rechercher…"
+          />
         </div>
 
         {/* Bulk action bar */}
         {selected.size > 0 && (
-          <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-2.5 bg-orange-50 border-b border-orange-200/80">
-            <span className="text-sm font-semibold text-orange-800">
+          <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-2.5 sm:px-6">
+            <span className="text-sm font-semibold text-foreground">
               {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
             </span>
             <div className="flex items-center gap-2">
@@ -413,18 +387,20 @@ export default function CatalogPage() {
                 productLabel={`${selected.size} produit${selected.size > 1 ? "s" : ""}`}
                 onAdded={() => setSelected(new Set())}
               >
-                <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors">
-                  <Plus size={15} />
+                <Button size="sm">
+                  <Plus size={15} weight="bold" />
                   Ajouter à simulation
-                </button>
+                </Button>
               </AddToSimulationDialog>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setSelected(new Set())}
-                className="p-2 text-slate-500 hover:text-slate-700"
                 title="Vider la sélection"
+                aria-label="Vider la sélection"
               >
-                <X size={16} />
-              </button>
+                <X size={16} weight="bold" />
+              </Button>
             </div>
           </div>
         )}
@@ -441,58 +417,53 @@ export default function CatalogPage() {
           isLoading={isLoading}
           errorState={
             error ? (
-              <div className="flex h-64 flex-col items-center justify-center gap-3 text-slate-500">
-                <Package size={40} className="text-slate-300" />
-                <p className="text-sm">Impossible de charger les produits.</p>
-                <p className="text-xs text-slate-400">{error?.message}</p>
-              </div>
+              <EmptyState
+                className="mx-4 my-8 border-none bg-transparent shadow-none"
+                icon={<Package size={32} weight="duotone" />}
+                title="Impossible de charger les produits"
+                description={error?.message}
+              />
             ) : undefined
           }
           emptyState={
-            <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-300">
-                <Package size={28} />
-              </span>
-              <p className="text-base font-semibold text-slate-700">Aucun produit trouvé</p>
-              <p className="text-sm text-slate-500">
-                {activeFilterCount > 0
+            <EmptyState
+              className="mx-auto max-w-sm border-none bg-transparent shadow-none"
+              icon={<Package size={32} weight="duotone" />}
+              title="Aucun produit trouvé"
+              description={
+                activeFilterCount > 0
                   ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : "Le catalogue est vide ou les produits ne sont pas encore synchronisés."}
-              </p>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-700"
-                >
-                  <Sparkles size={14} />
-                  Réinitialiser les filtres
-                </button>
-              )}
-            </div>
+                  : "Le catalogue est vide ou les produits ne sont pas encore synchronisés."
+              }
+              action={
+                activeFilterCount > 0 ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    <Sparkle size={14} weight="duotone" />
+                    Réinitialiser les filtres
+                  </Button>
+                ) : undefined
+              }
+            />
           }
           onRowClick={(product) => setDrawerSku(product.sku_code)}
           rowClassName={(product) =>
             selected.has(product.id)
-              ? "bg-orange-50/90"
-              : "bg-white even:bg-slate-50/40 hover:bg-orange-50/50"
+              ? "bg-primary/5"
+              : "bg-card even:bg-muted/20 hover:bg-primary/5"
           }
           renderLeadingHeader={() => (
-            <input
-              type="checkbox"
+            <Checkbox
               checked={allPageSelected}
-              onChange={toggleSelectPage}
-              className="h-4 w-4 rounded border-slate-300 accent-primary"
+              onCheckedChange={() => toggleSelectPage()}
               aria-label="Tout sélectionner"
             />
           )}
           renderLeadingCell={(product) => (
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selected.has(product.id)}
-              onChange={() => toggleRow(product.id)}
-              className="h-4 w-4 rounded border-slate-300 accent-primary"
+              onCheckedChange={() => toggleRow(product.id)}
               aria-label={`Sélectionner ${product.sku_code}`}
+              onClick={(e) => e.stopPropagation()}
             />
           )}
           pagination={{

@@ -9,16 +9,15 @@ import {
   type CatalogFilters,
   type HierarchyLevel,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { FilterSelect } from "@/components/FilterSelect";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import type { SelectedSku } from "./wizard-draft";
 
 interface Props {
   selectedIds: Set<string>;
   onAdd: (skus: SelectedSku[]) => void;
 }
-
-const selectCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400";
 
 function LevelSelect({
   label,
@@ -35,20 +34,14 @@ function LevelSelect({
 }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
-      <select
+      <Label className="mb-1.5 block text-xs font-semibold text-muted-foreground">{label}</Label>
+      <FilterSelect
         value={value}
+        onChange={onChange}
+        placeholder="Tous"
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className={selectCls}
-      >
-        <option value="">Tous</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
+        options={options.map((o) => ({ value: o, label: o }))}
+      />
     </div>
   );
 }
@@ -64,7 +57,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
   const useLevel = (level: HierarchyLevel, parents: Record<string, string>, enabled: boolean) =>
     useSWR<string[]>(
       enabled ? ["hierarchy", level, JSON.stringify(parents)] : null,
-      () => getHierarchyLevel(level, parents)
+      () => getHierarchyLevel(level, parents),
     );
 
   const { data: universes } = useLevel("universe", {}, true);
@@ -84,7 +77,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
   const hasFilter = !!universe;
   const { data: preview } = useSWR(
     hasFilter ? ["hierarchy-count", JSON.stringify(filters)] : null,
-    () => getCatalogProducts({ ...filters, limit: 1, page: 1 })
+    () => getCatalogProducts({ ...filters, limit: 1, page: 1 }),
   );
   const matchCount = preview?.count ?? 0;
 
@@ -95,8 +88,6 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
       const collected: SelectedSku[] = [];
       const limit = 500;
       let page = 1;
-      // Page through every matching product, deduplicating against the
-      // current selection.
       for (;;) {
         const res = await getCatalogProducts({ ...filters, limit, page });
         for (const p of res.results) {
@@ -117,7 +108,7 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <LevelSelect
           label="Univers"
           value={universe}
@@ -161,34 +152,26 @@ export function HierarchyFilterPanel({ selectedIds, onAdd }: Props) {
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <span className="text-sm text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm text-muted-foreground">
           {hasFilter ? (
             <>
-              <span className="font-semibold text-slate-700 tabular-nums">{matchCount}</span> SKU
+              <span className="font-semibold tabular-nums text-foreground">{matchCount}</span> SKU
               correspondent à ce filtre
             </>
           ) : (
             "Sélectionnez au moins un univers."
           )}
         </span>
-        <button
-          type="button"
-          onClick={handleAddAll}
-          disabled={!hasFilter || matchCount === 0 || adding}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
-            "bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          )}
-        >
+        <Button type="button" onClick={handleAddAll} disabled={!hasFilter || matchCount === 0 || adding}>
           {adding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
           Ajouter tous les SKU correspondants
-        </button>
+        </Button>
       </div>
     </div>
   );

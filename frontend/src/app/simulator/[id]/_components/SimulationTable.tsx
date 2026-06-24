@@ -28,6 +28,8 @@ import {
   type DataTableSortState,
 } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { decToPct, fmtEur, fmtNum, lineDiagnostics, LINE_STATUS, productEditHref } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
@@ -527,23 +529,27 @@ export function SimulationTable({
         <div className="mt-2 flex flex-wrap items-center gap-4">
           {(
             [
-              { key: "ok" as const, label: "OK", accent: "accent-green-600" },
-              { key: "warning" as const, label: "Avertissements", accent: "accent-amber-500" },
-              { key: "error" as const, label: "Erreurs", accent: "accent-red-500" },
+              { key: "ok" as const, label: "OK" },
+              { key: "warning" as const, label: "Avertissements" },
+              { key: "error" as const, label: "Erreurs" },
             ] as const
-          ).map(({ key, label, accent }) => (
-            <label key={key} className="flex items-center gap-1.5 text-xs text-slate-600">
-              <input
-                type="checkbox"
+          ).map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <Checkbox
+                id={`status-filter-${key}`}
                 checked={statusFilters[key]}
-                onChange={(e) => {
-                  setStatusFilters((current) => ({ ...current, [key]: e.target.checked }));
+                onCheckedChange={(checked) => {
+                  setStatusFilters((current) => ({ ...current, [key]: checked === true }));
                   setPage(1);
                 }}
-                className={cn("h-3.5 w-3.5 rounded border-slate-300", accent)}
               />
-              {label}
-            </label>
+              <Label
+                htmlFor={`status-filter-${key}`}
+                className="text-xs font-normal text-muted-foreground"
+              >
+                {label}
+              </Label>
+            </div>
           ))}
           <span className="text-xs text-slate-400">
             {total} ligne{total !== 1 ? "s" : ""}

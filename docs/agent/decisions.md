@@ -343,3 +343,11 @@ Suite audit UI et modernisation démo :
 - **Composants** : primitives shadcn ajoutées (`slider`, `sheet`, `popover`, `accordion`, `command`, `radio-group`) ; wrappers `FilterSection`, `FilterCheckboxGroup`, `MixSlider`.
 - **Ombres** : tokens `--shadow-soft`, `--shadow-card`, `--shadow-elevated` dans `globals.css`.
 - Dark mode et vue carte mobile catalogue : **hors scope** explicite.
+
+## 2026-06-24 · [P] Refonte UI phase 0b/2 — catalogue filtres, listes, composants interactifs
+Suite modernisation UI (plan refonte) :
+- **Filtres catalogue** : sidebar refondue (`FilterSection`, cascade hiérarchie lazy, sliders PAMP/stock dynamiques). Endpoint `GET /api/products/filter-bounds` pour bornes min/max — **écart** à la règle « UI seule » du plan initial, justifié par besoin UX sliders (tracé ici).
+- **Hiérarchie API** : `hierarchy/distinct` accepte parents CSV (`universe=U1,U2`) — un appel par niveau au lieu de N requêtes.
+- **Phase 0b** : `MixSlider` branché (alias `StockPurchaseMixSlider`), composants `SearchInput`, `FilterSelect`, `RangeFilterSlider`. **Fait** : `Field.tsx` (Switch/Select/Input shadcn), filtres statut `SimulationTable` (Checkbox), `library/page.tsx` (FilterSelect, PageHeader, EmptyState), `HierarchyFilterPanel` (FilterSelect).
+- **Phase 2** : `catalog/page.tsx` et `offers/page.tsx` migrés vers tokens + shadcn (`Checkbox`, `Button`, `EmptyState`, `StatusBadge`, `FilterSelect`, `Dialog`). Offres : table HTML conservée (migration `DataTable` = prochain lot).
+- **Hors scope** : phase 3 (simulation détail, compare, fiche produit), phase 4 (virtualisation).

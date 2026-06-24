@@ -30,16 +30,14 @@ export function BrandLogo({ variant, className, compact }: BrandLogoProps) {
 
   if (compact && variant === "syskern") {
     return (
-      <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg bg-white p-1", className)}>
-        <Image
-          src={logo.src}
-          alt="Syskern"
-          width={logo.width}
-          height={logo.height}
-          className="h-full w-full object-contain"
-          priority
-        />
-      </div>
+      <Image
+        src={logo.src}
+        alt="Syskern"
+        width={logo.width}
+        height={logo.height}
+        className={cn("object-contain", className)}
+        priority
+      />
     );
   }
 
@@ -49,7 +47,10 @@ export function BrandLogo({ variant, className, compact }: BrandLogoProps) {
       alt={logo.alt}
       width={logo.width}
       height={logo.height}
-      className={cn("h-auto w-auto max-h-10 min-w-[120px] max-w-full object-contain", className)}
+      className={cn(
+        "h-auto w-auto max-h-10 min-w-[120px] max-w-full object-contain",
+        className,
+      )}
       priority
     />
   );

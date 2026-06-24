@@ -35,6 +35,8 @@ import {
 import { Button } from "@/components/ui/button";
 
 const MAIN_SIDEBAR_COLLAPSED_KEY = "syskern:main-sidebar-collapsed";
+/** Hauteur commune barre logo sidebar + header fil d'Ariane */
+const SHELL_TOP_BAR_CLASS = "h-14 shrink-0";
 
 const HOME_ITEM = {
   label: "Tableau de bord",
@@ -134,15 +136,24 @@ function Sidebar({
         collapsed ? "w-16" : "w-60",
       )}
     >
-      <div className={cn("border-b border-white/10 py-5", collapsed ? "px-2" : "px-4")}>
-        <Link href="/" title="Tableau de bord" className="block">
-          {collapsed ? (
-            <BrandLogo variant="syskern" compact className="mx-auto" />
-          ) : (
-            <div className="rounded-lg bg-white p-3 shadow-[var(--shadow-soft)]">
-              <BrandLogo variant="syskern" className="min-w-0 max-h-9 max-w-[180px]" />
-            </div>
-          )}
+      <div
+        className={cn(
+          "relative flex items-center justify-center overflow-hidden border-b border-border",
+          SHELL_TOP_BAR_CLASS,
+          collapsed ? "px-2" : "px-4",
+        )}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-white" aria-hidden />
+        <Link
+          href="/"
+          title="Tableau de bord"
+          className="relative z-10 flex h-full w-full items-center justify-center px-1.5 py-0.5"
+        >
+          <BrandLogo
+            variant="syskern"
+            compact={collapsed}
+            className="h-full w-full max-h-full max-w-full min-h-0 min-w-0 object-contain"
+          />
         </Link>
       </div>
 
@@ -291,7 +302,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card/80 px-6 shadow-[var(--shadow-soft)] backdrop-blur-sm">
+          <header
+            className={cn(
+              "flex items-center gap-4 border-b border-border bg-card/80 px-6 shadow-[var(--shadow-soft)] backdrop-blur-sm",
+              SHELL_TOP_BAR_CLASS,
+            )}
+          >
             <Button
               variant="ghost"
               size="icon-sm"

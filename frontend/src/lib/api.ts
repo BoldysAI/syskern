@@ -81,6 +81,9 @@ export interface CatalogFilters {
   stock_in?: boolean;
   stock_out?: boolean;
   stock_min?: number | null;
+  /** PAMP price range (EUR). */
+  pamp_min?: number | null;
+  pamp_max?: number | null;
   /** Dynamic attribute filters, keyed by attribute code (value or values). */
   attrs?: Record<string, string | string[] | undefined>;
 }
@@ -556,7 +559,7 @@ export function getCatalogProducts(params: CatalogListParams): Promise<Paginated
 }
 
 /** Map the sidebar filter state to backend `ProductFilter` query params. */
-function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
+export function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
   const p: Record<string, string> = {};
   if (f.q?.trim()) p.q = f.q.trim();
   const csvKeys: (keyof CatalogFilters)[] = [
@@ -572,12 +575,28 @@ function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
     if (Array.isArray(v) && v.length) p[k] = v.join(",");
   }
   if (f.stock_in && !f.stock_out) p.in_stock = "true";
+  if (f.stock_out && !f.stock_in) p.in_stock = "false";
   if (f.stock_min != null && f.stock_min > 0) p.stock_min = String(f.stock_min);
+  if (f.pamp_min != null && f.pamp_min > 0) p.pamp_min = String(f.pamp_min);
+  if (f.pamp_max != null && f.pamp_max > 0) p.pamp_max = String(f.pamp_max);
   for (const [code, raw] of Object.entries(f.attrs ?? {})) {
     if (raw == null) continue;
     p[`attr_${code}`] = Array.isArray(raw) ? raw.join(",") : String(raw);
   }
   return p;
+}
+
+export interface CatalogFilterBounds {
+  pamp_eur: { min: number | null; max: number | null };
+  stock_quantity: { min: number | null; max: number | null };
+  attributes: Record<string, { min: number; max: number }>;
+}
+
+/** Min/max for numeric filters, scoped to current facet context (excludes range sliders). */
+export function getCatalogFilterBounds(filters: CatalogFilters = {}): Promise<CatalogFilterBounds> {
+  const { pamp_min: _a, pamp_max: _b, stock_min: _c, ...facet } = filters;
+  const q = new URLSearchParams(catalogFiltersToParams(facet));
+  return apiFetch<CatalogFilterBounds>(`/api/products/filter-bounds?${q.toString()}`);
 }
 
 /** Trigger an async Excel export (Celery task), then download the file.
@@ -1138,12 +1157,16 @@ export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
 
 export function getHierarchyLevel(
   level: HierarchyLevel,
-  parents?: { universe?: string; family?: string; range?: string },
+  parents?: { universe?: string | string[]; family?: string | string[]; range?: string | string[] },
 ): Promise<string[]> {
   const q = new URLSearchParams({ level });
-  if (parents?.universe) q.set("universe", parents.universe);
-  if (parents?.family) q.set("family", parents.family);
-  if (parents?.range) q.set("range", parents.range);
+  const setCsv = (key: string, val: string | string[] | undefined) => {
+    if (!val || (Array.isArray(val) && !val.length)) return;
+    q.set(key, Array.isArray(val) ? val.join(",") : val);
+  };
+  setCsv("universe", parents?.universe);
+  setCsv("family", parents?.family);
+  setCsv("range", parents?.range);
   return apiFetch<{ level: string; values: string[] }>(
     `/api/hierarchy/distinct?${q.toString()}`,
   ).then((r) => r.values);

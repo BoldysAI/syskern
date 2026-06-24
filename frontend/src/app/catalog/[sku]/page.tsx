@@ -113,7 +113,7 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
       </div>
 
       <div className="flex items-center gap-2 flex-wrap mb-1">
-        <h1 className="text-lg font-bold text-foreground font-mono">{product.sku_code}</h1>
+        <h1 className="text-lg font-bold font-mono text-primary">{product.sku_code}</h1>
         <span
           className={cn(
             "inline-flex px-2 py-0.5 rounded text-xs font-semibold",
@@ -138,7 +138,7 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
       <div className="mt-4 grid grid-cols-1 gap-2">
         <KpiCard
           label="PAMP"
-          accent="warm"
+          accent="green"
           value={
             pamp > 0
               ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`

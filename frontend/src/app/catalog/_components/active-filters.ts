@@ -20,6 +20,8 @@ export function countActiveFilters(f: CatalogFilters): number {
   if (f.stock_in && !f.stock_out) n++;
   if (f.stock_out && !f.stock_in) n++;
   if (f.stock_min != null && f.stock_min > 0) n++;
+  if (f.pamp_min != null && f.pamp_min > 0) n++;
+  if (f.pamp_max != null && f.pamp_max > 0) n++;
   for (const v of Object.values(f.attrs ?? {})) {
     if (Array.isArray(v)) n += v.length;
     else if (v) n++;
@@ -81,6 +83,21 @@ export function buildFilterChips(
     });
   }
 
+  if (filters.pamp_min != null && filters.pamp_min > 0) {
+    chips.push({
+      id: "pamp_min",
+      label: `PAMP ≥ ${filters.pamp_min} €`,
+      category: "PAMP",
+    });
+  }
+  if (filters.pamp_max != null && filters.pamp_max > 0) {
+    chips.push({
+      id: "pamp_max",
+      label: `PAMP ≤ ${filters.pamp_max} €`,
+      category: "PAMP",
+    });
+  }
+
   for (const [code, raw] of Object.entries(filters.attrs ?? {})) {
     const category = attrLabels[code] ?? code;
     const values = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
@@ -106,6 +123,8 @@ export function removeFilterChip(filters: CatalogFilters, chipId: string): Catal
   if (chipId === "stock_in") return { ...filters, stock_in: false };
   if (chipId === "stock_out") return { ...filters, stock_out: false };
   if (chipId === "stock_min") return { ...filters, stock_min: null };
+  if (chipId === "pamp_min") return { ...filters, pamp_min: null };
+  if (chipId === "pamp_max") return { ...filters, pamp_max: null };
 
   for (const key of ARRAY_KEYS) {
     const prefix = `${key}:`;

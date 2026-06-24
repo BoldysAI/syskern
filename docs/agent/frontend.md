@@ -181,7 +181,9 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   `normalizeCatalogFilters` migre les anciennes valeurs string → `string[]`.
 - **Chips filtres actifs** : `active-filters.ts` (`buildFilterChips`, `countActiveFilters`,
   `removeFilterChip`) + `ActiveFilterBar.tsx` au-dessus du tableau.
-- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Dialog Radix plein écran).
+- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Sheet shadcn, panneau gauche).
+- **Bornes sliders** : `GET /api/products/filter-bounds` via `getCatalogFilterBounds()` — min/max PAMP, stock et attributs numériques contextualisés aux filtres actifs (hors fourchettes PAMP/stock). Helpers `slider-bounds.ts`, composant `RangeFilterSlider`.
+- **Hiérarchie cascade** : `HierarchyFilterCascade` — niveaux repliables, fetch lazy par niveau, parents CSV (`hierarchy/distinct?universe=U1,U2`).
 - **Sélection persistée à travers les pages** : garder un `Set<string>` d'ids en state, **ne pas**
   le réinitialiser au changement de page (le faire seulement après une action groupée réussie).
   Sur clic de ligne interactif (checkbox, lien) : `onClick={(e) => e.stopPropagation()}` pour ne
@@ -448,9 +450,7 @@ couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
 
 ### Icônes
 
-- **Navigation / dashboard / empty states** : `@phosphor-icons/react` via `components/AppIcon.tsx` (poids `duotone` ou `regular`, tailles tokenisées `sm|md|lg|xl`).
-- **Primitives shadcn** (checkbox, dialog…) : Lucide (interne au design system) — ne pas mélanger dans les primitives.
-- Migration progressive : shell + dashboard d'abord, puis pages métier.
+- **Navigation / dashboard / empty states / listes** : `@phosphor-icons/react` via `components/AppIcon.tsx` (poids `duotone` ou `regular`, tailles tokenisées `sm|md|lg|xl`). Pages catalogue liste et offres : Phosphor direct.
 
 ### Ombres (tokens CSS)
 
@@ -475,11 +475,21 @@ couleurs legacy (`#0F2137`, `#E07200`) — utiliser les tokens ci-dessus.
 | `AppIcon` | `components/AppIcon.tsx` | Icônes Phosphor (taille/poids/couleur) |
 | `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable |
 | `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) |
+| `FilterSelect` | `components/FilterSelect.tsx` | Select filtre avec option « Tous » |
+| `SearchInput` | `components/SearchInput.tsx` | Recherche avec icône + clear |
+| `RangeFilterSlider` | `components/RangeFilterSlider.tsx` | Slider simple ou fourchette (PAMP, stock, attributs) |
 | `MixSlider` | `components/MixSlider.tsx` | Slider mix stock/achat (shadcn Slider) |
+
+`StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
 
 **Page d'accueil** : `/` = tableau de bord (`app/(home)/page.tsx`) avec KPIs briques métier, raccourcis, activité récente. Post-login → `/` (plus `/catalog`).
 
-**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux.
+- **Primitives shadcn** (checkbox, dialog…) : Lucide (interne au design system) — ne pas mélanger dans les primitives.
+- Migration progressive : shell + dashboard + catalogue/offres listes ; simulateur détail et fiche produit en cours.
+
+**Listes catalogue / offres** (phase 2 refonte UI) : tokens sémantiques (`border-border`, `text-muted-foreground`, `bg-card`), `EmptyState`, `StatusBadge`, `Checkbox` shadcn, `Button` shadcn, `SearchInput` / `FilterSelect`. Catalogue : toolbar + sidebar filtres (`FilterSection` icônes `primary`, pas `warm`), pagination/tri `DataTable` en `primary` (plus d’orange legacy), `ExportButton` / `ProductDrawer` shadcn, CTA verts. **SKU et PAMP** : `text-primary`. **Orange (`warm`)** : graphiques / accents pricing avancés (onglet Commercial) uniquement.
+
+**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : `HierarchyFilterPanel` → `FilterSelect`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
 
 Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
 
@@ -536,5 +546,5 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Nouvelle var d'env documentée (`.env.example` + `docker-compose.yml`) ; `NEXT_PUBLIC_*` = rebuild
 - [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`
 - [ ] Wizard / édition simulation → `validateTransportChains` + `buildSimulationPatch` ; vue 3 zones autosave sur `/simulator/[id]`
-- [ ] Mix stock/achat → `StockPurchaseMixSlider` (part stock = valeur curseur, pas l'inverse)
+- [ ] Mix stock/achat → `MixSlider` (alias `StockPurchaseMixSlider`)
 - [ ] Breakdown calcul → `CalculationBreakdownDrawer` + helpers `sim-format.ts` (pas de calcul prix front)

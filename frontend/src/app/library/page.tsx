@@ -6,6 +6,12 @@ import { Download, Eye, FileText, History, Plus, Trash2, Upload, X } from "lucid
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/EmptyState";
+import { FilterSelect } from "@/components/FilterSelect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -201,47 +207,36 @@ function UploadModal({ onClose }: { onClose: () => void }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Catégorie</label>
-            <select
+            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Catégorie</Label>
+            <FilterSelect
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              onChange={setCategory}
+              placeholder="Choisir…"
+              options={CATEGORIES.map((c) => ({ value: c.code, label: c.label }))}
+            />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Langue</label>
-            <select
+            <Label className="mb-1 block text-xs font-medium text-muted-foreground">Langue</Label>
+            <FilterSelect
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
-            >
-              {LANGS.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
+              onChange={setLanguage}
+              placeholder="Choisir…"
+              options={LANGS.map((l) => ({ value: l.code, label: l.label }))}
+            />
           </div>
         </div>
 
         <div className="relative mt-3">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
+          <Label className="mb-1 block text-xs font-medium text-muted-foreground">
             Produit lié (optionnel)
-          </label>
-          <input
+          </Label>
+          <Input
             value={productQuery}
             onChange={(e) => {
               setProductQuery(e.target.value);
               setProductId("");
             }}
             placeholder="Rechercher un SKU ou un nom…"
-            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           {productId && (
             <span className="mt-1 inline-block text-xs text-green-600">Produit lié ✓</span>
@@ -266,28 +261,17 @@ function UploadModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-3">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Notes</label>
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+          <Label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</Label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
 
         <div className="mt-5 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-border py-2.5 text-sm text-slate-600 hover:bg-slate-50"
-          >
+          <Button type="button" variant="outline" onClick={onClose} className="flex-1">
             Annuler
-          </button>
-          <button
-            onClick={submit}
-            disabled={!file || busy}
-            className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="button" onClick={submit} disabled={!file || busy} className="flex-1">
             {busy ? "Envoi…" : "Uploader"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -406,57 +390,56 @@ export default function LibraryPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Bibliothèque de documents</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Pièces jointes réutilisables pour les offres projet (CDC §7.4)
-          </p>
-        </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"
-        >
-          <Plus size={16} /> Ajouter
-        </button>
-      </div>
+      <PageHeader
+        title="Bibliothèque de documents"
+        description="Pièces jointes réutilisables pour les offres projet (CDC §7.4)"
+        actions={
+          <Button onClick={() => setShowUpload(true)}>
+            <Plus size={16} />
+            Ajouter
+          </Button>
+        }
+      />
 
-      <div className="mb-4 flex gap-3">
-        <select
+      <div className="mb-4 flex flex-wrap gap-3">
+        <FilterSelect
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
-        >
-          <option value="">Toutes catégories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={setCategory}
+          placeholder="Toutes catégories"
+          options={CATEGORIES.map((c) => ({ value: c.code, label: c.label }))}
+        />
+        <FilterSelect
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
-        >
-          <option value="">Toutes langues</option>
-          {LANGS.filter((l) => l.code).map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+          onChange={setLanguage}
+          placeholder="Toutes langues"
+          options={LANGS.filter((l) => l.code).map((l) => ({ value: l.code, label: l.label }))}
+        />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {error ? (
-          <div className="py-16 text-center text-sm text-slate-400">Erreur de chargement.</div>
+          <div className="p-6">
+            <EmptyState
+              icon={<FileText size={24} />}
+              title="Erreur de chargement"
+              description="Impossible de charger les documents."
+            />
+          </div>
         ) : isLoading ? (
-          <div className="py-16 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-16 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : docs.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
-            <FileText size={28} className="text-slate-300" />
-            <p className="text-sm">Aucun document. Cliquez « Ajouter » pour en uploader un.</p>
+          <div className="p-6">
+            <EmptyState
+              icon={<FileText size={24} />}
+              title="Aucun document"
+              description='Cliquez « Ajouter » pour en uploader un.'
+              action={
+                <Button onClick={() => setShowUpload(true)}>
+                  <Plus size={16} />
+                  Ajouter
+                </Button>
+              }
+            />
           </div>
         ) : (
           <table className="w-full">

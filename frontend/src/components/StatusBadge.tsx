@@ -50,3 +50,23 @@ export function simulationStatusVariant(
       return "default";
   }
 }
+
+/** Map offer lifecycle status to badge variants */
+export function offerStatusVariant(
+  status: string,
+): VariantProps<typeof statusBadgeVariants>["variant"] {
+  switch (status) {
+    case "draft":
+      return "draft";
+    case "sent":
+      return "info";
+    case "won":
+      return "success";
+    case "lost":
+      return "failed";
+    case "expired":
+      return "warning";
+    default:
+      return "default";
+  }
+}

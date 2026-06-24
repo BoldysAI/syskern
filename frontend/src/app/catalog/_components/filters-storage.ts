@@ -82,6 +82,8 @@ export function isEmptyFilter(f: CatalogFilters): boolean {
     !f.stock_in &&
     !f.stock_out &&
     (f.stock_min == null || f.stock_min <= 0) &&
+    (f.pamp_min == null || f.pamp_min <= 0) &&
+    (f.pamp_max == null || f.pamp_max <= 0) &&
     Object.values(f.attrs ?? {}).every((v) => (Array.isArray(v) ? v.length === 0 : !v))
   );
 }

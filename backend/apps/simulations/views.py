@@ -24,6 +24,7 @@ from .models import (
     SavedComparison,
     Simulation,
     SimulationLine,
+    SimulationRecalculation,
     SimulationStatus,
     SimulationType,
 )
