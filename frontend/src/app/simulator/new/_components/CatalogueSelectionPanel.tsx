@@ -33,7 +33,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
 
   const { data, isLoading } = useSWR<PaginatedProducts>(
     ["sku-catalogue", debounced, page],
-    () => getProducts({ search: debounced || undefined, page, limit: PAGE_SIZE }),
+    () => getProducts({ q: debounced || undefined, page, limit: PAGE_SIZE }),
     { keepPreviousData: true }
   );
 

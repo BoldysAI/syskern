@@ -277,9 +277,10 @@ Référence : `app/settings/attributes/_components/rows.tsx` + `page.tsx`.
 
 `/settings` et `/settings/attributes` partagent `app/settings/_components/SettingsNav.tsx`
 (onglets = **liens** Next, état actif via `usePathname` + `useSearchParams`). Les sections de
-`/settings` (Marché/Transport/Odoo) sont pilotées par le query-param `?tab=` au lieu d'onglets
-Radix in-page. **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16 (sinon
-`next build` échoue) — encapsuler le composant qui le lit.
+`/settings` (Marché/Transport/Odoo/**Alertes offres**) sont pilotées par le query-param `?tab=`
+au lieu d'onglets Radix in-page ; **Attributs dynamiques** reste une route dédiée
+(`/settings/attributes`). **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16
+(sinon `next build` échoue) — encapsuler le composant qui le lit.
 
 Onglet **Marché** : CRUD paramètres cuivre/FX via `listMarketParameters` / `createMarketParameter`
 / `updateMarketParameter` / `deleteMarketParameter` ; champ optionnel `source` (LME, BCE, manual).

@@ -19,7 +19,7 @@ class AttributeRegistryViewSet(viewsets.ModelViewSet):
     serializer_class = AttributeRegistrySerializer
     ordering = ("display_order", "code")
     search_fields = ("code",)
-    filterset_fields = ("category", "data_type", "is_required", "is_searchable")
+    filterset_fields = ("category", "data_type", "is_required", "is_searchable", "is_filterable")
 
     @action(detail=False, methods=["post"])
     def reorder(self, request):

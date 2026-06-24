@@ -327,6 +327,13 @@ Beaucoup préexistait (`set_status`, `duplicate`/`versions`, dashboard, expiring
 - **UI** : page détail `/offers/[id]` (statut/version, compte à rebours expiration coloré J-7, document, chaîne de versions, lignes lecture seule, actions cycle de vie + prolonger + nouvelle version) ; liste `/offers` (label → détail, stat « CA gagné » via `won_total`). Lint+tsc propres ; `next build` vert.
 - **Tests (14)** : transitions (draft→sent OK, draft→won 400, sent→won projet, tariff→won 400), versioning V1→V2→V3 + chaîne, extend (OK, <7j 400, réactivation), cron (auto-expire sent, won intact, alerte J-5 envoyée, J-10 non, killswitch). Vérif live `:8000` (transitions + new-version + extend), puis nettoyage. Worker+beat redéployés (tâche + schedule enregistrés).
 
+## 2026-06-18 · [P] PIM — régression attributs dynamiques (merge pricing/offres)
+Régression post-merge : `getProducts`/`buildCatalogQuery` dans `lib/api.ts` avaient été simplifiés (plus de `attrs`, `q`, stock, ordering) → filtres catalogue EAV inopérants ; `SettingsNav` déconnecté de `/settings` (retour Radix in-page, onglet Attributs inaccessible) ; filtre API `is_filterable` absent du `filterset_fields` backend. Correctifs :
+- **`lib/api.ts`** : restauration `ProductListParams extends CatalogFilters`, `buildCatalogQuery`, `getProducts` complet ; export `HierarchyLevel` ; `getFilterableAttributes` filtre côté client en secours.
+- **`/settings`** : retour à `SettingsNav` + `?tab=` (marche/transport/odoo/alerts) + `<Suspense>` ; onglet Alertes conservé dans la nav partagée.
+- **Backend** : `is_filterable` ajouté à `AttributeRegistryViewSet.filterset_fields` + test `?is_filterable=true`.
+- **Tests** : 15 tests attributes verts (`uv run pytest apps/attributes/tests/test_api.py`).
+
 ## 2026-06-23 · [P] Palette UI = brand guidelines Unikkern (refonte visuelle frontend)
 Modernisation UI Syskern alignée sur les brand guidelines Unikkern (PDF officiel). Décisions :
 - **Palette** : navy `#162F56`, vert `#649E5F` (CTA primaire + identité syskern), orange `#F78F26` (accent pricing/warm), bleu `#09B0E6` (info), rose `#C92359` (destructif). Les anciennes couleurs code (`#0F2137`, `#E07200`) étaient hors charte → remplacées par tokens CSS (`brand-*`, `primary`, `warm`) dans `globals.css`.

@@ -59,18 +59,9 @@ async function dispatchAndPoll<T>(
   return pollTask<T>(dispatch.task_id, pollOpts);
 }
 
-export interface ProductListParams {
-  universe?: string;
-  family?: string;
-  range?: string;
-  search?: string;
-  ordering?: string;
-  page?: number;
-  limit?: number;
-}
-
 /** Catalog sidebar filter state (multi-select, persisted in localStorage). */
 export interface CatalogFilters {
+  /** Full-text search (Postgres tsvector, FR + simple). */
   q?: string;
   universe?: string[];
   family?: string[];
@@ -78,7 +69,9 @@ export interface CatalogFilters {
   sub_range?: string[];
   brand?: string[];
   supplier?: string[];
+  /** En stock (stock > 0). Combinable avec stock_out ; les deux cochés = pas de filtre stock. */
   stock_in?: boolean;
+  /** Rupture (stock ≤ 0 ou null). Combinable avec stock_in. */
   stock_out?: boolean;
   stock_min?: number | null;
   /** PAMP price range (EUR). */
@@ -86,6 +79,48 @@ export interface CatalogFilters {
   pamp_max?: number | null;
   /** Dynamic attribute filters, keyed by attribute code (value or values). */
   attrs?: Record<string, string | string[] | undefined>;
+}
+
+export interface ProductListParams extends CatalogFilters {
+  ordering?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** Build the shared query string for `GET /api/products` and the export task. */
+export function buildCatalogQuery(filters: CatalogFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.q?.trim()) params.q = filters.q.trim();
+  const csvKeys: (keyof CatalogFilters)[] = [
+    "universe",
+    "family",
+    "range",
+    "sub_range",
+    "brand",
+    "supplier",
+  ];
+  for (const k of csvKeys) {
+    const v = filters[k];
+    if (Array.isArray(v) && v.length) params[k] = v.join(",");
+  }
+  const { stock_in: inStock, stock_out: outStock } = filters;
+  if (inStock && !outStock) params.in_stock = "true";
+  else if (outStock && !inStock) params.in_stock = "false";
+  if (filters.stock_min != null && filters.stock_min > 0) {
+    params.stock_min = String(filters.stock_min);
+  }
+  if (filters.pamp_min != null && filters.pamp_min > 0) {
+    params.pamp_min = String(filters.pamp_min);
+  }
+  if (filters.pamp_max != null && filters.pamp_max > 0) {
+    params.pamp_max = String(filters.pamp_max);
+  }
+  for (const [code, raw] of Object.entries(filters.attrs ?? {})) {
+    if (raw == null) continue;
+    const v = Array.isArray(raw) ? raw.join(",") : String(raw);
+    if (v) params[`attr_${code}`] = v;
+  }
+  return params;
 }
 
 /** Supported currencies (mirrors core.models.Currency). */
@@ -526,64 +561,26 @@ export interface SyncStatus {
 }
 
 export function getProducts(params?: ProductListParams): Promise<PaginatedProducts> {
-  const q = new URLSearchParams();
+  const q = new URLSearchParams(buildCatalogQuery(params ?? {}));
   const limit = params?.limit ?? 20;
   const page = params?.page ?? 1;
   const offset = (page - 1) * limit;
-  if (params?.universe) q.set("universe", params.universe);
-  if (params?.family) q.set("family", params.family);
-  if (params?.range) q.set("range", params.range);
-  if (params?.search) q.set("search", params.search);
   if (params?.ordering) q.set("ordering", params.ordering);
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
 }
 
-export interface CatalogListParams extends CatalogFilters {
-  ordering?: string;
-  page?: number;
-  limit?: number;
-}
+export type CatalogListParams = ProductListParams;
 
 /** Paginated catalog list with full sidebar filter support. */
 export function getCatalogProducts(params: CatalogListParams): Promise<PaginatedProducts> {
-  const q = new URLSearchParams(catalogFiltersToParams(params));
-  const limit = params.limit ?? 20;
-  const page = params.page ?? 1;
-  const offset = (page - 1) * limit;
-  if (params.ordering) q.set("ordering", params.ordering);
-  q.set("limit", String(limit));
-  q.set("offset", String(offset));
-  return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
+  return getProducts(params);
 }
 
-/** Map the sidebar filter state to backend `ProductFilter` query params. */
+/** @deprecated Alias — prefer `buildCatalogQuery`. */
 export function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
-  const p: Record<string, string> = {};
-  if (f.q?.trim()) p.q = f.q.trim();
-  const csvKeys: (keyof CatalogFilters)[] = [
-    "universe",
-    "family",
-    "range",
-    "sub_range",
-    "brand",
-    "supplier",
-  ];
-  for (const k of csvKeys) {
-    const v = f[k];
-    if (Array.isArray(v) && v.length) p[k] = v.join(",");
-  }
-  if (f.stock_in && !f.stock_out) p.in_stock = "true";
-  if (f.stock_out && !f.stock_in) p.in_stock = "false";
-  if (f.stock_min != null && f.stock_min > 0) p.stock_min = String(f.stock_min);
-  if (f.pamp_min != null && f.pamp_min > 0) p.pamp_min = String(f.pamp_min);
-  if (f.pamp_max != null && f.pamp_max > 0) p.pamp_max = String(f.pamp_max);
-  for (const [code, raw] of Object.entries(f.attrs ?? {})) {
-    if (raw == null) continue;
-    p[`attr_${code}`] = Array.isArray(raw) ? raw.join(",") : String(raw);
-  }
-  return p;
+  return buildCatalogQuery(f);
 }
 
 export interface CatalogFilterBounds {
@@ -595,7 +592,7 @@ export interface CatalogFilterBounds {
 /** Min/max for numeric filters, scoped to current facet context (excludes range sliders). */
 export function getCatalogFilterBounds(filters: CatalogFilters = {}): Promise<CatalogFilterBounds> {
   const { pamp_min: _a, pamp_max: _b, stock_min: _c, ...facet } = filters;
-  const q = new URLSearchParams(catalogFiltersToParams(facet));
+  const q = new URLSearchParams(buildCatalogQuery(facet));
   return apiFetch<CatalogFilterBounds>(`/api/products/filter-bounds?${q.toString()}`);
 }
 
@@ -611,7 +608,7 @@ export async function exportProducts(opts?: {
 }): Promise<void> {
   const body: Record<string, unknown> = {};
   if (opts?.filters) {
-    body.filters = catalogFiltersToParams(opts.filters);
+    body.filters = buildCatalogQuery(opts.filters);
   } else if (opts?.search || opts?.universe) {
     const filters: Record<string, string> = {};
     if (opts.search) filters.q = opts.search;
@@ -1151,10 +1148,10 @@ export function parseSku(sku: string): Promise<ParsedSku> {
 
 // ── Distinct catalog facets (filters / wizard) ────────────────────────────
 
-/** Distinct values for a hierarchy level, optionally scoped by parent levels
- *  (cascade: family within a universe, range within universe+family, …). */
 export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
 
+/** Distinct values for a hierarchy level, optionally scoped by parent levels
+ *  (cascade: family within a universe, range within universe+family, …). */
 export function getHierarchyLevel(
   level: HierarchyLevel,
   parents?: { universe?: string | string[]; family?: string | string[]; range?: string | string[] },
@@ -1200,7 +1197,7 @@ export function listAttributes(): Promise<AttributeRegistry[]> {
 export function getFilterableAttributes(): Promise<AttributeRegistry[]> {
   return apiFetch<PaginatedResponse<AttributeRegistry>>(
     "/api/attributes/?is_filterable=true&limit=500",
-  ).then((r) => r.results);
+  ).then((r) => r.results.filter((a) => a.is_filterable));
 }
 
 export function createAttribute(input: Partial<AttributeRegistry>): Promise<AttributeRegistry> {
