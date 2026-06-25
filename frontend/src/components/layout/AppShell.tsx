@@ -137,23 +137,24 @@ function Sidebar({
     >
       <div
         className={cn(
-          "flex items-center justify-center border-b border-white/10",
+          "flex w-full shrink-0 items-center justify-center border-b border-border bg-white",
           SHELL_TOP_BAR_CLASS,
-          collapsed ? "px-2" : "px-4",
+          collapsed ? "px-2" : "px-3",
         )}
       >
         <Link
           href="/"
           title="Tableau de bord"
-          className="flex h-full w-full items-center justify-center px-1.5 py-2"
+          className="flex h-full w-full items-center justify-center"
         >
-          <span className="flex h-full w-full max-h-10 items-center justify-center rounded-lg bg-white px-3 py-1.5 shadow-sm">
-            <BrandLogo
-              variant="syskern"
-              compact={collapsed}
-              className="h-full w-full max-h-7 max-w-full min-h-0 min-w-0 object-contain"
-            />
-          </span>
+          <BrandLogo
+            variant="syskern"
+            compact={collapsed}
+            className={cn(
+              "h-full w-full object-contain object-center",
+              collapsed ? "max-h-9 max-w-9" : "max-h-11 max-w-full",
+            )}
+          />
         </Link>
       </div>
 

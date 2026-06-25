@@ -54,6 +54,7 @@ import { TechnicalTab } from "./_tabs/TechnicalTab";
 import { MarketingTab } from "./_tabs/MarketingTab";
 import { LogisticsTab } from "./_tabs/LogisticsTab";
 import { CommercialTab } from "./_tabs/CommercialTab";
+import { collapsePriceHistoryByDay } from "./_tabs/price-history-chart";
 import { MediaTab } from "./_tabs/MediaTab";
 
 const ODOO_BASE_URL = process.env.NEXT_PUBLIC_ODOO_BASE_URL ?? "";
@@ -249,7 +250,10 @@ function ProductPageContent() {
   const { data: history6m } = useSWR(decodedSku ? ["price-history", decodedSku, "6m"] : null, () =>
     getPriceHistory(decodedSku, "6m"),
   );
-  const latestPv = history6m?.points?.length ? parseDec(history6m.points[0].pv_eur) : 0;
+  const latestPv = useMemo(() => {
+    const points = collapsePriceHistoryByDay(history6m?.points ?? []);
+    return points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
+  }, [history6m?.points]);
 
   const wantEdit =
     searchParams.get("edit") === "1" || searchParams.get("edit") === "true";

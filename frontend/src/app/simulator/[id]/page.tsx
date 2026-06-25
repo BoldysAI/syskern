@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
 import { SidebarSimple, WarningCircle } from "@phosphor-icons/react";
@@ -21,6 +21,7 @@ import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
 
 export default function SimulationDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = params?.id ?? "";
 
   const {
@@ -45,12 +46,32 @@ export default function SimulationDetailPage() {
 
   const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
     if (!sim) return null;
+
+    const from = searchParams.get("from");
+    const productSku = searchParams.get("product_sku");
+    const productLabel = searchParams.get("product_label");
+    const productTab = searchParams.get("product_tab");
+
+    if (from === "catalog" && productSku) {
+      const productQ = new URLSearchParams();
+      if (productTab) productQ.set("tab", productTab);
+      const productHref = `/catalog/${encodeURIComponent(productSku)}${
+        productQ.size ? `?${productQ.toString()}` : ""
+      }`;
+      return [
+        { href: "/", label: "Tableau de bord" },
+        { href: "/catalog", label: "Catalogue" },
+        { href: productHref, label: productLabel || productSku },
+        { label: sim.label },
+      ];
+    }
+
     return [
       { href: "/", label: "Tableau de bord" },
       { href: "/simulator", label: "Simulations" },
       { label: sim.label },
     ];
-  }, [sim]);
+  }, [sim, searchParams]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));
 
@@ -151,7 +172,6 @@ export default function SimulationDetailPage() {
 
       <RecalculateModal
         simId={sim.id}
-        lineCount={sim.line_count}
         marketParams={pendingMarketParams ?? undefined}
         open={recalcOpen}
         onClose={() => setRecalcOpen(false)}

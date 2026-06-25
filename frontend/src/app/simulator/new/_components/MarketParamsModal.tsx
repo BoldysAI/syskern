@@ -147,13 +147,12 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
           </div>
         </div>
 
-        <DialogFooter className="gap-3 border-t border-border p-4 sm:justify-stretch">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
           <Button
             type="button"
-            className="flex-1"
             onClick={() => {
               onSave(draft);
               onOpenChange(false);

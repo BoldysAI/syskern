@@ -260,7 +260,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
           )}
         </div>
 
-        <DialogFooter className="border-t border-border p-4">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={applying}>
             Annuler
           </Button>

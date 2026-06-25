@@ -20,25 +20,35 @@ function toStringArray(value: unknown): string[] | undefined {
 export function normalizeCatalogFilters(f: CatalogFilters): CatalogFilters {
   const raw = f as CatalogFilters & {
     stock?: "in" | "out" | "";
+    universe?: string | string[];
     family?: string | string[];
     range?: string | string[];
     sub_range?: string | string[];
+    brand?: string | string[];
     supplier?: string | string[];
   };
   const next: CatalogFilters = {
     ...f,
+    universe: toStringArray(raw.universe),
     family: toStringArray(raw.family),
     range: toStringArray(raw.range),
     sub_range: toStringArray(raw.sub_range),
+    brand: toStringArray(raw.brand),
     supplier: toStringArray(raw.supplier),
   };
-  if (!raw.stock) return next;
   if (raw.stock === "in") {
     next.stock_in = true;
     next.stock_out = false;
   } else if (raw.stock === "out") {
     next.stock_in = false;
     next.stock_out = true;
+  }
+  if (next.stock_in && next.stock_out) {
+    next.stock_in = false;
+    next.stock_out = false;
+  }
+  if (next.stock_out) {
+    next.stock_min = null;
   }
   return next;
 }

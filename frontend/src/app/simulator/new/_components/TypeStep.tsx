@@ -45,7 +45,6 @@ export function TypeStep({
     getClients(debounced || undefined)
   );
 
-  // Keep a name lookup so selected chips render even when filtered out.
   const [knownNames, setKnownNames] = useState<Record<string, string>>({});
   const nameFor = (id: string) => knownNames[id] ?? id;
 
@@ -67,40 +66,42 @@ export function TypeStep({
   const selectedSet = useMemo(() => new Set(clientIds), [clientIds]);
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
-      <div>
-        <label className={labelCls}>Libellé *</label>
-        <input
-          value={label}
-          onChange={(e) => onLabel(e.target.value)}
-          placeholder="ex. Tarif Q2 2026"
-          className={inputCls}
-        />
-      </div>
+    <div className="flex min-h-[min(68vh,640px)] w-full flex-col gap-6">
+      <div className="grid shrink-0 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelCls}>Libellé *</label>
+          <input
+            value={label}
+            onChange={(e) => onLabel(e.target.value)}
+            placeholder="ex. Tarif Q2 2026"
+            className={inputCls}
+          />
+        </div>
 
-      <div>
-        <label className={labelCls}>Type *</label>
-        <div className="flex gap-2">
-          {(["tariff", "project"] as SimulationType[]).map((t) => (
-            <button
-              type="button"
-              key={t}
-              onClick={() => onType(t)}
-              className={cn(
-                "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
-                type === t
-                  ? "border-primary bg-accent text-accent-foreground"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {t === "tariff" ? "Tarif (multi-clients)" : "Projet (1 client)"}
-            </button>
-          ))}
+        <div>
+          <label className={labelCls}>Type *</label>
+          <div className="flex gap-2">
+            {(["tariff", "project"] as SimulationType[]).map((t) => (
+              <button
+                type="button"
+                key={t}
+                onClick={() => onType(t)}
+                className={cn(
+                  "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
+                  type === t
+                    ? "border-primary bg-accent text-accent-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {t === "tariff" ? "Tarif (multi-clients)" : "Projet (1 client)"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {type === "project" && (
-        <div>
+        <div className="shrink-0 sm:max-w-md">
           <label className={labelCls}>Nom du projet *</label>
           <input
             value={projectName}
@@ -111,18 +112,17 @@ export function TypeStep({
         </div>
       )}
 
-      <div>
+      <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-4 shadow-sm">
         <label className={labelCls}>
           {type === "tariff" ? "Clients (optionnel)" : "Client *"}
         </label>
 
-        {/* Selected chips */}
         {clientIds.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-2">
+          <div className="mb-3 flex flex-wrap gap-2">
             {clientIds.map((id) => (
               <span
                 key={id}
-                className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1 text-sm rounded-full bg-accent text-accent-foreground border border-primary/30"
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-accent py-1 pl-3 pr-2 text-sm text-accent-foreground"
               >
                 {nameFor(id)}
                 <button
@@ -138,8 +138,11 @@ export function TypeStep({
           </div>
         )}
 
-        <div className="relative">
-          <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative shrink-0">
+          <MagnifyingGlass
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
           <input
             value={search}
             onChange={(e) => onMagnifyingGlassChange(e.target.value)}
@@ -148,11 +151,11 @@ export function TypeStep({
           />
         </div>
 
-        <div className="mt-2 border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-[#F1F5F9]">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border divide-y divide-border">
           {isLoading ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Chargement…</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Chargement…</p>
           ) : !clients?.length ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Aucun client trouvé.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Aucun client trouvé.</p>
           ) : (
             clients.map((c) => {
               const selected = selectedSet.has(c.id);
@@ -162,12 +165,12 @@ export function TypeStep({
                   type="button"
                   onClick={() => (type === "tariff" ? selectMulti(c) : selectSingle(c))}
                   className={cn(
-                    "flex items-center justify-between gap-2 w-full px-3 py-2 text-left hover:bg-muted",
-                    selected && "bg-warm/10/70"
+                    "flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted",
+                    selected && "bg-warm/10"
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground truncate">
+                    <span className="block truncate text-sm font-medium text-foreground">
                       {c.name}
                     </span>
                     {(c.address_city || c.is_prospect) && (
@@ -177,7 +180,7 @@ export function TypeStep({
                       </span>
                     )}
                   </span>
-                  {selected && <Check size={16} className="text-warm shrink-0" />}
+                  {selected && <Check size={16} className="shrink-0 text-warm" />}
                 </button>
               );
             })

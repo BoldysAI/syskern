@@ -30,6 +30,14 @@ export interface ProductEditFromSimulation {
   simulationLabel: string;
 }
 
+/** Context when opening a simulation from a product fiche (e.g. price history chart). */
+export interface SimulationFromCatalog {
+  productSku: string;
+  productLabel: string;
+  /** Tab to restore on the product fiche when navigating back via breadcrumb. */
+  productTab?: string;
+}
+
 /** Deep-link to the product fiche in edit mode, optionally opening a relevant tab. */
 export function productEditHref(
   sku: string,
@@ -49,6 +57,20 @@ export function productEditHref(
     q.set("simulation_label", fromSimulation.simulationLabel);
   }
   return `/catalog/${encodeURIComponent(sku)}?${q.toString()}`;
+}
+
+/** Deep-link to a simulation, preserving catalog breadcrumb context on return. */
+export function simulationHrefFromCatalog(
+  simulationId: string,
+  fromCatalog: SimulationFromCatalog,
+): string {
+  const q = new URLSearchParams({
+    from: "catalog",
+    product_sku: fromCatalog.productSku,
+    product_label: fromCatalog.productLabel,
+  });
+  if (fromCatalog.productTab) q.set("product_tab", fromCatalog.productTab);
+  return `/simulator/${simulationId}?${q.toString()}`;
 }
 
 /** Format a Decimal-string money value as EUR for display (never for math). */

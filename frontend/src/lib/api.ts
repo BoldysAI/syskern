@@ -69,9 +69,9 @@ export interface CatalogFilters {
   sub_range?: string[];
   brand?: string[];
   supplier?: string[];
-  /** En stock (stock > 0). Combinable avec stock_out ; les deux cochés = pas de filtre stock. */
+  /** En stock (stock > 0). Exclusif avec stock_out. */
   stock_in?: boolean;
-  /** Rupture (stock ≤ 0 ou null). Combinable avec stock_in. */
+  /** Rupture (stock ≤ 0 ou null). Exclusif avec stock_in. */
   stock_out?: boolean;
   stock_min?: number | null;
   /** PAMP price range (EUR). */
@@ -106,7 +106,7 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
   const { stock_in: inStock, stock_out: outStock } = filters;
   if (inStock && !outStock) params.in_stock = "true";
   else if (outStock && !inStock) params.in_stock = "false";
-  if (filters.stock_min != null && filters.stock_min > 0) {
+  if (!outStock && filters.stock_min != null && filters.stock_min > 0) {
     params.stock_min = String(filters.stock_min);
   }
   if (filters.pamp_min != null && filters.pamp_min > 0) {
@@ -1130,6 +1130,40 @@ export function createSupplier(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/** Partially update a supplier on a product. */
+export function updateProductSupplier(
+  productId: string,
+  supplierId: string,
+  input: Partial<ProductSupplierInput>,
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** Remove a supplier from a product. */
+export function deleteProductSupplier(productId: string, supplierId: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/`,
+    { method: "DELETE" },
+  );
+}
+
+/** Set one supplier as active and deactivate the others on this product. */
+export function activateProductSupplier(
+  productId: string,
+  supplierId: string,
+): Promise<ProductSupplier> {
+  return apiFetch<ProductSupplier>(
+    `/api/products/${encodeURIComponent(productId)}/suppliers/${encodeURIComponent(supplierId)}/activate/`,
+    { method: "POST" },
+  );
 }
 
 export interface ParsedSku {

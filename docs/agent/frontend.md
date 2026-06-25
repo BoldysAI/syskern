@@ -520,6 +520,7 @@ Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDia
 
 ### Modales et contenu dense
 
+- **`DialogFooter` / `AlertDialogFooter`** : ne pas surcharger avec marges négatives ; le composant primitif (`components/ui/dialog.tsx`) gère `border-t`, `p-4`, `shrink-0` — compatible `DialogContent` avec `p-0 gap-0`.
 - Contenu riche (historique recalcul, breakdown calcul, édition groupée, formulaires admin) : **`AppModal` `size="xl"` ou `2xl`**, ou `DialogContent` avec `max-w-4xl` / `max-w-6xl`, `max-h-[90vh]`, corps scrollable (`overflow-y-auto`).
 - Formulaires simples (confirmation, doublon, 1–2 champs) : `md` / `lg` suffisent.
 - **Aucune variable interne visible** (`trigger_type`, `simulation_type`, ids, codes attributs bruts) : toujours un libellé français (`recalcTriggerLabel`, maps statut/type, `StatusBadge`).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,13 @@ interface FilterCheckboxGroupProps {
   /** Tailwind max-height class for the scroll area. */
   maxHeight?: string;
   sortSelectedFirst?: boolean;
+  /** Prefix for checkbox ids — avoids collisions across filter sections. */
+  idPrefix?: string;
   className?: string;
+}
+
+function optionDomId(prefix: string, value: string): string {
+  return `${prefix}-${encodeURIComponent(value)}`;
 }
 
 export function FilterCheckboxGroup({
@@ -26,9 +32,14 @@ export function FilterCheckboxGroup({
   searchPlaceholder = "Rechercher…",
   maxHeight = "max-h-48",
   sortSelectedFirst = false,
+  idPrefix = "filter",
   className,
 }: FilterCheckboxGroupProps) {
   const [query, setQuery] = useState("");
+  const selectedRef = useRef(selected);
+  useLayoutEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   const filtered = useMemo(() => {
     let list = options;
@@ -49,8 +60,9 @@ export function FilterCheckboxGroup({
   }, [options, query, selected, sortSelectedFirst]);
 
   const toggle = (value: string) => {
+    const current = selectedRef.current;
     onChange(
-      selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value],
+      current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
     );
   };
 
@@ -70,7 +82,7 @@ export function FilterCheckboxGroup({
             <li className="px-2 py-4 text-center text-xs text-muted-foreground">Aucun résultat</li>
           ) : (
             filtered.map((opt) => {
-              const id = `filter-${opt.value}`;
+              const id = optionDomId(idPrefix, opt.value);
               const checked = selected.includes(opt.value);
               return (
                 <li key={opt.value}>

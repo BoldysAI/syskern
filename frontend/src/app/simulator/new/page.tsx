@@ -149,18 +149,20 @@ export default function NewSimulationPage() {
         </div>
       )}
 
-      <div className="mb-8">
+      <div className={cn("mb-8", step === 1 && "flex min-h-[calc(100dvh-18rem)] flex-col")}>
         {step === 1 && (
-          <TypeStep
-            label={draft.label}
-            type={draft.type}
-            clientIds={draft.clientIds}
-            projectName={draft.projectName}
-            onLabel={(v) => update({ label: v })}
-            onType={(v) => update({ type: v })}
-            onClientIds={(v) => update({ clientIds: v })}
-            onProjectName={(v) => update({ projectName: v })}
-          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <TypeStep
+              label={draft.label}
+              type={draft.type}
+              clientIds={draft.clientIds}
+              projectName={draft.projectName}
+              onLabel={(v) => update({ label: v })}
+              onType={(v) => update({ type: v })}
+              onClientIds={(v) => update({ clientIds: v })}
+              onProjectName={(v) => update({ projectName: v })}
+            />
+          </div>
         )}
         {step === 2 && (
           <SkuStep

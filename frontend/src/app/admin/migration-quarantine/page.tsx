@@ -134,7 +134,29 @@ function DetailModal({
           ? `${row.source_file} · ligne ${row.source_row_number}`
           : row.source_file
       }
-      size="xl"
+      size="2xl"
+      footer={
+        isResolved ? (
+          <Button type="button" onClick={onClose}>
+            Fermer
+          </Button>
+        ) : (
+          <>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={handleResolve}
+              disabled={loading || !resolvedBy}
+              className="gap-2"
+            >
+              {loading && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
+              {loading ? "Enregistrement…" : "Marquer résolu"}
+            </Button>
+          </>
+        )
+      }
     >
       <div className="mb-4">
         <StatusBadge variant="warning">
@@ -143,13 +165,13 @@ function DetailModal({
       </div>
 
       <FormField label="Données brutes">
-        <pre className="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-xs text-foreground">
+        <pre className="max-h-[min(40vh,320px)] overflow-auto rounded-lg border border-border bg-muted/50 p-4 text-xs text-foreground">
           {JSON.stringify(row.raw_data, null, 2)}
         </pre>
       </FormField>
 
       {isResolved ? (
-        <div className="rounded-lg border border-brand-green/30 bg-brand-green/10 p-4 text-sm">
+        <div className="mt-4 rounded-lg border border-brand-green/30 bg-brand-green/10 p-4 text-sm">
           <div className="mb-1 flex items-center gap-2 font-medium text-brand-green">
             <AppIcon icon={CheckCircle} size="sm" />
             Résolue
@@ -164,7 +186,7 @@ function DetailModal({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="mt-4 space-y-3">
           <p className="text-xs text-muted-foreground">
             Pas de ré-injection automatique : créez le produit manuellement via{" "}
             <span className="font-medium text-foreground">Catalogue → Nouveau produit</span>, puis
@@ -190,20 +212,6 @@ function DetailModal({
               placeholder="Ex : produit créé manuellement (SKU …), ou ligne ignorée car doublon."
             />
           </FormField>
-          <div className="flex gap-3 pt-1">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              className="flex-1"
-              onClick={handleResolve}
-              disabled={loading || !resolvedBy}
-            >
-              {loading && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-              {loading ? "Enregistrement…" : "Marquer résolu"}
-            </Button>
-          </div>
         </div>
       )}
     </AppModal>

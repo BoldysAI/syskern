@@ -168,7 +168,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 simulation__last_calculated_at__gte=cutoff,
             )
             .select_related("simulation")
-            .order_by("-simulation__last_calculated_at")
+            .order_by("simulation__last_calculated_at")
         )
 
         points = [
@@ -516,6 +516,7 @@ class DistinctBrandsView(APIView):
         values = (
             Product.objects.filter(is_active=True)
             .exclude(brand="")
+            .exclude(brand__iexact="unnikern")  # legacy typo
             .order_by("brand")
             .values_list("brand", flat=True)
             .distinct()

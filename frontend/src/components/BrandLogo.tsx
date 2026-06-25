@@ -47,10 +47,7 @@ export function BrandLogo({ variant, className, compact }: BrandLogoProps) {
       alt={logo.alt}
       width={logo.width}
       height={logo.height}
-      className={cn(
-        "h-auto w-auto max-h-10 min-w-[120px] max-w-full object-contain",
-        className,
-      )}
+      className={cn("object-contain object-center", className)}
       priority
     />
   );

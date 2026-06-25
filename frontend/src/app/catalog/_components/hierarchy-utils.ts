@@ -1,16 +1,39 @@
 import { getHierarchyLevel, type CatalogFilters, type HierarchyLevel } from "@/lib/api";
 
+export type CatalogFiltersUpdater = CatalogFilters | ((prev: CatalogFilters) => CatalogFilters);
+
 type HierarchyParents = Pick<CatalogFilters, "universe" | "family" | "range">;
+
+/** Parent levels scoped to each hierarchy level (never includes the level itself). */
+export const HIERARCHY_ANCESTORS: Record<HierarchyLevel, (keyof HierarchyParents)[]> = {
+  universe: [],
+  family: ["universe"],
+  range: ["universe", "family"],
+  sub_range: ["universe", "family", "range"],
+};
 
 function parentParams(
   level: HierarchyLevel,
   parents: HierarchyParents,
 ): { universe?: string; family?: string; range?: string } {
   const p: { universe?: string; family?: string; range?: string } = {};
-  if (parents.universe?.length) p.universe = parents.universe.join(",");
-  if (level !== "universe" && parents.family?.length) p.family = parents.family.join(",");
-  if (level === "sub_range" && parents.range?.length) p.range = parents.range.join(",");
+  for (const key of HIERARCHY_ANCESTORS[level]) {
+    const vals = parents[key];
+    if (vals?.length) p[key] = vals.join(",");
+  }
   return p;
+}
+
+/** Stable SWR key — only ancestor selections, not the current level's own selection. */
+export function hierarchyOptionsSwrKey(
+  level: HierarchyLevel,
+  parents: HierarchyParents,
+): readonly string[] {
+  return [
+    "hierarchy-cascade",
+    level,
+    ...HIERARCHY_ANCESTORS[level].map((k) => parents[k]?.join("|") ?? ""),
+  ];
 }
 
 /** Fetch distinct hierarchy values — one API call per level (CSV parent filters). */

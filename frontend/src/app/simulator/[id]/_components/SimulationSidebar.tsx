@@ -469,7 +469,7 @@ export function SimulationSidebar({
               onProjectName={(v) => update({ projectName: v })}
             />
           </div>
-          <DialogFooter className="border-t border-border p-4">
+          <DialogFooter>
             <Button type="button" onClick={() => setContextOpen(false)}>
               Fermer
             </Button>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Package, Plus, Sparkle, SquaresFour, X } from "@phosphor-icons/react";
+import { Faders, Package, Plus, SidebarSimple, Sparkle, SquaresFour, X } from "@phosphor-icons/react";
 import {
   getCatalogProducts,
   getFilterableAttributes,
@@ -14,6 +14,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
+import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { SearchInput } from "@/components/SearchInput";
@@ -59,6 +62,7 @@ function UniverseBadge({ universe }: { universe: string }) {
 export default function CatalogPage() {
   const { role } = useAuth();
   const userCanEdit = canEdit(role);
+  const confirm = useConfirm();
 
   const [filters, setFilters] = useState<CatalogFilters>({});
   const [searchInput, setSearchInput] = useState("");
@@ -68,6 +72,19 @@ export default function CatalogPage() {
   const [drawerSku, setDrawerSku] = useState<string | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
+    "syskern:catalog-filters-collapsed",
+    false,
+  );
+  const {
+    width: filterSidebarWidth,
+    startResize: startFilterResize,
+    isResizing: isFilterResizing,
+  } = useResizableWidth(320, {
+    min: 260,
+    max: 520,
+    storageKey: "syskern:catalog-filters-width",
+  });
 
   const { data: filterableAttrs } = useSWR("filterable-attrs", getFilterableAttributes);
   const attrLabels = useMemo(() => {
@@ -118,6 +135,7 @@ export default function CatalogPage() {
           <Link
             href={`/catalog/${encodeURIComponent(product.sku_code)}`}
             className="font-mono text-sm font-semibold text-primary hover:text-primary/80 hover:underline"
+            onClick={(e) => e.stopPropagation()}
           >
             {product.sku_code}
           </Link>
@@ -211,10 +229,10 @@ export default function CatalogPage() {
     setSort((current) => cycleSortField(field, current, DEFAULT_SORT));
   }, []);
 
-  const applyFilters = (next: CatalogFilters) => {
+  const applyFilters = useCallback((next: CatalogFilters | ((prev: CatalogFilters) => CatalogFilters)) => {
     setFilters(next);
     setPage(1);
-  };
+  }, []);
 
   const resetFilters = () => {
     setFilters({});
@@ -252,8 +270,21 @@ export default function CatalogPage() {
     setSearchInput(next.q ?? "");
     setPage(1);
   };
-  const onDeleteFilter = (id: string) =>
-    setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+  const onDeleteFilter = useCallback(
+    async (id: string) => {
+      const sf = savedFilters.find((f) => f.id === id);
+      if (!sf) return;
+      const ok = await confirm({
+        title: "Supprimer le filtre favori",
+        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
+        confirmLabel: "Supprimer",
+        destructive: true,
+      });
+      if (!ok) return;
+      setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+    },
+    [confirm, savedFilters],
+  );
 
   const handlePageChange = useCallback((nextPage: number) => {
     setPage(nextPage);
@@ -264,35 +295,81 @@ export default function CatalogPage() {
 
   return (
     <div className="flex h-full bg-background">
-      {/* Filters sidebar — desktop */}
-      <aside className="hidden lg:flex w-80 flex-shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)]">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-gradient-to-b from-card to-muted/30 px-4 py-4 backdrop-blur-sm">
-          <div>
-            <span className="text-sm font-bold text-foreground">Filtres</span>
+      {/* Filters sidebar — desktop (fermable, redimensionnable) */}
+      {filtersCollapsed ? (
+        <div className="relative hidden w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3 shadow-[var(--shadow-soft)] lg:flex">
+          <button
+            type="button"
+            onClick={() => setFiltersCollapsed(false)}
+            className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Afficher les filtres"
+            title="Filtres"
+          >
+            <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {activeFilterCount} critère{activeFilterCount > 1 ? "s" : ""} actif
-                {activeFilterCount > 1 ? "s" : ""}
-              </p>
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
             )}
+          </button>
+        </div>
+      ) : (
+        <aside
+          className="relative hidden shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)] lg:flex"
+          style={{ width: filterSidebarWidth }}
+        >
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
+            <div className="min-w-0">
+              <span className="text-sm font-bold text-foreground">Filtres</span>
+              {activeFilterCount > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
+                  Tout effacer
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setFiltersCollapsed(true)}
+                aria-label="Masquer les filtres"
+                title="Masquer les filtres"
+              >
+                <SidebarSimple size={18} />
+              </Button>
+            </div>
           </div>
-          {activeFilterCount > 0 && (
-            <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-              Tout effacer
-            </Button>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          <CatalogSidebar
-            filters={filters}
-            onChange={applyFilters}
-            savedFilters={savedFilters}
-            onSaveFilter={onSaveFilter}
-            onApplyFilter={onApplyFilter}
-            onDeleteFilter={onDeleteFilter}
-          />
-        </div>
-      </aside>
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <CatalogSidebar
+              filters={filters}
+              onChange={applyFilters}
+              savedFilters={savedFilters}
+              onSaveFilter={onSaveFilter}
+              onApplyFilter={onApplyFilter}
+              onDeleteFilter={onDeleteFilter}
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau des filtres"
+            onMouseDown={startFilterResize}
+            className={cn(
+              "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
+              "hover:bg-primary/20",
+              isFilterResizing && "bg-primary/30",
+            )}
+          >
+            <span className="h-10 w-0.5 rounded-full bg-border" />
+          </div>
+        </aside>
+      )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

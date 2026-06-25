@@ -133,7 +133,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
           )}
         </div>
 
-        <DialogFooter className="border-t border-border p-4">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={close} disabled={running}>
             Annuler
           </Button>

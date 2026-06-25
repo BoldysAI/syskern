@@ -1,15 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import useSWR from "swr";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import useSWR, { useSWRConfig } from "swr";
 import { TrendUp } from "@phosphor-icons/react";
 import { Line, LineChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { getPriceHistory } from "@/lib/api";
+import {
+  activateProductSupplier,
+  createSupplier,
+  deleteProductSupplier,
+  getPriceHistory,
+  updateProductSupplier,
+  type ProductSupplierInput,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SupplierManager } from "@/components/SupplierManager";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import { AttributeSection } from "./AttributeSection";
 import { useEdit } from "./edit-context";
+import { simulationHrefFromCatalog } from "@/app/simulator/[id]/_components/sim-format";
+import {
+  collapsePriceHistoryByDay,
+  createClickableHistoryDot,
+  formatPriceHistoryAxisLabel,
+  formatPriceHistoryTooltipLabel,
+  resolveChartPointIndex,
+} from "./price-history-chart";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
@@ -25,27 +43,108 @@ const CHART_PA = "var(--chart-1)";
 const CHART_PR = "var(--chart-2)";
 const CHART_PV = "var(--chart-3)";
 
+type ChartRow = {
+  date: string;
+  at: string;
+  simulationId: string;
+  simulationLabel: string;
+  PA: number | null;
+  PR: number | null;
+  PV: number | null;
+};
+
 export function CommercialTab() {
-  const { product } = useEdit();
+  const router = useRouter();
+  const { mode, product } = useEdit();
+  const { mutate } = useSWRConfig();
+  const productKey = useMemo(() => ["product", product.sku_code] as const, [product.sku_code]);
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
+  const editing = mode === "edit";
+
+  const refreshProduct = useCallback(async () => {
+    await mutate(productKey);
+  }, [mutate, productKey]);
+
+  const handleCreateSupplier = useCallback(
+    async (data: ProductSupplierInput) => {
+      await createSupplier(product.id, data);
+      await refreshProduct();
+      toast.success("Fournisseur ajouté");
+    },
+    [product.id, refreshProduct],
+  );
+
+  const handleUpdateSupplier = useCallback(
+    async (id: string, data: ProductSupplierInput) => {
+      await updateProductSupplier(product.id, id, data);
+      await refreshProduct();
+      toast.success("Fournisseur mis à jour");
+    },
+    [product.id, refreshProduct],
+  );
+
+  const handleDeleteSupplier = useCallback(
+    async (id: string) => {
+      await deleteProductSupplier(product.id, id);
+      await refreshProduct();
+      toast.success("Fournisseur supprimé");
+    },
+    [product.id, refreshProduct],
+  );
+
+  const handleActivateSupplier = useCallback(
+    async (id: string) => {
+      await activateProductSupplier(product.id, id);
+      await refreshProduct();
+      toast.success("Fournisseur défini comme source active");
+    },
+    [product.id, refreshProduct],
+  );
 
   const [period, setPeriod] = useState<"3m" | "6m" | "12m">("6m");
   const { data: history, isLoading } = useSWR(["price-history", product.sku_code, period], () =>
     getPriceHistory(product.sku_code, period),
   );
 
-  const points = history?.points ?? [];
-  const latestPv = points.length ? parseDec(points[0].pv_eur) : 0;
-  const chartData = points.map((p) => ({
-    date: new Date(p.date).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-    }),
-    PA: p.pa_eur != null ? parseFloat(p.pa_eur) : null,
-    PR: p.pr_eur != null ? parseFloat(p.pr_eur) : null,
-    PV: p.pv_eur != null ? parseFloat(p.pv_eur) : null,
-  }));
+  const points = useMemo(
+    () => collapsePriceHistoryByDay(history?.points ?? []),
+    [history?.points],
+  );
+  const latestPv = points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
+  const chartData = useMemo(
+    (): ChartRow[] =>
+      points.map((p) => ({
+        date: formatPriceHistoryAxisLabel(p.date),
+        at: p.date,
+        simulationId: p.simulation_id,
+        simulationLabel: p.simulation_label,
+        PA: p.pa_eur != null ? parseFloat(p.pa_eur) : null,
+        PR: p.pr_eur != null ? parseFloat(p.pr_eur) : null,
+        PV: p.pv_eur != null ? parseFloat(p.pv_eur) : null,
+      })),
+    [points],
+  );
+
+  const openSimulationById = useCallback(
+    (simulationId: string) => {
+      router.push(
+        simulationHrefFromCatalog(simulationId, {
+          productSku: product.sku_code,
+          productLabel: product.name,
+          productTab: "commercial",
+        }),
+      );
+    },
+    [product.name, product.sku_code, router],
+  );
+
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+
+  const clickableDot = useMemo(
+    () => createClickableHistoryDot(openSimulationById),
+    [openSimulationById],
+  );
 
   const suppliers = product.suppliers ?? [];
 
@@ -107,28 +206,41 @@ export function CommercialTab() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-none pb-0">
-          <div className="flex items-center gap-2">
-            <TrendUp size={15} weight="duotone" className="text-warm" />
-            <CardTitle className="text-sm font-semibold">Historique PA / PR / PV</CardTitle>
+        <CardHeader className="border-none pb-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <TrendUp size={15} weight="duotone" className="text-warm" />
+              <CardTitle className="text-sm font-semibold">Historique PA / PR / PV</CardTitle>
+            </div>
+            {chartData.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Cliquez sur un point ou dans le graphe pour ouvrir la simulation.
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPeriod(p.id)}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                  period === p.id
-                    ? "bg-background text-warm shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <CardAction>
+            <div
+              role="group"
+              aria-label="Période d'historique"
+              className="inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+            >
+              {PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPeriod(p.id)}
+                  className={cn(
+                    "rounded px-2.5 py-0.5 text-xs font-medium leading-5 transition-colors",
+                    period === p.id
+                      ? "bg-background text-warm shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </CardAction>
         </CardHeader>
         <CardContent className="pt-4">
           {isLoading ? (
@@ -143,12 +255,29 @@ export function CommercialTab() {
               </p>
             </div>
           ) : (
-            <div className="h-56">
+            <div className={cn("h-56", hoveredPointIndex != null && "cursor-pointer")}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart
+                  data={chartData}
+                  onMouseMove={(state) => {
+                    setHoveredPointIndex(resolveChartPointIndex(state));
+                  }}
+                  onMouseLeave={() => setHoveredPointIndex(null)}
+                  onClick={(state) => {
+                    const idx = resolveChartPointIndex(state);
+                    if (idx == null) return;
+                    const row = chartData[idx];
+                    if (row?.simulationId) openSimulationById(row.simulationId);
+                  }}
+                >
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
                   <Tooltip
+                    labelFormatter={(_, payload) => {
+                      const row = payload?.[0]?.payload as ChartRow | undefined;
+                      if (!row?.at) return "";
+                      return formatPriceHistoryTooltipLabel(row.at, row.simulationLabel);
+                    }}
                     formatter={(value) => {
                       const n = Array.isArray(value) ? NaN : Number(value);
                       return Number.isFinite(n)
@@ -162,7 +291,9 @@ export function CommercialTab() {
                     dataKey="PA"
                     stroke={CHART_PA}
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={clickableDot}
+                    activeDot={false}
+                    isAnimationActive={false}
                     connectNulls
                   />
                   <Line
@@ -170,7 +301,9 @@ export function CommercialTab() {
                     dataKey="PR"
                     stroke={CHART_PR}
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={clickableDot}
+                    activeDot={false}
+                    isAnimationActive={false}
                     connectNulls
                   />
                   <Line
@@ -178,7 +311,9 @@ export function CommercialTab() {
                     dataKey="PV"
                     stroke={CHART_PV}
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={clickableDot}
+                    activeDot={false}
+                    isAnimationActive={false}
                     connectNulls
                   />
                 </LineChart>
@@ -191,8 +326,24 @@ export function CommercialTab() {
       <Card className="overflow-hidden p-0">
         <CardHeader className="border-none px-5 pt-5 pb-3">
           <CardTitle className="text-sm font-semibold">Fournisseurs</CardTitle>
+          {!editing && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Activez le mode modification pour éditer le prix d&apos;achat et les autres champs
+              fournisseur.
+            </p>
+          )}
         </CardHeader>
-        {suppliers.length === 0 ? (
+        {editing ? (
+          <CardContent className="px-5 pb-5">
+            <SupplierManager
+              suppliers={product.suppliers ?? []}
+              onCreate={handleCreateSupplier}
+              onUpdate={handleUpdateSupplier}
+              onDelete={handleDeleteSupplier}
+              onActivate={handleActivateSupplier}
+            />
+          </CardContent>
+        ) : suppliers.length === 0 ? (
           <CardContent className="pb-5 text-sm text-muted-foreground">
             Aucun fournisseur enregistré.
           </CardContent>
