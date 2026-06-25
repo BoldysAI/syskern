@@ -4,15 +4,15 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
-  AlertTriangle,
+  Warning,
   Calculator,
-  Download,
-  FileSpreadsheet,
-  Loader2,
-  MoreVertical,
-  RefreshCw,
-  RotateCcw,
-} from "lucide-react";
+  DownloadSimple,
+  Table,
+  CircleNotch,
+  DotsThreeVertical,
+  ArrowsClockwise,
+  ArrowCounterClockwise,
+} from "@phosphor-icons/react";
 import {
   getSimulationLines,
   recalculateSimulationLine,
@@ -28,7 +28,11 @@ import {
   type DataTableSortState,
 } from "@/components/data-table";
 import { cn } from "@/lib/utils";
-import { decToPct, fmtEur, fmtNum, lineDiagnostics, LINE_STATUS, productEditHref } from "./sim-format";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { decToPct, fmtEur, fmtNum, lineDiagnostics, LINE_STATUS, lineRowClassName, productEditHref } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 import { LineDiagnosticsDrawer } from "./LineDiagnosticsDrawer";
 import { CalculationBreakdownDrawer } from "./CalculationBreakdownDrawer";
@@ -87,9 +91,9 @@ function OverrideCell({
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         placeholder={effective || "—"}
-        className="w-16 rounded border border-transparent px-1.5 py-1 text-right text-sm hover:border-[#E2E8F0] focus:border-[#E07200] focus:outline-none disabled:bg-transparent disabled:hover:border-transparent"
+        className="w-16 rounded border border-transparent px-1.5 py-1 text-right text-sm hover:border-border focus:border-primary focus:outline-none disabled:bg-transparent disabled:hover:border-transparent"
       />
-      <span className="text-xs text-slate-400">{suffix}</span>
+      <span className="text-xs text-muted-foreground">{suffix}</span>
     </div>
   );
 }
@@ -114,20 +118,20 @@ function RowMenu({
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         disabled={disabled}
-        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+        className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
         aria-label="Actions de la ligne"
       >
-        <MoreVertical size={16} />
+        <DotsThreeVertical size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-border bg-popover py-1 shadow-lg">
           <button
             onMouseDown={(e) => {
               e.preventDefault();
               setOpen(false);
               onShowBreakdown();
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
           >
             <Calculator size={14} />
             Détail du calcul
@@ -139,9 +143,9 @@ function RowMenu({
               onRecalcLine();
             }}
             disabled={readOnly}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <RefreshCw size={14} />
+            <ArrowsClockwise size={14} />
             Recalculer cette ligne
           </button>
           <button
@@ -151,9 +155,9 @@ function RowMenu({
               onResetOverrides();
             }}
             disabled={readOnly}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <RotateCcw size={14} />
+            <ArrowCounterClockwise size={14} />
             Réinitialiser surcharges
           </button>
         </div>
@@ -222,7 +226,7 @@ export function SimulationTable({
         await mutate();
         onChanged();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "Modification échouée");
+        toast.error(e instanceof Error ? e.message : "Modification échouée");
       } finally {
         setBusyLine(null);
       }
@@ -237,7 +241,7 @@ export function SimulationTable({
       await mutate();
       onChanged();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Recalcul de ligne échoué");
+      toast.error(e instanceof Error ? e.message : "Recalcul de ligne échoué");
     } finally {
       setBusyLine(null);
     }
@@ -266,13 +270,13 @@ export function SimulationTable({
             <div className="flex items-center gap-1.5">
               <Link
                 href={productEditHref(line.product_sku, [], fromSimulation)}
-                className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
                 title="Modifier le produit"
               >
                 {line.product_sku}
               </Link>
               {overridden && (
-                <span className="rounded bg-[#FFF3E0] px-1.5 py-0.5 text-[10px] font-semibold text-[#C56400]">
+                <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
                   surchargé
                 </span>
               )}
@@ -284,11 +288,11 @@ export function SimulationTable({
         key: "designation",
         label: "Désignation",
         width: 280,
-        cellClassName: "text-sm text-slate-700 truncate",
+        cellClassName: "text-sm text-foreground truncate",
         render: (line) => (
           <Link
             href={productEditHref(line.product_sku, [], fromSimulation)}
-            className="block truncate hover:text-[#E07200] hover:underline"
+            className="block truncate hover:text-warm hover:underline"
             title="Modifier le produit"
           >
             {line.product_designation || line.product_name}
@@ -300,7 +304,7 @@ export function SimulationTable({
         label: "Gamme",
         sortField: "product__range",
         width: 140,
-        cellClassName: "text-sm text-slate-600",
+        cellClassName: "text-sm text-muted-foreground",
         render: (line) => line.product_range || "—",
       },
       {
@@ -308,7 +312,7 @@ export function SimulationTable({
         label: "Stock",
         width: 100,
         align: "right",
-        cellClassName: "text-sm text-slate-700 tabular-nums",
+        cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtNum(line.product_stock),
       },
       {
@@ -316,7 +320,7 @@ export function SimulationTable({
         label: "PAMP",
         width: 110,
         align: "right",
-        cellClassName: "text-sm font-medium text-slate-800 tabular-nums",
+        cellClassName: "text-sm font-medium text-foreground font-data",
         render: (line) => fmtEur(line.product_pamp_eur),
       },
       {
@@ -325,7 +329,7 @@ export function SimulationTable({
         sortField: "pa_net_eur",
         width: 110,
         align: "right",
-        cellClassName: "text-sm text-slate-700 tabular-nums",
+        cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtEur(line.pa_net_eur),
       },
       {
@@ -333,7 +337,7 @@ export function SimulationTable({
         label: "PAMP prév.",
         width: 120,
         align: "right",
-        cellClassName: "text-sm text-slate-700 tabular-nums",
+        cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtEur(line.pamp_predictive_eur),
       },
       {
@@ -342,7 +346,7 @@ export function SimulationTable({
         sortField: "pr_eur",
         width: 100,
         align: "right",
-        cellClassName: "text-sm text-slate-700 tabular-nums",
+        cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtEur(line.pr_eur),
       },
       {
@@ -390,7 +394,7 @@ export function SimulationTable({
         sortField: "pv_eur",
         width: 110,
         align: "right",
-        cellClassName: "text-sm font-semibold text-slate-900 tabular-nums",
+        cellClassName: "text-sm font-semibold text-foreground font-data",
         render: (line) => fmtEur(line.pv_eur),
       },
       {
@@ -409,7 +413,7 @@ export function SimulationTable({
             <button
               type="button"
               onClick={() => setDiagnosticsLine(line)}
-              className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-slate-100/80"
+              className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-muted/80"
               title="Voir le détail des diagnostics"
             >
               <span
@@ -422,19 +426,20 @@ export function SimulationTable({
               </span>
               {primary && (
                 <span className="flex min-w-0 items-center gap-1">
-                  <AlertTriangle
+                  <Warning
                     size={13}
-                    className={cn("shrink-0", isError ? "text-red-500" : "text-amber-500")}
+                    weight="fill"
+                    className={cn("shrink-0", isError ? "text-destructive" : "text-warm")}
                   />
                   <span
                     className={cn(
                       "truncate text-xs",
-                      isError ? "text-red-600" : "text-amber-600"
+                      isError ? "text-destructive" : "text-warm"
                     )}
                   >
                     {primary}
                     {extraCount > 0 && (
-                      <span className="ml-1 text-slate-400">(+{extraCount})</span>
+                      <span className="ml-1 text-muted-foreground">(+{extraCount})</span>
                     )}
                   </span>
                 </span>
@@ -449,9 +454,9 @@ export function SimulationTable({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[#E2E8F0] bg-white px-5 py-3">
+      <div className="border-b border-border bg-muted/40 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
             <ContextItem
               label="Dernier calcul"
               value={
@@ -482,69 +487,59 @@ export function SimulationTable({
               }
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
               onClick={onRecalc}
               disabled={readOnly}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
-                sim.is_dirty
-                  ? "bg-[#E07200] text-white shadow-sm hover:bg-[#C56400]"
-                  : "border border-[#E2E8F0] text-slate-700 hover:bg-slate-50"
-              )}
+              variant={sim.is_dirty ? "default" : "outline"}
+              size="sm"
+              className="gap-2 font-semibold"
             >
               <Calculator size={15} />
               Recalculer
               {sim.is_dirty && (
-                <span className="h-2 w-2 rounded-full bg-white" title="Recalcul nécessaire" />
+                <span className="h-2 w-2 rounded-full bg-primary-foreground" title="Recalcul nécessaire" />
               )}
-            </button>
-            <button
-              onClick={onBulkEdit}
-              disabled={readOnly}
-              className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-            >
+            </Button>
+            <Button onClick={onBulkEdit} disabled={readOnly} variant="outline" size="sm">
               Édition groupée
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-            >
-              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            </Button>
+            <Button onClick={handleExport} disabled={exporting} variant="outline" size="sm" className="gap-2">
+              {exporting ? <CircleNotch size={15} className="animate-spin" /> : <DownloadSimple size={15} />}
               Exporter Excel
-            </button>
-            <button
-              onClick={onHistory}
-              className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
+            </Button>
+            <Button onClick={onHistory} variant="outline" size="sm">
               Historique
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-4">
           {(
             [
-              { key: "ok" as const, label: "OK", accent: "accent-green-600" },
-              { key: "warning" as const, label: "Avertissements", accent: "accent-amber-500" },
-              { key: "error" as const, label: "Erreurs", accent: "accent-red-500" },
+              { key: "ok" as const, label: "OK" },
+              { key: "warning" as const, label: "Avertissements" },
+              { key: "error" as const, label: "Erreurs" },
             ] as const
-          ).map(({ key, label, accent }) => (
-            <label key={key} className="flex items-center gap-1.5 text-xs text-slate-600">
-              <input
-                type="checkbox"
+          ).map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <Checkbox
+                id={`status-filter-${key}`}
                 checked={statusFilters[key]}
-                onChange={(e) => {
-                  setStatusFilters((current) => ({ ...current, [key]: e.target.checked }));
+                onCheckedChange={(checked) => {
+                  setStatusFilters((current) => ({ ...current, [key]: checked === true }));
                   setPage(1);
                 }}
-                className={cn("h-3.5 w-3.5 rounded border-slate-300", accent)}
               />
-              {label}
-            </label>
+              <Label
+                htmlFor={`status-filter-${key}`}
+                className="text-xs font-normal text-muted-foreground"
+              >
+                {label}
+              </Label>
+            </div>
           ))}
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-muted-foreground">
             {total} ligne{total !== 1 ? "s" : ""}
           </span>
         </div>
@@ -571,17 +566,15 @@ export function SimulationTable({
         sort={sort}
         defaultSort={DEFAULT_SORT}
         onSort={handleSort}
+        density="compact"
         isLoading={isLoading && !data}
         emptyState={
-          <div className="text-slate-400">
-            <FileSpreadsheet size={36} className="mx-auto mb-3 text-slate-200" />
+          <div className="text-muted-foreground">
+            <Table size={36} weight="duotone" className="mx-auto mb-3 text-muted-foreground/40" />
             <p className="text-sm">Aucune ligne à afficher.</p>
           </div>
         }
-        rowClassName={(line) => {
-          const st = LINE_STATUS[line.status] ?? LINE_STATUS.pending;
-          return st.row || "bg-white even:bg-slate-50/40 hover:bg-orange-50/50";
-        }}
+        rowClassName={(line) => lineRowClassName(line.status)}
         renderTrailingCell={(line) => (
                 <RowMenu
                   disabled={busyLine === line.id}
@@ -615,17 +608,17 @@ async function onExportWrap(fn: () => void | Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    alert(e instanceof Error ? e.message : "Export échoué");
+    toast.error(e instanceof Error ? e.message : "Export échoué");
   }
 }
 
 function ContextItem({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+      <span className="text-[10px] font-semibold text-muted-foreground">
         {label}
       </span>
-      <span className="font-medium text-slate-700 tabular-nums">{value}</span>
+      <span className="font-medium text-foreground tabular-nums">{value}</span>
     </span>
   );
 }

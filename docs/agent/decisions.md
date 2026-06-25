@@ -333,3 +333,55 @@ Régression post-merge : `getProducts`/`buildCatalogQuery` dans `lib/api.ts` ava
 - **`/settings`** : retour à `SettingsNav` + `?tab=` (marche/transport/odoo/alerts) + `<Suspense>` ; onglet Alertes conservé dans la nav partagée.
 - **Backend** : `is_filterable` ajouté à `AttributeRegistryViewSet.filterset_fields` + test `?is_filterable=true`.
 - **Tests** : 15 tests attributes verts (`uv run pytest apps/attributes/tests/test_api.py`).
+
+## 2026-06-23 · [P] Palette UI = brand guidelines Unikkern (refonte visuelle frontend)
+Modernisation UI Syskern alignée sur les brand guidelines Unikkern (PDF officiel). Décisions :
+- **Palette** : navy `#162F56`, vert `#649E5F` (CTA primaire + identité syskern), orange `#F78F26` (accent pricing/warm), bleu `#09B0E6` (info), rose `#C92359` (destructif). Les anciennes couleurs code (`#0F2137`, `#E07200`) étaient hors charte → remplacées par tokens CSS (`brand-*`, `primary`, `warm`) dans `globals.css`.
+- **Typo** : Nunito (guideline §5), via `next/font/google`. Remplace Inter/Plus Jakarta.
+- **Design system** : shadcn/ui (style base-nova) + Tailwind 4 `@theme`. Composants dans `components/ui/` ; wrappers métier (`BrandLogo`, `PageHeader`, `EmptyState`, `FormField`, `StatusBadge`, `KpiCard`).
+- **Logos** : `public/syskern-logo.png`, `public/unnikkern-logo.png` ; composant `BrandLogo`. Login dual-brand (syskern + mention Unikkern).
+- **Périmètre** : refonte visuelle uniquement — pas de changement logique métier MVP1. Dark mode hors scope (tokens préparés).
+
+## 2026-06-24 · [P] Refonte UI phase 1 — Plus Jakarta Sans, Phosphor, dashboard d'accueil
+Suite audit UI et modernisation démo :
+- **Typo** : **Plus Jakarta Sans** remplace Nunito pour un rendu SaaS B2B plus contemporain. Écart assumé aux brand guidelines Unikkern (§5 Nunito) — palette couleurs inchangée.
+- **Icônes** : `@phosphor-icons/react` + wrapper `AppIcon` (duotone nav/dashboard). Lucide conservé pour primitives shadcn internes.
+- **Accueil** : `/` = tableau de bord simplifié (KPIs Catalogue/Simulations/Offres/Bibliothèque, raccourcis, activité récente) au lieu de `redirect("/catalog")`. Post-login → `/`.
+- **Composants** : primitives shadcn ajoutées (`slider`, `sheet`, `popover`, `accordion`, `command`, `radio-group`) ; wrappers `FilterSection`, `FilterCheckboxGroup`, `MixSlider`.
+- **Ombres** : tokens `--shadow-soft`, `--shadow-card`, `--shadow-elevated` dans `globals.css`.
+- Dark mode et vue carte mobile catalogue : **hors scope** explicite.
+
+## 2026-06-24 · [P] Corrections UI post-redesign — fil d'Ariane, modales, compare, logo sidebar
+Retours utilisateur après refonte complète :
+- **Compare** : retrait option « Métriques détaillées en mode heatmap » (doublon onglet Détail) ; légende « Écart PV » aussi en vue Détail.
+- **Fil d'Ariane** : premier crumb → Tableau de bord `/` ; auto-crumb sans UUID/id brut ; overrides simulation/offre/produit avec titres métier.
+- **Logo sidebar** : pastille fond blanc derrière logo syskern (lisibilité sur dégradé navy — pas de filtre CSS sur l'asset).
+- **Modales denses** : recalcul détail `max-w-6xl`, breakdown/bulk `max-w-4xl`, `AppModal` taille `2xl` ; règles playbook `frontend.md`.
+- **Libellés UI** : `recalcTriggerLabel` — plus de `trigger_type` brut en interface.
+- **Docs** : `product.md` + `design.md` déplacés dans `docs/agent/` (racine réservée à `AGENTS.md`).
+
+## 2026-06-24 · [P] Refonte UI phase 0b/2 — catalogue filtres, listes, composants interactifs
+Suite modernisation UI (plan refonte) :
+- **Filtres catalogue** : sidebar refondue (`FilterSection`, cascade hiérarchie lazy, sliders PAMP/stock dynamiques). Endpoint `GET /api/products/filter-bounds` pour bornes min/max — **écart** à la règle « UI seule » du plan initial, justifié par besoin UX sliders (tracé ici).
+- **Hiérarchie API** : `hierarchy/distinct` accepte parents CSV (`universe=U1,U2`) — un appel par niveau au lieu de N requêtes.
+- **Phase 0b** : `MixSlider` branché (alias `StockPurchaseMixSlider`), composants `SearchInput`, `FilterSelect`, `RangeFilterSlider`. **Fait** : `Field.tsx` (Switch/Select/Input shadcn), filtres statut `SimulationTable` (Checkbox), `library/page.tsx` (FilterSelect, PageHeader, EmptyState), `HierarchyFilterPanel` (FilterSelect).
+- **Phase 2** : `catalog/page.tsx` et `offers/page.tsx` migrés vers tokens + shadcn (`Checkbox`, `Button`, `EmptyState`, `StatusBadge`, `FilterSelect`, `Dialog`). Offres : table HTML conservée (migration `DataTable` = prochain lot).
+- **Hors scope** : phase 3 (simulation détail, compare, fiche produit), phase 4 (virtualisation).
+
+## 2026-06-24 · [P] Refonte UI phase 0-1 — tokens, shell, login, dashboard
+Fondations design system + premiers écrans refondus (plan refonte UI) :
+- **Tokens sémantiques** (`globals.css`) : `surface-elevated`, `surface-inset`, `data-positive`, `data-negative`, `data-dirty` ; `brand-navy-dark` pour dégradés sidebar/login (remplace `#0f2444` hardcodé).
+- **Typo données** : **JetBrains Mono** (`--font-mono`, `layout.tsx`) pour SKU, montants, codes attributs.
+- **Composants** : `AppModal` (wrapper Dialog tailles sm→xl), `PageHeader` variants CVA (`default`, `dense`, `hero`).
+- **AppShell** : logo intégré sur sidebar navy (suppression bande `bg-white`), nav active pill + rail `primary`, toggle `Sidebar`/`SidebarSimple` Phosphor, dégradé `from-brand-navy to-brand-navy-dark`.
+- **Login** : split desktop (panneau navy + tagline « Pricing câble, une ligne. » + formulaire Card), stack mobile ; dual-brand conservé.
+- **Dashboard** : KPI `motion-safe` hover + `tabular-nums`, activité timeline + `StatusBadge`, quick actions hover `border-primary/30`.
+
+## 2026-06-24 · [P] Refonte UI phases 2-6 — plateforme complète (redesign exhaustif)
+Migration visuelle complète des 18 routes frontend (plan redesign UI) :
+- **Phase 2 PIM** : catalogue liste/fiche/wizard → tokens shadcn, `StatusBadge` univers, tabs shadcn fiche SKU, graphiques `--chart-*`.
+- **Phase 3 simulateur** : détail simulation (écran héros), wizard, compare → `Dialog`/`Sheet`, `density="compact"` DataTable, `font-data` prix, tokens `data-dirty`, Phosphor.
+- **Phase 4 offres/bibliothèque** : listes `DataTable`, modals → Dialog/Sheet.
+- **Phase 5 admin** : `settings/page.tsx` découpé composants + `AppModal`/`FormField`, admin users/quarantaine → `DataTable`.
+- **Phase 6** : composants partagés tokenisés (`BreadcrumbContext`, `AttributeRenderer`, `SupplierManager`), `docs/agent/product.md` + `docs/agent/design.md` (pas à la racine — seul `AGENTS.md` y reste), `DataTable` sélection + densité compacte, `universeBadgeVariant`.
+- **Hors scope inchangé** : dark mode, virtualisation catalogue.

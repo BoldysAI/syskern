@@ -123,6 +123,9 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 Page : [frontend/src/app/catalog/page.tsx](../../frontend/src/app/catalog/page.tsx) +
 composants privés dans `frontend/src/app/catalog/_components/`.
 
+Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne univers =
+`StatusBadge` (`universeBadgeVariant`). Icônes Phosphor dans le code app catalogue.
+
 | Composant | Rôle |
 |---|---|
 | `CatalogSidebar.tsx` | Filtres desktop (sections `Collapsible`, multi-checkbox, recherche locale) |
@@ -158,8 +161,14 @@ composants privés dans `frontend/src/app/catalog/_components/`.
 ## Fiche produit frontend (`/catalog/[sku]`, CDC §4.1.2 / §4.3)
 
 Page : [frontend/src/app/catalog/[sku]/page.tsx](../../frontend/src/app/catalog/[sku]/page.tsx).
-Layout **2 colonnes** : carte infos clés (gauche, 1/3) + **6 onglets** Radix (droite, 2/3) :
+Layout **2 colonnes** : carte identité sticky (gauche) + **6 onglets** shadcn `Tabs` (droite) :
 Général, Technique, Marketing, Logistique, Commercial, Médias (placeholder MVP2).
+
+**UI (Phase 2 redesign)** : tokens sémantiques (`bg-background`, `bg-card`, `text-foreground`,
+`text-muted-foreground`) — pas de `slate`/`bg-white`. Liste catalogue : badge univers via
+`StatusBadge` + `universeBadgeVariant`. Fiche : `Button`/`Card` shadcn, icônes Phosphor.
+Onglet Commercial : graphiques Recharts avec `--chart-1..3`, montants en `font-data`.
+Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections `Card`.
 
 - Onglets dans `_tabs/` (dossier `_` privé, non routé). Un composant par onglet.
 - État d'édition partagé via `EditContext` (`_tabs/edit-context.tsx`) → pas de prop-drilling.

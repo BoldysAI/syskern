@@ -76,3 +76,7 @@ migration/manifest.json
 /node_modules/
 /package.json
 /package-lock.json
+
+
+.agents/
+.claude/

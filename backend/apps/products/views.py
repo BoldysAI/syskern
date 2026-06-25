@@ -6,6 +6,7 @@ import uuid as _uuid_module
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -430,7 +431,7 @@ class DistinctHierarchyView(APIView):
         for parent in ("universe", "family", "range"):
             val = request.query_params.get(parent)
             if val:
-                qs = qs.filter(**{parent: val})
+                qs = self._filter_csv_iexact(qs, parent, val)
             if parent == level:
                 break
 
@@ -438,6 +439,76 @@ class DistinctHierarchyView(APIView):
             qs.exclude(**{f"{level}": ""}).order_by(level).values_list(level, flat=True).distinct()
         )
         return Response({"level": level, "values": list(values)})
+
+    @staticmethod
+    def _filter_csv_iexact(queryset, field: str, value: str):
+        """Match one or several comma-separated values (case-insensitive)."""
+        values = [v.strip() for v in value.split(",") if v.strip()]
+        if not values:
+            return queryset
+        q = Q()
+        for v in values:
+            q |= Q(**{f"{field}__iexact": v})
+        return queryset.filter(q)
+
+
+class CatalogFilterBoundsView(APIView):
+    """GET /api/products/filter-bounds — min/max for numeric catalog filters.
+
+    Accepts the same query params as the product list, except range sliders
+    (pamp_min, pamp_max, stock_min) which are ignored so bounds reflect the
+    current facet context, not the active range selection.
+    """
+
+    _IGNORED_PARAMS = frozenset({"pamp_min", "pamp_max", "stock_min", "page", "limit", "offset", "ordering"})
+
+    def get(self, request):
+        from django.db.models import Max, Min
+
+        data = {k: v for k, v in request.query_params.items() if k not in self._IGNORED_PARAMS}
+        qs = ProductFilter(data=data, queryset=Product.objects.filter(is_active=True)).qs
+
+        aggs = qs.aggregate(
+            pamp_min=Min("pamp_eur"),
+            pamp_max=Max("pamp_eur"),
+            stock_min=Min("stock_quantity"),
+            stock_max=Max("stock_quantity"),
+        )
+
+        def _num(v):
+            if v is None:
+                return None
+            return float(v)
+
+        attributes: dict[str, dict[str, float]] = {}
+        number_attrs = AttributeRegistry.objects.filter(is_filterable=True, data_type="number")
+        for attr in number_attrs:
+            nums: list[float] = []
+            for raw in (
+                ProductAttributeValue.objects.filter(attribute=attr, product__in=qs)
+                .exclude(value__isnull=True)
+                .values_list("value", flat=True)
+            ):
+                try:
+                    nums.append(float(raw))
+                except (TypeError, ValueError):
+                    continue
+            if nums:
+                attributes[attr.code] = {"min": min(nums), "max": max(nums)}
+
+        return Response(
+            {
+                "pamp_eur": {
+                    "min": _num(aggs["pamp_min"]),
+                    "max": _num(aggs["pamp_max"]),
+                },
+                "stock_quantity": {
+                    "min": _num(aggs["stock_min"]),
+                    "max": _num(aggs["stock_max"]),
+                },
+                "attributes": attributes,
+            }
+        )
 
 
 class DistinctBrandsView(APIView):

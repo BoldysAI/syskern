@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { FileSpreadsheet, Loader2, UploadCloud } from "lucide-react";
+import { Table, CircleNotch, CloudArrowUp } from "@phosphor-icons/react";
+import { FilterSelect } from "@/components/FilterSelect";
 import { lookupBulkProducts } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { SelectedSku } from "./wizard-draft";
@@ -136,15 +137,15 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
         className={cn(
           "flex flex-col items-center justify-center gap-2 py-10 px-4 rounded-xl border-2 border-dashed transition-colors text-center",
           dragOver
-            ? "border-[#E07200] bg-[#FFF3E0]"
-            : "border-[#E2E8F0] hover:border-[#E07200]/60 hover:bg-slate-50"
+            ? "border-primary bg-accent"
+            : "border-border hover:border-primary/60 hover:bg-muted"
         )}
       >
-        <UploadCloud size={28} className="text-[#E07200]" />
-        <span className="text-sm font-semibold text-slate-700">
+        <CloudArrowUp size={28} className="text-warm" />
+        <span className="text-sm font-semibold text-foreground">
           Glissez un fichier ou cliquez pour sélectionner
         </span>
-        <span className="text-xs text-slate-400">Formats acceptés : .xlsx, .xls, .csv — colonne « sku_code »</span>
+        <span className="text-xs text-muted-foreground">Formats acceptés : .xlsx, .xls, .csv — colonne « sku_code »</span>
       </button>
       <input
         ref={inputRef}
@@ -155,34 +156,28 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       />
 
       {fileName && (
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <FileSpreadsheet size={16} className="text-slate-400" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Table size={16} className="text-muted-foreground" />
           <span className="truncate">{fileName}</span>
-          {parsing && <Loader2 size={14} className="animate-spin text-[#E07200]" />}
+          {parsing && <CircleNotch size={14} className="animate-spin text-warm" />}
         </div>
       )}
 
       {/* Column picker shown only when auto-detection failed. */}
       {headers.length > 0 && !column && !parsing && (
-        <div className="p-3 border border-amber-200 bg-amber-50 rounded-lg flex flex-col gap-2">
-          <p className="text-sm text-amber-800">
+        <div className="flex flex-col gap-2 rounded-lg border border-warm/30 bg-warm/10 p-3">
+          <p className="text-sm text-foreground">
             Colonne « sku_code » non détectée. Sélectionnez la colonne contenant les SKU :
           </p>
-          <select
+          <FilterSelect
             value={column}
-            onChange={(e) => {
-              setColumn(e.target.value);
-              if (e.target.value) void resolveColumn(e.target.value, rows);
+            onChange={(v) => {
+              setColumn(v);
+              if (v) void resolveColumn(v, rows);
             }}
-            className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
-          >
-            <option value="">— Choisir une colonne —</option>
-            {headers.map((h) => (
-              <option key={h} value={h}>
-                {h}
-              </option>
-            ))}
-          </select>
+            placeholder="— Choisir une colonne —"
+            options={headers.map((h) => ({ value: h, label: h }))}
+          />
         </div>
       )}
 

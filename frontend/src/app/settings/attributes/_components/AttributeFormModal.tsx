@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { CircleNotch, Plus, Trash } from "@phosphor-icons/react";
 import {
   createAttribute,
   updateAttribute,
@@ -10,57 +10,26 @@ import {
   type AttributeOption,
   type AttributeRegistry,
 } from "@/lib/api";
+import { AppModal } from "@/components/AppModal";
+import { FormField } from "@/components/FormField";
+import { AppIcon } from "@/components/AppIcon";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import Modal from "./Modal";
 import { CATEGORIES, CODE_REGEX, DATA_TYPES, slugifyCode } from "./constants";
-
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed";
-const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5";
 
 interface OptionDraft {
   value: string;
   labelFr: string;
-}
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-3 w-full text-left"
-    >
-      <span>
-        <span className="block text-sm font-medium text-slate-700">{label}</span>
-        {hint && <span className="block text-xs text-slate-400">{hint}</span>}
-      </span>
-      <span
-        role="switch"
-        aria-checked={checked}
-        className={cn(
-          "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
-          checked ? "bg-[#E07200]" : "bg-slate-300"
-        )}
-      >
-        <span
-          className={cn(
-            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-            checked ? "translate-x-6" : "translate-x-1"
-          )}
-        />
-      </span>
-    </button>
-  );
 }
 
 /**
@@ -88,17 +57,15 @@ export default function AttributeFormModal({
   const [code, setCode] = useState(attribute?.code ?? "");
   const [codeTouched, setCodeTouched] = useState(isEdit);
   const [category, setCategory] = useState<AttributeCategory>(
-    attribute?.category ?? defaultCategory ?? "technical"
+    attribute?.category ?? defaultCategory ?? "technical",
   );
-  const [dataType, setDataType] = useState<AttributeDataType>(
-    attribute?.data_type ?? "text"
-  );
+  const [dataType, setDataType] = useState<AttributeDataType>(attribute?.data_type ?? "text");
   const [unit, setUnit] = useState(attribute?.unit ?? "");
   const [options, setOptions] = useState<OptionDraft[]>(
     (attribute?.options ?? []).map((o) => ({
       value: o.value,
       labelFr: o.label?.fr ?? o.value,
-    }))
+    })),
   );
   const [isRequired, setIsRequired] = useState(attribute?.is_required ?? false);
   const [isSearchable, setIsSearchable] = useState(attribute?.is_searchable ?? true);
@@ -109,7 +76,6 @@ export default function AttributeFormModal({
 
   const needsOptions = dataType === "select" || dataType === "multiselect";
 
-  // Auto-derive the code from the FR label until the user edits it manually.
   const onLabelFrChange = (v: string) => {
     setLabelFr(v);
     if (!isEdit && !codeTouched) setCode(slugifyCode(v));
@@ -117,10 +83,8 @@ export default function AttributeFormModal({
 
   const codeValid = CODE_REGEX.test(code);
   const optionsValid =
-    !needsOptions ||
-    (options.length > 0 && options.every((o) => o.value.trim() !== ""));
-  const canSubmit =
-    labelFr.trim() !== "" && (isEdit || codeValid) && optionsValid && !saving;
+    !needsOptions || (options.length > 0 && options.every((o) => o.value.trim() !== ""));
+  const canSubmit = labelFr.trim() !== "" && (isEdit || codeValid) && optionsValid && !saving;
 
   const helperCode = useMemo(() => {
     if (isEdit) return "Le code est immuable après création.";
@@ -171,38 +135,43 @@ export default function AttributeFormModal({
   };
 
   return (
-    <Modal title={isEdit ? "Modifier l'attribut" : "Nouvel attribut"} onClose={onClose}>
+    <AppModal
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={isEdit ? "Modifier l'attribut" : "Nouvel attribut"}
+      size="xl"
+    >
       {error && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <div>
-          <label className={labelCls}>Label (français) *</label>
-          <input
+        <FormField label="Label (français)" required>
+          <Input
             value={labelFr}
             onChange={(e) => onLabelFrChange(e.target.value)}
             required
-            className={inputCls}
             placeholder="Diamètre du conducteur"
           />
-        </div>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Label (anglais)</label>
-            <input value={labelEn} onChange={(e) => setLabelEn(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Label (espagnol)</label>
-            <input value={labelEs} onChange={(e) => setLabelEs(e.target.value)} className={inputCls} />
-          </div>
+          <FormField label="Label (anglais)">
+            <Input value={labelEn} onChange={(e) => setLabelEn(e.target.value)} />
+          </FormField>
+          <FormField label="Label (espagnol)">
+            <Input value={labelEs} onChange={(e) => setLabelEs(e.target.value)} />
+          </FormField>
         </div>
 
-        <div>
-          <label className={labelCls}>Code *</label>
-          <input
+        <FormField
+          label="Code"
+          required
+          hint={helperCode}
+          error={!isEdit && code && !codeValid ? "Format de code invalide." : undefined}
+        >
+          <Input
             value={code}
             onChange={(e) => {
               setCodeTouched(true);
@@ -210,129 +179,137 @@ export default function AttributeFormModal({
             }}
             disabled={isEdit}
             required
-            className={cn(inputCls, "font-mono", !isEdit && code && !codeValid && "border-red-400")}
+            className={cn("font-mono", !isEdit && code && !codeValid && "border-destructive")}
             placeholder="conductor_diameter"
           />
-          <p className={cn("mt-1 text-xs", !isEdit && code && !codeValid ? "text-red-500" : "text-slate-400")}>
-            {helperCode}
-          </p>
-        </div>
+        </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Catégorie *</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as AttributeCategory)}
-              className={inputCls}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Type *</label>
-            <select
-              value={dataType}
-              onChange={(e) => setDataType(e.target.value as AttributeDataType)}
-              className={inputCls}
-            >
-              {DATA_TYPES.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FormField label="Catégorie" required>
+            <Select value={category} onValueChange={(v) => setCategory(v as AttributeCategory)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Type" required>
+            <Select value={dataType} onValueChange={(v) => setDataType(v as AttributeDataType)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATA_TYPES.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
         </div>
 
         {dataType === "number" && (
-          <div>
-            <label className={labelCls}>Unité</label>
-            <input
+          <FormField label="Unité">
+            <Input
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
-              className={inputCls}
               placeholder="mm, kg, A…"
             />
-          </div>
+          </FormField>
         )}
 
         {needsOptions && (
-          <div>
-            <label className={labelCls}>Options * (au moins une)</label>
+          <FormField label="Options" required hint="Au moins une option requise.">
             <div className="flex flex-col gap-2">
               {options.map((opt, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <input
+                  <Input
                     value={opt.value}
                     onChange={(e) =>
                       setOptions((prev) =>
-                        prev.map((o, i) => (i === idx ? { ...o, value: e.target.value } : o))
+                        prev.map((o, i) => (i === idx ? { ...o, value: e.target.value } : o)),
                       )
                     }
-                    className={cn(inputCls, "font-mono")}
+                    className="font-mono"
                     placeholder="valeur"
                   />
-                  <input
+                  <Input
                     value={opt.labelFr}
                     onChange={(e) =>
                       setOptions((prev) =>
-                        prev.map((o, i) => (i === idx ? { ...o, labelFr: e.target.value } : o))
+                        prev.map((o, i) => (i === idx ? { ...o, labelFr: e.target.value } : o)),
                       )
                     }
-                    className={inputCls}
                     placeholder="Libellé FR"
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => setOptions((prev) => prev.filter((_, i) => i !== idx))}
                     aria-label="Supprimer l'option"
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0"
                   >
-                    <Trash2 size={15} />
-                  </button>
+                    <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
+                  </Button>
                 </div>
               ))}
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
               onClick={() => setOptions((prev) => [...prev, { value: "", labelFr: "" }])}
-              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#E07200] border border-dashed border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]"
             >
-              <Plus size={13} />
+              <AppIcon icon={Plus} size="sm" />
               Ajouter une option
-            </button>
-          </div>
+            </Button>
+          </FormField>
         )}
 
-        <div className="flex flex-col gap-3 pt-1 border-t border-[#E2E8F0]">
-          <Toggle label="Obligatoire" checked={isRequired} onChange={setIsRequired} hint="Champ requis sur la fiche produit." />
-          <Toggle label="Recherchable" checked={isSearchable} onChange={setIsSearchable} hint="Inclus dans la recherche full-text." />
-          <Toggle label="Filtrable" checked={isFilterable} onChange={setIsFilterable} hint="Exposé comme filtre dans la sidebar du catalogue." />
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label className="text-sm font-medium">Obligatoire</Label>
+              <p className="text-xs text-muted-foreground">Champ requis sur la fiche produit.</p>
+            </div>
+            <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label className="text-sm font-medium">Recherchable</Label>
+              <p className="text-xs text-muted-foreground">Inclus dans la recherche full-text.</p>
+            </div>
+            <Switch checked={isSearchable} onCheckedChange={setIsSearchable} />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label className="text-sm font-medium">Filtrable</Label>
+              <p className="text-xs text-muted-foreground">
+                Exposé comme filtre dans la sidebar du catalogue.
+              </p>
+            </div>
+            <Switch checked={isFilterable} onCheckedChange={setIsFilterable} />
+          </div>
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
-          >
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
             Annuler
-          </button>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />}
+          </Button>
+          <Button type="submit" disabled={!canSubmit} className="flex-1">
+            {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
             {isEdit ? "Mettre à jour" : "Créer"}
-          </button>
+          </Button>
         </div>
       </form>
-    </Modal>
+    </AppModal>
   );
 }

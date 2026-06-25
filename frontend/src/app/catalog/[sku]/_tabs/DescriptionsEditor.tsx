@@ -1,7 +1,9 @@
 "use client";
 
-import { Languages } from "lucide-react";
+import { Translate } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { useEdit, type DescriptionKind } from "./edit-context";
 
 const LANGS = ["fr", "en", "es"] as const;
@@ -10,9 +12,6 @@ const LANG_LABELS: Record<string, string> = {
   en: "Anglais",
   es: "Espagnol",
 };
-
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
 
 interface DescriptionsEditorProps {
   which: DescriptionKind;
@@ -31,49 +30,55 @@ export function DescriptionsEditor({
   const { mode, descValue, setDesc } = useEdit();
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4">{title}</h3>
-      <div className="flex flex-col gap-4">
+    <Card>
+      <CardHeader className="border-none pb-0">
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 pt-3">
         {LANGS.map((lang) => {
           const text = descValue(which, lang);
           const showTranslate = !!onTranslate && lang !== "fr" && !text;
           return (
             <div key={lang}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {LANG_LABELS[lang]}
-                  {lang === "fr" && <span className="text-red-400 ml-0.5">*</span>}
+                  {lang === "fr" && <span className="ml-0.5 text-destructive">*</span>}
                 </span>
                 {showTranslate && (
                   <button
                     type="button"
                     onClick={() => onTranslate?.(lang as "en" | "es")}
                     disabled={!!translating}
-                    className="flex items-center gap-1.5 text-xs font-medium text-[#E07200] hover:text-[#C56400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 text-xs font-medium text-warm transition-colors hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Languages size={13} className={cn(translating === lang && "animate-pulse")} />
+                    <Translate
+                      size={13}
+                      weight="duotone"
+                      className={cn(translating === lang && "animate-pulse")}
+                    />
                     {translating === lang ? "Traduction…" : "Traduire avec DeepL"}
                   </button>
                 )}
               </div>
               {mode === "edit" ? (
-                <textarea
+                <Textarea
                   value={text}
                   rows={3}
                   onChange={(e) => setDesc(which, lang, e.target.value)}
-                  className={cn(inputCls, "resize-y")}
+                  className="resize-y"
                 />
               ) : text ? (
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{text}</p>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">{text}</p>
               ) : (
-                <p className="text-sm text-slate-400 italic">
+                <p className="text-sm italic text-muted-foreground">
                   Aucune description en {LANG_LABELS[lang].toLowerCase()}.
                 </p>
               )}
             </div>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

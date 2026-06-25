@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import {
 } from "@/lib/incoterms";
 
 const selectItemCls =
-  "flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]";
+  "flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
 interface Props {
   value: string;
@@ -38,19 +38,13 @@ export function LocationSelectField({
 }: Props) {
   const triggerCls =
     inputClassName ??
-    "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+    "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
   const customCls = customInputClassName ?? triggerCls;
 
-  const [otherExplicit, setOtherExplicit] = useState(() => {
-    const t = value.trim();
-    return Boolean(t && !isPresetSaleIncotermLocation(t));
-  });
-
-  useEffect(() => {
-    const t = value.trim();
-    if (!t) return;
-    setOtherExplicit(!isPresetSaleIncotermLocation(t));
-  }, [value]);
+  const [otherSelected, setOtherSelected] = useState(false);
+  const trimmed = value.trim();
+  const valueImpliesOther = Boolean(trimmed && !isPresetSaleIncotermLocation(trimmed));
+  const otherExplicit = otherSelected || valueImpliesOther;
 
   const {
     selectValue: locationSelect,
@@ -60,18 +54,18 @@ export function LocationSelectField({
 
   const handleSelect = (selected: string) => {
     if (selected === SALE_INCOTERM_LOCATION_NONE) {
-      setOtherExplicit(false);
+      setOtherSelected(false);
       onChange("");
       return;
     }
     if (selected === SALE_INCOTERM_LOCATION_OTHER) {
-      setOtherExplicit(true);
+      setOtherSelected(true);
       if (isPresetSaleIncotermLocation(value)) {
         onChange("");
       }
       return;
     }
-    setOtherExplicit(false);
+    setOtherSelected(false);
     onChange(selected);
   };
 
@@ -88,40 +82,40 @@ export function LocationSelectField({
           <span
             className={cn(
               "flex-1 truncate",
-              locationSelect === SALE_INCOTERM_LOCATION_NONE && "text-slate-400"
+              locationSelect === SALE_INCOTERM_LOCATION_NONE && "text-muted-foreground"
             )}
           >
             {locationLabel}
           </span>
           <Select.Icon>
-            <ChevronDown size={15} className="text-slate-400 shrink-0" />
+            <ChevronDown size={15} className="text-muted-foreground shrink-0" />
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
           <Select.Content
             position="popper"
             sideOffset={4}
-            className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+            className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
           >
             <Select.Viewport className="p-1">
               <Select.Item value={SALE_INCOTERM_LOCATION_NONE} className={selectItemCls}>
                 <Select.ItemText>— Non renseigné —</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
               {SALE_INCOTERM_LOCATIONS.map((place) => (
                 <Select.Item key={place} value={place} className={selectItemCls}>
                   <Select.ItemText>{place}</Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-[#E07200]" />
+                    <Check size={14} className="text-warm" />
                   </Select.ItemIndicator>
                 </Select.Item>
               ))}
               <Select.Item value={SALE_INCOTERM_LOCATION_OTHER} className={selectItemCls}>
                 <Select.ItemText>Autre…</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
             </Select.Viewport>

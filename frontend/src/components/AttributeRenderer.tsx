@@ -19,7 +19,7 @@ interface AttributeRendererProps {
 }
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200] disabled:bg-slate-50 disabled:text-slate-400";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-muted disabled:text-muted-foreground";
 
 /** Pick the best localized string from a multilingual map. */
 export function localize(map: Record<string, string> | undefined | null, lang = "fr"): string {
@@ -73,16 +73,16 @@ function ReadValue({
   lang: string;
 }) {
   const empty = value === null || value === undefined || value === "";
-  if (empty) return <span className="text-slate-300">—</span>;
+  if (empty) return <span className="text-muted-foreground/50">—</span>;
 
   switch (attribute.data_type) {
     case "number": {
       const n = Number(value);
       const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
       return (
-        <span className="font-medium text-slate-800">
+        <span className="font-medium text-foreground">
           {formatted}
-          {attribute.unit && <span className="text-slate-400 ml-1">{attribute.unit}</span>}
+          {attribute.unit && <span className="text-muted-foreground ml-1">{attribute.unit}</span>}
         </span>
       );
     }
@@ -91,25 +91,25 @@ function ReadValue({
         <span
           className={cn(
             "inline-flex px-2 py-0.5 rounded text-xs font-medium",
-            value ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
+            value ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground",
           )}
         >
           {value ? "Oui" : "Non"}
         </span>
       );
     case "date":
-      return <span className="font-medium text-slate-800">{formatDateFr(String(value))}</span>;
+      return <span className="font-medium text-foreground">{formatDateFr(String(value))}</span>;
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
       return (
-        <span className="font-medium text-slate-800">
+        <span className="font-medium text-foreground">
           {opt ? localize(opt.label, lang) : String(value)}
         </span>
       );
     }
     case "multiselect": {
       const arr = Array.isArray(value) ? value : [];
-      if (arr.length === 0) return <span className="text-slate-300">—</span>;
+      if (arr.length === 0) return <span className="text-muted-foreground/50">—</span>;
       return (
         <span className="flex flex-wrap gap-1 justify-end">
           {arr.map((v) => {
@@ -117,7 +117,7 @@ function ReadValue({
             return (
               <span
                 key={String(v)}
-                className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs"
+                className="inline-flex px-2 py-0.5 rounded bg-muted text-foreground text-xs"
               >
                 {opt ? localize(opt.label, lang) : String(v)}
               </span>
@@ -127,7 +127,7 @@ function ReadValue({
       );
     }
     default:
-      return <span className="font-medium text-slate-800">{String(value)}</span>;
+      return <span className="font-medium text-foreground">{String(value)}</span>;
   }
 }
 
@@ -180,7 +180,7 @@ function EditWidget({
             )}
           />
           {attribute.unit && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
               {attribute.unit}
             </span>
           )}
@@ -198,12 +198,12 @@ function EditWidget({
           onClick={() => emit(!on)}
           className={cn(
             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-            on ? "bg-[#E07200]" : "bg-slate-300",
+            on ? "bg-primary" : "bg-muted-foreground/30",
           )}
         >
           <span
             className={cn(
-              "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+              "inline-block h-4 w-4 transform rounded-full bg-popover shadow transition-transform",
               on ? "translate-x-6" : "translate-x-1",
             )}
           />
@@ -254,25 +254,25 @@ function SelectWidget({
       >
         <Select.Value placeholder="Sélectionner…" />
         <Select.Icon>
-          <ChevronDown size={15} className="text-slate-400" />
+          <ChevronDown size={15} className="text-muted-foreground" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
         >
           <Select.Viewport className="p-1">
             {(attribute.options ?? []).map((opt) => (
               <Select.Item
                 key={opt.value}
                 value={opt.value}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
               >
                 <Select.ItemText>{localize(opt.label, lang)}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-[#E07200]" />
+                  <Check size={14} className="text-warm" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -303,23 +303,23 @@ function MultiSelectWidget({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-[#E2E8F0] rounded-lg">
+      <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-border rounded-lg">
         {selected.length === 0 && (
-          <span className="text-sm text-slate-300 px-1 py-0.5">Aucune sélection</span>
+          <span className="text-sm text-muted-foreground/50 px-1 py-0.5">Aucune sélection</span>
         )}
         {selected.map((v) => {
           const opt = options.find((o) => o.value === v);
           return (
             <span
               key={v}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#FFF3E0] text-[#C56400] text-xs font-medium"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent text-accent-foreground text-xs font-medium"
             >
               {opt ? localize(opt.label, lang) : v}
               <button
                 type="button"
                 onClick={() => remove(v)}
                 aria-label={`Retirer ${v}`}
-                className="hover:text-[#E07200]"
+                className="hover:text-warm"
               >
                 <X size={12} />
               </button>
@@ -329,7 +329,7 @@ function MultiSelectWidget({
       </div>
       {remaining.length > 0 && (
         <Select.Root value="" onValueChange={(v) => v && add(v)}>
-          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-[#E07200] border border-dashed border-[#E07200]/40 rounded-lg hover:bg-[#FFF3E0]">
+          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50">
             <Plus size={13} />
             Ajouter
           </Select.Trigger>
@@ -337,14 +337,14 @@ function MultiSelectWidget({
             <Select.Content
               position="popper"
               sideOffset={4}
-              className="z-50 bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+              className="z-50 bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
             >
               <Select.Viewport className="p-1">
                 {remaining.map((opt) => (
                   <Select.Item
                     key={opt.value}
                     value={opt.value}
-                    className="px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                    className="px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>{localize(opt.label, lang)}</Select.ItemText>
                   </Select.Item>
@@ -378,11 +378,11 @@ export function AttributeRenderer({
   return (
     <div
       className={cn(
-        "gap-3 py-2.5 border-b border-[#E2E8F0] last:border-0",
+        "gap-3 py-2.5 border-b border-border last:border-0",
         isMultiline ? "flex flex-col" : "flex items-center justify-between",
       )}
     >
-      <span className="text-sm text-slate-500">
+      <span className="text-sm text-muted-foreground">
         {label}
         {attribute.is_required && <span className="text-red-400 ml-0.5">*</span>}
       </span>

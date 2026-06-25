@@ -3,7 +3,15 @@
 import { useState } from "react";
 import useSWR from "swr";
 import * as Select from "@radix-ui/react-select";
-import { Check, ChevronDown, Info } from "lucide-react";
+import { Check, CaretDown, Info } from "@phosphor-icons/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { listIncoterms } from "@/lib/api";
 import { LocationSelectField } from "@/components/LocationSelectField";
 import { cn } from "@/lib/utils";
@@ -14,7 +22,7 @@ import {
 } from "@/lib/incoterms";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 interface Props {
   incoterm: string;
@@ -45,7 +53,7 @@ export function SaleIncotermFields({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
           Incoterm de vente
         </label>
         <Select.Root value={currentIncoterm} onValueChange={onIncotermChange} disabled={disabled}>
@@ -58,27 +66,27 @@ export function SaleIncotermFields({
           >
             <span className="flex-1 truncate">{incotermDisplay}</span>
             <Select.Icon>
-              <ChevronDown size={15} className="text-slate-400 shrink-0" />
+              <CaretDown size={15} className="shrink-0 text-muted-foreground" />
             </Select.Icon>
           </Select.Trigger>
           <Select.Portal>
             <Select.Content
               position="popper"
               sideOffset={4}
-              className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-white border border-[#E2E8F0] rounded-lg shadow-lg overflow-hidden"
+              className="z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] bg-card border border-border rounded-lg shadow-lg overflow-hidden"
             >
               <Select.Viewport className="p-1">
                 {(incoterms ?? INCOTERMS_FALLBACK).map((item) => (
                   <Select.Item
                     key={item.code}
                     value={item.code}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-[#FFF3E0] data-[highlighted]:text-[#C56400]"
+                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>
                       {item.code} — {localizeIncotermLabel(item.label, item.code)}
                     </Select.ItemText>
                     <Select.ItemIndicator>
-                      <Check size={14} className="text-[#E07200]" />
+                      <Check size={14} className="text-warm" />
                     </Select.ItemIndicator>
                   </Select.Item>
                 ))}
@@ -89,7 +97,7 @@ export function SaleIncotermFields({
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
           Lieu incoterm vente
         </label>
         <LocationSelectField
@@ -101,8 +109,8 @@ export function SaleIncotermFields({
       </div>
 
       {impact && (
-        <p className="flex gap-2 text-xs text-slate-500 leading-relaxed">
-          <Info size={14} className="shrink-0 mt-0.5 text-[#E07200]" />
+        <p className="flex gap-2 text-xs text-muted-foreground leading-relaxed">
+          <Info size={14} className="shrink-0 mt-0.5 text-warm" />
           {impact}
         </p>
       )}
@@ -125,30 +133,23 @@ export function IncotermPrefillConfirm({
   onConfirm,
   onCancel,
 }: ConfirmProps) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-        <p className="mt-2 text-sm text-slate-600">{message}</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg text-slate-600 hover:bg-slate-50"
-          >
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>
             Annuler
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="px-3 py-2 text-sm font-medium text-white bg-[#E07200] rounded-lg hover:bg-[#C56400]"
-          >
+          </Button>
+          <Button type="button" onClick={onConfirm}>
             Appliquer la structure
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

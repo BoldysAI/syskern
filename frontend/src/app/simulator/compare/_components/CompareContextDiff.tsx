@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Equal, Filter } from "lucide-react";
+import { CaretDown, CaretRight, Equals, Funnel } from "@phosphor-icons/react";
 import type { CompareColumn } from "@/lib/api";
 import { RECALC_TRIGGER } from "@/app/simulator/[id]/_components/sim-format";
 import { cn } from "@/lib/utils";
@@ -40,9 +40,9 @@ export function CompareContextDiff({ columns }: Props) {
   return (
     <div className="space-y-5">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-gradient-to-r from-slate-50 to-white px-4 py-3">
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-          <span className="font-semibold text-slate-700">Légende</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">Légende</span>
           <LegendSwatch kind="same" label="Identique" />
           <LegendSwatch kind="changed" label="Modifié" />
           <LegendSwatch kind="added" label="Ajouté" />
@@ -54,13 +54,13 @@ export function CompareContextDiff({ columns }: Props) {
               {diffCount} écart{diffCount !== 1 ? "s" : ""}
             </span>
           )}
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-600">
-            <Filter size={13} />
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Funnel size={13} />
             <input
               type="checkbox"
               checked={showAll}
               onChange={() => setShowAll((v) => !v)}
-              className="h-3.5 w-3.5 rounded accent-[#E07200]"
+              className="h-3.5 w-3.5 rounded accent-primary"
             />
             Afficher tout
           </label>
@@ -74,7 +74,7 @@ export function CompareContextDiff({ columns }: Props) {
             key={v.key}
             className={cn(
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
-              v.isRef ? "border-orange-200 bg-orange-50" : "border-slate-200 bg-white"
+              v.isRef ? "border-warm/30 bg-warm/10" : "border-border bg-card"
             )}
           >
             <span
@@ -85,7 +85,7 @@ export function CompareContextDiff({ columns }: Props) {
             </span>
             <Link
               href={`/simulator/${columns[i].simulation_id}`}
-              className="max-w-[140px] truncate font-medium text-slate-800 hover:text-[#E07200]"
+              className="max-w-[140px] truncate font-medium text-foreground hover:text-warm"
               title={v.label}
             >
               {v.shortLabel}
@@ -107,20 +107,20 @@ export function CompareContextDiff({ columns }: Props) {
         const sectionDiffs = section.rows.filter((r) => r.hasDiff).length;
 
         return (
-          <section key={section.title} className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+          <section key={section.title} className="rounded-xl border border-border bg-card shadow-sm">
             <button
               type="button"
               onClick={() => toggleSection(section.title)}
-              className="flex w-full items-center gap-2 border-b border-[#E2E8F0] px-4 py-3 text-left transition-colors hover:bg-slate-50"
+              className="flex w-full items-center gap-2 border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted"
             >
-              {open ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
-              <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>
+              {open ? <CaretDown size={16} className="text-muted-foreground" /> : <CaretRight size={16} className="text-muted-foreground" />}
+              <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
               {sectionDiffs > 0 && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                   {sectionDiffs}
                 </span>
               )}
-              <span className="ml-auto text-xs text-slate-400">
+              <span className="ml-auto text-xs text-muted-foreground">
                 {rows.length} champ{rows.length !== 1 ? "s" : ""}
               </span>
             </button>
@@ -147,7 +147,7 @@ export function CompareContextDiff({ columns }: Props) {
 
       {!showAll && diffCount === 0 && (
         <div className="flex flex-col items-center rounded-xl border border-emerald-200 bg-emerald-50/50 py-12 text-center">
-          <Equal size={32} className="mb-2 text-emerald-400" />
+          <Equals size={32} className="mb-2 text-primary" />
           <p className="text-sm font-medium text-emerald-800">Tous les paramètres sont identiques</p>
           <p className="mt-1 text-xs text-emerald-600">Activez « Afficher tout » pour voir le détail complet.</p>
         </div>
@@ -183,16 +183,16 @@ function ParamDiffCard({
     <div
       className={cn(
         "rounded-lg border p-3 transition-shadow",
-        hasDiff ? "border-amber-200 bg-amber-50/30 shadow-sm" : "border-slate-100 bg-slate-50/50"
+        hasDiff ? "border-warm/30 bg-warm/10/30 shadow-sm" : "border-border bg-muted/50"
       )}
     >
       <div className="mb-3 flex items-center gap-2">
         {hasDiff ? (
-          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <span className="h-2 w-2 rounded-full bg-warm/100" />
         ) : (
-          <Equal size={12} className="text-emerald-500" />
+          <Equals size={12} className="text-primary" />
         )}
-        <span className="text-xs font-semibold text-slate-700">{label}</span>
+        <span className="text-xs font-semibold text-foreground">{label}</span>
       </div>
       <div className="space-y-2">
         {visuals.map((v, i) => {
@@ -221,7 +221,7 @@ function ParamDiffCard({
                 <DiffValue kind={kind} value={display} delta={delta} />
               </div>
               {num != null && num > 0 && (
-                <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
@@ -254,25 +254,25 @@ function DiffValue({
       <span
         className={cn(
           "text-xs font-semibold tabular-nums",
-          kind === "same" && "text-slate-500",
+          kind === "same" && "text-muted-foreground",
           kind === "changed" && "text-amber-900",
           kind === "added" && "text-emerald-700",
-          kind === "missing" && "text-red-600"
+          kind === "missing" && "text-destructive"
         )}
       >
         {value}
       </span>
-      {delta && <div className="text-[10px] font-bold text-amber-600">{delta}</div>}
+      {delta && <div className="text-[10px] font-bold text-warm">{delta}</div>}
     </div>
   );
 }
 
 function LegendSwatch({ kind, label }: { kind: DiffKind; label: string }) {
   const colors: Record<DiffKind, string> = {
-    same: "border-slate-200 bg-white",
-    changed: "border-amber-300 bg-amber-50",
+    same: "border-border bg-card",
+    changed: "border-amber-300 bg-warm/10",
     added: "border-emerald-300 bg-emerald-50",
-    missing: "border-red-200 bg-red-50",
+    missing: "border-red-200 bg-destructive/10",
   };
   return (
     <span className="inline-flex items-center gap-1.5">

@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 interface AddToSimulationDialogProps {
   productIds: string[];
   productLabel: string;
+  /** Called after products are successfully added. */
+  onAdded?: () => void;
   /** The element that opens the dialog (wrapped as the trigger). */
   children: ReactNode;
 }
@@ -24,11 +26,12 @@ interface AddToSimulationDialogProps {
 type Tab = "existing" | "new";
 
 const inputCls =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]";
+  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 export function AddToSimulationDialog({
   productIds,
   productLabel,
+  onAdded,
   children,
 }: AddToSimulationDialogProps) {
   const [open, setOpen] = useState(false);
@@ -76,6 +79,7 @@ export function AddToSimulationDialog({
       }
       await addSimulationLines(simId, productIds);
       setDoneSimId(simId);
+      onAdded?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");
     } finally {
@@ -91,19 +95,19 @@ export function AddToSimulationDialog({
       <Dialog.Trigger asChild>{children}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl focus:outline-none">
-          <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
-            <Dialog.Title className="text-lg font-semibold text-slate-900">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-popover shadow-xl focus:outline-none">
+          <div className="flex items-center justify-between p-5 border-b border-border">
+            <Dialog.Title className="text-lg font-semibold text-foreground">
               Ajouter à une simulation
             </Dialog.Title>
-            <Dialog.Close className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
+            <Dialog.Close className="text-muted-foreground hover:text-muted-foreground" aria-label="Fermer">
               <X size={20} />
             </Dialog.Close>
           </div>
 
           <div className="p-5">
-            <Dialog.Description className="text-sm text-slate-500 mb-4">
-              Produit <span className="font-mono font-medium text-slate-700">{productLabel}</span>
+            <Dialog.Description className="text-sm text-muted-foreground mb-4">
+              Produit <span className="font-mono font-medium text-foreground">{productLabel}</span>
             </Dialog.Description>
 
             {doneSimId ? (
@@ -111,12 +115,12 @@ export function AddToSimulationDialog({
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
                   <Check size={24} className="text-green-600" />
                 </div>
-                <p className="text-sm font-medium text-slate-800">
+                <p className="text-sm font-medium text-foreground">
                   Produit ajouté à la simulation.
                 </p>
                 <Link
                   href={`/simulator/${doneSimId}`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#E07200] hover:text-[#C56400]"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80"
                 >
                   Voir la simulation
                   <ArrowRight size={15} />
@@ -133,8 +137,8 @@ export function AddToSimulationDialog({
                       className={cn(
                         "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                         tab === t
-                          ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                          : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                          ? "border-primary bg-accent text-accent-foreground"
+                          : "border-border text-muted-foreground hover:bg-muted",
                       )}
                     >
                       {t === "existing" ? "Simulation existante" : "Nouvelle simulation"}
@@ -144,9 +148,9 @@ export function AddToSimulationDialog({
 
                 {tab === "existing" ? (
                   isLoading ? (
-                    <div className="py-6 text-center text-sm text-slate-400">Chargement…</div>
+                    <div className="py-6 text-center text-sm text-muted-foreground">Chargement…</div>
                   ) : drafts.length === 0 ? (
-                    <div className="py-6 text-center text-sm text-slate-400">
+                    <div className="py-6 text-center text-sm text-muted-foreground">
                       Aucune simulation brouillon. Créez-en une nouvelle.
                     </div>
                   ) : (
@@ -159,21 +163,21 @@ export function AddToSimulationDialog({
                           className={cn(
                             "flex items-center justify-between gap-2 px-3 py-2.5 text-left rounded-lg border transition-colors",
                             selectedSim === s.id
-                              ? "border-[#E07200] bg-[#FFF3E0]"
-                              : "border-[#E2E8F0] hover:bg-slate-50",
+                              ? "border-primary bg-accent"
+                              : "border-border hover:bg-muted",
                           )}
                         >
                           <div className="min-w-0">
-                            <div className="text-sm font-medium text-slate-800 truncate">
+                            <div className="text-sm font-medium text-foreground truncate">
                               {s.label}
                             </div>
-                            <div className="text-xs text-slate-400">
+                            <div className="text-xs text-muted-foreground">
                               {s.simulation_type === "tariff" ? "Tarif" : "Projet"} · {s.line_count}{" "}
                               ligne(s)
                             </div>
                           </div>
                           {selectedSim === s.id && (
-                            <Check size={16} className="text-[#E07200] flex-shrink-0" />
+                            <Check size={16} className="text-primary shrink-0" />
                           )}
                         </button>
                       ))}
@@ -182,7 +186,7 @@ export function AddToSimulationDialog({
                 ) : (
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                         Libellé *
                       </label>
                       <input
@@ -193,7 +197,7 @@ export function AddToSimulationDialog({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                         Type
                       </label>
                       <div className="flex gap-2">
@@ -205,8 +209,8 @@ export function AddToSimulationDialog({
                             className={cn(
                               "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
                               newType === t
-                                ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                                : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
+                                ? "border-primary bg-accent text-accent-foreground"
+                                : "border-border text-muted-foreground hover:bg-muted",
                             )}
                           >
                             {t === "tariff" ? "Tarif" : "Projet"}
@@ -224,14 +228,14 @@ export function AddToSimulationDialog({
                 )}
 
                 <div className="flex gap-3 mt-5">
-                  <Dialog.Close className="flex-1 text-center py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 transition-colors text-slate-600">
+                  <Dialog.Close className="flex-1 text-center py-2.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors text-muted-foreground">
                     Annuler
                   </Dialog.Close>
                   <button
                     type="button"
                     onClick={handleConfirm}
                     disabled={!canConfirm}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting && <Loader2 size={15} className="animate-spin" />}
                     {submitting ? "Ajout…" : "Ajouter"}

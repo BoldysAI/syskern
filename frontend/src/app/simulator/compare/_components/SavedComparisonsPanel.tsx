@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Bookmark, Loader2, Trash2 } from "lucide-react";
+import { Bookmark, CircleNotch, Trash } from "@phosphor-icons/react";
 import {
   deleteSavedComparison,
   getSavedComparisons,
   type SavedComparison,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Props {
   activeId?: string | null;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
+  const confirm = useConfirm();
   const { data, isLoading, mutate } = useSWR<SavedComparison[]>(
     "saved-comparisons",
     getSavedComparisons
@@ -23,7 +25,13 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette comparaison enregistrée ?")) return;
+    const ok = await confirm({
+      title: "Supprimer la comparaison",
+      description: "Supprimer cette comparaison enregistrée ?",
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await deleteSavedComparison(id);
@@ -34,17 +42,17 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
   };
 
   if (isLoading) {
-    return <div className="p-4 text-center text-xs text-slate-400">Chargement…</div>;
+    return <div className="p-4 text-center text-xs text-muted-foreground">Chargement…</div>;
   }
 
   const items = data ?? [];
 
   if (!items.length) {
     return (
-      <div className="flex flex-col items-center px-4 py-10 text-center text-slate-400">
-        <Bookmark size={28} className="mb-2 text-slate-200" />
+      <div className="flex flex-col items-center px-4 py-10 text-center text-muted-foreground">
+        <Bookmark size={28} className="mb-2 text-muted-foreground/40" />
         <p className="text-xs">Aucune comparaison enregistrée.</p>
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 text-[11px] text-muted-foreground">
           Lancez une comparaison puis cliquez sur « Enregistrer ».
         </p>
       </div>
@@ -61,8 +69,8 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
             className={cn(
               "group relative rounded-lg border transition-colors",
               active
-                ? "border-[#E07200] bg-[#FFF3E0]"
-                : "border-transparent hover:border-[#E2E8F0] hover:bg-white"
+                ? "border-primary bg-accent"
+                : "border-transparent hover:border-border hover:bg-card"
             )}
           >
             <button
@@ -71,10 +79,10 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
               className="w-full rounded-lg px-3 py-2.5 pr-10 text-left"
             >
               <div className="min-w-0">
-                <span className="block truncate text-sm font-medium text-slate-800">
+                <span className="block truncate text-sm font-medium text-foreground">
                   {item.label}
                 </span>
-                <span className="mt-0.5 block text-[10px] text-slate-400">
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">
                   {item.column_count} colonne{item.column_count !== 1 ? "s" : ""} ·{" "}
                   {new Date(item.created_at).toLocaleDateString("fr-FR")}
                 </span>
@@ -89,7 +97,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
                         ? "bg-violet-100 text-violet-700"
                         : i === 0
                           ? "bg-orange-100 text-orange-800"
-                          : "bg-slate-100 text-slate-600"
+                          : "bg-muted text-muted-foreground"
                     )}
                     title={col.label}
                   >
@@ -102,13 +110,13 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
               type="button"
               onClick={() => handleDelete(item.id)}
               disabled={deletingId === item.id}
-              className="absolute right-2 top-2 rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
+              className="absolute right-2 top-2 rounded p-1 text-muted-foreground/60 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 disabled:opacity-50"
               aria-label="Supprimer"
             >
               {deletingId === item.id ? (
-                <Loader2 size={14} className="animate-spin" />
+                <CircleNotch size={14} className="animate-spin" />
               ) : (
-                <Trash2 size={14} />
+                <Trash size={14} />
               )}
             </button>
           </li>

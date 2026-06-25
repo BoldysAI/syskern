@@ -3,9 +3,11 @@
 import Link from "next/link";
 import useSWR from "swr";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight, X } from "@phosphor-icons/react";
 import { getProduct, type ProductDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function localize(desc?: Record<string, string>): string {
   if (!desc) return "";
@@ -14,9 +16,9 @@ function localize(desc?: Record<string, string>): string {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-[#F1F5F9] text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-800 text-right">{value || "—"}</span>
+    <div className="flex justify-between gap-4 border-b border-border py-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-foreground">{value || "—"}</span>
     </div>
   );
 }
@@ -25,7 +27,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: () => void }) {
   const { data, isLoading, error } = useSWR<ProductDetail>(
     sku ? ["product-drawer", sku] : null,
-    () => getProduct(sku as string)
+    () => getProduct(sku as string),
   );
 
   const activeSupplier = data?.suppliers?.find((s) => s.is_active)?.supplier_name;
@@ -36,31 +38,33 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
         <Dialog.Content
           className={cn(
-            "fixed right-0 top-0 z-50 h-full w-full max-w-md bg-white shadow-2xl",
-            "flex flex-col focus:outline-none data-[state=open]:animate-in"
+            "fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-card shadow-[var(--shadow-elevated)]",
+            "focus:outline-none data-[state=open]:animate-in",
           )}
         >
-          <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
-            <Dialog.Title className="text-base font-semibold text-slate-900 font-mono truncate">
+          <div className="flex items-center justify-between border-b border-border p-5">
+            <Dialog.Title className="truncate font-mono text-base font-semibold text-foreground">
               {sku}
             </Dialog.Title>
-            <Dialog.Close className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
-              <X size={20} />
+            <Dialog.Close asChild>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Fermer">
+                <X size={20} />
+              </Button>
             </Dialog.Close>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5">
             {error ? (
-              <p className="text-sm text-red-600">Impossible de charger le produit.</p>
+              <p className="text-sm text-destructive">Impossible de charger le produit.</p>
             ) : isLoading || !data ? (
               <div className="space-y-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-5 animate-pulse rounded bg-slate-100" />
+                  <Skeleton key={i} className="h-5 w-full" />
                 ))}
               </div>
             ) : (
               <>
-                <Dialog.Description className="text-base font-semibold text-slate-900 mb-4">
+                <Dialog.Description className="mb-4 text-base font-semibold text-foreground">
                   {data.name}
                 </Dialog.Description>
                 <Row label="Univers" value={data.universe} />
@@ -72,24 +76,33 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 <Row
                   label="PAMP"
                   value={
-                    data.pamp_eur
-                      ? `${parseFloat(data.pamp_eur).toLocaleString("fr-FR", {
+                    data.pamp_eur ? (
+                      <span className="font-mono tabular-nums text-primary">
+                        {parseFloat(data.pamp_eur).toLocaleString("fr-FR", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
-                        })} €`
-                      : "—"
+                        })}{" "}
+                        €
+                      </span>
+                    ) : (
+                      "—"
+                    )
                   }
                 />
                 <Row
                   label="Stock"
-                  value={data.stock_quantity != null ? Math.round(parseFloat(data.stock_quantity)) : "—"}
+                  value={
+                    data.stock_quantity != null
+                      ? Math.round(parseFloat(data.stock_quantity))
+                      : "—"
+                  }
                 />
                 {localize(data.description_marketing) && (
                   <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Description
                     </p>
-                    <p className="text-sm text-slate-700 line-clamp-6">
+                    <p className="line-clamp-6 text-sm text-muted-foreground">
                       {localize(data.description_marketing)}
                     </p>
                   </div>
@@ -98,15 +111,12 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
             )}
           </div>
 
-          <div className="p-5 border-t border-[#E2E8F0]">
+          <div className="border-t border-border p-5">
             {sku && (
-              <Link
-                href={`/catalog/${encodeURIComponent(sku)}`}
-                className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-white bg-[#E07200] rounded-lg hover:bg-[#C56400] transition-colors"
-              >
+              <Button nativeButton={false} render={<Link href={`/catalog/${encodeURIComponent(sku)}`} />} className="w-full">
                 Ouvrir la fiche complète
                 <ArrowUpRight size={16} />
-              </Link>
+              </Button>
             )}
           </div>
         </Dialog.Content>

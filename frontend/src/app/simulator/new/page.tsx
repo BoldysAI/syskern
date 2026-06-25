@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
 import { addSimulationLines, createSimulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
 import { ParamsStep } from "./_components/ParamsStep";
 import { SkuStep } from "./_components/SkuStep";
 import { TypeStep } from "./_components/TypeStep";
@@ -32,7 +34,6 @@ export default function NewSimulationPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Write-only persistence (no setState in this effect).
   useEffect(() => {
     persistDraft(draft);
   }, [draft]);
@@ -80,24 +81,23 @@ export default function NewSimulationPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="mx-auto max-w-6xl p-6">
       <Link
         href="/simulator"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ChevronLeft size={16} />
+        <CaretLeft size={16} />
         Retour aux simulations
       </Link>
 
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">Nouvelle simulation</h1>
+      <PageHeader title="Nouvelle simulation" className="mb-6" />
 
-      {/* Stepper */}
-      <ol className="flex items-center gap-2 mb-8">
+      <ol className="mb-8 flex items-center gap-2">
         {STEPS.map((s, i) => {
           const active = step === s.id;
           const done = step > s.id;
           return (
-            <li key={s.id} className="flex items-center gap-2 flex-1 last:flex-none">
+            <li key={s.id} className="flex flex-1 items-center gap-2 last:flex-none">
               <button
                 type="button"
                 onClick={() => (s.id < step || step1Ok ? setStep(s.id) : undefined)}
@@ -106,20 +106,20 @@ export default function NewSimulationPage() {
               >
                 <span
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold border-2 transition-colors",
+                    "flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors",
                     active
-                      ? "border-[#E07200] bg-[#E07200] text-white"
+                      ? "border-primary bg-primary text-primary-foreground"
                       : done
-                        ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-                        : "border-[#E2E8F0] text-slate-400"
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border text-muted-foreground"
                   )}
                 >
                   {s.id}
                 </span>
                 <span
                   className={cn(
-                    "text-sm font-medium hidden sm:inline",
-                    active ? "text-slate-900" : "text-slate-500"
+                    "hidden text-sm font-medium sm:inline",
+                    active ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
                   {s.label}
@@ -129,7 +129,7 @@ export default function NewSimulationPage() {
                 <span
                   className={cn(
                     "h-0.5 flex-1 rounded-full",
-                    step > s.id ? "bg-[#E07200]" : "bg-[#E2E8F0]"
+                    step > s.id ? "bg-primary" : "bg-border"
                   )}
                 />
               )}
@@ -139,12 +139,12 @@ export default function NewSimulationPage() {
       </ol>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
       {step === 3 && transportError && !error && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <div className="mb-4 rounded-lg border border-warm/30 bg-warm/10 p-3 text-sm text-foreground">
           {transportError}
         </div>
       )}
@@ -192,34 +192,33 @@ export default function NewSimulationPage() {
         )}
       </div>
 
-      {/* Footer nav */}
-      <div className="flex items-center justify-between border-t border-[#E2E8F0] pt-5">
-        <button
+      <div className="flex items-center justify-between border-t border-border pt-5">
+        <Button
           type="button"
+          variant="outline"
           onClick={() => (step > 1 ? setStep((s) => s - 1) : router.push("/simulator"))}
-          className="px-4 py-2.5 text-sm border border-[#E2E8F0] rounded-lg hover:bg-slate-50 text-slate-600"
         >
           {step > 1 ? "Précédent" : "Annuler"}
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
           onClick={goNext}
           disabled={(step === 1 && !step1Ok) || (step === 3 && !step3Valid) || saving}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="gap-2"
         >
-          {saving && <Loader2 size={15} className="animate-spin" />}
+          {saving && <CircleNotch size={15} className="animate-spin" />}
           {step < 3 ? (
             <>
               Suivant
-              <ChevronRight size={16} />
+              <CaretRight size={16} />
             </>
           ) : saving ? (
             "Création…"
           ) : (
             "Créer la simulation"
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

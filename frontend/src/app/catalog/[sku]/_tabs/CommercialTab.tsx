@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { TrendingUp } from "lucide-react";
+import { TrendUp } from "@phosphor-icons/react";
 import { Line, LineChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { getPriceHistory } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AttributeSection } from "./AttributeSection";
 import { useEdit } from "./edit-context";
 
@@ -18,6 +20,10 @@ const PERIODS: { id: "3m" | "6m" | "12m"; label: string }[] = [
   { id: "6m", label: "6 mois" },
   { id: "12m", label: "12 mois" },
 ];
+
+const CHART_PA = "var(--chart-1)";
+const CHART_PR = "var(--chart-2)";
+const CHART_PV = "var(--chart-3)";
 
 export function CommercialTab() {
   const { product } = useEdit();
@@ -45,152 +51,160 @@ export function CommercialTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white border-2 border-[#E07200] rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold text-[#E07200] uppercase tracking-wide mb-1">
-            PAMP actuel
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">
-            {pamp > 0
-              ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-              : "—"}
-          </div>
-          {product.pamp_synced_at && (
-            <div className="text-xs text-slate-400 mt-2">
-              Synchronisé le {new Date(product.pamp_synced_at).toLocaleDateString("fr-FR")}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <Card className="border-2 border-primary">
+          <CardContent className="pt-5">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-warm">
+              PAMP actuel
             </div>
-          )}
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">
-            Prix de vente actuel
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">
-            {latestPv > 0
-              ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-              : "—"}
-          </div>
-          <div className="text-xs text-slate-400 mt-2">Dernière simulation finalisée</div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-          <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">
-            Stock disponible
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">
-            {Math.round(stock)}
-            <span className="text-base font-normal text-slate-500 ml-1">unités</span>
-          </div>
-          <div
-            className={cn(
-              "inline-flex items-center gap-1 text-xs font-medium mt-2 px-2 py-0.5 rounded",
-              stock > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
+            <div className="mt-2 text-2xl font-bold font-data text-foreground">
+              {pamp > 0
+                ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                : "—"}
+            </div>
+            {product.pamp_synced_at && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Synchronisé le {new Date(product.pamp_synced_at).toLocaleDateString("fr-FR")}
+              </div>
             )}
-          >
-            <span
-              className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                stock > 0 ? "bg-green-500" : "bg-slate-300",
-              )}
-            />
-            {stock > 0 ? "En stock" : "Rupture"}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-5">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-blue">
+              Prix de vente actuel
+            </div>
+            <div className="mt-2 text-2xl font-bold font-data text-foreground">
+              {latestPv > 0
+                ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                : "—"}
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">Dernière simulation finalisée</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-5">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-green">
+              Stock disponible
+            </div>
+            <div className="mt-2 text-2xl font-bold font-data text-foreground">
+              {Math.round(stock)}
+              <span className="ml-1 text-base font-normal font-sans text-muted-foreground">unités</span>
+            </div>
+            <StatusBadge variant={stock > 0 ? "success" : "draft"} className="mt-2 gap-1">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  stock > 0 ? "bg-brand-green" : "bg-muted-foreground/40",
+                )}
+              />
+              {stock > 0 ? "En stock" : "Rupture"}
+            </StatusBadge>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-none pb-0">
           <div className="flex items-center gap-2">
-            <TrendingUp size={15} className="text-[#E07200]" />
-            <h3 className="text-sm font-semibold text-slate-700">Historique PA / PR / PV</h3>
+            <TrendUp size={15} weight="duotone" className="text-warm" />
+            <CardTitle className="text-sm font-semibold">Historique PA / PR / PV</CardTitle>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
             {PERIODS.map((p) => (
               <button
                 key={p.id}
+                type="button"
                 onClick={() => setPeriod(p.id)}
                 className={cn(
-                  "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                   period === p.id
-                    ? "bg-white text-[#E07200] shadow-sm"
-                    : "text-slate-500 hover:text-slate-700",
+                    ? "bg-background text-warm shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {p.label}
               </button>
             ))}
           </div>
-        </div>
-        {isLoading ? (
-          <div className="h-48 flex items-center justify-center text-sm text-slate-400">
-            Chargement…
-          </div>
-        ) : chartData.length === 0 ? (
-          <div className="h-48 flex flex-col items-center justify-center text-center gap-1 text-slate-400">
-            <p className="text-sm font-medium text-slate-500">Aucun historique de prix</p>
-            <p className="text-xs">
-              Les points apparaîtront ici dès qu&apos;une simulation finalisée inclura ce produit.
-            </p>
-          </div>
-        ) : (
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
-                <Tooltip
-                  formatter={(value) => {
-                    const n = Array.isArray(value) ? NaN : Number(value);
-                    return Number.isFinite(n)
-                      ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                      : "—";
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="PA"
-                  stroke="#16A34A"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="PR"
-                  stroke="#E07200"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="PV"
-                  stroke="#2563EB"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {isLoading ? (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              Chargement…
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-1 text-center text-muted-foreground">
+              <p className="text-sm font-medium text-foreground">Aucun historique de prix</p>
+              <p className="text-xs">
+                Les points apparaîtront ici dès qu&apos;une simulation finalisée inclura ce produit.
+              </p>
+            </div>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
+                  <Tooltip
+                    formatter={(value) => {
+                      const n = Array.isArray(value) ? NaN : Number(value);
+                      return Number.isFinite(n)
+                        ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                        : "—";
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="PA"
+                    stroke={CHART_PA}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="PR"
+                    stroke={CHART_PR}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="PV"
+                    stroke={CHART_PV}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 px-5 pt-5 pb-3">Fournisseurs</h3>
+      <Card className="overflow-hidden p-0">
+        <CardHeader className="border-none px-5 pt-5 pb-3">
+          <CardTitle className="text-sm font-semibold">Fournisseurs</CardTitle>
+        </CardHeader>
         {suppliers.length === 0 ? (
-          <p className="px-5 pb-5 text-sm text-slate-400">Aucun fournisseur enregistré.</p>
+          <CardContent className="pb-5 text-sm text-muted-foreground">
+            Aucun fournisseur enregistré.
+          </CardContent>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F5F7FA] border-y border-[#E2E8F0]">
+            <thead className="border-y border-border bg-muted/30">
               <tr>
                 {["Fournisseur", "Code usine", "Prix achat", "Devise", "Incoterm", "Actif"].map(
                   (h) => (
                     <th
                       key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                     >
                       {h}
                     </th>
@@ -198,44 +212,39 @@ export function CommercialTab() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {suppliers.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                <tr key={s.id} className="transition-colors hover:bg-muted/30">
+                  <td className="px-4 py-3 text-sm font-medium text-foreground">
                     {s.supplier_name}
                   </td>
-                  <td className="px-4 py-3 font-mono text-sm text-slate-600">
+                  <td className="px-4 py-3 font-mono text-sm text-muted-foreground">
                     {s.factory_code || "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
+                  <td className="px-4 py-3 text-sm font-data text-foreground">
                     {s.po_base_price
                       ? parseDec(s.po_base_price).toLocaleString("fr-FR", {
                           minimumFractionDigits: 2,
                         })
                       : "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{s.po_currency || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{s.po_currency || "—"}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
                     {s.incoterm
                       ? `${s.incoterm}${s.incoterm_location ? ` (${s.incoterm_location})` : ""}`
                       : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex px-2 py-0.5 rounded text-xs font-medium",
-                        s.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500",
-                      )}
-                    >
+                    <StatusBadge variant={s.is_active ? "success" : "draft"}>
                       {s.is_active ? "Oui" : "Non"}
-                    </span>
+                    </StatusBadge>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
 
       <AttributeSection
         category="commercial"

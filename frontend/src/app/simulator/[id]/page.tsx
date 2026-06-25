@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
-import { AlertCircle, PanelLeftOpen } from "lucide-react";
+import { SidebarSimple, WarningCircle } from "@phosphor-icons/react";
 import { exportSimulation, getSimulation, type SimulationDetail } from "@/lib/api";
 import {
   useBreadcrumbOverride,
@@ -12,6 +12,7 @@ import {
 } from "@/components/layout/BreadcrumbContext";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SimulationSidebar } from "./_components/SimulationSidebar";
 import { SimulationTable } from "./_components/SimulationTable";
 import { RecalculateModal } from "./_components/RecalculateModal";
@@ -45,7 +46,7 @@ export default function SimulationDetailPage() {
   const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
     if (!sim) return null;
     return [
-      { href: "/catalog", label: "Accueil" },
+      { href: "/", label: "Tableau de bord" },
       { href: "/simulator", label: "Simulations" },
       { label: sim.label },
     ];
@@ -63,10 +64,10 @@ export default function SimulationDetailPage() {
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-slate-500">
-        <AlertCircle size={40} className="text-red-300" />
-        <p className="font-medium">Simulation introuvable</p>
-        <Link href="/simulator" className="mt-2 text-sm font-medium text-[#E07200] hover:text-[#C56400]">
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
+        <WarningCircle size={40} weight="duotone" className="text-destructive/60" />
+        <p className="font-medium text-foreground">Simulation introuvable</p>
+        <Link href="/simulator" className="mt-2 text-sm font-medium text-warm hover:text-accent-foreground">
           Retour aux simulations
         </Link>
       </div>
@@ -75,8 +76,20 @@ export default function SimulationDetailPage() {
 
   if (isLoading || !sim) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E07200]/30 border-t-[#E07200]" />
+      <div className="flex h-full gap-0 p-0">
+        <div className="hidden w-[360px] shrink-0 border-r border-border bg-muted/30 p-4 md:block">
+          <Skeleton className="mb-4 h-8 w-3/4" />
+          <Skeleton className="mb-2 h-4 w-full" />
+          <Skeleton className="mb-6 h-32 w-full rounded-xl" />
+          <Skeleton className="mb-6 h-40 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3 p-5">
+          <Skeleton className="h-16 w-full rounded-lg" />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -85,20 +98,19 @@ export default function SimulationDetailPage() {
 
   return (
     <div className="flex h-full min-h-0">
-      {/* Left sidebar (collapsible) */}
       {collapsed ? (
-        <div className="flex w-12 shrink-0 flex-col items-center border-r border-[#E2E8F0] bg-white py-3">
+        <div className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3">
           <button
             onClick={() => setCollapsed(false)}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Afficher le panneau des paramètres"
           >
-            <PanelLeftOpen size={18} />
+            <SidebarSimple size={18} />
           </button>
         </div>
       ) : (
         <aside
-          className="relative shrink-0 border-r border-[#E2E8F0] bg-[#FAFBFC]"
+          className="relative shrink-0 border-r border-border bg-muted/30"
           style={{ width: sidebarWidth }}
         >
           <SimulationSidebar
@@ -116,17 +128,16 @@ export default function SimulationDetailPage() {
             onMouseDown={startResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
-              "hover:bg-[#E07200]/20",
-              isResizing && "bg-[#E07200]/30"
+              "hover:bg-primary/20",
+              isResizing && "bg-primary/30"
             )}
           >
-            <span className="h-10 w-0.5 rounded-full bg-slate-300" />
+            <span className="h-10 w-0.5 rounded-full bg-border" />
           </div>
         </aside>
       )}
 
-      {/* Central results zone */}
-      <main className="min-w-0 flex-1 bg-white">
+      <main className="min-w-0 flex-1 bg-background">
         <SimulationTable
           sim={sim}
           readOnly={readOnly}

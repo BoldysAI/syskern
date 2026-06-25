@@ -24,8 +24,9 @@ Tiens compte de toutes les dépréciations.
 | React 19 | UI |
 | TypeScript 5 | Typage |
 | Tailwind CSS 4 | Styles (config PostCSS — PAS de `tailwind.config.js`) |
+| shadcn/ui (base-nova) | Composants UI (`components/ui/`) — Button, Card, Dialog, etc. |
 | SWR 2 | Data fetching / cache client |
-| Radix UI | Primitives headless (Dialog, Select, Tabs, Tooltip…) |
+| Radix UI / Base UI | Primitives headless sous shadcn |
 | Lucide React | Icônes |
 | Recharts | Graphiques (PA/PR/PV) |
 | `clsx` + `tailwind-merge` | `cn()` utilitaire dans `lib/utils.ts` |
@@ -180,7 +181,9 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   `normalizeCatalogFilters` migre les anciennes valeurs string → `string[]`.
 - **Chips filtres actifs** : `active-filters.ts` (`buildFilterChips`, `countActiveFilters`,
   `removeFilterChip`) + `ActiveFilterBar.tsx` au-dessus du tableau.
-- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Dialog Radix plein écran).
+- **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Sheet shadcn, panneau gauche).
+- **Bornes sliders** : `GET /api/products/filter-bounds` via `getCatalogFilterBounds()` — min/max PAMP, stock et attributs numériques contextualisés aux filtres actifs (hors fourchettes PAMP/stock). Helpers `slider-bounds.ts`, composant `RangeFilterSlider`.
+- **Hiérarchie cascade** : `HierarchyFilterCascade` — niveaux repliables, fetch lazy par niveau, parents CSV (`hierarchy/distinct?universe=U1,U2`).
 - **Sélection persistée à travers les pages** : garder un `Set<string>` d'ids en state, **ne pas**
   le réinitialiser au changement de page (le faire seulement après une action groupée réussie).
   Sur clic de ligne interactif (checkbox, lien) : `onClick={(e) => e.stopPropagation()}` pour ne
@@ -424,6 +427,105 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 
 ---
 
+## Identité visuelle (Unikkern brand guidelines)
+
+### Palette officielle
+
+| Token Tailwind | HEX | Usage |
+|---|---|---|
+| `brand-navy` | `#162F56` | Sidebar, texte principal |
+| `brand-navy-dark` | `#0F2444` | Dégradés sidebar / panneau login |
+| `brand-green` / `primary` | `#649E5F` | CTA primaire, nav active, succès |
+| `brand-orange` / `warm` | `#F78F26` | Accent pricing, liens SKU, KPIs cuivre |
+| `brand-blue` | `#09B0E6` | Info, états en cours |
+| `brand-pink` / `destructive` | `#C92359` | Erreur, actions destructives |
+
+Tokens sémantiques shadcn dans `globals.css` (`:root` + `@theme`). **Ne pas** hardcoder les anciennes
+couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-dessus.
+
+**Tokens surface & données** (en plus de shadcn) :
+
+| Token | Usage |
+|---|---|
+| `surface-elevated` | Cartes/modales au-dessus du fond (`bg-surface-elevated`) |
+| `surface-inset` | Zones en retrait (filtres, champs groupés) |
+| `data-positive` / `data-negative` / `data-dirty` | Variations chiffrées (vert / rose / orange) |
+
+### Typographie
+
+- Police UI : **Plus Jakarta Sans** (`next/font/google`, weights 400/500/600/700/800) — variable CSS `--font-sans`.
+- Police données : **JetBrains Mono** (`--font-mono`) — SKU, montants, codes ; combiner avec `tabular-nums` sur les KPI.
+- Écart assumé aux brand guidelines Unikkern (Nunito) : tracé dans `decisions.md` (2026-06-24).
+- Titres page : `font-bold` ; labels/boutons : `font-semibold` ; corps : `font-normal`.
+- Données tabulaires : `tabular-nums` ou `font-mono` pour les colonnes prix.
+
+### Icônes
+
+- **Navigation / dashboard / empty states / listes** : `@phosphor-icons/react` via `components/AppIcon.tsx` (poids `duotone` ou `regular`, tailles tokenisées `sm|md|lg|xl`). Pages catalogue liste et offres : Phosphor direct.
+
+### Ombres (tokens CSS)
+
+- `--shadow-soft`, `--shadow-card`, `--shadow-elevated` dans `globals.css` `@theme` — préférer ces tokens aux `shadow-md` ad hoc.
+
+### Logos
+
+- Assets : `public/syskern-logo.png`, `public/unnikkern-logo.png`, `public/favicon.png`.
+- Composant : `components/BrandLogo.tsx` (`variant="syskern" | "unnikkern"`).
+- Règles : largeur min 150px digital, pas de filtre CSS / recadrage / changement de couleur.
+
+### Composants métier UI
+
+| Composant | Fichier | Rôle |
+|---|---|---|
+| `BrandLogo` | `components/BrandLogo.tsx` | Logos syskern / Unikkern |
+| `PageHeader` | `components/PageHeader.tsx` | Titre page + actions ; variants `default` \| `dense` \| `hero` |
+| `AppModal` | `components/AppModal.tsx` | Modale standard (Dialog + tailles sm/md/lg/xl) |
+| `EmptyState` | `components/EmptyState.tsx` | États vides |
+| `FormField` | `components/FormField.tsx` | Label + erreur sous champ |
+| `StatusBadge` | `components/StatusBadge.tsx` | Badges statut sémantiques |
+| `KpiCard` | `components/KpiCard.tsx` | Cartes KPI |
+| `AppIcon` | `components/AppIcon.tsx` | Icônes Phosphor (taille/poids/couleur) |
+| `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable |
+| `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) |
+| `FilterSelect` | `components/FilterSelect.tsx` | Select filtre avec option « Tous » |
+| `SearchInput` | `components/SearchInput.tsx` | Recherche avec icône + clear |
+| `RangeFilterSlider` | `components/RangeFilterSlider.tsx` | Slider simple ou fourchette (PAMP, stock, attributs) |
+| `MixSlider` | `components/MixSlider.tsx` | Slider mix stock/achat (shadcn Slider) |
+| `AppModal` | `components/AppModal.tsx` | Wrapper Dialog standard (remplace modals maison) |
+
+`PageHeader` : variants `default` | `dense` | `hero` + slot `meta` (badges statut).
+
+`DataTable` : prop `density="compact"` pour tables pricing ; `selectedRowKeys` pour sélection visuelle.
+
+`StatusBadge` : variants univers câble (`copper`, `optical`, `oem`, …) via `universeBadgeVariant()`.
+
+`StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
+
+**Page d'accueil** : `/` = tableau de bord (`app/(home)/page.tsx`) avec KPIs briques métier, raccourcis, activité récente. Post-login → `/` (plus `/catalog`).
+
+- **Primitives shadcn** (checkbox, dialog…) : Lucide (interne au design system) — ne pas mélanger dans les primitives.
+- Migration progressive : shell + dashboard + catalogue/offres listes ; simulateur détail et fiche produit en cours.
+
+**Listes catalogue / offres** (phase 2 refonte UI) : tokens sémantiques (`border-border`, `text-muted-foreground`, `bg-card`), `EmptyState`, `StatusBadge`, `Checkbox` shadcn, `Button` shadcn, `SearchInput` / `FilterSelect`. Catalogue : toolbar + sidebar filtres (`FilterSection` icônes `primary`, pas `warm`), pagination/tri `DataTable` en `primary` (plus d’orange legacy), `ExportButton` / `ProductDrawer` shadcn, CTA verts. **SKU et PAMP** : `text-primary`. **Orange (`warm`)** : graphiques / accents pricing avancés (onglet Commercial) uniquement.
+
+**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : `HierarchyFilterPanel` → `FilterSelect`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
+
+Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
+
+### Fils d'Ariane
+
+- Premier crumb : **Tableau de bord** (`href="/"`), pas « Accueil » ni lien catalogue.
+- **Jamais** d'UUID, SKU seul ou clé technique dans le fil d'Ariane visible : `buildAutoBreadcrumbs` fournit des libellés génériques ; les pages entité chargent un titre via `useBreadcrumbOverride`.
+- Overrides obligatoires : simulation (`sim.label`), offre (`offer.label`), fiche produit (`product.name` + hiérarchie).
+
+### Modales et contenu dense
+
+- Contenu riche (historique recalcul, breakdown calcul, édition groupée, formulaires admin) : **`AppModal` `size="xl"` ou `2xl`**, ou `DialogContent` avec `max-w-4xl` / `max-w-6xl`, `max-h-[90vh]`, corps scrollable (`overflow-y-auto`).
+- Formulaires simples (confirmation, doublon, 1–2 champs) : `md` / `lg` suffisent.
+- **Aucune variable interne visible** (`trigger_type`, `simulation_type`, ids, codes attributs bruts) : toujours un libellé français (`recalcTriggerLabel`, maps statut/type, `StatusBadge`).
+
+---
+
 ## Styles
 
 ```typescript
@@ -432,11 +534,12 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 <div className={cn("base-class", condition && "conditional-class", props.className)} />
 ```
 
-- **Tailwind 4** : config via `postcss.config.mjs`, pas de `tailwind.config.js`. Consulte Context7
-  pour la syntaxe Tailwind 4 avant d'utiliser de nouvelles utilitaires.
-- Couleur brand : `#E07200` (orange Syskern) — utiliser `text-[#E07200]` / `bg-[#E07200]`.
-- Composants primitifs → Radix UI. Icônes → Lucide React.
-- Skeleton loading → `animate-pulse bg-slate-200 rounded` (voir pattern dans `catalog/page.tsx`).
+- **Tailwind 4** : config via `postcss.config.mjs`, pas de `tailwind.config.js`. Tokens dans `globals.css`
+  (`@theme` + variables CSS shadcn). Consulte Context7 pour la syntaxe Tailwind 4.
+- **shadcn/ui** : `npx shadcn@latest add <component>` pour ajouter des composants. Config dans `components.json`.
+- CTA primaire : `bg-primary` (vert brand). Accent pricing : `text-warm` / `border-warm`.
+- Composants primitifs → shadcn/ui (`components/ui/`). Icônes métier → Phosphor via `AppIcon` (Lucide réservé aux primitives shadcn).
+- Skeleton loading → `<Skeleton />` shadcn ou `animate-pulse bg-muted rounded`.
 
 ---
 
@@ -456,7 +559,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - ❌ Arithmetic sur les `string` Decimal (`pamp_eur`, `pa_net_eur`…) — le moteur de calcul est backend.
 - ❌ Implémenter le polling manuellement — utiliser `dispatchAndPoll`.
 - ❌ Comparer les rôles inline — utiliser `canEdit` / `isAdmin`.
-- ❌ Supposer une API Tailwind/Next.js de mémoire — Context7 d'abord.
+- ❌ `text-slate-*` / `bg-white` dans les pages — utiliser tokens sémantiques (`foreground`, `muted-foreground`, `bg-card`).
+- ❌ Modals maison `fixed inset-0` — utiliser `AppModal`, `Dialog` ou `Sheet` shadcn.
 
 ---
 
@@ -474,5 +578,5 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Nouvelle var d'env documentée (`.env.example` + `docker-compose.yml`) ; `NEXT_PUBLIC_*` = rebuild
 - [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`
 - [ ] Wizard / édition simulation → `validateTransportChains` + `buildSimulationPatch` ; vue 3 zones autosave sur `/simulator/[id]`
-- [ ] Mix stock/achat → `StockPurchaseMixSlider` (part stock = valeur curseur, pas l'inverse)
+- [ ] Mix stock/achat → `MixSlider` (alias `StockPurchaseMixSlider`)
 - [ ] Breakdown calcul → `CalculationBreakdownDrawer` + helpers `sim-format.ts` (pas de calcul prix front)

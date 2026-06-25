@@ -1,5 +1,6 @@
 "use client";
 
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "./Field";
 import { AttributeSection } from "./AttributeSection";
 
@@ -18,43 +19,55 @@ const SUPPLY_POLICY_OPTIONS = [
 export function LogisticsTab() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Poids & unité</h3>
-          <Field field="unit_weight_kg" label="Poids unitaire" kind="number" unit="kg" />
-          <Field
-            field="base_unit"
-            label="Unité de base"
-            kind="select"
-            options={BASE_UNIT_OPTIONS}
-          />
-          <Field
-            field="supply_policy"
-            label="Approvisionnement"
-            kind="select"
-            options={SUPPLY_POLICY_OPTIONS}
-          />
-          <Field field="is_stockable" label="Stockable" kind="toggle" />
-        </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="border-none pb-0">
+            <CardTitle className="text-sm font-semibold">Poids & unité</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <Field field="unit_weight_kg" label="Poids unitaire" kind="number" unit="kg" />
+            <Field
+              field="base_unit"
+              label="Unité de base"
+              kind="select"
+              options={BASE_UNIT_OPTIONS}
+            />
+            <Field
+              field="supply_policy"
+              label="Approvisionnement"
+              kind="select"
+              options={SUPPLY_POLICY_OPTIONS}
+            />
+            <Field field="is_stockable" label="Stockable" kind="toggle" />
+          </CardContent>
+        </Card>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Conditionnement</h3>
-          <Field field="primary_packaging_qty" label="Qté colisage primaire" kind="int" />
-          <Field field="secondary_packaging_qty" label="Qté colisage secondaire" kind="int" />
-          <Field field="tertiary_packaging_qty" label="Qté colisage tertiaire" kind="int" />
-          <Field field="pallet_qty" label="Qté palette" kind="int" />
-        </div>
+        <Card>
+          <CardHeader className="border-none pb-0">
+            <CardTitle className="text-sm font-semibold">Conditionnement</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <Field field="primary_packaging_qty" label="Qté colisage primaire" kind="int" />
+            <Field field="secondary_packaging_qty" label="Qté colisage secondaire" kind="int" />
+            <Field field="tertiary_packaging_qty" label="Qté colisage tertiaire" kind="int" />
+            <Field field="pallet_qty" label="Qté palette" kind="int" />
+          </CardContent>
+        </Card>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Indexation cuivre</h3>
-          <Field field="is_copper_indexed" label="Indexé cuivre" kind="toggle" />
-          <Field
-            field="copper_weight_kg_per_unit"
-            label="Poids cuivre / unité"
-            kind="number"
-            unit="kg"
-          />
-        </div>
+        <Card className="lg:col-span-2">
+          <CardHeader className="border-none pb-0">
+            <CardTitle className="text-sm font-semibold">Indexation cuivre</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <Field field="is_copper_indexed" label="Indexé cuivre" kind="toggle" />
+            <Field
+              field="copper_weight_kg_per_unit"
+              label="Poids cuivre / unité"
+              kind="number"
+              unit="kg"
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <AttributeSection

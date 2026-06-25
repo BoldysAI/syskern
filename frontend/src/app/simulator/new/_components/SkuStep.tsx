@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Download, FileSpreadsheet, FolderTree, ListChecks } from "lucide-react";
+import { DownloadSimple, Table, TreeStructure, ListChecks } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { CatalogueSelectionPanel } from "./CatalogueSelectionPanel";
 import { HierarchyFilterPanel } from "./HierarchyFilterPanel";
@@ -16,7 +16,7 @@ interface Props {
 }
 
 const TAB_TRIGGER =
-  "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-[#E07200] data-[state=active]:text-[#C56400] data-[state=inactive]:border-transparent data-[state=inactive]:text-slate-500 hover:text-slate-700";
+  "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-primary data-[state=active]:text-accent-foreground data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:text-foreground";
 
 export function SkuStep({ selectedSkus, onChange }: Props) {
   const [notFound, setNotFound] = useState<string[]>([]);
@@ -54,17 +54,17 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
       <div className="flex flex-col gap-5 min-w-0">
         <Tabs.Root defaultValue="catalogue">
-          <Tabs.List className="flex items-center gap-1 border-b border-[#E2E8F0]">
+          <Tabs.List className="flex items-center gap-1 border-b border-border">
             <Tabs.Trigger value="catalogue" className={TAB_TRIGGER}>
               <ListChecks size={16} />
               Depuis le catalogue
             </Tabs.Trigger>
             <Tabs.Trigger value="hierarchy" className={TAB_TRIGGER}>
-              <FolderTree size={16} />
+              <TreeStructure size={16} />
               Par filtre de gamme
             </Tabs.Trigger>
             <Tabs.Trigger value="import" className={TAB_TRIGGER}>
-              <FileSpreadsheet size={16} />
+              <Table size={16} />
               Par fichier
             </Tabs.Trigger>
           </Tabs.List>
@@ -92,26 +92,26 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
       {/* Persistent side panel for not-found SKU (import method). */}
       <aside
         className={cn(
-          "border rounded-xl bg-white shadow-sm h-fit lg:sticky lg:top-4",
-          notFound.length > 0 ? "border-red-200" : "border-[#E2E8F0]"
+          "border rounded-xl bg-card shadow-sm h-fit lg:sticky lg:top-4",
+          notFound.length > 0 ? "border-red-200" : "border-border"
         )}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
-          <span className="text-sm font-semibold text-slate-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <span className="text-sm font-semibold text-foreground">
             SKU non trouvés{notFound.length > 0 ? ` (${notFound.length})` : ""}
           </span>
           {notFound.length > 0 && (
             <button
               type="button"
               onClick={() => setNotFound([])}
-              className="text-xs font-semibold text-slate-500 hover:text-red-600"
+              className="text-xs font-semibold text-muted-foreground hover:text-destructive"
             >
               Vider
             </button>
           )}
         </div>
         {notFound.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-slate-400">
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
             Les SKU importés introuvables en base apparaîtront ici.
           </p>
         ) : (
@@ -123,13 +123,13 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
                 </li>
               ))}
             </ul>
-            <div className="p-3 border-t border-[#E2E8F0]">
+            <div className="p-3 border-t border-border">
               <button
                 type="button"
                 onClick={downloadReport}
-                className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-semibold text-slate-600 border border-[#E2E8F0] rounded-lg hover:bg-slate-50"
+                className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-muted"
               >
-                <Download size={15} />
+                <DownloadSimple size={15} />
                 Télécharger le rapport
               </button>
             </div>

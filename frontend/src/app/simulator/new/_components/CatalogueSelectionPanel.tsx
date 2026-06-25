@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { Search } from "lucide-react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { getProducts, type PaginatedProducts, type Product } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { SelectedSku } from "./wizard-draft";
@@ -17,13 +17,13 @@ interface Props {
 
 /** Catalog reused in forced multi-selection mode (CDC §6.9.2, PIM-3). */
 export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props) {
-  const [search, setSearch] = useState("");
+  const [search, setMagnifyingGlass] = useState("");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onSearchChange = (v: string) => {
-    setSearch(v);
+  const onMagnifyingGlassChange = (v: string) => {
+    setMagnifyingGlass(v);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       setDebounced(v);
@@ -67,32 +67,32 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
           value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => onMagnifyingGlassChange(e.target.value)}
           placeholder="Rechercher par SKU ou désignation…"
-          className="w-full pl-9 pr-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E07200]/30 focus:border-[#E07200]"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         />
       </div>
 
-      <div className="border border-[#E2E8F0] rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+          <thead className="bg-background border-b border-border">
             <tr>
               <th className="px-3 py-2.5 w-10">
                 <input
                   type="checkbox"
                   checked={allPageSelected}
                   onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+                  className="w-4 h-4 rounded border-border accent-primary"
                   aria-label="Sélectionner toute la page"
                 />
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 SKU
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Désignation
               </th>
             </tr>
@@ -100,13 +100,13 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
           <tbody className="divide-y divide-[#F1F5F9]">
             {isLoading ? (
               <tr>
-                <td colSpan={3} className="py-8 text-center text-sm text-slate-400">
+                <td colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
                   Chargement…
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={3} className="py-8 text-center text-sm text-slate-400">
+                <td colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
                   Aucun produit trouvé.
                 </td>
               </tr>
@@ -116,7 +116,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
                 return (
                   <tr
                     key={p.id}
-                    className={cn("cursor-pointer hover:bg-slate-50", checked && "bg-orange-50/70")}
+                    className={cn("cursor-pointer hover:bg-muted", checked && "bg-warm/10/70")}
                     onClick={() => toggle(p)}
                   >
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -124,14 +124,14 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(p)}
-                        className="w-4 h-4 rounded border-slate-300 accent-[#E07200]"
+                        className="w-4 h-4 rounded border-border accent-primary"
                         aria-label={`Sélectionner ${p.sku_code}`}
                       />
                     </td>
-                    <td className="px-3 py-2 font-mono text-sm font-semibold text-slate-800">
+                    <td className="px-3 py-2 font-mono text-sm font-semibold text-foreground">
                       {p.sku_code}
                     </td>
-                    <td className="px-3 py-2 text-sm text-slate-600 truncate max-w-xs">{p.name}</td>
+                    <td className="px-3 py-2 text-sm text-muted-foreground truncate max-w-xs">{p.name}</td>
                   </tr>
                 );
               })
@@ -141,7 +141,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
             {total.toLocaleString("fr-FR")} produit{total !== 1 ? "s" : ""}
           </span>
@@ -150,7 +150,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-muted"
             >
               Précédent
             </button>
@@ -161,7 +161,7 @@ export function CatalogueSelectionPanel({ selectedIds, onAdd, onRemove }: Props)
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-border rounded-lg disabled:opacity-40 hover:bg-muted"
             >
               Suivant
             </button>

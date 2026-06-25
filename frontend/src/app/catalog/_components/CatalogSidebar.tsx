@@ -1,36 +1,42 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
-import * as Collapsible from "@radix-ui/react-collapsible";
 import {
   Bookmark,
-  Boxes,
-  ChevronDown,
+  BookmarkSimple,
+  CurrencyEur,
   Factory,
-  Layers,
-  Search,
-  SlidersHorizontal,
+  Faders,
+  Package,
   Star,
   Tag,
-  Trash2,
-} from "lucide-react";
+  Trash,
+  TreeStructure,
+} from "@phosphor-icons/react";
 import {
   getBrands,
+  getCatalogFilterBounds,
   getFilterableAttributes,
-  getHierarchyLevel,
   getSupplierNames,
-  type AttributeRegistry,
+  catalogFiltersToParams,
   type CatalogFilters,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { FilterSection } from "@/components/FilterSection";
+import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
+import { RangeFilterSlider } from "@/components/RangeFilterSlider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { countActiveFilters } from "./active-filters";
+import { CatalogAttributeFilter } from "./CatalogAttributeFilter";
+import { HierarchyFilterCascade } from "./HierarchyFilterCascade";
 import { isEmptyFilter, type SavedFilter } from "./filters-storage";
+import { boundsToSliderConfig, clampFilterValue } from "./slider-bounds";
 
 const PINNED_BRANDS = ["Unnikern"];
-
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/25 focus:border-orange-500 transition-shadow";
 
 interface CatalogSidebarProps {
   filters: CatalogFilters;
@@ -42,212 +48,6 @@ interface CatalogSidebarProps {
   className?: string;
 }
 
-function localize(label: Record<string, string>): string {
-  return label.fr || label.en || label.es || Object.values(label)[0] || "";
-}
-
-function Section({
-  title,
-  icon,
-  activeCount = 0,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  activeCount?: number;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Collapsible.Root open={open} onOpenChange={setOpen} className="border-b border-slate-200/80">
-      <Collapsible.Trigger
-        className={cn(
-          "flex w-full items-center gap-2.5 px-4 py-3.5 text-left transition-colors",
-          "hover:bg-slate-50/80",
-          open && "bg-slate-50/50"
-        )}
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-          {icon}
-        </span>
-        <span className="flex-1 text-sm font-semibold text-slate-800">{title}</span>
-        {activeCount > 0 && (
-          <span className="min-w-[1.35rem] h-5 px-1.5 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center tabular-nums">
-            {activeCount}
-          </span>
-        )}
-        <ChevronDown
-          size={16}
-          className={cn("text-slate-400 transition-transform duration-200", open && "rotate-180")}
-        />
-      </Collapsible.Trigger>
-      <Collapsible.Content className="px-4 pb-4 pt-0 data-[state=open]:animate-in data-[state=closed]:animate-out">
-        {children}
-      </Collapsible.Content>
-    </Collapsible.Root>
-  );
-}
-
-function CheckboxRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label
-      className={cn(
-        "flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all border",
-        checked
-          ? "bg-orange-50 border-orange-200/90 shadow-sm"
-          : "border-transparent hover:bg-white hover:border-slate-200"
-      )}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="w-4 h-4 rounded border-slate-300 accent-orange-500 flex-shrink-0"
-      />
-      <span
-        className={cn(
-          "text-sm leading-snug",
-          checked ? "font-medium text-slate-800" : "text-slate-600"
-        )}
-      >
-        {label}
-      </span>
-    </label>
-  );
-}
-
-function toggleInArray(current: string[] | undefined, value: string): string[] {
-  const list = current ?? [];
-  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
-}
-
-function MultiCheckboxGroup({
-  label,
-  options,
-  selected,
-  onToggle,
-  onClear,
-  emptyMessage = "Aucune valeur",
-  searchable = true,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onToggle: (value: string) => void;
-  onClear?: () => void;
-  emptyMessage?: string;
-  searchable?: boolean;
-}) {
-  const [query, setQuery] = useState("");
-  const showSearch = searchable && options.length > 4;
-
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = q ? options.filter((o) => o.toLowerCase().includes(q)) : [...options];
-    const sel = new Set(selected);
-    list.sort((a, b) => {
-      const as = sel.has(a);
-      const bs = sel.has(b);
-      if (as !== bs) return as ? -1 : 1;
-      return a.localeCompare(b, "fr");
-    });
-    return list;
-  }, [options, query, selected]);
-
-  return (
-    <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200/60 bg-white/80">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {label}
-        </span>
-        {selected.length > 0 && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-[11px] font-semibold text-orange-600 hover:text-orange-700"
-          >
-            Effacer ({selected.length})
-          </button>
-        )}
-      </div>
-
-      {showSearch && (
-        <div className="px-2 pt-2 pb-1">
-          <div className="relative">
-            <Search
-              size={14}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Rechercher…`}
-              className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="flex max-h-44 flex-col gap-0.5 overflow-y-auto p-1.5">
-        {options.length === 0 ? (
-          <span className="text-xs text-slate-400 px-2 py-3 text-center">{emptyMessage}</span>
-        ) : visible.length === 0 ? (
-          <span className="text-xs text-slate-400 px-2 py-3 text-center">Aucun résultat</span>
-        ) : (
-          visible.map((opt) => (
-            <CheckboxRow
-              key={opt}
-              label={opt}
-              checked={selected.includes(opt)}
-              onChange={() => onToggle(opt)}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StockToggle({
-  label,
-  active,
-  onClick,
-  variant,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  variant: "in" | "out";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all",
-        active
-          ? variant === "in"
-            ? "bg-green-50 border-green-300 text-green-800 shadow-sm"
-            : "bg-slate-100 border-slate-300 text-slate-800 shadow-sm"
-          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
 export function CatalogSidebar({
   filters,
   onChange,
@@ -257,14 +57,26 @@ export function CatalogSidebar({
   onDeleteFilter,
   className,
 }: CatalogSidebarProps) {
-  const { data: universes } = useSWR(["hierarchy", "universe"], () =>
-    getHierarchyLevel("universe")
+  const boundsFilters = useMemo(() => {
+    const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, ...rest } = filters;
+    return rest;
+  }, [filters]);
+
+  const { data: bounds } = useSWR(
+    ["catalog-filter-bounds", catalogFiltersToParams(boundsFilters)],
+    () => getCatalogFilterBounds(boundsFilters),
+    { revalidateOnFocus: false, dedupingInterval: 30_000 },
   );
-  const { data: families } = useSWR(["hierarchy", "family"], () => getHierarchyLevel("family"));
-  const { data: ranges } = useSWR(["hierarchy", "range"], () => getHierarchyLevel("range"));
-  const { data: subRanges } = useSWR(["hierarchy", "sub_range"], () =>
-    getHierarchyLevel("sub_range")
+
+  const pampSlider = useMemo(
+    () => boundsToSliderConfig(bounds?.pamp_eur, 500),
+    [bounds?.pamp_eur],
   );
+  const stockSlider = useMemo(
+    () => boundsToSliderConfig(bounds?.stock_quantity, 200),
+    [bounds?.stock_quantity],
+  );
+
   const { data: brands } = useSWR("brands", getBrands);
   const { data: suppliers } = useSWR("supplier-names", getSupplierNames);
   const { data: attributes } = useSWR("filterable-attrs", getFilterableAttributes);
@@ -278,18 +90,6 @@ export function CatalogSidebar({
   }, [brands]);
 
   const patch = (p: Partial<CatalogFilters>) => onChange({ ...filters, ...p });
-
-  const toggleList = (
-    key: keyof Pick<CatalogFilters, "universe" | "family" | "range" | "sub_range" | "brand" | "supplier">,
-    value: string
-  ) => {
-    const current = filters[key] as string[] | undefined;
-    patch({ [key]: toggleInArray(current, value) } as Partial<CatalogFilters>);
-  };
-
-  const clearList = (
-    key: keyof Pick<CatalogFilters, "universe" | "family" | "range" | "sub_range" | "brand" | "supplier">
-  ) => patch({ [key]: undefined });
 
   const setAttr = (code: string, value: string | string[]) => {
     const attrs = { ...(filters.attrs ?? {}) };
@@ -326,183 +126,151 @@ export function CatalogSidebar({
     (filters.stock_out && !filters.stock_in ? 1 : 0) +
     (filters.stock_min != null && filters.stock_min > 0 ? 1 : 0);
 
+  const pampCount =
+    (filters.pamp_min != null && filters.pamp_min > 0 ? 1 : 0) +
+    (filters.pamp_max != null && filters.pamp_max > 0 ? 1 : 0);
+
   const attrCount = Object.values(filters.attrs ?? {}).reduce((n, v) => {
     if (Array.isArray(v)) return n + v.length;
     return v ? n + 1 : n;
   }, 0);
 
+  const stockFilterNeutral = !!filters.stock_in && !!filters.stock_out;
+
   return (
     <div className={cn("flex flex-col", className)}>
-      <Section
+      <FilterSection
         title="Hiérarchie produit"
-        icon={<Layers size={16} />}
+        icon={TreeStructure}
         activeCount={hierarchyCount}
-        defaultOpen={false}
       >
-        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-          Filtrez par univers, famille, gamme ou sous-gamme — chaque niveau est indépendant.
+        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+          Naviguez de l&apos;univers vers la sous-gamme — chaque niveau affine les options
+          suivantes.
         </p>
-        <div className="flex flex-col gap-2.5">
-          <MultiCheckboxGroup
-            label="Univers"
-            options={universes ?? []}
-            selected={filters.universe ?? []}
-            onToggle={(v) => toggleList("universe", v)}
-            onClear={() => clearList("universe")}
-            emptyMessage="Chargement…"
-          />
-          <MultiCheckboxGroup
-            label="Famille"
-            options={families ?? []}
-            selected={filters.family ?? []}
-            onToggle={(v) => toggleList("family", v)}
-            onClear={() => clearList("family")}
-          />
-          <MultiCheckboxGroup
-            label="Gamme"
-            options={ranges ?? []}
-            selected={filters.range ?? []}
-            onToggle={(v) => toggleList("range", v)}
-            onClear={() => clearList("range")}
-          />
-          <MultiCheckboxGroup
-            label="Sous-gamme"
-            options={subRanges ?? []}
-            selected={filters.sub_range ?? []}
-            onToggle={(v) => toggleList("sub_range", v)}
-            onClear={() => clearList("sub_range")}
-          />
-        </div>
-      </Section>
+        <HierarchyFilterCascade filters={filters} onChange={onChange} />
+      </FilterSection>
 
-      <Section
-        title="Marque"
-        icon={<Tag size={16} />}
-        activeCount={filters.brand?.length ?? 0}
-        defaultOpen={false}
-      >
-        <MultiCheckboxGroup
-          label="Marques"
-          options={brandOptions}
+      <FilterSection title="Marque" icon={Tag} activeCount={filters.brand?.length ?? 0}>
+        <FilterCheckboxGroup
+          options={brandOptions.map((b) => ({ value: b, label: b }))}
           selected={filters.brand ?? []}
-          onToggle={(v) => toggleList("brand", v)}
-          onClear={() => clearList("brand")}
+          onChange={(next) => patch({ brand: next.length ? next : undefined })}
+          searchable={brandOptions.length > 5}
+          sortSelectedFirst
         />
-      </Section>
+      </FilterSection>
 
-      <Section
-        title="Fournisseur"
-        icon={<Factory size={16} />}
-        activeCount={filters.supplier?.length ?? 0}
-        defaultOpen={false}
-      >
-        <MultiCheckboxGroup
-          label="Fournisseurs"
-          options={suppliers ?? []}
+      <FilterSection title="Fournisseur" icon={Factory} activeCount={filters.supplier?.length ?? 0}>
+        <FilterCheckboxGroup
+          options={(suppliers ?? []).map((s) => ({ value: s, label: s }))}
           selected={filters.supplier ?? []}
-          onToggle={(v) => toggleList("supplier", v)}
-          onClear={() => clearList("supplier")}
-          emptyMessage="Aucun fournisseur"
+          onChange={(next) => patch({ supplier: next.length ? next : undefined })}
+          searchable={(suppliers?.length ?? 0) > 5}
+          sortSelectedFirst
         />
-      </Section>
+      </FilterSection>
 
-      <Section
-        title="Stock & disponibilité"
-        icon={<Boxes size={16} />}
-        activeCount={stockCount}
-        defaultOpen={false}
-      >
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-2">
-            <StockToggle
-              label="En stock"
-              variant="in"
-              active={!!filters.stock_in}
-              onClick={() => patch({ stock_in: !filters.stock_in })}
-            />
-            <StockToggle
-              label="Rupture"
-              variant="out"
-              active={!!filters.stock_out}
-              onClick={() => patch({ stock_out: !filters.stock_out })}
-            />
+      <FilterSection title="Prix PAMP" icon={CurrencyEur} activeCount={pampCount}>
+        <RangeFilterSlider
+          label="Fourchette PAMP"
+          min={pampSlider.min}
+          max={pampSlider.max}
+          step={pampSlider.step}
+          dual
+          minValue={clampFilterValue(filters.pamp_min, pampSlider.max)}
+          maxValue={clampFilterValue(filters.pamp_max, pampSlider.max)}
+          onChange={(min, max) =>
+            patch({
+              pamp_min: min,
+              pamp_max: max ?? null,
+            })
+          }
+          formatValue={(n) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
+          unit="€"
+        />
+      </FilterSection>
+
+      <FilterSection title="Stock & disponibilité" icon={Package} activeCount={stockCount}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="stock-in" className="text-sm font-medium">
+                En stock
+              </Label>
+              <Switch
+                id="stock-in"
+                checked={!!filters.stock_in}
+                onCheckedChange={(checked) => patch({ stock_in: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="stock-out" className="text-sm font-medium">
+                Rupture
+              </Label>
+              <Switch
+                id="stock-out"
+                checked={!!filters.stock_out}
+                onCheckedChange={(checked) => patch({ stock_out: checked })}
+              />
+            </div>
+            {stockFilterNeutral && (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Les deux options actives = aucun filtre de disponibilité.
+              </p>
+            )}
           </div>
-          {filters.stock_in && filters.stock_out && (
-            <p className="text-xs text-slate-500 bg-slate-100 rounded-lg px-3 py-2">
-              Les deux options actives = aucun filtre de disponibilité.
-            </p>
-          )}
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">
-              Quantité minimale
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={filters.stock_min ?? ""}
-              onChange={(e) =>
-                patch({ stock_min: e.target.value === "" ? null : Number(e.target.value) })
-              }
-              placeholder="Ex. 10 unités"
-              className={inputCls}
-            />
-          </div>
+
+          <RangeFilterSlider
+            label="Quantité minimale en stock"
+            min={stockSlider.min}
+            max={stockSlider.max}
+            step={stockSlider.step}
+            minValue={clampFilterValue(filters.stock_min, stockSlider.max)}
+            onChange={(min) => patch({ stock_min: min })}
+            unit="u."
+          />
         </div>
-      </Section>
+      </FilterSection>
 
       {!!attributes?.length && (
-        <Section
-          title="Attributs dynamiques"
-          icon={<SlidersHorizontal size={16} />}
-          activeCount={attrCount}
-          defaultOpen={false}
-        >
+        <FilterSection title="Attributs dynamiques" icon={Faders} activeCount={attrCount}>
           <div className="flex flex-col gap-3">
             {attributes.map((attr) => (
-              <AttributeFilter
+              <CatalogAttributeFilter
                 key={attr.id}
                 attribute={attr}
                 value={filters.attrs?.[attr.code]}
                 onChange={(v) => setAttr(attr.code, v)}
+                numberBounds={bounds?.attributes[attr.code]}
               />
             ))}
           </div>
-        </Section>
+        </FilterSection>
       )}
 
-      <Section
-        title="Filtres favoris"
-        icon={<Bookmark size={16} />}
-        activeCount={0}
-        defaultOpen={false}
-      >
+      <FilterSection title="Filtres favoris" icon={Bookmark}>
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             Sauvegardez vos combinaisons de filtres pour les réappliquer en un clic.
           </p>
-          <input
+          <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSave && handleSave()}
             placeholder="Nom du filtre (ex. Cuivre en stock)"
-            className={inputCls}
           />
-          <button
-            type="button"
-            disabled={!canSave}
-            onClick={handleSave}
-            className="flex w-full items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-          >
-            <Bookmark size={15} />
+          <Button type="button" disabled={!canSave} onClick={handleSave} className="w-full">
+            <BookmarkSimple size={16} weight="duotone" />
             Sauvegarder le filtre courant
-          </button>
+          </Button>
           {isEmptyFilter(filters) && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            <p className="rounded-lg border border-muted-foreground/20 bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
               Appliquez au moins un filtre avant de sauvegarder.
             </p>
           )}
           {saveFeedback && (
-            <p className="text-xs text-green-800 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+            <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
               {saveFeedback}
             </p>
           )}
@@ -511,150 +279,43 @@ export function CatalogSidebar({
               {savedFilters.map((sf) => (
                 <li
                   key={sf.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 hover:border-orange-200 hover:shadow-sm transition-all"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-2 transition-colors hover:border-primary/30 hover:shadow-[var(--shadow-soft)]"
                 >
                   <button
                     type="button"
                     onClick={() => onApplyFilter(sf)}
-                    className="flex flex-1 items-center gap-2 text-left min-w-0 group"
+                    className="group flex min-w-0 flex-1 items-center gap-2 text-left"
                     title="Appliquer ce filtre"
                   >
                     <Star
                       size={14}
-                      className="text-orange-500 flex-shrink-0 group-hover:scale-110 transition-transform"
+                      weight="duotone"
+                      className="shrink-0 text-primary group-hover:scale-110 transition-transform"
                     />
-                    <span className="truncate text-sm text-slate-700 group-hover:text-orange-600">
+                    <span className="truncate text-sm text-foreground group-hover:text-primary">
                       {sf.name}
                     </span>
-                    <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
+                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
                       {countActiveFilters(sf.filters)}
                     </span>
                   </button>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => onDeleteFilter(sf.id)}
-                    className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0 transition-colors"
                     aria-label={`Supprimer ${sf.name}`}
                   >
-                    <Trash2 size={14} />
-                  </button>
+                    <Trash size={14} />
+                  </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-slate-400 text-center py-2">Aucun filtre sauvegardé.</p>
+            <p className="py-2 text-center text-xs text-muted-foreground">Aucun filtre sauvegardé.</p>
           )}
         </div>
-      </Section>
-    </div>
-  );
-}
-
-function AttributeFilter({
-  attribute,
-  value,
-  onChange,
-}: {
-  attribute: AttributeRegistry;
-  value: string | string[] | undefined;
-  onChange: (v: string | string[]) => void;
-}) {
-  const label = localize(attribute.label);
-
-  if (attribute.data_type === "boolean") {
-    const tri = (value as string) ?? "";
-    return (
-      <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-2">
-        <p className="text-xs font-semibold text-slate-600 px-1 mb-2">{label}</p>
-        <div className="flex gap-1.5">
-          {[
-            { v: "", l: "Tous" },
-            { v: "true", l: "Oui" },
-            { v: "false", l: "Non" },
-          ].map((opt) => (
-            <button
-              key={opt.v || "all"}
-              type="button"
-              onClick={() => onChange(opt.v)}
-              className={cn(
-                "flex-1 py-1.5 text-xs font-medium rounded-md border transition-colors",
-                tri === opt.v
-                  ? "bg-orange-50 border-orange-300 text-orange-800"
-                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-              )}
-            >
-              {opt.l}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (attribute.data_type === "select" || attribute.data_type === "multiselect") {
-    const selected = Array.isArray(value) ? value : value ? [value as string] : [];
-    const opts = (attribute.options ?? []).map((o) => ({
-      value: o.value,
-      label: localize(o.label),
-    }));
-    return (
-      <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-200/60 bg-white/80 text-xs font-semibold text-slate-600">
-          {label}
-        </div>
-        <div className="flex flex-col gap-0.5 p-1.5 max-h-36 overflow-y-auto">
-          {opts.map((opt) => (
-            <CheckboxRow
-              key={opt.value}
-              label={opt.label}
-              checked={selected.includes(opt.value)}
-              onChange={() => {
-                const next = selected.includes(opt.value)
-                  ? selected.filter((v) => v !== opt.value)
-                  : [...selected, opt.value];
-                onChange(
-                  attribute.data_type === "select"
-                    ? next.length === 1
-                      ? next[0]
-                      : next.length
-                        ? next
-                        : ""
-                    : next
-                );
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (attribute.data_type === "date") {
-    return (
-      <div>
-        <label className="text-xs font-semibold text-slate-600 block mb-1.5">{label}</label>
-        <input
-          type="date"
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          className={inputCls}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-        {label}
-        {attribute.unit ? ` (${attribute.unit})` : ""}
-      </label>
-      <input
-        type={attribute.data_type === "number" ? "number" : "text"}
-        value={(value as string) ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputCls}
-      />
+      </FilterSection>
     </div>
   );
 }

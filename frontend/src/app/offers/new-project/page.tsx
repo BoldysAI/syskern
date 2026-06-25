@@ -3,8 +3,20 @@
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { AlertTriangle, Check, ExternalLink, Loader2 } from "lucide-react";
+import {
+  Warning,
+  Check,
+  ArrowSquareOut,
+  CircleNotch,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { FormField } from "@/components/FormField";
+import { FilterSelect } from "@/components/FilterSelect";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,7 +85,6 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
-// Gamma generation runs 1-3 min server-side — poll patiently.
 async function pollGeneration(taskId: string): Promise<GenResult> {
   for (let i = 0; i < 120; i++) {
     const data = await getJson<{ status: string; result?: GenResult; error?: string }>(
@@ -105,7 +116,6 @@ function ProjectWizard() {
   );
 
   const [step, setStep] = useState(0);
-  // Overrides of sim-derived defaults (avoids copying fetched data into state).
   const [clientOverride, setClientOverride] = useState<string | null>(null);
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [qtyOverride, setQtyOverride] = useState<Record<string, number>>({});
@@ -167,13 +177,12 @@ function ProjectWizard() {
     }
   };
 
-  // ── Result / loading screens ──
   if (submitting) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
-        <Loader2 className="mb-4 animate-spin text-[#E07200]" size={40} />
-        <p className="font-medium text-slate-700">Génération du devis Gamma…</p>
-        <p className="mt-1 text-sm text-slate-400">
+        <CircleNotch className="mb-4 animate-spin text-warm" size={40} />
+        <p className="font-medium text-foreground">Génération du devis Gamma…</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           Argumentaires IA puis mise en page — 1 à 3 min.
         </p>
       </div>
@@ -186,45 +195,44 @@ function ProjectWizard() {
         <div
           className={cn(
             "mb-4 flex h-12 w-12 items-center justify-center rounded-full",
-            ok ? "bg-green-100" : "bg-red-100",
+            ok ? "bg-brand-green/10" : "bg-destructive/10",
           )}
         >
           {ok ? (
-            <Check className="text-green-600" size={26} />
+            <Check className="text-brand-green" size={26} weight="bold" />
           ) : (
-            <AlertTriangle className="text-red-600" size={24} />
+            <Warning className="text-destructive" size={24} weight="duotone" />
           )}
         </div>
         {ok ? (
           <>
-            <p className="font-semibold text-slate-800">Devis projet généré</p>
+            <p className="font-semibold text-foreground">Devis projet généré</p>
             {result.gamma_url && (
               <a
                 href={result.gamma_url}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
+                className={cn(buttonVariants(), "mt-3 inline-flex gap-2")}
               >
-                Ouvrir dans Gamma <ExternalLink size={15} />
+                Ouvrir dans Gamma
+                <ArrowSquareOut size={15} weight="duotone" />
               </a>
             )}
-            <button
+            <Button
+              variant="ghost"
               onClick={() => router.push("/offers")}
-              className="mt-3 text-sm text-slate-500 hover:text-slate-700"
+              className="mt-3 text-muted-foreground"
             >
               Voir les offres
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <p className="font-semibold text-slate-800">Échec de la génération Gamma</p>
-            <p className="mt-1 max-w-md text-sm text-slate-500">{result.error}</p>
-            <button
-              onClick={() => runGeneration(result.offer_id)}
-              className="mt-4 rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
-            >
+            <p className="font-semibold text-foreground">Échec de la génération Gamma</p>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">{result.error}</p>
+            <Button onClick={() => runGeneration(result.offer_id)} className="mt-4">
               Réessayer
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -233,68 +241,57 @@ function ProjectWizard() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-xl font-semibold text-slate-900">Nouvelle offre projet (devis Gamma)</h1>
-      <p className="mb-6 mt-0.5 text-sm text-slate-500">Depuis « {sim?.label ?? "…"} ».</p>
+      <h1 className="text-xl font-semibold text-foreground">Nouvelle offre projet (devis Gamma)</h1>
+      <p className="mb-6 mt-0.5 text-sm text-muted-foreground">Depuis « {sim?.label ?? "…"} ».</p>
 
       <Stepper step={step} />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="min-h-[300px] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+      <Card className="min-h-[300px] p-5">
         {step === 0 && (
           <Section title="Client & projet">
             <div className="flex max-w-md flex-col gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Client *</label>
-                <select
+              <FormField label="Client" required>
+                <FilterSelect
                   value={clientId}
-                  onChange={(e) => setClientOverride(e.target.value)}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
-                >
-                  <option value="">— Sélectionner —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Nom du projet *
-                </label>
-                <input
+                  onChange={(v) => setClientOverride(v)}
+                  placeholder="— Sélectionner —"
+                  options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                />
+              </FormField>
+              <FormField label="Nom du projet" required>
+                <Input
                   value={projectName}
                   onChange={(e) => setNameOverride(e.target.value)}
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
                 />
-              </div>
+              </FormField>
             </div>
           </Section>
         )}
 
         {step === 1 && (
           <Section title="Quantités par SKU" hint="Quantités prévues pour le projet.">
-            <div className="overflow-hidden rounded-lg border border-[#E2E8F0]">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-[#F5F7FA] text-xs uppercase text-slate-500">
+                <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left">SKU</th>
                     <th className="px-3 py-2 text-left">Désignation</th>
                     <th className="px-3 py-2 text-right">Quantité</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
+                <tbody className="divide-y divide-border">
                   {(sim?.lines ?? []).map((l) => (
-                    <tr key={l.id}>
-                      <td className="px-3 py-2 font-medium text-slate-700">{l.product_sku}</td>
-                      <td className="px-3 py-2 text-slate-600">{l.product_name}</td>
+                    <tr key={l.id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2 font-medium text-foreground">{l.product_sku}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{l.product_name}</td>
                       <td className="px-3 py-2 text-right">
-                        <input
+                        <Input
                           type="number"
                           min={0}
                           value={qty(l.product_sku)}
@@ -304,7 +301,7 @@ function ProjectWizard() {
                               [l.product_sku]: Number(e.target.value),
                             }))
                           }
-                          className="w-24 rounded-lg border border-[#E2E8F0] px-2 py-1 text-right focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                          className="ml-auto w-24 text-right font-data"
                         />
                       </td>
                     </tr>
@@ -320,32 +317,24 @@ function ProjectWizard() {
             <div className="flex max-w-md flex-col gap-4">
               <div className="flex gap-3">
                 {LANGUAGES.map((l) => (
-                  <button
+                  <Button
                     key={l.code}
                     type="button"
+                    variant={language === l.code ? "default" : "outline"}
                     onClick={() => setLanguage(l.code)}
-                    className={cn(
-                      "rounded-lg border px-5 py-2.5 text-sm font-medium",
-                      language === l.code
-                        ? "border-[#E07200] bg-[#E07200] text-white"
-                        : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
-                    )}
                   >
                     {l.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Date d&apos;expiration *
-                </label>
-                <input
+              <FormField label="Date d'expiration" required>
+                <Input
                   type="date"
                   value={expiration}
                   onChange={(e) => setExpiration(e.target.value)}
-                  className="w-full max-w-xs rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
+                  className="max-w-xs"
                 />
-              </div>
+              </FormField>
             </div>
           </Section>
         )}
@@ -356,15 +345,13 @@ function ProjectWizard() {
               {SECTIONS.map((s) => (
                 <label
                   key={s.key}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm hover:bg-slate-50"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted/50"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={sectionOn(s.key)}
-                    onChange={() =>
+                    onCheckedChange={() =>
                       setSectionOverride((o) => ({ ...o, [s.key]: !sectionOn(s.key) }))
                     }
-                    className="accent-[#E07200]"
                   />
                   {s.label}
                 </label>
@@ -375,47 +362,37 @@ function ProjectWizard() {
 
         {step === 4 && (
           <Section title="Instructions IA" hint="Orientent les argumentaires générés (OpenAI).">
-            <textarea
+            <Textarea
               value={aiInstructions}
               onChange={(e) => setAiInstructions(e.target.value)}
               rows={6}
               placeholder="Ex : insister sur la conformité CPR, la garantie 30 ans, et l'expérience datacenter."
-              className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
             />
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-muted-foreground">
               {Object.values(quantities).filter((q) => q > 0).length} SKU · {language.toUpperCase()}{" "}
               · {SECTIONS.filter((s) => sectionOn(s.key)).length} sections
             </p>
           </Section>
         )}
-      </div>
+      </Card>
 
       <div className="mt-5 flex justify-between">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
-          className="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
         >
           Précédent
-        </button>
+        </Button>
         {step < STEPS.length - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canNext}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-40"
-          >
+          <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
             Suivant
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={() => runGeneration()}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400]"
-          >
+          <Button type="button" onClick={() => runGeneration()}>
             Générer le devis
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -431,20 +408,23 @@ function Stepper({ step }: { step: number }) {
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
               i < step
-                ? "bg-green-500 text-white"
+                ? "bg-brand-green text-white"
                 : i === step
-                  ? "bg-[#E07200] text-white"
-                  : "bg-slate-100 text-slate-400",
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
             )}
           >
-            {i < step ? <Check size={14} /> : i + 1}
+            {i < step ? <Check size={14} weight="bold" /> : i + 1}
           </div>
           <span
-            className={cn("text-xs", i === step ? "font-medium text-slate-800" : "text-slate-400")}
+            className={cn(
+              "text-xs",
+              i === step ? "font-medium text-foreground" : "text-muted-foreground",
+            )}
           >
             {s}
           </span>
-          {i < STEPS.length - 1 && <div className="h-px w-5 bg-slate-200" />}
+          {i < STEPS.length - 1 && <div className="h-px w-5 bg-border" />}
         </div>
       ))}
     </div>
@@ -462,8 +442,8 @@ function Section({
 }) {
   return (
     <div>
-      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-      {hint && <p className="mb-3 text-xs text-slate-400">{hint}</p>}
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      {hint && <p className="mb-3 text-xs text-muted-foreground">{hint}</p>}
       <div className={hint ? "" : "mt-3"}>{children}</div>
     </div>
   );
@@ -472,7 +452,7 @@ function Section({
 function Notice({ text }: { text: string }) {
   return (
     <div className="p-6">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div className="rounded-lg border border-warm/30 bg-warm/10 p-4 text-sm text-warm">
         {text}
       </div>
     </div>
@@ -481,7 +461,7 @@ function Notice({ text }: { text: string }) {
 
 export default function NewProjectOfferPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-400">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
       <ProjectWizard />
     </Suspense>
   );

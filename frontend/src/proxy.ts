@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/api"];
 
+/** Static files from `public/` must bypass session auth (logos, favicon, etc.). */
+const PUBLIC_STATIC = /\.(png|jpe?g|gif|svg|ico|webp|woff2?)$/i;
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/_next")) {
+  if (
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/_next") ||
+    PUBLIC_STATIC.test(pathname)
+  ) {
     return NextResponse.next();
   }
 
@@ -20,5 +27,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?)$).*)",
+  ],
 };

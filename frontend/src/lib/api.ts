@@ -74,6 +74,9 @@ export interface CatalogFilters {
   /** Rupture (stock ≤ 0 ou null). Combinable avec stock_in. */
   stock_out?: boolean;
   stock_min?: number | null;
+  /** PAMP price range (EUR). */
+  pamp_min?: number | null;
+  pamp_max?: number | null;
   /** Dynamic attribute filters, keyed by attribute code (value or values). */
   attrs?: Record<string, string | string[] | undefined>;
 }
@@ -105,6 +108,12 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
   else if (outStock && !inStock) params.in_stock = "false";
   if (filters.stock_min != null && filters.stock_min > 0) {
     params.stock_min = String(filters.stock_min);
+  }
+  if (filters.pamp_min != null && filters.pamp_min > 0) {
+    params.pamp_min = String(filters.pamp_min);
+  }
+  if (filters.pamp_max != null && filters.pamp_max > 0) {
+    params.pamp_max = String(filters.pamp_max);
   }
   for (const [code, raw] of Object.entries(filters.attrs ?? {})) {
     if (raw == null) continue;
@@ -560,6 +569,31 @@ export function getProducts(params?: ProductListParams): Promise<PaginatedProduc
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
+}
+
+export type CatalogListParams = ProductListParams;
+
+/** Paginated catalog list with full sidebar filter support. */
+export function getCatalogProducts(params: CatalogListParams): Promise<PaginatedProducts> {
+  return getProducts(params);
+}
+
+/** @deprecated Alias — prefer `buildCatalogQuery`. */
+export function catalogFiltersToParams(f: CatalogFilters): Record<string, string> {
+  return buildCatalogQuery(f);
+}
+
+export interface CatalogFilterBounds {
+  pamp_eur: { min: number | null; max: number | null };
+  stock_quantity: { min: number | null; max: number | null };
+  attributes: Record<string, { min: number; max: number }>;
+}
+
+/** Min/max for numeric filters, scoped to current facet context (excludes range sliders). */
+export function getCatalogFilterBounds(filters: CatalogFilters = {}): Promise<CatalogFilterBounds> {
+  const { pamp_min: _a, pamp_max: _b, stock_min: _c, ...facet } = filters;
+  const q = new URLSearchParams(buildCatalogQuery(facet));
+  return apiFetch<CatalogFilterBounds>(`/api/products/filter-bounds?${q.toString()}`);
 }
 
 /** Trigger an async Excel export (Celery task), then download the file.
@@ -1120,12 +1154,16 @@ export type HierarchyLevel = "universe" | "family" | "range" | "sub_range";
  *  (cascade: family within a universe, range within universe+family, …). */
 export function getHierarchyLevel(
   level: HierarchyLevel,
-  parents?: { universe?: string; family?: string; range?: string },
+  parents?: { universe?: string | string[]; family?: string | string[]; range?: string | string[] },
 ): Promise<string[]> {
   const q = new URLSearchParams({ level });
-  if (parents?.universe) q.set("universe", parents.universe);
-  if (parents?.family) q.set("family", parents.family);
-  if (parents?.range) q.set("range", parents.range);
+  const setCsv = (key: string, val: string | string[] | undefined) => {
+    if (!val || (Array.isArray(val) && !val.length)) return;
+    q.set(key, Array.isArray(val) ? val.join(",") : val);
+  };
+  setCsv("universe", parents?.universe);
+  setCsv("family", parents?.family);
+  setCsv("range", parents?.range);
   return apiFetch<{ level: string; values: string[] }>(
     `/api/hierarchy/distinct?${q.toString()}`,
   ).then((r) => r.values);
@@ -1206,4 +1244,44 @@ export function updateOfferAlertSettings(recipients: string[]): Promise<OfferAle
     method: "PUT",
     body: JSON.stringify({ recipients }),
   });
+}
+
+// ── Dashboard aggregates ───────────────────────────────────────────────────
+
+export interface OffersDashboard {
+  status_counts: Record<string, number>;
+  project_conversion_pct: number | null;
+  tariff_active: number;
+  won_total: string | null;
+}
+
+export function getOffersDashboard(): Promise<OffersDashboard> {
+  return apiFetch<OffersDashboard>("/api/offers/dashboard");
+}
+
+export interface DocumentLibraryEntry {
+  id: string;
+  label?: string;
+  created_at: string;
+}
+
+export function getDocumentLibraryCount(): Promise<number> {
+  return apiFetch<{ count: number; results: DocumentLibraryEntry[] }>(
+    "/api/document-library/?limit=1",
+  ).then((r) => r.count);
+}
+
+export interface OfferSummary {
+  id: string;
+  label: string;
+  offer_type: "tariff" | "project";
+  status: string;
+  created_at: string;
+}
+
+export function getRecentOffers(limit = 5): Promise<OfferSummary[]> {
+  const q = new URLSearchParams({ ordering: "-created_at", limit: String(limit) });
+  return apiFetch<{ count: number; results: OfferSummary[] }>(`/api/offers/?${q}`).then(
+    (r) => r.results,
+  );
 }

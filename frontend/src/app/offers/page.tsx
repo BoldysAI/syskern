@@ -1,11 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
+
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
-import { Download, ExternalLink, FileText, Loader2, Plus, RefreshCw, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  CircleNotch,
+  DownloadSimple,
+  FilePlus,
+  FileText,
+  ArrowSquareOut,
+  Plus,
+  ArrowsClockwise,
+} from "@phosphor-icons/react";
+import { PageHeader } from "@/components/PageHeader";
+import { KpiCard } from "@/components/KpiCard";
+import { EmptyState } from "@/components/EmptyState";
+import { FilterSelect } from "@/components/FilterSelect";
+import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
+import { DataTable } from "@/components/data-table";
+import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
+import { cycleSortField } from "@/components/data-table/types";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,13 +78,35 @@ const STATUS_LABELS: Record<string, string> = {
   lost: "Perdue",
   expired: "Expirée",
 };
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  sent: "bg-blue-100 text-blue-700",
-  won: "bg-green-100 text-green-700",
-  lost: "bg-red-100 text-red-700",
-  expired: "bg-amber-100 text-amber-700",
-};
+
+const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
+
+function sortOffers(rows: OfferRow[], sort: DataTableSortState): OfferRow[] {
+  const out = [...rows];
+  out.sort((a, b) => {
+    let av: string | number = "";
+    let bv: string | number = "";
+    switch (sort.field) {
+      case "label":
+        av = a.label;
+        bv = b.label;
+        break;
+      case "valid_to":
+        av = a.valid_to ? new Date(a.valid_to).getTime() : 0;
+        bv = b.valid_to ? new Date(b.valid_to).getTime() : 0;
+        break;
+      case "created_at":
+        av = new Date(a.created_at).getTime();
+        bv = new Date(b.created_at).getTime();
+        break;
+      default:
+        return 0;
+    }
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sort.dir === "asc" ? cmp : -cmp;
+  });
+  return out;
+}
 
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
@@ -83,60 +130,59 @@ async function postJson(url: string) {
 
 // ── New-offer modal: pick a finalized simulation ──────────────────────────────
 
-function NewOfferModal({ onClose }: { onClose: () => void }) {
+function NewOfferModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
-  const { data, isLoading } = useSWR("finalized-sims", () =>
+  const { data, isLoading } = useSWR(open ? "finalized-sims" : null, () =>
     getJson<Paginated<SimLite> | SimLite[]>("/api/simulations/?status=finalized&limit=1000"),
   );
   const sims = Array.isArray(data) ? data : (data?.results ?? []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Nouvelle offre</h2>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600">
-            <X size={18} />
-          </button>
-        </div>
-        <p className="mb-4 text-sm text-slate-500">
-          Choisissez une simulation finalisée. Son type (tarif / projet) détermine le format.
-        </p>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nouvelle offre</DialogTitle>
+          <DialogDescription>
+            Choisissez une simulation finalisée. Son type (tarif / projet) détermine le format.
+          </DialogDescription>
+        </DialogHeader>
+
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-slate-400">Chargement…</p>
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <CircleNotch size={16} className="animate-spin" />
+            Chargement…
+          </div>
         ) : sims.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">
-            Aucune simulation finalisée. Finalisez une simulation d&apos;abord.
-          </p>
+          <EmptyState
+            className="border-none bg-transparent py-8 shadow-none"
+            icon={<FileText size={28} weight="duotone" />}
+            title="Aucune simulation finalisée"
+            description="Finalisez une simulation avant de générer une offre."
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {sims.map((s) => (
               <button
                 key={s.id}
-                onClick={() =>
+                type="button"
+                onClick={() => {
+                  onClose();
                   router.push(
                     `/offers/new-${s.simulation_type === "project" ? "project" : "tariff"}?simulation_id=${s.id}`,
-                  )
-                }
-                className="flex items-center justify-between rounded-lg border border-[#E2E8F0] px-4 py-3 text-left text-sm hover:bg-slate-50"
+                  );
+                }}
+                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left text-sm transition-colors hover:bg-muted/50"
               >
-                <span className="font-medium text-slate-700">{s.label}</span>
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-xs font-semibold",
-                    s.simulation_type === "project"
-                      ? "bg-purple-100 text-purple-700"
-                      : "bg-blue-100 text-blue-700",
-                  )}
-                >
+                <span className="font-medium text-foreground">{s.label}</span>
+                <StatusBadge variant={s.simulation_type === "project" ? "info" : "running"}>
                   {s.simulation_type === "project" ? "Projet" : "Tarif"}
-                </span>
+                </StatusBadge>
               </button>
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -147,28 +193,38 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
     return (
       <a
         href={`/api/offers/${offer.id}/download/`}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#E07200] hover:bg-[#FFF3E0]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        onClick={(e) => e.stopPropagation()}
       >
-        <Download size={13} /> Excel
+        <DownloadSimple size={14} weight="duotone" />
+        Excel
       </a>
     );
   }
   if (offer.generation_status === "generating" || offer.generation_status === "pending") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-        <Loader2 size={13} className="animate-spin" /> Génération…
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <CircleNotch size={14} className="animate-spin" />
+        Génération…
       </span>
     );
   }
   if (offer.generation_status === "error") {
     return (
-      <button
-        onClick={onRetry}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRetry();
+        }}
         title={offer.generation_error}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+        className="h-auto px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
       >
-        <RefreshCw size={13} /> Réessayer
-      </button>
+        <ArrowsClockwise size={14} />
+        Réessayer
+      </Button>
     );
   }
   if (offer.generation_status === "ready" && offer.generated_file_url) {
@@ -177,21 +233,25 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         href={offer.generated_file_url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#E07200] hover:bg-[#FFF3E0]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        onClick={(e) => e.stopPropagation()}
       >
-        <ExternalLink size={13} /> Gamma
+        <ArrowSquareOut size={14} weight="duotone" />
+        Gamma
       </a>
     );
   }
-  return <span className="text-xs text-slate-300">—</span>;
+  return <span className="text-xs text-muted-foreground/50">—</span>;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
+  const router = useRouter();
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ ordering: "-created_at", limit: "100" });
@@ -208,7 +268,7 @@ export default function OffersPage() {
         d?.results?.some((o) => ["generating", "pending"].includes(o.generation_status)) ? 5000 : 0,
     },
   );
-  const { data: dash } = useSWR<Dashboard>("offers-dashboard", () =>
+  const { data: dash, isLoading: dashLoading } = useSWR<Dashboard>("offers-dashboard", () =>
     getJson<Dashboard>("/api/offers/dashboard"),
   );
   const { data: clientsResp } = useSWR("clients:all", () =>
@@ -220,165 +280,187 @@ export default function OffersPage() {
     return (ids: string[]) => ids.map((i) => map.get(i) ?? "—").join(", ") || "—";
   }, [clientsResp]);
 
-  const retry = async (id: string) => {
-    try {
-      await postJson(`/api/offers/${id}/regenerate/`);
-    } finally {
-      mutate(`offers:${query}`);
-    }
-  };
+  const retry = useCallback(
+    async (id: string) => {
+      try {
+        await postJson(`/api/offers/${id}/regenerate/`);
+      } finally {
+        mutate(`offers:${query}`);
+      }
+    },
+    [query],
+  );
 
-  const offers = data?.results ?? [];
+  const sortedOffers = useMemo(
+    () => sortOffers(data?.results ?? [], sort),
+    [data?.results, sort],
+  );
+
+  const columns = useMemo<DataTableColumnDef<OfferRow>[]>(
+    () => [
+      {
+        key: "label",
+        label: "Offre",
+        width: 240,
+        sortField: "label",
+        render: (o) => (
+          <div>
+            <span className="text-sm font-medium text-foreground">{o.label}</span>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-data">{o.line_count}</span> ligne(s) · {o.currency}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "offer_type",
+        label: "Type",
+        width: 100,
+        render: (o) => (
+          <StatusBadge variant={o.offer_type === "project" ? "info" : "running"}>
+            {o.offer_type === "project" ? "Projet" : "Tarif"}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "clients",
+        label: "Client(s)",
+        width: 180,
+        cellClassName: "text-sm text-muted-foreground truncate",
+        render: (o) => clientName(o.client_ids),
+      },
+      {
+        key: "status",
+        label: "Statut",
+        width: 110,
+        render: (o) => (
+          <StatusBadge variant={offerStatusVariant(o.status)}>
+            {STATUS_LABELS[o.status] ?? o.status}
+          </StatusBadge>
+        ),
+      },
+      {
+        key: "valid_to",
+        label: "Validité",
+        width: 120,
+        sortField: "valid_to",
+        cellClassName: "text-sm text-muted-foreground font-data",
+        render: (o) =>
+          o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—",
+      },
+      {
+        key: "document",
+        label: "Document",
+        width: 130,
+        render: (o) => <GenerationCell offer={o} onRetry={() => retry(o.id)} />,
+      },
+    ],
+    [clientName, retry],
+  );
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Offres</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Gestion des offres commerciales</p>
-        </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="flex items-center gap-2 rounded-lg bg-[#E07200] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#C56400]"
-        >
-          <Plus size={16} /> Nouvelle offre
-        </button>
+      <PageHeader
+        title="Offres"
+        description="Gestion des offres commerciales"
+        actions={
+          <Button onClick={() => setShowNew(true)}>
+            <Plus size={16} weight="bold" />
+            Nouvelle offre
+          </Button>
+        }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {dashLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-[88px] rounded-xl" />
+          ))
+        ) : dash ? (
+          <>
+            <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
+            <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
+            <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="warm" />
+            <KpiCard
+              label="Conversion projets"
+              accent="green"
+              value={
+                dash.project_conversion_pct != null
+                  ? `${dash.project_conversion_pct.toFixed(0)}%`
+                  : "—"
+              }
+            />
+            <KpiCard
+              label="CA gagné (€)"
+              accent="warm"
+              value={
+                dash.won_total != null
+                  ? Number(dash.won_total).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
+                  : "—"
+              }
+            />
+          </>
+        ) : null}
       </div>
 
-      {dash && (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Stat label="Brouillons" value={dash.status_counts.draft ?? 0} />
-          <Stat label="Envoyées" value={dash.status_counts.sent ?? 0} />
-          <Stat label="Tarifs actifs" value={dash.tariff_active} />
-          <Stat
-            label="Conversion projets"
-            value={
-              dash.project_conversion_pct != null
-                ? `${dash.project_conversion_pct.toFixed(0)}%`
-                : "—"
-            }
-          />
-          <Stat
-            label="CA gagné (€)"
-            value={
-              dash.won_total != null
-                ? Number(dash.won_total).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
-                : "—"
-            }
-          />
-        </div>
-      )}
-
-      <div className="mb-4 flex gap-3">
-        <select
+      <div className="mb-4 flex flex-wrap gap-3">
+        <FilterSelect
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
-        >
-          <option value="">Tous les types</option>
-          <option value="tariff">Tarif</option>
-          <option value="project">Projet</option>
-        </select>
-        <select
+          onChange={setTypeFilter}
+          placeholder="Tous les types"
+          options={[
+            { value: "tariff", label: "Tarif" },
+            { value: "project", label: "Projet" },
+          ]}
+          className="w-44"
+        />
+        <FilterSelect
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
-        >
-          <option value="">Tous les statuts</option>
-          {Object.entries(STATUS_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
+          onChange={setStatusFilter}
+          placeholder="Tous les statuts"
+          options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+          className="w-44"
+        />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-        {error ? (
-          <div className="py-16 text-center text-sm text-slate-400">
-            Impossible de charger les offres.
-          </div>
-        ) : isLoading ? (
-          <div className="py-16 text-center text-sm text-slate-400">Chargement…</div>
-        ) : offers.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
-            <FileText size={28} className="text-slate-300" />
-            <p className="text-sm">Aucune offre. Cliquez « Nouvelle offre » pour en générer une.</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="border-b border-[#E2E8F0] bg-[#F5F7FA]">
-              <tr>
-                {["Offre", "Type", "Client(s)", "Statut", "Validité", "Document"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {offers.map((o) => (
-                <tr key={o.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/offers/${o.id}`}
-                      className="text-sm font-medium text-slate-800 hover:text-[#E07200]"
-                    >
-                      {o.label}
-                    </Link>
-                    <div className="text-xs text-slate-400">
-                      {o.line_count} ligne(s) · {o.currency}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-semibold",
-                        o.offer_type === "project"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-blue-100 text-blue-700",
-                      )}
-                    >
-                      {o.offer_type === "project" ? "Projet" : "Tarif"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{clientName(o.client_ids)}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-semibold",
-                        STATUS_COLORS[o.status] ?? "bg-slate-100 text-slate-600",
-                      )}
-                    >
-                      {STATUS_LABELS[o.status] ?? o.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <GenerationCell offer={o} onRetry={() => retry(o.id)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="overflow-hidden py-0">
+        <DataTable
+          columns={columns}
+          rows={sortedOffers}
+          rowKey={(o) => o.id}
+          storageKey="offers-list"
+          sort={sort}
+          defaultSort={DEFAULT_SORT}
+          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          isLoading={isLoading}
+          onRowClick={(o) => router.push(`/offers/${o.id}`)}
+          errorState={
+            error ? (
+              <EmptyState
+                className="border-none bg-transparent py-16 shadow-none"
+                icon={<FileText size={28} weight="duotone" />}
+                title="Impossible de charger les offres"
+              />
+            ) : undefined
+          }
+          emptyState={
+            <EmptyState
+              className="border-none bg-transparent py-16 shadow-none"
+              icon={<FilePlus size={28} weight="duotone" />}
+              title="Aucune offre"
+              description="Cliquez « Nouvelle offre » pour en générer une."
+              action={
+                <Button onClick={() => setShowNew(true)}>
+                  <Plus size={16} weight="bold" />
+                  Nouvelle offre
+                </Button>
+              }
+            />
+          }
+        />
+      </Card>
 
-      {showNew && <NewOfferModal onClose={() => setShowNew(false)} />}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm">
-      <div className="text-2xl font-semibold text-slate-800">{value}</div>
-      <div className="mt-0.5 text-xs text-slate-500">{label}</div>
+      <NewOfferModal open={showNew} onClose={() => setShowNew(false)} />
     </div>
   );
 }

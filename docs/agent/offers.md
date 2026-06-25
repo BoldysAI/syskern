@@ -78,6 +78,11 @@
 - UI : `/offers` (liste + dashboard, label → détail) et `/offers/[id]` (header statut/version,
   infos + compte à rebours expiration, document download/Gamma, chaîne de versions, lignes lecture
   seule, actions cycle de vie : envoyer/gagner/perdre, prolonger, nouvelle version).
+- **Liste `/offers`** : `DataTable` (`storageKey="offers-list"`) — colonnes label/type/clients/statut/
+  validité/document ; `Card` wrapper ; `onRowClick` → détail ; KPI + `FilterSelect` inchangés.
+  Pattern identique à `/simulator` et `/catalog` (pas de tri client, ordering API `-created_at`).
+- **Bibliothèque `/library`** : `DataTable` (`storageKey="library-list"`) + actions en
+  `renderTrailingCell` ; upload → `Dialog`, aperçu → `Sheet`, versions → `Dialog`.
 
 ## Bibliothèque de documents (§7.4) — `apps/documents`
 

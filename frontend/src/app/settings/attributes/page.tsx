@@ -18,9 +18,12 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus, Tags } from "lucide-react";
+import { Plus, Tag } from "@phosphor-icons/react";
 import { listAttributes, reorderAttributes, type AttributeCategory, type AttributeRegistry } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { AppIcon } from "@/components/AppIcon";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import SettingsNav from "../_components/SettingsNav";
 import AttributeFormModal from "./_components/AttributeFormModal";
@@ -94,26 +97,23 @@ export default function AttributesAdminPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Paramètres</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h1 className="text-xl font-semibold text-foreground">Paramètres</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Configuration de la plateforme — réservé aux administrateurs.
         </p>
       </div>
 
       <SettingsNav />
 
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <p className="text-sm text-slate-500">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
           Registre des attributs dynamiques du PIM. Ajoutez des champs sans migration ; réordonnez
           au sein d&apos;une catégorie en filtrant puis en glissant les lignes.
         </p>
-        <button
-          onClick={() => setEditing("new")}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-[#E07200] hover:bg-[#C56400] text-white rounded-lg font-medium flex-shrink-0"
-        >
-          <Plus size={14} />
+        <Button onClick={() => setEditing("new")} className="shrink-0">
+          <AppIcon icon={Plus} size="sm" />
           Nouvel attribut
-        </button>
+        </Button>
       </div>
 
       {/* Category filter chips */}
@@ -129,21 +129,21 @@ export default function AttributesAdminPage() {
       </div>
 
       {reorderError && (
-        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {reorderError}
         </div>
       )}
 
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
+      <Card className="overflow-hidden py-0">
         {error ? (
-          <div className="py-12 text-center text-sm text-slate-400">
+          <div className="py-12 text-center text-sm text-muted-foreground">
             Impossible de charger les attributs.
           </div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : filtered.length === 0 ? (
-          <div className="py-12 text-center text-slate-400">
-            <Tags size={36} className="mx-auto mb-3 text-slate-200" />
+          <div className="py-12 text-center text-muted-foreground">
+            <AppIcon icon={Tag} size="xl" className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">Aucun attribut dans cette catégorie. Créez-en un.</p>
           </div>
         ) : (
@@ -156,7 +156,7 @@ export default function AttributesAdminPage() {
             onDelete={setDeleting}
           />
         )}
-      </div>
+      </Card>
 
       {editing !== null && (
         <AttributeFormModal
@@ -195,19 +195,19 @@ function AttributesTable({
 }) {
   const table = (
     <table className="w-full">
-      <thead className="bg-[#F5F7FA] border-b border-[#E2E8F0]">
+      <thead className="border-b border-border bg-muted/50">
         <tr>
           {COLUMNS.map((h, i) => (
             <th
               key={i}
-              className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+              className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {h}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#E2E8F0]">
+      <tbody className="divide-y divide-border">
         {dndEnabled ? (
           <SortableContext
             items={attributes.map((a) => a.id)}
@@ -256,8 +256,8 @@ function Chip({
       className={cn(
         "px-3 py-1.5 text-sm font-medium rounded-full border transition-colors",
         active
-          ? "border-[#E07200] bg-[#FFF3E0] text-[#C56400]"
-          : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50"
+          ? "border-primary bg-accent text-accent-foreground"
+          : "border-border text-muted-foreground hover:bg-muted"
       )}
     >
       {children}

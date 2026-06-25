@@ -3,11 +3,10 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
+  TrendUp,
+  TrendDown,
   Minus,
-  TrendingUp,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import {
   Bar,
   BarChart,
@@ -85,7 +84,7 @@ export function CompareOverview({ columns, products }: Props) {
               key={v.key}
               className={cn(
                 "relative overflow-hidden rounded-xl border p-4 shadow-sm",
-                v.isRef ? "border-orange-200 bg-gradient-to-br from-orange-50 to-white" : "border-slate-200 bg-white"
+                v.isRef ? "border-warm/30 bg-gradient-to-br from-warm/10 to-white" : "border-border bg-card"
               )}
             >
               <div
@@ -96,7 +95,7 @@ export function CompareOverview({ columns, products }: Props) {
                 <div className="min-w-0">
                   <Link
                     href={`/simulator/${col.simulation_id}`}
-                    className="block truncate text-sm font-semibold text-slate-900 hover:text-[#E07200]"
+                    className="block truncate text-sm font-semibold text-foreground hover:text-warm"
                     title={v.label}
                   >
                     {v.label}
@@ -147,12 +146,12 @@ export function CompareOverview({ columns, products }: Props) {
         <ChartCard title="Moyennes PA / PR / PV" subtitle="Comparaison des agrégats par colonne">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="metric" tick={{ fontSize: 11, fill: "#64748B" }} />
               <YAxis tick={{ fontSize: 11, fill: "#64748B" }} tickFormatter={(v) => `${v} €`} />
               <Tooltip
                 formatter={(v) => [`${Number(v ?? 0).toFixed(2)} €`, ""]}
-                contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {visuals.map((v) => (
@@ -189,14 +188,14 @@ export function CompareOverview({ columns, products }: Props) {
                 {pieData.map((d) => (
                   <li key={d.name} className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                    <span className="text-slate-600">{d.name}</span>
-                    <span className="ml-auto font-semibold tabular-nums text-slate-900">{d.value}</span>
+                    <span className="text-muted-foreground">{d.name}</span>
+                    <span className="ml-auto font-semibold tabular-nums text-foreground">{d.value}</span>
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            <p className="py-16 text-center text-sm text-slate-400">Pas assez de données.</p>
+            <p className="py-16 text-center text-sm text-muted-foreground">Pas assez de données.</p>
           )}
         </ChartCard>
       </div>
@@ -212,7 +211,7 @@ export function CompareOverview({ columns, products }: Props) {
               const max = Math.max(...Object.values(row.values), 0.001);
               return (
                 <div key={row.field}>
-                  <div className="mb-2 text-xs font-semibold text-slate-600">{row.label}</div>
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">{row.label}</div>
                   <div className="space-y-2">
                     {visuals.map((v) => {
                       const val = row.values[v.key] ?? 0;
@@ -227,7 +226,7 @@ export function CompareOverview({ columns, products }: Props) {
                           >
                             {v.shortLabel}
                           </span>
-                          <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-slate-100">
+                          <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-muted">
                             <div
                               className="absolute inset-y-0 left-0 rounded-md transition-all"
                               style={{
@@ -235,7 +234,7 @@ export function CompareOverview({ columns, products }: Props) {
                                 backgroundColor: changed ? v.color : `${v.color}99`,
                               }}
                             />
-                            <span className="relative z-10 flex h-full items-center px-2 text-[11px] font-semibold tabular-nums text-slate-800">
+                            <span className="relative z-10 flex h-full items-center px-2 text-[11px] font-semibold tabular-nums text-foreground">
                               {val.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}
                             </span>
                           </div>
@@ -257,14 +256,14 @@ export function CompareOverview({ columns, products }: Props) {
             {movers.map((m) => (
               <div
                 key={m.productId}
-                className="rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5"
+                className="rounded-lg border border-border bg-muted/50 px-3 py-2.5"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="font-mono text-xs font-bold text-[#E07200]">{m.sku}</span>
-                    <span className="ml-2 truncate text-xs text-slate-500">{m.name}</span>
+                    <span className="font-mono text-xs font-bold text-warm">{m.sku}</span>
+                    <span className="ml-2 truncate text-xs text-muted-foreground">{m.name}</span>
                   </div>
-                  <span className="shrink-0 text-xs text-slate-400">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     Réf. {fmtEur(String(m.basePv))}
                   </span>
                 </div>
@@ -277,7 +276,7 @@ export function CompareOverview({ columns, products }: Props) {
                         <span className="w-20 shrink-0 text-[10px] font-medium" style={{ color: vis?.color }}>
                           {vis?.shortLabel}
                         </span>
-                        <div className="relative h-5 flex-1 overflow-hidden rounded bg-white ring-1 ring-slate-100">
+                        <div className="relative h-5 flex-1 overflow-hidden rounded bg-card ring-1 ring-slate-100">
                           <div
                             className="absolute inset-y-0 rounded"
                             style={{
@@ -305,10 +304,10 @@ export function CompareOverview({ columns, products }: Props) {
 
       {/* Param diff chips */}
       {paramDiffCount > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50/80 to-white p-4">
+        <div className="rounded-xl border border-warm/30 bg-gradient-to-r from-amber-50/80 to-white p-4">
           <div className="mb-3 flex items-center gap-2">
-            <TrendingUp size={16} className="text-amber-600" />
-            <h3 className="text-sm font-semibold text-slate-800">
+            <TrendUp size={16} className="text-warm" />
+            <h3 className="text-sm font-semibold text-foreground">
               {paramDiffCount} paramètre{paramDiffCount > 1 ? "s" : ""} modifié{paramDiffCount > 1 ? "s" : ""}
             </h3>
           </div>
@@ -316,9 +315,9 @@ export function CompareOverview({ columns, products }: Props) {
             {paramDiffs.map((row) => (
               <span
                 key={row.id}
-                className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-full border border-warm/30 bg-card px-3 py-1 text-xs font-medium text-foreground shadow-sm"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-warm/100" />
                 {row.label}
               </span>
             ))}
@@ -344,10 +343,10 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-        {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -356,9 +355,9 @@ function ChartCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white/80 px-2 py-1.5 ring-1 ring-slate-100">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-0.5 font-semibold tabular-nums text-slate-800">{value}</div>
+    <div className="rounded-lg bg-card/80 px-2 py-1.5 ring-1 ring-slate-100">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-0.5 font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }
@@ -379,9 +378,9 @@ function KpiDeltaCard({
   );
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{kpi.label}</div>
-      <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{kpi.label}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
         {kpi.refValue != null
           ? kpi.label.includes("Marge")
             ? `${(kpi.refValue * 100).toFixed(1)} %`
@@ -391,7 +390,7 @@ function KpiDeltaCard({
       {worst && (
         <div className={cn("mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold", deltaBg(worst.deltaPct!))}>
           <DeltaBadge pct={worst.deltaPct!} />
-          <span className="text-slate-500">max écart</span>
+          <span className="text-muted-foreground">max écart</span>
         </div>
       )}
       <div className="mt-3 flex gap-1">
@@ -402,13 +401,13 @@ function KpiDeltaCard({
             : 50;
           return (
             <div key={v.key} className="flex flex-1 flex-col items-center gap-1">
-              <div className="flex h-12 w-full items-end justify-center rounded bg-slate-50 px-0.5">
+              <div className="flex h-12 w-full items-end justify-center rounded bg-muted px-0.5">
                 <div
                   className="w-full rounded-t transition-all"
                   style={{ height: `${Math.max(h * 0.7, 8)}%`, backgroundColor: v.color, opacity: v.isRef ? 1 : 0.75 }}
                 />
               </div>
-              <span className="text-[9px] font-medium text-slate-400">{String.fromCharCode(65 + visuals.indexOf(v))}</span>
+              <span className="text-[9px] font-medium text-muted-foreground">{String.fromCharCode(65 + visuals.indexOf(v))}</span>
             </div>
           );
         })}
@@ -418,7 +417,7 @@ function KpiDeltaCard({
 }
 
 function DeltaBadge({ pct }: { pct: number }) {
-  const Icon = pct > 0.5 ? ArrowUpRight : pct < -0.5 ? ArrowDownRight : Minus;
+  const Icon = pct > 0.5 ? TrendUp : pct < -0.5 ? TrendDown : Minus;
   const color = deltaColor(pct);
   return (
     <span className="inline-flex items-center gap-0.5 font-semibold tabular-nums" style={{ color }}>

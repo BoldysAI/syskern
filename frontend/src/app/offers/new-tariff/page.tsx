@@ -20,8 +20,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, GripVertical, Loader2 } from "lucide-react";
+import { Check, DotsSixVertical, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { FormField } from "@/components/FormField";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,26 +113,21 @@ function SortableColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 bg-white border border-[#E2E8F0] rounded-lg",
-        isDragging && "shadow-lg opacity-80",
+        "flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2",
+        isDragging && "opacity-80 shadow-lg",
       )}
     >
       <button
         type="button"
-        className="cursor-grab touch-none text-slate-300 hover:text-slate-500"
+        className="cursor-grab touch-none text-muted-foreground/50 hover:text-muted-foreground"
         {...attributes}
         {...listeners}
         aria-label="Réordonner"
       >
-        <GripVertical size={16} />
+        <DotsSixVertical size={16} />
       </button>
-      <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm text-slate-700">
-        <input
-          type="checkbox"
-          checked={col.selected}
-          onChange={onToggle}
-          className="accent-[#E07200]"
-        />
+      <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm text-foreground">
+        <Checkbox checked={col.selected} onCheckedChange={onToggle} />
         {col.label}
       </label>
     </div>
@@ -158,8 +158,6 @@ function TariffWizard() {
   );
 
   const [step, setStep] = useState(0);
-  // Selection/order kept as user *overrides* of derived defaults, so we never
-  // copy fetched data into state inside an effect.
   const [clientToggles, setClientToggles] = useState<Record<string, boolean>>({});
   const [columnToggles, setColumnToggles] = useState<Record<string, boolean>>({});
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
@@ -262,20 +260,20 @@ function TariffWizard() {
       <div className="flex flex-col items-center justify-center py-32 text-center">
         {genCount === null ? (
           <>
-            <Loader2 className="mb-4 animate-spin text-[#E07200]" size={40} />
-            <p className="font-medium text-slate-700">
+            <CircleNotch className="mb-4 animate-spin text-warm" size={40} />
+            <p className="font-medium text-foreground">
               Génération de {selectedClientIds.length} offre
               {selectedClientIds.length > 1 ? "s" : ""}…
             </p>
-            <p className="mt-1 text-sm text-slate-400">Un fichier Excel par client.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Un fichier Excel par client.</p>
           </>
         ) : (
           <>
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <Check className="text-green-600" size={26} />
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green/10">
+              <Check className="text-brand-green" size={26} weight="bold" />
             </div>
-            <p className="font-semibold text-slate-800">{genCount} offre(s) générée(s)</p>
-            <p className="mt-1 text-sm text-slate-400">Redirection vers les offres…</p>
+            <p className="font-semibold text-foreground">{genCount} offre(s) générée(s)</p>
+            <p className="mt-1 text-sm text-muted-foreground">Redirection vers les offres…</p>
           </>
         )}
       </div>
@@ -284,38 +282,36 @@ function TariffWizard() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-xl font-semibold text-slate-900">Nouvelle offre tarifaire</h1>
-      <p className="mb-6 mt-0.5 text-sm text-slate-500">
+      <h1 className="text-xl font-semibold text-foreground">Nouvelle offre tarifaire</h1>
+      <p className="mb-6 mt-0.5 text-sm text-muted-foreground">
         Depuis « {simulation?.label ?? "…"} » — un fichier Excel par client.
       </p>
 
       <Stepper step={step} />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="min-h-[280px] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+      <Card className="min-h-[280px] p-5">
         {step === 0 && (
           <Section title="Clients destinataires" hint="Une offre sera générée par client.">
             {clients.length === 0 ? (
-              <p className="text-sm text-slate-400">Aucun client disponible.</p>
+              <p className="text-sm text-muted-foreground">Aucun client disponible.</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {clients.map((c) => (
                   <label
                     key={c.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm hover:bg-slate-50"
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted/50"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={isClientSelected(c.id)}
-                      onChange={() =>
+                      onCheckedChange={() =>
                         setClientToggles((t) => ({ ...t, [c.id]: !isClientSelected(c.id) }))
                       }
-                      className="accent-[#E07200]"
                     />
                     {c.name}
                   </label>
@@ -350,19 +346,14 @@ function TariffWizard() {
           <Section title="Devise de sortie" hint="Conversion via les taux figés de la simulation.">
             <div className="flex gap-3">
               {CURRENCIES.map((c) => (
-                <button
+                <Button
                   key={c}
                   type="button"
+                  variant={currency === c ? "default" : "outline"}
                   onClick={() => setCurrency(c)}
-                  className={cn(
-                    "rounded-lg border px-5 py-2.5 text-sm font-medium",
-                    currency === c
-                      ? "border-[#E07200] bg-[#E07200] text-white"
-                      : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
-                  )}
                 >
                   {c}
-                </button>
+                </Button>
               ))}
             </div>
           </Section>
@@ -372,19 +363,14 @@ function TariffWizard() {
           <Section title="Langue de l'offre">
             <div className="flex gap-3">
               {LANGUAGES.map((l) => (
-                <button
+                <Button
                   key={l.code}
                   type="button"
+                  variant={language === l.code ? "default" : "outline"}
                   onClick={() => setLanguage(l.code)}
-                  className={cn(
-                    "rounded-lg border px-5 py-2.5 text-sm font-medium",
-                    language === l.code
-                      ? "border-[#E07200] bg-[#E07200] text-white"
-                      : "border-[#E2E8F0] text-slate-600 hover:bg-slate-50",
-                  )}
                 >
                   {l.label}
-                </button>
+                </Button>
               ))}
             </div>
           </Section>
@@ -393,64 +379,46 @@ function TariffWizard() {
         {step === 4 && (
           <Section title="Validité & libellé">
             <div className="flex max-w-sm flex-col gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Date d&apos;expiration *
-                </label>
-                <input
+              <FormField label="Date d'expiration" required>
+                <Input
                   type="date"
                   value={expiration}
                   onChange={(e) => setExpiration(e.target.value)}
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Libellé (optionnel)
-                </label>
-                <input
+              </FormField>
+              <FormField label="Libellé (optionnel)">
+                <Input
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder={simulation?.label ?? ""}
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E07200]/30"
                 />
-              </div>
-              <p className="text-xs text-slate-500">
+              </FormField>
+              <p className="text-xs text-muted-foreground">
                 {selectedClientIds.length} offre(s) · {selectedColumnKeys.length} colonne(s) ·{" "}
                 {currency} · {language.toUpperCase()}
               </p>
             </div>
           </Section>
         )}
-      </div>
+      </Card>
 
       <div className="mt-5 flex justify-between">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
-          className="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
         >
           Précédent
-        </button>
+        </Button>
         {step < STEPS.length - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canNext}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-40"
-          >
+          <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
             Suivant
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canNext}
-            className="rounded-lg bg-[#E07200] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#C56400] disabled:opacity-40"
-          >
+          <Button type="button" onClick={submit} disabled={!canNext}>
             Générer {selectedClientIds.length} offre(s)
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -466,20 +434,23 @@ function Stepper({ step }: { step: number }) {
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
               i < step
-                ? "bg-green-500 text-white"
+                ? "bg-brand-green text-white"
                 : i === step
-                  ? "bg-[#E07200] text-white"
-                  : "bg-slate-100 text-slate-400",
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
             )}
           >
-            {i < step ? <Check size={14} /> : i + 1}
+            {i < step ? <Check size={14} weight="bold" /> : i + 1}
           </div>
           <span
-            className={cn("text-xs", i === step ? "font-medium text-slate-800" : "text-slate-400")}
+            className={cn(
+              "text-xs",
+              i === step ? "font-medium text-foreground" : "text-muted-foreground",
+            )}
           >
             {s}
           </span>
-          {i < STEPS.length - 1 && <div className="h-px w-6 bg-slate-200" />}
+          {i < STEPS.length - 1 && <div className="h-px w-6 bg-border" />}
         </div>
       ))}
     </div>
@@ -497,8 +468,8 @@ function Section({
 }) {
   return (
     <div>
-      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-      {hint && <p className="mb-3 text-xs text-slate-400">{hint}</p>}
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      {hint && <p className="mb-3 text-xs text-muted-foreground">{hint}</p>}
       <div className={hint ? "" : "mt-3"}>{children}</div>
     </div>
   );
@@ -507,7 +478,7 @@ function Section({
 function Notice({ text }: { text: string }) {
   return (
     <div className="p-6">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div className="rounded-lg border border-warm/30 bg-warm/10 p-4 text-sm text-warm">
         {text}
       </div>
     </div>
@@ -516,7 +487,7 @@ function Notice({ text }: { text: string }) {
 
 export default function NewTariffOfferPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-400">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
       <TariffWizard />
     </Suspense>
   );
