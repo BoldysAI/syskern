@@ -86,7 +86,7 @@ class SimulationLineSerializer(serializers.ModelSerializer):
 
 
 class SimulationListSerializer(serializers.ModelSerializer):
-    line_count = serializers.IntegerField(source="lines.count", read_only=True)
+    line_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Simulation

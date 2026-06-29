@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Database, CircleNotch, ArrowsClockwise, Gear } from "@phosphor-icons/react";
 import { recalculateSimulation, type RecalcScope } from "@/lib/api";
+import { humanizeApiError } from "@/lib/humanize-errors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +72,7 @@ export function RecalculateModal({ simId, marketParams, open, onClose, onDone }:
         onClose();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Recalcul échoué.");
+      setError(humanizeApiError(e, "Recalcul échoué."));
     } finally {
       setRunning(false);
     }

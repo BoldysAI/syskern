@@ -1,29 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { DownloadSimple, Table, TreeStructure, ListChecks } from "@phosphor-icons/react";
+import { Table, ListChecks } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { CatalogueSelectionPanel } from "./CatalogueSelectionPanel";
-import { HierarchyFilterPanel } from "./HierarchyFilterPanel";
+import { WizardCatalogPicker } from "./WizardCatalogPicker";
 import { ImportFilePanel } from "./ImportFilePanel";
+import { NotFoundSkuBanner } from "./NotFoundSkuBanner";
 import { SelectedSkuList } from "./SelectedSkuList";
 import type { SelectedSku } from "./wizard-draft";
 
 interface Props {
   selectedSkus: SelectedSku[];
+  notFoundSkus: string[];
   onChange: (skus: SelectedSku[]) => void;
+  onNotFoundChange: (skus: string[]) => void;
+  className?: string;
 }
 
 const TAB_TRIGGER =
   "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-primary data-[state=active]:text-accent-foreground data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:text-foreground";
 
-export function SkuStep({ selectedSkus, onChange }: Props) {
-  const [notFound, setNotFound] = useState<string[]>([]);
-
+export function SkuStep({ selectedSkus, notFoundSkus, onChange, onNotFoundChange, className }: Props) {
   const selectedIds = useMemo(() => new Set(selectedSkus.map((s) => s.id)), [selectedSkus]);
 
-  /** Merge new SKU into the cumulative list, deduplicating by id. */
   const handleAdd = (skus: SelectedSku[]) => {
     const byId = new Map(selectedSkus.map((s) => [s.id, s]));
     for (const s of skus) byId.set(s.id, s);
@@ -31,111 +31,57 @@ export function SkuStep({ selectedSkus, onChange }: Props) {
   };
 
   const handleRemove = (id: string) => onChange(selectedSkus.filter((s) => s.id !== id));
+  const handleRemoveMany = (ids: string[]) => {
+    const drop = new Set(ids);
+    onChange(selectedSkus.filter((s) => !drop.has(s.id)));
+  };
   const handleClear = () => onChange([]);
 
   const mergeNotFound = (skus: string[]) => {
-    setNotFound((prev) => [...new Set([...prev, ...skus])]);
-  };
-
-  const downloadReport = () => {
-    const csv = "sku_code\n" + notFound.map((s) => `"${s.replace(/"/g, '""')}"`).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sku_non_trouves.csv";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    onNotFoundChange([...new Set([...notFoundSkus, ...skus])]);
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-      <div className="flex flex-col gap-5 min-w-0">
-        <Tabs.Root defaultValue="catalogue">
-          <Tabs.List className="flex items-center gap-1 border-b border-border">
-            <Tabs.Trigger value="catalogue" className={TAB_TRIGGER}>
-              <ListChecks size={16} />
-              Depuis le catalogue
-            </Tabs.Trigger>
-            <Tabs.Trigger value="hierarchy" className={TAB_TRIGGER}>
-              <TreeStructure size={16} />
-              Par filtre de gamme
-            </Tabs.Trigger>
-            <Tabs.Trigger value="import" className={TAB_TRIGGER}>
-              <Table size={16} />
-              Par fichier
-            </Tabs.Trigger>
-          </Tabs.List>
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-3", className)}>
+      <NotFoundSkuBanner skus={notFoundSkus} onClear={() => onNotFoundChange([])} />
 
-          <div className="pt-5">
-            <Tabs.Content value="catalogue" className="focus:outline-none">
-              <CatalogueSelectionPanel
-                selectedIds={selectedIds}
-                onAdd={handleAdd}
-                onRemove={handleRemove}
-              />
-            </Tabs.Content>
-            <Tabs.Content value="hierarchy" className="focus:outline-none">
-              <HierarchyFilterPanel selectedIds={selectedIds} onAdd={handleAdd} />
-            </Tabs.Content>
-            <Tabs.Content value="import" className="focus:outline-none">
-              <ImportFilePanel onAdd={handleAdd} onNotFound={mergeNotFound} />
-            </Tabs.Content>
+      <Tabs.Root defaultValue="catalogue" className="flex min-h-0 flex-1 flex-col">
+        <Tabs.List className="flex shrink-0 items-center gap-1 border-b border-border">
+          <Tabs.Trigger value="catalogue" className={TAB_TRIGGER}>
+            <ListChecks size={16} />
+            Depuis le catalogue
+          </Tabs.Trigger>
+          <Tabs.Trigger value="import" className={TAB_TRIGGER}>
+            <Table size={16} />
+            Par fichier
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content
+          value="catalogue"
+          className="flex min-h-0 flex-1 flex-col pt-3 focus:outline-none data-[state=inactive]:hidden"
+        >
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
+            <WizardCatalogPicker
+              selectedIds={selectedIds}
+              onAdd={handleAdd}
+              onRemove={handleRemove}
+              onRemoveMany={handleRemoveMany}
+              className="min-h-[min(60vh,480px)] lg:min-h-0"
+            />
+            <SelectedSkuList
+              skus={selectedSkus}
+              onRemove={handleRemove}
+              onClear={handleClear}
+              className="flex min-h-0 flex-col lg:max-h-none lg:h-full"
+            />
           </div>
-        </Tabs.Root>
+        </Tabs.Content>
 
-        <SelectedSkuList skus={selectedSkus} onRemove={handleRemove} onClear={handleClear} />
-      </div>
-
-      {/* Persistent side panel for not-found SKU (import method). */}
-      <aside
-        className={cn(
-          "border rounded-xl bg-card shadow-sm h-fit lg:sticky lg:top-4",
-          notFound.length > 0 ? "border-red-200" : "border-border"
-        )}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-sm font-semibold text-foreground">
-            SKU non trouvés{notFound.length > 0 ? ` (${notFound.length})` : ""}
-          </span>
-          {notFound.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setNotFound([])}
-              className="text-xs font-semibold text-muted-foreground hover:text-destructive"
-            >
-              Vider
-            </button>
-          )}
-        </div>
-        {notFound.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            Les SKU importés introuvables en base apparaîtront ici.
-          </p>
-        ) : (
-          <>
-            <ul className="max-h-72 overflow-y-auto divide-y divide-[#F1F5F9]">
-              {notFound.map((s) => (
-                <li key={s} className="px-4 py-2 font-mono text-sm text-red-700 truncate">
-                  {s}
-                </li>
-              ))}
-            </ul>
-            <div className="p-3 border-t border-border">
-              <button
-                type="button"
-                onClick={downloadReport}
-                className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-muted"
-              >
-                <DownloadSimple size={15} />
-                Télécharger le rapport
-              </button>
-            </div>
-          </>
-        )}
-      </aside>
+        <Tabs.Content value="import" className="max-w-2xl pt-5 focus:outline-none data-[state=inactive]:hidden">
+          <ImportFilePanel onAdd={handleAdd} onNotFound={mergeNotFound} />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }

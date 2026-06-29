@@ -63,7 +63,7 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 - **Pricing** : moteur isolé dans `apps/simulations/services/engine/` + `runner.py` (Decimal, transaction, trace `SimulationRecalculation`). → `pricing-chain.md`.
 - **Paramètres marché** (`apps/market`) : CRUD `GET/POST /api/market-parameters/` ;
   paramètre actif courant `GET /api/market-parameters/current/?parameter_type=copper_price`
-  (FX : `fx_from_currency` + `fx_to_currency`). Cuivre/FX **non seedés** — saisie manuelle.
+  (+ `copper_market=LME|SHE` ; FX : `fx_from_currency` + `fx_to_currency`). Cuivre/FX **non seedés** — saisie manuelle.
 - **Lookup bulk SKU** (`apps/products`) : `POST /api/products/lookup-bulk` body `{skus: [...]}` →
   `{found: [{id, sku_code, name}], not_found: [...]}`. Une requête `sku_code__in`, produits actifs
   uniquement. Route **avant** le router DRF (évite le conflit `products/{pk}`).

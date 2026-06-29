@@ -11,6 +11,7 @@ interface FilterSectionProps {
   title: string;
   icon?: React.ComponentType<IconProps>;
   activeCount?: number;
+  /** Sections repliables : fermées par défaut sur toute la plateforme (ne pas passer `true`). */
   defaultOpen?: boolean;
   children: ReactNode;
   className?: string;

@@ -53,6 +53,10 @@ class MarketParameterViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             qs = qs.filter(fx_from_currency=fx_from, fx_to_currency=fx_to)
+        elif parameter_type == MarketParameterType.COPPER_PRICE:
+            copper_market = request.query_params.get("copper_market")
+            if copper_market:
+                qs = qs.filter(copper_market=copper_market)
 
         param = qs.order_by("-valid_from").first()
         if param is None:

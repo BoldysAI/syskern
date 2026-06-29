@@ -66,11 +66,11 @@ _CDC_CALCULATION_CHAIN = {
 }
 
 
-def _cdc_simulation() -> Simulation:
+def _cdc_simulation(*, market_params: dict | None = None) -> Simulation:
     return Simulation.objects.create(
         label="CDC §6.4",
         simulation_type=SimulationType.TARIFF,
-        market_params=_CDC_MARKET_PARAMS,
+        market_params=_CDC_MARKET_PARAMS if market_params is None else market_params,
         calculation_chain=_CDC_CALCULATION_CHAIN,
     )
 
@@ -206,8 +206,8 @@ class TestRunnerWarnings:
         assert any("indexé cuivre" in w for w in warnings)
         assert line.pv_eur is not None  # still priced
 
-    def test_zero_po_base_price_warns_instead_of_silent_zero(self) -> None:
-        """A PO base price of 0 must flag a warning, never a silent green 0."""
+    def test_zero_po_base_price_errors(self) -> None:
+        """A PO base price of 0 blocks the calculation (CDC §6.6)."""
         sim = _cdc_simulation()
         product = Product.objects.create(
             sku_code="ZERO-PO",
@@ -229,12 +229,45 @@ class TestRunnerWarnings:
         run_simulation(sim)
 
         line.refresh_from_db()
-        # A zero base price is never a silent green "ok".
-        assert line.status == "warning"
-        warnings = line.calculation_breakdown["warnings"]
-        assert any("prix d'achat (po) à 0" in w.lower() for w in warnings)
-        # It still computes a result rather than blocking.
-        assert line.pv_eur is not None
+        assert line.status == "error"
+        errors = line.calculation_breakdown["errors"]
+        assert any("prix d'achat (po)" in e.lower() for e in errors)
+        assert line.pv_eur is None or line.pa_net_eur is None
+
+    def test_negative_pa_from_copper_variation_errors(self) -> None:
+        """PO trop faible + cuivre actuel < base → PA négatif = erreur bloquante."""
+        sim = _cdc_simulation(
+            market_params={
+                "copper_base_price_rmb": "97000",
+                "copper_current_price_rmb": "70000",
+                "fx_eur_rmb": "7.95",
+                "fx_eur_usd": "1.15",
+            }
+        )
+        product = Product.objects.create(
+            sku_code="NEG-PA",
+            name="PA négatif",
+            is_copper_indexed=True,
+            copper_weight_kg_per_unit=Decimal("18"),
+            pallet_qty=9,
+            base_unit="km",
+            stock_quantity=Decimal("0"),
+        )
+        ProductSupplier.objects.create(
+            product=product,
+            supplier_name="Fournisseur",
+            is_active=True,
+            po_base_price=Decimal("100"),
+            po_currency=Currency.RMB,
+        )
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="pending")
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.status == "error"
+        errors = line.calculation_breakdown["errors"]
+        assert any("pa net négatif" in e.lower() for e in errors)
 
     def test_missing_pallet_qty_with_transport_warns_not_error(self) -> None:
         """Transport without pallet_qty is a data gap → warning, not a hard error."""
@@ -278,6 +311,22 @@ class TestRunnerWarnings:
         assert any("prix d'achat (po)" in e.lower() for e in errors)
         # Legacy single-string key preserved for backward compatibility.
         assert line.calculation_breakdown["error"] == errors[0]
+
+    def test_preflight_accumulates_po_and_fx_errors(self) -> None:
+        """Missing PO and missing standard FX rates are all reported together."""
+        sim = _cdc_simulation(market_params={})
+        product = Product.objects.create(sku_code="MULTI-ERR", name="Multi erreurs")
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="pending")
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.status == "error"
+        errors = line.calculation_breakdown["errors"]
+        assert len(errors) >= 3
+        assert any("prix d'achat (po)" in e.lower() for e in errors)
+        assert any("EUR → USD" in e for e in errors)
+        assert any("EUR → RMB" in e for e in errors)
 
 
 class TestRunnerPampMix:

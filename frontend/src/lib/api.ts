@@ -20,7 +20,14 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
   }
-  return res.json() as Promise<T>;
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
+  const text = await res.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 // ── Celery polling helpers ───────────────────────────────────────────────
@@ -69,6 +76,10 @@ export interface CatalogFilters {
   sub_range?: string[];
   brand?: string[];
   supplier?: string[];
+  /** Produit actif. Exclusif avec active_out. */
+  active_in?: boolean;
+  /** Produit inactif (soft-delete). Exclusif avec active_in. */
+  active_out?: boolean;
   /** En stock (stock > 0). Exclusif avec stock_out. */
   stock_in?: boolean;
   /** Rupture (stock ≤ 0 ou null). Exclusif avec stock_in. */
@@ -103,6 +114,9 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
     const v = filters[k];
     if (Array.isArray(v) && v.length) params[k] = v.join(",");
   }
+  const { active_in: activeIn, active_out: activeOut } = filters;
+  if (activeIn && !activeOut) params.is_active = "true";
+  else if (activeOut && !activeIn) params.is_active = "false";
   const { stock_in: inStock, stock_out: outStock } = filters;
   if (inStock && !outStock) params.in_stock = "true";
   else if (outStock && !inStock) params.in_stock = "false";
@@ -445,6 +459,8 @@ export interface BulkEditFilter {
   factory_code?: string;
   has_warning?: boolean;
   has_error?: boolean;
+  /** Scope bulk actions to explicit simulation line ids. */
+  line_ids?: string[];
 }
 
 /** Full shape from the detail endpoint (includes nested lines). */
@@ -463,6 +479,62 @@ export interface PaginatedSimulations {
   next?: string;
   previous?: string;
   results: Simulation[];
+}
+
+/** Sidebar filter state for the simulations list. */
+export interface SimulationFilters {
+  q?: string;
+  simulation_type?: SimulationType[];
+  status?: SimulationStatus[];
+  /** True = recalcul nécessaire uniquement. */
+  is_dirty?: boolean;
+}
+
+export interface SimulationListParams extends SimulationFilters {
+  ordering?: string;
+  page?: number;
+  limit?: number;
+  /** When false, list only draft + finalized (excludes archived). */
+  includeArchived?: boolean;
+}
+
+export function buildSimulationQuery(filters: SimulationFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.q?.trim()) params.q = filters.q.trim();
+  if (filters.simulation_type?.length) {
+    params.simulation_type = filters.simulation_type.join(",");
+  }
+  if (filters.status?.length) params.status = filters.status.join(",");
+  if (filters.is_dirty === true) params.is_dirty = "true";
+  return params;
+}
+
+function resolveSimulationListFilters(
+  params: SimulationListParams,
+): SimulationFilters {
+  if (params.includeArchived === false && !params.status?.length) {
+    return { ...params, status: ["draft", "finalized"] };
+  }
+  const { includeArchived: _omit, ordering: _o, page: _p, limit: _l, ...filters } = params;
+  return filters;
+}
+
+export function getSimulationsList(params: SimulationListParams = {}): Promise<PaginatedSimulations> {
+  const filters = resolveSimulationListFilters(params);
+  const q = new URLSearchParams(buildSimulationQuery(filters));
+  const limit = params.limit ?? 50;
+  const page = params.page ?? 1;
+  const offset = (page - 1) * limit;
+  if (params.ordering) q.set("ordering", params.ordering);
+  q.set("limit", String(limit));
+  q.set("offset", String(offset));
+  return apiFetch<PaginatedSimulations>(`/api/simulations/?${q.toString()}`);
+}
+
+export function getSimulations(opts?: { includeArchived?: boolean }): Promise<Simulation[]> {
+  return getSimulationsList({ includeArchived: opts?.includeArchived, limit: 200 }).then(
+    (r) => r.results,
+  );
 }
 
 export interface CreateSimulationInput {
@@ -724,14 +796,6 @@ export function setProductAttribute(
   );
 }
 
-export function getSimulations(opts?: { includeArchived?: boolean }): Promise<Simulation[]> {
-  const q = new URLSearchParams({ limit: "200" });
-  if (opts?.includeArchived) q.set("include_archived", "true");
-  return apiFetch<PaginatedSimulations>(`/api/simulations/?${q.toString()}`).then(
-    (r) => r.results
-  );
-}
-
 /** List clients, optionally filtered by a search term (CDC §6.9.2 step 1). */
 export function getClients(search?: string): Promise<Client[]> {
   const q = new URLSearchParams({ limit: "200" });
@@ -777,8 +841,11 @@ export function deleteSimulation(id: string): Promise<void> {
 }
 
 /** Attach products to a simulation (creates lines). */
-export function addSimulationLines(id: string, productIds: string[]): Promise<unknown> {
-  return apiFetch(`/api/simulations/${encodeURIComponent(id)}/lines/`, {
+export function addSimulationLines(
+  id: string,
+  productIds: string[],
+): Promise<{ added: number }> {
+  return apiFetch<{ added: number }>(`/api/simulations/${encodeURIComponent(id)}/lines/`, {
     method: "POST",
     body: JSON.stringify({ product_ids: productIds }),
   });
@@ -879,6 +946,17 @@ export function bulkEditLines(
 ): Promise<{ updated: number }> {
   return apiFetch<{ updated: number }>(
     `/api/simulations/${encodeURIComponent(id)}/lines/bulk/`,
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+/** Remove lines from a simulation (by ids or cumulative filter). */
+export function bulkDeleteSimulationLines(
+  id: string,
+  body: { filter?: BulkEditFilter; line_ids?: string[] }
+): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(
+    `/api/simulations/${encodeURIComponent(id)}/lines/bulk-delete/`,
     { method: "POST", body: JSON.stringify(body) }
   );
 }
@@ -996,10 +1074,12 @@ export function unarchiveSimulation(id: string): Promise<SimulationDetail> {
 export function listMarketParameters(filter?: {
   type?: MarketParameterType;
   activeOnly?: boolean;
+  copperMarket?: CopperMarket;
 }): Promise<MarketParameter[]> {
   const q = new URLSearchParams();
   if (filter?.type) q.set("parameter_type", filter.type);
   if (filter?.activeOnly) q.set("is_active", "true");
+  if (filter?.copperMarket) q.set("copper_market", filter.copperMarket);
   q.set("limit", "200");
   const qs = q.toString();
   return apiFetch<{ count: number; results: MarketParameter[] }>(
@@ -1032,10 +1112,12 @@ export function getCurrentMarketParameter(opts: {
   parameter_type: MarketParameterType;
   fx_from_currency?: string;
   fx_to_currency?: string;
+  copper_market?: CopperMarket;
 }): Promise<MarketParameter> {
   const q = new URLSearchParams({ parameter_type: opts.parameter_type });
   if (opts.fx_from_currency) q.set("fx_from_currency", opts.fx_from_currency);
   if (opts.fx_to_currency) q.set("fx_to_currency", opts.fx_to_currency);
+  if (opts.copper_market) q.set("copper_market", opts.copper_market);
   return apiFetch<MarketParameter>(`/api/market-parameters/current/?${q.toString()}`);
 }
 

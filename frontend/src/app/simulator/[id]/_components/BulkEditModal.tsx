@@ -30,19 +30,22 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onApplied: () => void;
+  /** When set, applies only to these simulation line ids (skips filter UI). */
+  lineIds?: string[] | null;
 }
 
-type ActionType = "set_margin" | "set_mix" | "reset";
+type ActionType = "set_overrides" | "reset";
 
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 
-export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
+export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Props) {
   const confirm = useConfirm();
+  const selectionMode = Boolean(lineIds && lineIds.length > 0);
   const [filter, setFilter] = useState<BulkEditFilter>({});
-  const [action, setAction] = useState<ActionType>("set_margin");
-  const [marginPct, setMarginPct] = useState("");
+  const [action, setAction] = useState<ActionType>("set_overrides");
+  const [marginPct, setMarginPct] = useState("20");
   const [mixPct, setMixPct] = useState(50);
   const [count, setCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -62,9 +65,12 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const activeFilter: BulkEditFilter = selectionMode
+      ? { line_ids: lineIds! }
+      : filter;
     debounceRef.current = setTimeout(() => {
       setPreviewing(true);
-      bulkEditPreview(simId, filter)
+      bulkEditPreview(simId, activeFilter)
         .then((r) => setCount(r.count))
         .catch(() => setCount(null))
         .finally(() => setPreviewing(false));
@@ -72,13 +78,13 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [simId, filter, open]);
+  }, [simId, filter, open, selectionMode, lineIds]);
 
   const setFlt = (patch: Partial<BulkEditFilter>) => setFilter((f) => ({ ...f, ...patch }));
 
   const handleApply = async () => {
     setError(null);
-    if (action === "set_margin") {
+    if (action === "set_overrides") {
       const n = parseFloat(marginPct);
       if (!Number.isFinite(n) || n < 0 || n >= 100) {
         setError("Saisissez une marge valide (0–99 %).");
@@ -87,17 +93,22 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
     }
     const ok = await confirm({
       title: "Appliquer la modification",
-      description: `Appliquer à ${count ?? 0} ligne(s) ?`,
+      description:
+        action === "reset"
+          ? `Réinitialiser les surcharges de ${count ?? 0} ligne(s) ?`
+          : `Appliquer marge et mix à ${count ?? 0} ligne(s) ?`,
       confirmLabel: "Appliquer",
     });
     if (!ok) return;
 
     setApplying(true);
     try {
-      const body: Parameters<typeof bulkEditLines>[1] = { filter };
-      if (action === "set_margin") {
+      const activeFilter: BulkEditFilter = selectionMode
+        ? { line_ids: lineIds! }
+        : filter;
+      const body: Parameters<typeof bulkEditLines>[1] = { filter: activeFilter };
+      if (action === "set_overrides") {
         body.margin_override = (parseFloat(marginPct) / 100).toFixed(4);
-      } else if (action === "set_mix") {
         body.stock_purchase_mix_pct_override = mixPct;
       } else {
         body.reset = true;
@@ -116,10 +127,19 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && !applying && onClose()}>
       <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 p-0 sm:max-w-4xl" showCloseButton={!applying}>
         <DialogHeader className="border-b border-border p-5">
-          <DialogTitle>Édition groupée</DialogTitle>
+          <DialogTitle>
+            {selectionMode ? `Modifier ${lineIds!.length} ligne(s)` : "Édition groupée"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
+          {selectionMode ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Les actions ci-dessous s&apos;appliquent uniquement aux lignes sélectionnées dans le
+              tableau.
+            </p>
+          ) : (
+            <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Filtres cumulables</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -190,6 +210,8 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
               </div>
             </div>
           </div>
+            </>
+          )}
 
           <div className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
             {previewing ? (
@@ -208,8 +230,7 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["set_margin", "Définir une marge"],
-                ["set_mix", "Définir un mix"],
+                ["set_overrides", "Définir marge et mix"],
                 ["reset", "Réinitialiser les surcharges"],
               ] as [ActionType, string][]
             ).map(([id, label]) => (
@@ -229,23 +250,25 @@ export function BulkEditModal({ simId, open, onClose, onApplied }: Props) {
             ))}
           </div>
 
-          <div className="mt-4">
-            {action === "set_margin" && (
-              <div className="max-w-[200px]">
-                <label className={labelCls}>Marge effective (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={99}
-                  step="0.1"
-                  value={marginPct}
-                  onChange={(e) => setMarginPct(e.target.value)}
-                  className={inputCls}
-                  placeholder="20"
-                />
-              </div>
+          <div className="mt-4 flex flex-col gap-5">
+            {action === "set_overrides" && (
+              <>
+                <div className="max-w-[200px]">
+                  <label className={labelCls}>Marge Syskern effective (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    step="0.1"
+                    value={marginPct}
+                    onChange={(e) => setMarginPct(e.target.value)}
+                    className={inputCls}
+                    placeholder="20"
+                  />
+                </div>
+                <StockPurchaseMixSlider value={mixPct} onChange={setMixPct} />
+              </>
             )}
-            {action === "set_mix" && <StockPurchaseMixSlider value={mixPct} onChange={setMixPct} />}
             {action === "reset" && (
               <p className="text-sm text-muted-foreground">
                 Réinitialise marge et mix surchargés sur les lignes filtrées.

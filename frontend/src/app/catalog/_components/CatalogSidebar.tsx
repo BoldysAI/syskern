@@ -5,6 +5,7 @@ import useSWR from "swr";
 import {
   Bookmark,
   BookmarkSimple,
+  Checks,
   CurrencyEur,
   Factory,
   Faders,
@@ -127,6 +128,8 @@ export function CatalogSidebar({
     (filters.stock_out ? 1 : 0) +
     (!filters.stock_out && filters.stock_min != null && filters.stock_min > 0 ? 1 : 0);
 
+  const activeCount = (filters.active_in ? 1 : 0) + (filters.active_out ? 1 : 0);
+
   const showStockMinSlider = !filters.stock_out;
 
   const pampCount =
@@ -170,6 +173,35 @@ export function CatalogSidebar({
           searchable={(suppliers?.length ?? 0) > 5}
           sortSelectedFirst
         />
+      </FilterSection>
+
+      <FilterSection title="Statut produit" icon={Checks} activeCount={activeCount}>
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="active-in" className="text-sm font-medium">
+              Actif
+            </Label>
+            <Switch
+              id="active-in"
+              checked={!!filters.active_in}
+              onCheckedChange={(checked) =>
+                patch(checked ? { active_in: true, active_out: false } : { active_in: false })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="active-out" className="text-sm font-medium">
+              Non actif
+            </Label>
+            <Switch
+              id="active-out"
+              checked={!!filters.active_out}
+              onCheckedChange={(checked) =>
+                patch(checked ? { active_out: true, active_in: false } : { active_out: false })
+              }
+            />
+          </div>
+        </div>
       </FilterSection>
 
       <FilterSection title="Prix PAMP" icon={CurrencyEur} activeCount={pampCount}>

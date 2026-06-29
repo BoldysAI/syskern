@@ -17,6 +17,7 @@ import { SimulationSidebar } from "./_components/SimulationSidebar";
 import { SimulationTable } from "./_components/SimulationTable";
 import { RecalculateModal } from "./_components/RecalculateModal";
 import { BulkEditModal } from "./_components/BulkEditModal";
+import { AddProductsModal } from "./_components/AddProductsModal";
 import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
 
 export default function SimulationDetailPage() {
@@ -39,6 +40,8 @@ export default function SimulationDetailPage() {
   });
   const [recalcOpen, setRecalcOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkLineIds, setBulkLineIds] = useState<string[] | null>(null);
+  const [addProductsOpen, setAddProductsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingMarketParams, setPendingMarketParams] = useState<Record<string, string> | null>(
     null
@@ -163,7 +166,11 @@ export default function SimulationDetailPage() {
           sim={sim}
           readOnly={readOnly}
           onRecalc={() => setRecalcOpen(true)}
-          onBulkEdit={() => setBulkOpen(true)}
+          onAddProducts={() => setAddProductsOpen(true)}
+          onBulkEdit={(lineIds) => {
+            setBulkLineIds(lineIds?.length ? lineIds : null);
+            setBulkOpen(true);
+          }}
           onExport={() => exportSimulation(sim.id)}
           onHistory={() => setHistoryOpen(true)}
           onChanged={() => void mutateSim()}
@@ -177,10 +184,20 @@ export default function SimulationDetailPage() {
         onClose={() => setRecalcOpen(false)}
         onDone={refreshAll}
       />
+      <AddProductsModal
+        simId={sim.id}
+        open={addProductsOpen}
+        onClose={() => setAddProductsOpen(false)}
+        onAdded={refreshAll}
+      />
       <BulkEditModal
         simId={sim.id}
         open={bulkOpen}
-        onClose={() => setBulkOpen(false)}
+        lineIds={bulkLineIds}
+        onClose={() => {
+          setBulkOpen(false);
+          setBulkLineIds(null);
+        }}
         onApplied={refreshAll}
       />
       <RecalcHistoryDrawer simId={sim.id} open={historyOpen} onClose={() => setHistoryOpen(false)} />

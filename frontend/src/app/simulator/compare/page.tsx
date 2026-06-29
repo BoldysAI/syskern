@@ -108,9 +108,7 @@ function CompareContent() {
     };
   }, [savedParam, simsParam, recalcParam, router]);
 
-  const { data: simulations } = useSWR<Simulation[]>(["simulations", true], () =>
-    getSimulations({ includeArchived: true })
-  );
+  const { data: simulations } = useSWR<Simulation[]>("simulations", () => getSimulations());
 
   const columnCount = selected.length + recalcIds.length;
   const compareKey =

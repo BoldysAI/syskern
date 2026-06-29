@@ -89,6 +89,8 @@ export function isEmptyFilter(f: CatalogFilters): boolean {
     !f.sub_range?.length &&
     !f.brand?.length &&
     !f.supplier?.length &&
+    !f.active_in &&
+    !f.active_out &&
     !f.stock_in &&
     !f.stock_out &&
     (f.stock_min == null || f.stock_min <= 0) &&

@@ -466,7 +466,7 @@ class CatalogFilterBoundsView(APIView):
         from django.db.models import Max, Min
 
         data = {k: v for k, v in request.query_params.items() if k not in self._IGNORED_PARAMS}
-        qs = ProductFilter(data=data, queryset=Product.objects.filter(is_active=True)).qs
+        qs = ProductFilter(data=data, queryset=Product.objects.all()).qs
 
         aggs = qs.aggregate(
             pamp_min=Min("pamp_eur"),

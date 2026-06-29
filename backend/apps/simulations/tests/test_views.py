@@ -40,6 +40,32 @@ from apps.simulations.tasks import recalculate_task
 pytestmark = pytest.mark.django_db
 
 
+def _minimal_chain() -> dict:
+    return {
+        "purchase_chain": {
+            "copper_variation": {},
+            "currency_conversion": {"to_currency": "EUR"},
+            "transports": [],
+            "customs": {"global_cost": "0", "currency": "EUR"},
+            "symea_margin": {"rate": "0.06", "position": "after_transports"},
+        },
+        "sale_chain": {
+            "transports": [],
+            "customs": None,
+            "syskern_margin": {"rate": "0.20"},
+        },
+    }
+
+
+def _market_params() -> dict:
+    return {
+        "copper_base_price_rmb": "70000",
+        "copper_current_price_rmb": "97000",
+        "fx_eur_rmb": "7.95",
+        "fx_eur_usd": "1.15",
+    }
+
+
 @pytest.fixture()
 def client() -> APIClient:
     return APIClient()
@@ -67,6 +93,53 @@ def _archived() -> Simulation:
         simulation_type=SimulationType.TARIFF,
         status=SimulationStatus.ARCHIVED,
     )
+
+
+class TestSimulationListFilters:
+    def test_search_and_status_filter(self, client: APIClient) -> None:
+        Simulation.objects.create(label="Alpha tarif", simulation_type=SimulationType.TARIFF)
+        Simulation.objects.create(
+            label="Beta projet",
+            simulation_type=SimulationType.PROJECT,
+            project_name="Projet Z",
+            status=SimulationStatus.FINALIZED,
+        )
+        _archived()
+
+        resp = client.get("/api/simulations/?q=alpha")
+        assert resp.status_code == 200
+        labels = [row["label"] for row in resp.json()["results"]]
+        assert labels == ["Alpha tarif"]
+
+        resp = client.get("/api/simulations/?status=finalized")
+        assert resp.status_code == 200
+        labels = [row["label"] for row in resp.json()["results"]]
+        assert labels == ["Beta projet"]
+
+        resp = client.get("/api/simulations/?status=archived")
+        assert resp.status_code == 200
+        labels = [row["label"] for row in resp.json()["results"]]
+        assert labels == ["Archivée"]
+
+    def test_is_dirty_filter_and_ordering(self, client: APIClient) -> None:
+        clean = Simulation.objects.create(label="Propre", simulation_type=SimulationType.TARIFF)
+        dirty = Simulation.objects.create(
+            label="Sale",
+            simulation_type=SimulationType.TARIFF,
+            is_dirty=True,
+        )
+        Simulation.objects.filter(pk=clean.pk).update(
+            is_dirty=False,
+            updated_at=timezone.now() - timedelta(days=1),
+        )
+
+        resp = client.get("/api/simulations/?is_dirty=true")
+        assert resp.status_code == 200
+        assert [row["label"] for row in resp.json()["results"]] == ["Sale"]
+
+        resp = client.get("/api/simulations/?ordering=label")
+        assert resp.status_code == 200
+        assert [row["label"] for row in resp.json()["results"]] == ["Propre", "Sale"]
 
 
 # ─── Integrity rules (CDC §6.9.10) ──────────────────────────────────────────
@@ -252,7 +325,12 @@ class TestLineEditGuard:
 
 def _priceable_line() -> tuple[Simulation, SimulationLine]:
     """A draft simulation with one line that the engine can price end-to-end."""
-    sim = Simulation.objects.create(label="Recalc", simulation_type=SimulationType.TARIFF)
+    sim = Simulation.objects.create(
+        label="Recalc",
+        simulation_type=SimulationType.TARIFF,
+        market_params=_market_params(),
+        calculation_chain=_minimal_chain(),
+    )
     product = Product.objects.create(
         sku_code="PR-1", name="Priceable", pallet_qty=10, stock_quantity=Decimal("0")
     )
@@ -283,6 +361,42 @@ class TestSingleLineRecalc:
         Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
         resp = client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
         assert resp.status_code == 403
+
+    def test_recalculate_single_line_clears_simulation_dirty(self, client: APIClient) -> None:
+        sim, line = _priceable_line()
+        Simulation.objects.filter(pk=sim.pk).update(is_dirty=True)
+        resp = client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
+        assert resp.status_code == 200
+        sim.refresh_from_db()
+        assert sim.is_dirty is False
+
+
+def _two_priceable_lines() -> tuple[Simulation, list[SimulationLine]]:
+    sim = Simulation.objects.create(
+        label="Recalc x2",
+        simulation_type=SimulationType.TARIFF,
+        market_params=_market_params(),
+        calculation_chain=_minimal_chain(),
+    )
+    lines: list[SimulationLine] = []
+    for i in range(2):
+        product = Product.objects.create(
+            sku_code=f"PR-{i}",
+            name=f"Priceable {i}",
+            pallet_qty=10,
+            stock_quantity=Decimal("0"),
+        )
+        ProductSupplier.objects.create(
+            product=product,
+            supplier_name="Fournisseur",
+            is_active=True,
+            po_base_price=Decimal("100"),
+            po_currency=Currency.EUR,
+        )
+        lines.append(
+            SimulationLine.objects.create(simulation=sim, product=product, status="pending")
+        )
+    return sim, lines
 
 
 # ─── Finalize (CDC §6.9.6) ──────────────────────────────────────────────────
@@ -342,6 +456,42 @@ class TestFinalize:
         resp = client.patch(f"/api/simulations/{sim.pk}/", {"label": "Modifié"}, format="json")
         assert resp.status_code == 403
 
+    def test_finalize_after_partial_recalc_on_dirty_lines(self, client: APIClient) -> None:
+        sim, lines = _two_priceable_lines()
+        now = timezone.now()
+        for line in lines:
+            client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
+            line.refresh_from_db()
+            assert line.status == "ok"
+        Simulation.objects.filter(pk=sim.pk).update(last_calculated_at=now, is_dirty=False)
+
+        lines[1].status = "dirty"
+        lines[1].save(update_fields=["status"])
+        Simulation.objects.filter(pk=sim.pk).update(is_dirty=True)
+
+        resp = client.post(f"/api/simulation-lines/{lines[1].pk}/recalculate/")
+        assert resp.status_code == 200
+        sim.refresh_from_db()
+        assert sim.is_dirty is False
+
+        resp = client.post(f"/api/simulations/{sim.pk}/finalize/")
+        assert resp.status_code == 200
+        sim.refresh_from_db()
+        assert sim.status == SimulationStatus.FINALIZED
+
+    def test_pricing_patch_marks_lines_dirty(self, client: APIClient) -> None:
+        sim, line = self._calculated_sim()
+        resp = client.patch(
+            f"/api/simulations/{sim.pk}/",
+            {"market_params": {"fx_eur_rmb": "7.50", "fx_eur_usd": "1.10"}},
+            format="json",
+        )
+        assert resp.status_code == 200
+        line.refresh_from_db()
+        sim.refresh_from_db()
+        assert line.status == "dirty"
+        assert sim.is_dirty is True
+
 
 # ─── Archive / unarchive (CDC §6.9.11) ──────────────────────────────────────
 
@@ -362,20 +512,21 @@ class TestArchive:
         sim.refresh_from_db()
         assert sim.status == SimulationStatus.FINALIZED
 
-    def test_list_excludes_archived_by_default(self, client: APIClient, draft: Simulation) -> None:
+    def test_list_includes_archived_by_default(self, client: APIClient, draft: Simulation) -> None:
         _archived()
         resp = client.get("/api/simulations/")
         assert resp.status_code == 200
         statuses = {row["status"] for row in resp.json()["results"]}
-        assert SimulationStatus.ARCHIVED not in statuses
+        assert SimulationStatus.ARCHIVED in statuses
         assert SimulationStatus.DRAFT in statuses
 
-    def test_list_includes_archived_with_flag(self, client: APIClient, draft: Simulation) -> None:
+    def test_list_status_filter_can_exclude_archived(self, client: APIClient, draft: Simulation) -> None:
         _archived()
-        resp = client.get("/api/simulations/?include_archived=true")
+        resp = client.get("/api/simulations/?status=draft,finalized")
         assert resp.status_code == 200
         statuses = {row["status"] for row in resp.json()["results"]}
-        assert SimulationStatus.ARCHIVED in statuses
+        assert SimulationStatus.ARCHIVED not in statuses
+        assert SimulationStatus.DRAFT in statuses
 
     def test_archive_does_not_touch_offers(self, client: APIClient) -> None:
         sim = _finalized()
@@ -522,6 +673,25 @@ class TestBulkEdit:
         sim.refresh_from_db()
         assert sim.is_dirty is True
 
+    def test_bulk_edit_margin_and_mix_together(self, client: APIClient) -> None:
+        sim, lines = self._sim_with_lines()
+        resp = client.post(
+            f"/api/simulations/{sim.pk}/lines/bulk/",
+            {
+                "filter": {"brand": "ACME"},
+                "margin_override": "0.1800",
+                "stock_purchase_mix_pct_override": 75,
+            },
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["updated"] == 2
+        for line in lines:
+            line.refresh_from_db()
+            assert line.status == "dirty"
+            assert str(line.margin_override) == "0.1800"
+            assert line.stock_purchase_mix_pct_override == 75
+
     def test_bulk_edit_finalized_returns_403(self, client: APIClient) -> None:
         sim, _ = self._sim_with_lines()
         Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
@@ -531,6 +701,64 @@ class TestBulkEdit:
             format="json",
         )
         assert resp.status_code == 403
+
+    def test_bulk_edit_by_line_ids(self, client: APIClient) -> None:
+        sim, lines = self._sim_with_lines()
+        target_id = str(lines[0].pk)
+        resp = client.post(
+            f"/api/simulations/{sim.pk}/lines/bulk/",
+            {"filter": {"line_ids": [target_id]}, "margin_override": "0.2200"},
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["updated"] == 1
+        lines[0].refresh_from_db()
+        lines[1].refresh_from_db()
+        assert str(lines[0].margin_override) == "0.2200"
+        assert lines[0].status == "dirty"
+        assert lines[1].margin_override is None
+
+
+class TestSimulationLineDelete:
+    def test_delete_line_clears_dirty_when_no_outstanding_lines(self, client: APIClient) -> None:
+        sim = Simulation.objects.create(label="Del", simulation_type=SimulationType.TARIFF)
+        product = Product.objects.create(sku_code="DEL-1", name="x")
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="ok")
+        Simulation.objects.filter(pk=sim.pk).update(is_dirty=True)
+        resp = client.delete(f"/api/simulation-lines/{line.pk}/")
+        assert resp.status_code == 204
+        assert not SimulationLine.objects.filter(pk=line.pk).exists()
+        sim.refresh_from_db()
+        assert sim.is_dirty is False
+
+    def test_delete_line_finalized_returns_403(self, client: APIClient) -> None:
+        sim = Simulation.objects.create(
+            label="Del fin",
+            simulation_type=SimulationType.TARIFF,
+            status=SimulationStatus.FINALIZED,
+        )
+        product = Product.objects.create(sku_code="DEL-2", name="x")
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="ok")
+        resp = client.delete(f"/api/simulation-lines/{line.pk}/")
+        assert resp.status_code == 403
+
+    def test_bulk_delete_by_line_ids(self, client: APIClient) -> None:
+        sim = Simulation.objects.create(label="Bulk del", simulation_type=SimulationType.TARIFF)
+        products = [Product.objects.create(sku_code=f"BD-{i}", name="x") for i in range(3)]
+        lines = [
+            SimulationLine.objects.create(simulation=sim, product=p, status="ok")
+            for p in products
+        ]
+        resp = client.post(
+            f"/api/simulations/{sim.pk}/lines/bulk-delete/",
+            {"line_ids": [str(lines[0].pk), str(lines[2].pk)]},
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] == 2
+        assert SimulationLine.objects.filter(simulation=sim).count() == 1
+        sim.refresh_from_db()
+        assert sim.is_dirty is False
 
 
 # ─── Compare (CDC §6.9.8, §6.9.12) ──────────────────────────────────────────

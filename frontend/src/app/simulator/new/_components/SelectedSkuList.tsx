@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Package, X } from "@phosphor-icons/react";
 import type { SelectedSku } from "./wizard-draft";
 
@@ -7,13 +8,14 @@ interface Props {
   skus: SelectedSku[];
   onRemove: (id: string) => void;
   onClear: () => void;
+  className?: string;
 }
 
 /** Cumulative list of SKU selected across the 3 methods (CDC §6.9.2). */
-export function SelectedSkuList({ skus, onRemove, onClear }: Props) {
+export function SelectedSkuList({ skus, onRemove, onClear, className }: Props) {
   return (
-    <div className="border border-border rounded-xl bg-card shadow-sm">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+    <div className={cn("flex flex-col rounded-xl border border-border bg-card shadow-sm", className)}>
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Package size={16} className="text-warm" />
           <span className="text-sm font-semibold text-foreground">
@@ -33,10 +35,10 @@ export function SelectedSkuList({ skus, onRemove, onClear }: Props) {
 
       {skus.length === 0 ? (
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          Aucun SKU sélectionné. Utilisez les méthodes ci-dessus pour en ajouter.
+          Aucun SKU sélectionné. Parcourez le catalogue pour en ajouter.
         </p>
       ) : (
-        <ul className="max-h-56 overflow-y-auto divide-y divide-[#F1F5F9]">
+        <ul className="min-h-0 flex-1 divide-y divide-[#F1F5F9] overflow-y-auto">
           {skus.map((s) => (
             <li
               key={s.id}

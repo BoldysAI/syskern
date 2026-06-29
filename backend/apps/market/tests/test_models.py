@@ -80,6 +80,34 @@ class TestCurrentMarketParameterEndpoint:
         assert response.data["id"] == str(active.id)
         assert response.data["fx_rate"] == "7.950000"
 
+    def test_current_copper_filters_by_market(self, client: APIClient) -> None:
+        MarketParameter.objects.create(
+            parameter_type=MarketParameterType.COPPER_PRICE,
+            copper_market="LME",
+            copper_price=Decimal("9500.00"),
+            copper_currency="USD",
+            valid_from=date(2026, 6, 1),
+            is_active=True,
+            source="LME",
+        )
+        she_active = MarketParameter.objects.create(
+            parameter_type=MarketParameterType.COPPER_PRICE,
+            copper_market="SHE",
+            copper_price=Decimal("72000.00"),
+            copper_currency="RMB",
+            valid_from=date(2026, 6, 1),
+            is_active=True,
+            source="SHE",
+        )
+
+        response = client.get(
+            "/api/market-parameters/current/",
+            {"parameter_type": "copper_price", "copper_market": "SHE"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == str(she_active.id)
+        assert response.data["copper_price"] == "72000.00"
+
     def test_current_missing_returns_404(self, client: APIClient) -> None:
         response = client.get(
             "/api/market-parameters/current/",

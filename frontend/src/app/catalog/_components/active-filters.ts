@@ -17,6 +17,8 @@ export function countActiveFilters(f: CatalogFilters): number {
   n += f.sub_range?.length ?? 0;
   n += f.brand?.length ?? 0;
   n += f.supplier?.length ?? 0;
+  if (f.active_in) n++;
+  if (f.active_out) n++;
   if (f.stock_in) n++;
   if (f.stock_out) n++;
   if (!f.stock_out && f.stock_min != null && f.stock_min > 0) n++;
@@ -67,6 +69,13 @@ export function buildFilterChips(
     for (const v of values) {
       chips.push({ id: `${key}:${v}`, label: v, category });
     }
+  }
+
+  if (filters.active_in) {
+    chips.push({ id: "active_in", label: "Actif", category: "Statut" });
+  }
+  if (filters.active_out) {
+    chips.push({ id: "active_out", label: "Non actif", category: "Statut" });
   }
 
   if (filters.stock_in) {
@@ -120,6 +129,8 @@ export function removeFilterChip(filters: CatalogFilters, chipId: string): Catal
     delete next.q;
     return next;
   }
+  if (chipId === "active_in") return { ...filters, active_in: false };
+  if (chipId === "active_out") return { ...filters, active_out: false };
   if (chipId === "stock_in") return { ...filters, stock_in: false };
   if (chipId === "stock_out") return { ...filters, stock_out: false };
   if (chipId === "stock_min") return { ...filters, stock_min: null };

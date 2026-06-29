@@ -32,6 +32,7 @@ import useSWR from "swr";
 import { FinalizeModal } from "./FinalizeModal";
 import { DuplicateModal } from "./DuplicateModal";
 import { cn } from "@/lib/utils";
+import { humanizeApiError } from "@/lib/humanize-errors";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -162,7 +163,7 @@ export function SimulationSidebar({
       await fn();
       onChanged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Action échouée");
+      toast.error(humanizeApiError(e, "Action échouée"));
     } finally {
       setBusy(null);
     }
@@ -318,10 +319,13 @@ export function SimulationSidebar({
             )}
           </div>
           <div className="flex flex-col gap-1.5">
-            <MarketValue label="Cuivre base (RMB)" value={draft.marketParams.copper_base_price_rmb} />
             <MarketValue
-              label="Cuivre actuel (RMB)"
-              value={draft.marketParams.copper_current_price_rmb}
+              label={`Cuivre base (${draft.marketParams.copper_currency ?? "RMB"})`}
+              value={draft.marketParams.copper_base_price}
+            />
+            <MarketValue
+              label={`Cuivre actuel (${draft.marketParams.copper_currency ?? "RMB"})`}
+              value={draft.marketParams.copper_current_price}
             />
             <MarketValue label="FX EUR→RMB" value={draft.marketParams.fx_eur_rmb} />
             <MarketValue label="FX EUR→USD" value={draft.marketParams.fx_eur_usd} />
