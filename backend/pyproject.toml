@@ -19,7 +19,8 @@ dependencies = [
     # ─── DB driver ─────────────────────────────────────────
     "psycopg[binary]>=3.1,<4",
     # ─── Auth (Supabase JWT verification in prod) ──────────
-    "PyJWT[crypto]>=2.8",
+    # Floor raised to 2.13.0 for GHSA-xgmm-8j9v-c9wx et al. (pulls cryptography>=48.0.1).
+    "PyJWT[crypto]>=2.13.0",
     # ─── Background jobs ───────────────────────────────────
     "celery[redis]>=5.4",
     "django-celery-beat>=2.6",
