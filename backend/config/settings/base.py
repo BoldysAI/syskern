@@ -225,7 +225,9 @@ OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
 EMAIL_BACKEND = env(
     "DJANGO_EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
-DEFAULT_FROM_EMAIL = env("DJANGO_DEFAULT_FROM_EMAIL", default="noreply@syskern.local")
+DEFAULT_FROM_EMAIL = env("DJANGO_DEFAULT_FROM_EMAIL", default="noreply@syskern.com")
+# Address used for server-error / technical alert mails (uptime, cron failures).
+SERVER_EMAIL = env("DJANGO_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
 EMAIL_HOST = env("EMAIL_HOST", default="")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
@@ -314,6 +316,13 @@ DEFAULT_SYSKERN_MARGIN_RATE = "0.20"
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        # Redact credentials (Authorization, Cookie, password, api_key, token,
+        # secret, Bearer/sk- shapes) before any record is written — CDC §9.6.
+        "redact_secrets": {
+            "()": "apps.core.logging.SensitiveDataFilter",
+        },
+    },
     "formatters": {
         "verbose": {
             "format": "{asctime} {levelname} {name} {message}",
@@ -324,6 +333,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+            "filters": ["redact_secrets"],
         },
     },
     "root": {"handlers": ["console"], "level": "INFO"},

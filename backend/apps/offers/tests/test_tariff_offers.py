@@ -36,10 +36,13 @@ def export_dir(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def finalized_tariff():
+    # Build as draft, add the lines, then finalize: the DB guard trigger
+    # (simulation_lines_guard_finalized_parent) blocks line inserts once the
+    # parent is finalized, so the lines must exist first.
     sim = Simulation.objects.create(
         label="Tarif Q3 2026",
         simulation_type="tariff",
-        status="finalized",
+        status="draft",
         market_params={"fx_eur_usd": "1.15", "fx_eur_rmb": "7.95"},
     )
     p1 = Product.objects.create(
@@ -60,6 +63,8 @@ def finalized_tariff():
     SimulationLine.objects.create(
         simulation=sim, product=p2, pv_eur=Decimal("1200.00"), status="ok"
     )
+    Simulation.objects.filter(pk=sim.pk).update(status="finalized")
+    sim.refresh_from_db()
     return sim
 
 

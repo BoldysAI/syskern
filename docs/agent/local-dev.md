@@ -112,7 +112,7 @@ les boutons async renverront une erreur ou resteront en attente.
 
 | URL | Attendu |
 |---|---|
-| http://127.0.0.1:8000/api/health | `{"status":"ok"}` |
+| http://127.0.0.1:8000/api/health | `{"status":"ok","database":"ok"}` (503 si BDD KO — CDC §9.6, runbook `monitoring.md`) |
 | http://127.0.0.1:8000/api/docs/ | Swagger |
 | http://localhost:3000/login | Page de connexion |
 | http://localhost:3000/catalog | Liste produits (après login) |

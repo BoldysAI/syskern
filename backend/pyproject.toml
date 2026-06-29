@@ -72,6 +72,10 @@ ignore = ["E501"]  # line length is handled by formatter
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.local"
+# Restrict collection to the apps. `scripts/` holds standalone smoke scripts
+# (e.g. test_adapters.py) that match `test_*.py` but `sys.exit()` at import —
+# without this they crash collection.
+testpaths = ["apps"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 addopts = "-ra --strict-markers"
 

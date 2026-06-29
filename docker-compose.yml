@@ -1,12 +1,16 @@
 # Local development stack for Syskern Pricing Platform.
-# Production uses Supabase (managed Postgres + Auth + Storage); locally we run
-# a plain Postgres + Redis pair and the Django dev server.
+# Both local and prod run plain PostgreSQL (no Supabase — see
+# docs/agent/decisions.md 2026-06-22); locally a Postgres + Redis pair plus the
+# Django dev server.
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: syskern-postgres
     restart: unless-stopped
+    # Log any statement slower than 500 ms (CDC §9.6). In prod the same knob
+    # goes in postgresql.conf — see docs/runbooks/monitoring.md.
+    command: ["postgres", "-c", "log_min_duration_statement=500"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-syskern}
       POSTGRES_USER: ${POSTGRES_USER:-syskern}

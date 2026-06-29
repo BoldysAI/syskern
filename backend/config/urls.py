@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 from django.contrib import admin
-from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-
-def healthcheck(_request):
-    return JsonResponse({"status": "ok"})
-
+from apps.core.health import health_view
 
 api_patterns = [
     # Auth + user management.
@@ -38,7 +34,7 @@ api_patterns = [
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/health", healthcheck, name="health"),
+    path("api/health", health_view, name="health"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
     path("api/", include(api_patterns)),
