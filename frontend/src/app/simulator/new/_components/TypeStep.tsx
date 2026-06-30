@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { Check, MagnifyingGlass, X } from "@phosphor-icons/react";
-import { getClients, type Client, type SimulationType } from "@/lib/api";
+import { getClients, getClientsByIds, type Client, type SimulationType } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -45,8 +45,22 @@ export function TypeStep({
     getClients(debounced || undefined)
   );
 
+  const clientIdsKey = useMemo(() => [...clientIds].sort().join(","), [clientIds]);
+  const { data: resolvedClients } = useSWR<Client[]>(
+    clientIds.length ? ["clients-by-ids", clientIdsKey] : null,
+    () => getClientsByIds(clientIds),
+  );
+
   const [knownNames, setKnownNames] = useState<Record<string, string>>({});
-  const nameFor = (id: string) => knownNames[id] ?? id;
+
+  const nameFor = (id: string) => {
+    if (knownNames[id]) return knownNames[id];
+    const fromSearch = clients?.find((c) => c.id === id);
+    if (fromSearch) return fromSearch.name;
+    const fromResolved = resolvedClients?.find((c) => c.id === id);
+    if (fromResolved) return fromResolved.name;
+    return id;
+  };
 
   const remember = (c: Client) =>
     setKnownNames((prev) => (prev[c.id] ? prev : { ...prev, [c.id]: c.name }));

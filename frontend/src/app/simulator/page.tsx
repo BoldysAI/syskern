@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
   Plus,
@@ -10,7 +10,6 @@ import {
   SealCheck,
   Archive,
   GitDiff,
-  Bookmark,
   Faders,
   SidebarSimple,
   X,
@@ -81,6 +80,7 @@ function SimulationStatusCell({ status, dirty }: { status: Simulation["status"];
 
 export default function SimulatorPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const confirm = useConfirm();
 
   const [filters, setFilters] = useState<SimulationFilters>({});
@@ -109,6 +109,12 @@ export default function SimulatorPage() {
   useEffect(() => {
     persistSavedSimulationFilters(savedFilters);
   }, [savedFilters]);
+
+  useEffect(() => {
+    if (searchParams.get("is_dirty") === "true") {
+      setFilters((f) => ({ ...f, is_dirty: true }));
+    }
+  }, [searchParams]);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSearchChange = (v: string) => {
@@ -256,7 +262,7 @@ export default function SimulatorPage() {
 
   const compareSelection = () => {
     if (!canCompare) return;
-    router.push(`/simulator/compare?sims=${selectedIds.slice(0, MAX_COMPARE).join(",")}`);
+    router.push(`/comparator/new?sims=${selectedIds.slice(0, MAX_COMPARE).join(",")}`);
   };
 
   const onSaveFilter = (name: string) => {
@@ -395,17 +401,9 @@ export default function SimulatorPage() {
             />
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" onClick={() => router.push("/simulator/compare")}>
+            <Button variant="outline" onClick={() => router.push("/comparator")}>
               <GitDiff size={16} />
-              <span className="hidden sm:inline">Comparer</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => router.push("/simulator/compare?aside=saved")}
-              title="Comparaisons enregistrées"
-            >
-              <Bookmark size={16} />
+              <span className="hidden sm:inline">Comparaisons</span>
             </Button>
             <Button onClick={() => router.push("/simulator/new")}>
               <Plus size={16} />

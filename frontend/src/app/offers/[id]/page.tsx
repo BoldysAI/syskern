@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
@@ -27,6 +27,7 @@ import {
   useBreadcrumbOverride,
   type BreadcrumbCrumb,
 } from "@/components/layout/BreadcrumbContext";
+import { persistLastVisited } from "@/lib/last-visited";
 import {
   Dialog,
   DialogContent,
@@ -160,6 +161,16 @@ export default function OfferDetailPage() {
   }, [offer]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(offer));
+
+  useEffect(() => {
+    if (!offer) return;
+    persistLastVisited({
+      kind: "offer",
+      id: offer.id,
+      label: offer.label,
+      path: `/offers/${offer.id}`,
+    });
+  }, [offer]);
 
   if (isLoading || !offer) {
     return (

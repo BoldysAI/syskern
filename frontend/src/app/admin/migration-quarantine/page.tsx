@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { useRouter } from "next/navigation";
 import {
   CheckCircle,
   CircleNotch,
@@ -10,6 +9,7 @@ import {
   Warning,
   WarningCircle,
 } from "@phosphor-icons/react";
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { useAuth } from "@/contexts/AuthContext";
 import { DataTable } from "@/components/data-table";
 import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
@@ -219,8 +219,8 @@ function DetailModal({
 }
 
 export default function MigrationQuarantinePage() {
-  const { role, user } = useAuth();
-  const router = useRouter();
+  const { isLoading: authLoading, allowed } = useRequireAdmin();
+  const { user } = useAuth();
 
   const [sourceFile, setSourceFile] = useState("");
   const [reason, setReason] = useState("");
@@ -291,9 +291,12 @@ export default function MigrationQuarantinePage() {
     [],
   );
 
-  if (role !== "admin") {
-    router.replace("/catalog");
-    return null;
+  if (authLoading || !allowed) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+      </div>
+    );
   }
 
   const resetPaging = () => setOffset(0);

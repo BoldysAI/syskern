@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
@@ -20,7 +21,9 @@ from apps.offers.serializers import (
 from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
 
-from .filters import SimulationFilter
+from apps.core.pagination import DefaultLimitOffsetPagination
+
+from .filters import SavedComparisonFilter, SimulationFilter
 from .models import (
     SavedComparison,
     Simulation,
@@ -788,11 +791,17 @@ class SavedComparisonViewSet(viewsets.ModelViewSet):
     """CRUD for persisted compare configurations."""
 
     queryset = SavedComparison.objects.all()
-    pagination_class = None
+    pagination_class = DefaultLimitOffsetPagination
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = SavedComparisonFilter
+    ordering_fields = ["label", "created_at", "updated_at"]
+    ordering = ["-updated_at"]
 
     def get_serializer_class(self):
-        if self.action in ("create", "update", "partial_update"):
+        if self.action == "create":
             return SavedComparisonWriteSerializer
+        if self.action in ("update", "partial_update"):
+            return SavedComparisonPatchSerializer
         return SavedComparisonSerializer
 
     def perform_create(self, serializer):

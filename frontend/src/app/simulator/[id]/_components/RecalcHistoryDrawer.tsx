@@ -75,7 +75,7 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
                       recalc={r}
                       onDetail={() => setDetailId(r.id)}
                       onCompare={() =>
-                        router.push(`/simulator/compare?sims=${simId}&recalc=${r.id}`)
+                        router.push(`/comparator/new?sims=${simId}&recalc=${r.id}`)
                       }
                     />
                   ))}

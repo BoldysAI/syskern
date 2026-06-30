@@ -17,13 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { OptionSelect } from "@/components/OptionSelect";
 import { cn } from "@/lib/utils";
 import { CATEGORIES, CODE_REGEX, DATA_TYPES, slugifyCode } from "./constants";
 
@@ -186,32 +180,18 @@ export default function AttributeFormModal({
 
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Catégorie" required>
-            <Select value={category} onValueChange={(v) => setCategory(v as AttributeCategory)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OptionSelect
+              value={category}
+              onValueChange={(v) => setCategory(v as AttributeCategory)}
+              options={CATEGORIES.map((c) => ({ value: c.id, label: c.label }))}
+            />
           </FormField>
           <FormField label="Type" required>
-            <Select value={dataType} onValueChange={(v) => setDataType(v as AttributeDataType)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DATA_TYPES.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OptionSelect
+              value={dataType}
+              onValueChange={(v) => setDataType(v as AttributeDataType)}
+              options={DATA_TYPES.map((d) => ({ value: d.id, label: d.label }))}
+            />
           </FormField>
         </div>
 

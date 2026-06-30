@@ -9,17 +9,18 @@ import {
   ChartLineUp,
   Files,
   GearSix,
+  GitDiff,
   House,
   List,
   Sidebar as SidebarIcon,
   SidebarSimple,
   SignOut,
   SquaresFour,
-  UserCircle,
   Users,
   Warning,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
+import { isAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/BreadcrumbContext";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
@@ -48,6 +49,7 @@ const HOME_ITEM = {
 const NAV_ITEMS = [
   { label: "Catalogue", href: "/catalog", icon: SquaresFour },
   { label: "Simulations", href: "/simulator", icon: ChartLineUp },
+  { label: "Comparaisons", href: "/comparator", icon: GitDiff },
   { label: "Offres", href: "/offers", icon: Files },
   { label: "Bibliothèque", href: "/library", icon: Books },
 ] as const;
@@ -180,23 +182,23 @@ function Sidebar({
           />
         ))}
 
-        <div className="my-3 border-t border-white/10" />
-
-        {!collapsed && (
-          <p className="mb-1 px-3 text-xs font-medium text-white/40">Administration</p>
-        )}
-
-        <NavItem
-          href={SETTINGS_ITEM.href}
-          icon={SETTINGS_ITEM.icon}
-          label={SETTINGS_ITEM.label}
-          active={isNavActive(pathname, SETTINGS_ITEM.href)}
-          collapsed={collapsed}
-          onClick={onClose}
-        />
-
-        {role === "admin" && (
+        {isAdmin(role) && (
           <>
+            <div className="my-3 border-t border-white/10" />
+
+            {!collapsed && (
+              <p className="mb-1 px-3 text-xs font-medium text-white/40">Administration</p>
+            )}
+
+            <NavItem
+              href={SETTINGS_ITEM.href}
+              icon={SETTINGS_ITEM.icon}
+              label={SETTINGS_ITEM.label}
+              active={isNavActive(pathname, SETTINGS_ITEM.href)}
+              collapsed={collapsed}
+              onClick={onClose}
+            />
+
             <NavItem
               href={USERS_ITEM.href}
               icon={USERS_ITEM.icon}
@@ -247,10 +249,12 @@ function Sidebar({
               {user?.email}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/settings" />}>
-              <UserCircle size={16} />
-              Paramètres
-            </DropdownMenuItem>
+            {isAdmin(role) && (
+              <DropdownMenuItem render={<Link href="/settings" />}>
+                <GearSix size={16} />
+                Paramètres
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
               <SignOut size={16} />
               Déconnexion

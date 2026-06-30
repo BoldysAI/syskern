@@ -398,3 +398,15 @@ Migration visuelle complète des 18 routes frontend (plan redesign UI) :
 - **Pricing — pré-vol FX** : `engine/validation.py` accumule **toutes** les erreurs de taux manquants
   avant d'exécuter la chaîne ; `SimulationTable` affiche la liste complète dans la colonne Statut.
 - Tests : `test_engine_errors.py`, `test_engine_validation.py`. Aucune migration.
+
+## 2026-06-29 · [P] Comparaisons — objets de première classe + wizard
+Extension UX post `SavedComparison` (CDC §6.9.8) :
+- **Module `/comparator`** : liste paginée, wizard création (nom → simulations + aperçu SKU communs → aperçu live), fiche `/comparator/{id}` avec modifier/supprimer. Les comparaisons sont des objets persistés réutilisables (comme les simulations), pas seulement une URL éphémère.
+- **API** : `GET /api/saved-comparisons/` paginé (`DefaultLimitOffsetPagination`, `?q=` sur label/note) ; PATCH étendu (`simulation_ids`, `recalculation_ids`).
+- **`/simulator/compare`** conservé pour comparaison ad-hoc rapide ; `?saved=` redirige vers `/comparator/{id}`. Entrées principales : nav Comparaisons, multi-select simulations → `/comparator/new?sims=`, drawer recalc → `/comparator/new?sims=&recalc=`.
+
+## 2026-06-29 · [P] Tableau de bord — endpoint agrégé + refonte UI
+
+- **API** : `GET /api/dashboard/summary` (`apps/core/dashboard.py`, `DashboardSummaryView`) — remplace 6 appels SWR front (produits, univers, simulations×200, offers/dashboard, bibliothèque, recent offers). Payload : `catalog`, `simulations`, `offers` (métriques factorisées via `apps/offers/dashboard_metrics.py`), `comparisons`, `library`, `market` (cuivre LME + FX), `todo[]` (sims dirty / jamais calculées / erreurs lignes, offres expirantes, Gamma error), `recent[]` (top 8 sims/offres/comparaisons).
+- **Frontend** : layout 2 colonnes, KPIs clarifiés (5 cartes dont Comparaisons), section « À traiter », timeline unifiée, carte marché, raccourcis création uniquement, onboarding état vide, personnalisation rôle (`viewer` sans CTAs), « Reprendre » via `last-visited.ts`. Admin : quarantaine + statut Odoo (SWR séparé).
+- **Tests** : `apps/core/tests/test_dashboard.py`.

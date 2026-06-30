@@ -5,7 +5,7 @@ from __future__ import annotations
 import django_filters as filters
 from django.db.models import Q
 
-from .models import Simulation, SimulationStatus, SimulationType
+from .models import SavedComparison, Simulation, SimulationStatus, SimulationType
 
 
 class SimulationFilter(filters.FilterSet):
@@ -47,3 +47,19 @@ class SimulationFilter(filters.FilterSet):
         if not selected:
             return queryset
         return queryset.filter(status__in=selected)
+
+
+class SavedComparisonFilter(filters.FilterSet):
+    """List filters for persisted comparisons."""
+
+    q = filters.CharFilter(method="filter_search")
+
+    class Meta:
+        model = SavedComparison
+        fields = ["q"]
+
+    def filter_search(self, queryset, name, value: str):
+        value = (value or "").strip()
+        if not value:
+            return queryset
+        return queryset.filter(Q(label__icontains=value) | Q(note__icontains=value))

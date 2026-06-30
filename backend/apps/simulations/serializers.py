@@ -368,6 +368,32 @@ class SavedComparisonWriteSerializer(serializers.ModelSerializer):
 
 
 class SavedComparisonPatchSerializer(serializers.ModelSerializer):
+    simulation_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+        max_length=4,
+    )
+    recalculation_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+        max_length=4,
+    )
+
     class Meta:
         model = SavedComparison
-        fields = ["label", "note"]
+        fields = ["label", "note", "simulation_ids", "recalculation_ids"]
+
+    def validate(self, attrs):
+        instance = self.instance
+        assert instance is not None
+        sim_ids = attrs.get("simulation_ids", instance.simulation_ids)
+        recalc_ids = attrs.get("recalculation_ids", instance.recalculation_ids)
+        total = len(sim_ids) + len(recalc_ids)
+        if total < 2:
+            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+        if total > 4:
+            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
+        _validate_compare_ids(sim_ids, recalc_ids)
+        return attrs

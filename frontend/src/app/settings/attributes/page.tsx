@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import {
   DndContext,
@@ -20,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { Plus, Tag } from "@phosphor-icons/react";
 import { listAttributes, reorderAttributes, type AttributeCategory, type AttributeRegistry } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -37,8 +36,7 @@ const COLUMNS = ["", "Code", "Label FR", "Catégorie", "Type", "Obligatoire", "O
 type CategoryFilter = AttributeCategory | "all";
 
 export default function AttributesAdminPage() {
-  const { role, isLoading: authLoading } = useAuth();
-  const router = useRouter();
+  const { isLoading: authLoading, allowed } = useRequireAdmin();
 
   const { data, isLoading, error } = useSWR<AttributeRegistry[]>(SWR_KEY, listAttributes);
 
@@ -59,9 +57,12 @@ export default function AttributesAdminPage() {
 
   const dndEnabled = selectedCat !== "all";
 
-  if (!authLoading && role !== "admin") {
-    router.replace("/catalog");
-    return null;
+  if (authLoading || !allowed) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+      </div>
+    );
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {

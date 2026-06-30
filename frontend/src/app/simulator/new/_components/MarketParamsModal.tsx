@@ -11,13 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { OptionSelect } from "@/components/OptionSelect";
 import type { MarketParamsDraft } from "./wizard-draft";
 import {
   convertCopperDraftPrice,
@@ -37,6 +31,17 @@ interface Props {
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
+
+const COPPER_MARKET_OPTIONS = [
+  { value: "LME", label: "LME (London)" },
+  { value: "SHE", label: "SHE (Shanghai)" },
+] as const;
+
+const COPPER_CURRENCY_OPTIONS = [
+  { value: "RMB", label: "RMB" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+] as const;
 
 export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) {
   const [draft, setDraft] = useState<MarketParamsDraft>(value);
@@ -160,31 +165,19 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Marché cuivre</label>
-              <Select
+              <OptionSelect
                 value={draft.copper_market ?? "LME"}
                 onValueChange={(v) => set({ copper_market: v as "LME" | "SHE" })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LME">LME (London)</SelectItem>
-                  <SelectItem value="SHE">SHE (Shanghai)</SelectItem>
-                </SelectContent>
-              </Select>
+                options={COPPER_MARKET_OPTIONS}
+              />
             </div>
             <div>
               <label className={labelCls}>Devise cuivre</label>
-              <Select value={currency} onValueChange={(v) => onCurrencyChange(v as CopperCurrency)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="RMB">RMB</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                </SelectContent>
-              </Select>
+              <OptionSelect
+                value={currency}
+                onValueChange={(v) => onCurrencyChange(v as CopperCurrency)}
+                options={COPPER_CURRENCY_OPTIONS}
+              />
             </div>
           </div>
 

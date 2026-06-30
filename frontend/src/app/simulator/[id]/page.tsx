@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
 import { SidebarSimple, WarningCircle } from "@phosphor-icons/react";
 import { exportSimulation, getSimulation, type SimulationDetail } from "@/lib/api";
+import { persistLastVisited } from "@/lib/last-visited";
 import {
   useBreadcrumbOverride,
   type BreadcrumbCrumb,
@@ -77,6 +78,16 @@ export default function SimulationDetailPage() {
   }, [sim, searchParams]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));
+
+  useEffect(() => {
+    if (!sim) return;
+    persistLastVisited({
+      kind: "simulation",
+      id: sim.id,
+      label: sim.label,
+      path: `/simulator/${sim.id}`,
+    });
+  }, [sim]);
 
   const refreshLines = () =>
     globalMutate((key) => Array.isArray(key) && key[0] === "sim-lines");

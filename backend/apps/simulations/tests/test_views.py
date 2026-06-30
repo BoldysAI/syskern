@@ -879,7 +879,9 @@ class TestSavedComparisons:
 
         listed = client.get("/api/saved-comparisons/")
         assert listed.status_code == 200
-        assert len(listed.json()) == 1
+        body_list = listed.json()
+        assert body_list["count"] == 1
+        assert len(body_list["results"]) == 1
 
         detail = client.get(f"/api/saved-comparisons/{body['id']}/")
         assert detail.status_code == 200
@@ -920,6 +922,30 @@ class TestSavedComparisons:
         )
         assert resp.status_code == 201
         assert resp.json()["recalculation_ids"] == []
+
+    def test_patch_simulation_ids(self, client: APIClient) -> None:
+        s1 = Simulation.objects.create(label="A", simulation_type=SimulationType.TARIFF)
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        s3 = Simulation.objects.create(label="C", simulation_type=SimulationType.TARIFF)
+        created = client.post(
+            "/api/saved-comparisons/",
+            {
+                "label": "Initiale",
+                "simulation_ids": [str(s1.pk), str(s2.pk)],
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        comp_id = created.json()["id"]
+
+        patch = client.patch(
+            f"/api/saved-comparisons/{comp_id}/",
+            {"simulation_ids": [str(s1.pk), str(s3.pk)]},
+            format="json",
+        )
+        assert patch.status_code == 200
+        assert patch.json()["simulation_ids"] == [str(s1.pk), str(s3.pk)]
+        assert patch.json()["column_count"] == 2
 
 
 # ─── Recalc history: pagination + detail (CDC §6.9.12) ──────────────────────

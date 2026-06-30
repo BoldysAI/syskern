@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from apps.simulations.models import Simulation, SimulationStatus
 
+from .dashboard_metrics import build_offer_dashboard_metrics
 from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
 from .serializers import (
     ExtendExpirationSerializer,
@@ -256,36 +257,7 @@ class OfferLineViewSet(viewsets.ModelViewSet):
 
 class OfferDashboardView(APIView):
     def get(self, request):
-        now = timezone.now()
-        counts = Offer.objects.values("status").annotate(n=Count("id")).order_by()
-        status_counts = {row["status"]: row["n"] for row in counts}
-
-        project_qs = Offer.objects.filter(offer_type=OfferType.PROJECT)
-        won = project_qs.filter(status=OfferStatus.WON).count()
-        lost = project_qs.filter(status=OfferStatus.LOST).count()
-        conversion = (won / (won + lost) * 100) if (won + lost) else None
-
-        # Sum of "won" offer line totals (sum(final_price * quantity)).
-        won_total = (
-            OfferLine.objects.filter(offer__status=OfferStatus.WON)
-            .aggregate(total=Sum(F("final_price") * F("quantity")))
-            .get("total")
-        )
-
-        tariff_active = Offer.objects.filter(
-            offer_type=OfferType.TARIFF,
-            status__in=[OfferStatus.SENT, OfferStatus.DRAFT],
-            valid_to__gte=now.date(),
-        ).count()
-
-        return Response(
-            {
-                "status_counts": status_counts,
-                "project_conversion_pct": conversion,
-                "won_total": str(won_total) if won_total is not None else None,
-                "tariff_active": tariff_active,
-            }
-        )
+        return Response(build_offer_dashboard_metrics())
 
 
 class OffersExpiringSoonView(APIView):

@@ -447,23 +447,14 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   **Voir détail** → `RecalcDetailModal` (lecture seule : agrégats + params figés + **breakdown par ligne**
   via `getRecalculation` + `line_snapshots`) ; **Comparer avec actuel** →
   `/simulator/compare?sims=<simId>&recalc=<recalcId>`.
-- **Comparaison (`/simulator/compare`)** : page `app/simulator/compare/page.tsx` sous `<Suspense>`.
-  **URL** : `?sims=a,b` (simulations, ordre = colonnes) ; `?recalc=id1,id2` (snapshots recalc, après les sims) ;
-  `?saved=<uuid>` (charge une comparaison enregistrée → résout vers `sims`/`recalc`) ; `?aside=saved` (ouvre l'onglet Enregistrées).
-  **Sidebar** : onglets **Sélection** (multi-select ≤4 + recherche) et **Enregistrées** (`SavedComparisonsPanel` :
-  liste, charger, supprimer). Bouton **Enregistrer** → `SaveComparisonModal` → `createSavedComparison`.
-  **API** : `compareSimulations({simulation_ids, recalculation_ids})` ; CRUD `getSavedComparisons` /
-  `createSavedComparison` / `deleteSavedComparison` / `getSavedComparison`.
-  **3 onglets contenu** (1ʳᵉ colonne = référence) :
-  - **Synthèse** (`CompareOverview`) — cartes identité par colonne, KPI + mini-barres, graphiques Recharts
-    (barres PA/PR/PV moyens, camembert impact PV par SKU, barres paramètres marché si écarts, top écarts PV).
-  - **Paramètres** (`CompareContextDiff`) — grille de cartes diff (sections repliables ; par défaut écarts seuls) :
-    identité, marché, simulation, agrégats ; style git-diff (identique / modifié / ajouté / absent).
-  - **Lignes SKU** (`CompareSkuTable`) — modes **Heatmap** (PV coloré par écart %), **Graphique** (barres
-    horizontales top 12 SKU), **Détail** (PA/PR/PV/marge/mix + delta vs réf.) ; tri par écart PV, filtre lignes communes.
-  Composants utilitaires : `compare-diff.ts` (`parseLocaleNum`, `fmtDelta`), `compare-stats.ts`, `compare-colors.ts`.
-  Accès : bouton « Comparer » + icône bookmark sur `/simulator` ; lien depuis `RecalcHistoryDrawer`
-  (`?sims=<simId>&recalc=<recalcId>`). Deltas calculés côté front — jamais de recalcul de prix.
+- **Comparaison (`/simulator/compare`)** : page legacy comparaison ad-hoc (sélection rapide via URL `?sims=` / `?recalc=`). **`?saved=<uuid>`** redirige vers `/comparator/<uuid>`. Préférer le module **Comparaisons** (`/comparator`) pour les objets persistés.
+- **Comparaisons (`/comparator`)** — objets `SavedComparison` de première classe (comme les simulations) :
+  - **Liste** `app/comparator/page.tsx` — `DataTable` paginé (`getComparisonsList`), recherche, tri, **multi-sélection** (checkbox par ligne + tout sélectionner sur la page) et barre d’actions « Supprimer la sélection ».
+  - **Wizard** `app/comparator/new/page.tsx` — 3 étapes : (1) nom + note, (2) sélection 2–4 simulations + **aperçu SKU communs** (`SkuOverlapPreview`), (3) aperçu live (`CompareWorkspace`) puis `createSavedComparison` → redirect `/comparator/{id}`. Draft `localStorage` `syskern:new-comparison-draft:v1`. Préremplissage URL `?sims=` / `?recalc=` (depuis liste simulations ou drawer recalc).
+  - **Détail** `app/comparator/[id]/` — header (modifier / supprimer) + `CompareWorkspace` (onglets Synthèse / Paramètres / Lignes SKU). **`ComparisonEditDialog`** : nom, note, re-sélection simulations (`updateSavedComparison` incl. colonnes).
+  - Nav principale : entrée **Comparaisons** dans `AppShell`. Depuis `/simulator` : multi-select → `/comparator/new?sims=…` ; bouton Comparaisons → liste.
+  - Composants partagés : `CompareWorkspace`, `compare-diff.ts`, `CompareOverview`, `CompareContextDiff`, `CompareSkuTable` (dossier `simulator/compare/_components/`).
+  - **API** : `compareSimulations` (calcul live) ; CRUD `getComparisonsList` / `getSavedComparison` / `createSavedComparison` / `updateSavedComparison` / `deleteSavedComparison`.
 - Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
   `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, `productEditHref`, `MODULE_LABELS`,
   `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`). Erreurs moteur / API :
@@ -566,7 +557,14 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 
 `StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
 
-**Page d'accueil** : `/` = tableau de bord (`app/(home)/page.tsx`) avec KPIs briques métier, raccourcis, activité récente. Post-login → `/` (plus `/catalog`).
+**Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
+
+- **Données** : un seul `useSWR("dashboard-summary", getDashboardSummary)` → `GET /api/dashboard/summary` (agrégats catalogue, simulations, offres, comparaisons, bibliothèque, marché, `todo`, `recent`). Admin : `getSyncStatus` séparé dans `DashboardAdminLinks`.
+- **Layout** : 2 colonnes (lg) — principale (2/3) : « À traiter » (`DashboardTodoPanel`), « Reprendre » (`DashboardResumeCard` + `localStorage` `syskern:last-visited:v1`, écrit sur détail simulation/comparaison/offre), activité (`DashboardActivityTimeline` unifiée sims/offres/comparaisons) ; latérale (1/3) : KPIs 5 cartes (`DashboardKpiGrid`), marché (`DashboardMarketCard` → `/settings?tab=marche`), raccourcis création (`DashboardQuickActions`), admin (`DashboardAdminLinks` si `isAdmin`).
+- **Sous-titre** : nombre d'éléments `todo`, « Tout est à jour », ou message onboarding si vide.
+- **Rôles** : `viewer` — pas de CTA création ni raccourcis ; `commercial` — vue complète ; `admin` — + bloc administration.
+- **État vide** : `DashboardOnboarding` (catalogue → simulation → offre) quand aucune simulation ni offre.
+- **Filtre dashboard → liste** : lien `/simulator?is_dirty=true` (lecture query param au mount sur `simulator/page.tsx`).
 
 **Page de connexion** (`/login`) : fond blanc plein écran, logo Syskern, carte formulaire (email /
 mot de passe), logo Unikkern en bas — pas de panneau marketing latéral. Hors `AppShell` ; session

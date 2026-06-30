@@ -805,6 +805,26 @@ export function getClients(search?: string): Promise<Client[]> {
   );
 }
 
+export function getClient(id: string): Promise<Client> {
+  return apiFetch<Client>(`/api/clients/${encodeURIComponent(id)}/`);
+}
+
+/** Resolve client labels for pre-selected IDs (e.g. simulation edit). */
+export async function getClientsByIds(ids: string[]): Promise<Client[]> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return [];
+  const results = await Promise.all(
+    unique.map(async (id) => {
+      try {
+        return await getClient(id);
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return results.filter((c): c is Client => c !== null);
+}
+
 /** Resolve a batch of SKU codes into found products vs not-found codes. */
 export function lookupBulkProducts(skus: string[]): Promise<BulkLookupResult> {
   return apiFetch<BulkLookupResult>("/api/products/lookup-bulk", {
@@ -993,7 +1013,31 @@ export function compareSimulations(body: {
 }
 
 export function getSavedComparisons(): Promise<SavedComparison[]> {
-  return apiFetch<SavedComparison[]>("/api/saved-comparisons/");
+  return getComparisonsList({ limit: 500 }).then((r) => r.results);
+}
+
+export interface ComparisonListParams {
+  q?: string;
+  ordering?: string;
+  page?: number;
+  limit?: number;
+}
+
+export type PaginatedComparisons = PaginatedResponse<SavedComparison>;
+
+export function getComparisonsList(
+  params: ComparisonListParams = {},
+): Promise<PaginatedComparisons> {
+  const limit = params.limit ?? 50;
+  const page = params.page ?? 1;
+  const offset = (page - 1) * limit;
+  const q = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.ordering) q.set("ordering", params.ordering);
+  return apiFetch<PaginatedComparisons>(`/api/saved-comparisons/?${q.toString()}`);
 }
 
 export function getSavedComparison(id: string): Promise<SavedComparison> {
@@ -1014,7 +1058,12 @@ export function createSavedComparison(body: {
 
 export function updateSavedComparison(
   id: string,
-  body: { label?: string; note?: string }
+  body: {
+    label?: string;
+    note?: string;
+    simulation_ids?: string[];
+    recalculation_ids?: string[];
+  },
 ): Promise<SavedComparison> {
   return apiFetch<SavedComparison>(`/api/saved-comparisons/${encodeURIComponent(id)}/`, {
     method: "PATCH",
@@ -1369,10 +1418,101 @@ export interface OffersDashboard {
   project_conversion_pct: number | null;
   tariff_active: number;
   won_total: string | null;
+  generation_error_count?: number;
 }
 
 export function getOffersDashboard(): Promise<OffersDashboard> {
   return apiFetch<OffersDashboard>("/api/offers/dashboard");
+}
+
+export type DashboardTodoKind =
+  | "simulation_dirty"
+  | "simulation_never_calculated"
+  | "simulation_line_errors"
+  | "offer_expiring"
+  | "offer_generation_error";
+
+export interface DashboardTodoItem {
+  kind: DashboardTodoKind;
+  id: string;
+  label: string;
+  occurred_at: string;
+  href_path: string;
+}
+
+export type DashboardRecentKind = "simulation" | "offer" | "comparison";
+
+export interface DashboardRecentItem {
+  kind: DashboardRecentKind;
+  id: string;
+  label: string;
+  occurred_at: string;
+  status: string;
+  is_dirty: boolean;
+  href_path: string;
+}
+
+export interface DashboardMarketSnapshot {
+  value: string | null;
+  valid_from: string;
+  updated_at: string;
+  currency?: string;
+  unit?: string;
+  market?: string;
+  from_currency?: string;
+  to_currency?: string;
+}
+
+export interface DashboardSummary {
+  catalog: { product_count: number; universe_count: number };
+  simulations: {
+    total: number;
+    draft: number;
+    finalized: number;
+    dirty: number;
+    never_calculated: number;
+    with_line_errors: number;
+  };
+  offers: OffersDashboard;
+  comparisons: { total: number };
+  library: { document_count: number };
+  market: {
+    copper_lme: DashboardMarketSnapshot | null;
+    fx_usd_eur: DashboardMarketSnapshot | null;
+  };
+  todo: DashboardTodoItem[];
+  recent: DashboardRecentItem[];
+}
+
+export function getDashboardSummary(): Promise<DashboardSummary> {
+  return apiFetch<DashboardSummary>("/api/dashboard/summary");
+}
+
+// ── Admin dashboard helpers ───────────────────────────────────────────────
+
+export interface QuarantineFacets {
+  total: number;
+  resolved: number;
+  unresolved: number;
+  by_reason: Record<string, number>;
+  source_files: string[];
+}
+
+export function getQuarantineFacets(): Promise<QuarantineFacets> {
+  return apiFetch<QuarantineFacets>("/api/migration/unmatched/facets/");
+}
+
+export interface PlatformUserSummary {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  is_active: boolean;
+}
+
+export function listUsers(): Promise<PlatformUserSummary[]> {
+  return apiFetch<PlatformUserSummary[]>("/api/users/");
 }
 
 export interface DocumentLibraryEntry {

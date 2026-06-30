@@ -16,7 +16,6 @@ import {
 } from "@phosphor-icons/react";
 import {
   compareSimulations,
-  getSavedComparison,
   getSimulations,
   type CompareResponse,
   type SavedComparison,
@@ -92,21 +91,11 @@ function CompareContent() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [activeSavedId, setActiveSavedId] = useState<string | null>(savedParam);
 
-  // Deep-link: /simulator/compare?saved=<id> resolves to full column params.
+  // Deep-link legacy: /simulator/compare?saved=<id> → page objet comparaison.
   useEffect(() => {
-    if (!savedParam || simsParam || recalcParam) return;
-    let cancelled = false;
-    getSavedComparison(savedParam)
-      .then((sc) => {
-        if (!cancelled) router.replace(buildCompareUrl(sc));
-      })
-      .catch(() => {
-        if (!cancelled) router.replace("/simulator/compare");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [savedParam, simsParam, recalcParam, router]);
+    if (!savedParam) return;
+    router.replace(`/comparator/${savedParam}`);
+  }, [savedParam, router]);
 
   const { data: simulations } = useSWR<Simulation[]>("simulations", () => getSimulations());
 
@@ -341,15 +330,7 @@ function CompareContent() {
         defaultLabel={defaultSaveLabel}
         onSaved={(id) => {
           void globalMutate("saved-comparisons");
-          setActiveSavedId(id);
-          setAsideTab("saved");
-          router.replace(
-            buildCompareUrl({
-              simulation_ids: selected,
-              recalculation_ids: recalcIds,
-              id,
-            })
-          );
+          router.push(`/comparator/${id}`);
         }}
       />
     </div>

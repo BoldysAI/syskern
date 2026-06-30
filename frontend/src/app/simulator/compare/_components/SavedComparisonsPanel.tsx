@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Bookmark, CircleNotch, Trash } from "@phosphor-icons/react";
 import {
   deleteSavedComparison,
-  getSavedComparisons,
+  getComparisonsList,
   type SavedComparison,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -13,16 +14,22 @@ import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Props {
   activeId?: string | null;
-  onLoad: (item: SavedComparison) => void;
+  onLoad?: (item: SavedComparison) => void;
 }
 
 export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
+  const router = useRouter();
   const confirm = useConfirm();
-  const { data, isLoading, mutate } = useSWR<SavedComparison[]>(
+  const { data, isLoading, mutate } = useSWR(
     "saved-comparisons",
-    getSavedComparisons
+    () => getComparisonsList({ limit: 500 }),
   );
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleOpen = (item: SavedComparison) => {
+    if (onLoad) onLoad(item);
+    else router.push(`/comparator/${item.id}`);
+  };
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
@@ -45,7 +52,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
     return <div className="p-4 text-center text-xs text-muted-foreground">Chargement…</div>;
   }
 
-  const items = data ?? [];
+  const items = data?.results ?? [];
 
   if (!items.length) {
     return (
@@ -75,7 +82,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
           >
             <button
               type="button"
-              onClick={() => onLoad(item)}
+              onClick={() => handleOpen(item)}
               className="w-full rounded-lg px-3 py-2.5 pr-10 text-left"
             >
               <div className="min-w-0">
