@@ -20,6 +20,14 @@ class UnmatchedReason(models.TextChoices):
     MISSING_REQUIRED_FIELD = "missing_required_field", "Missing required field"
 
 
+class ResolutionAction(models.TextChoices):
+    """What the user did to resolve a quarantine row (CDC §8.7 arbitrage)."""
+
+    IGNORE = "ignore", "Ne rien faire (ignorer)"
+    CREATE = "create", "Produit créé"
+    DELETE = "delete", "Supprimer (doublon / rebut)"
+
+
 class MigrationUnmatched(BaseModel):
     source_file = models.CharField(max_length=255)
     source_row_number = models.IntegerField(null=True, blank=True)
@@ -29,6 +37,10 @@ class MigrationUnmatched(BaseModel):
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolved_by = models.EmailField(blank=True, default="")
     resolution_notes = models.TextField(blank=True, default="")
+    # Which arbitrage the user chose (ignore / create the product / discard).
+    resolution_action = models.CharField(
+        max_length=16, choices=ResolutionAction.choices, blank=True, default=""
+    )
 
     class Meta:
         db_table = "migration_unmatched"

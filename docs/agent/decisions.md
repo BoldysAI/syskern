@@ -468,3 +468,23 @@ premier actif ; re-sync bascule le primaire, 1 seul actif ; dédup ; liste vide 
 d'Odoo mais de **fichiers PO Excel** chargés par les loaders `loader_po_*` (corrects) via `run_migration` + manifest.
 Ces fichiers ne sont pas au repo → il faut les charger sur l'environnement réel pour que ces fournisseurs apparaissent.
 Le « tout en quarantaine » (A3) n'est pas reproductible ici (quarantaine vide) — probablement un run de migration passé.
+
+## 2026-06-30 · [P] Quarantaine — résolution automatique + sortie du JSON brut (A2/A3 UX)
+Retour terrain : la résolution de quarantaine était « très non intuitive et non automatique » (affichage JSON brut +
+message « créez le produit manuellement via Catalogue → Nouveau produit, puis marquez résolu »).
+- **Backend** : nouveau `ResolutionAction` (`ignore`/`create`/`delete`) + champ `resolution_action` sur
+  `MigrationUnmatched` (migration `data_migration/0002`). L'action `resolve` (`views.py`) **exécute** désormais
+  l'arbitrage : `create` construit et **persiste réellement** un `Product` depuis la ligne (SKU requis, `name`/desc
+  optionnels ; `factory_code`/`parent_reference` dérivés via `parse_sku` partagé), `delete`/`ignore` marquent résolu
+  (soft — pas de hard-delete, audit §8.7 conservé). `resolved_by` devient optionnel → repli sur l'email de
+  l'utilisateur connecté puis « système » (fini la saisie manuelle de l'email). `ResolveSerializer` : `action` +
+  `product` (validé, requis si create). SKU dupliqué → 400 (ligne non résolue).
+- **Front** (`admin/migration-quarantine/page.tsx`) : le `<pre>` JSON → **affichage structuré clé/valeur** de
+  `raw_data` ; modale à **3 actions** (Ne rien faire / Créer le produit / Supprimer) qui déclenchent l'action backend
+  en un clic. Pour « Créer » : champs SKU + désignation **pré-remplis** par heuristique (`guessProduct` scanne la ligne).
+  Bandeau résolu affiche l'action choisie.
+- **A1 (playbook)** : le tri était inerte (state `sort` non transmis) → ajout de `sortField` sur les colonnes +
+  paramètre `?ordering=` dans la requête (le ViewSet expose déjà `ordering_fields`). Table alignée sur `admin/users`.
+- **Tests** : 6 nouveaux (ignore/delete/create exécutés, create requiert product, SKU dupliqué 400, resolved_by
+  par défaut) — 15 tests quarantaine verts, ruff + mypy propres. Front tsc + eslint clean (fichier livré).
+  **Vérif live** (`:8000`) : POST resolve `create` → produit créé (factory/parent dérivés) + ligne résolue, puis nettoyage.

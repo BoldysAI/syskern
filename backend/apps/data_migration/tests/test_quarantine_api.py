@@ -9,7 +9,8 @@ from __future__ import annotations
 import pytest
 from rest_framework.test import APIClient
 
-from apps.data_migration.models import MigrationUnmatched, UnmatchedReason
+from apps.data_migration.models import MigrationUnmatched, ResolutionAction, UnmatchedReason
+from apps.products.models import Product
 
 pytestmark = pytest.mark.django_db
 
@@ -123,3 +124,87 @@ def test_delete_not_allowed_no_reinjection(client, rows):
     a, _b, _c = rows
     resp = client.delete(f"/api/migration/unmatched/{a.id}/")
     assert resp.status_code == 405
+
+
+# ── Resolution actions execute the arbitrage (A3 UX) ──────────────────────────
+
+
+def test_resolve_ignore_records_action(client, rows):
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {"action": "ignore", "resolved_by": "olivier@syskern.com"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    a.refresh_from_db()
+    assert a.resolution_action == ResolutionAction.IGNORE
+    assert a.resolved_at is not None
+
+
+def test_resolve_delete_records_action_soft(client, rows):
+    """`delete` flags the row resolved+discarded — no hard-delete (audit kept)."""
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {"action": "delete", "resolved_by": "olivier@syskern.com"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    a.refresh_from_db()
+    assert a.resolution_action == ResolutionAction.DELETE
+    assert MigrationUnmatched.objects.filter(id=a.id).exists()  # still there, just resolved
+
+
+def test_resolve_create_makes_product(client, rows):
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {
+            "action": "create",
+            "product": {"sku_code": "KCFF6A4PZHDBL5-21", "name": "Câble cat7"},
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    product = Product.objects.get(sku_code="KCFF6A4PZHDBL5-21")
+    assert product.name == "Câble cat7"
+    # SKU parsing wired: factory_code / parent_reference derived.
+    assert product.factory_code == "21"
+    assert product.parent_reference == "KCFF6A4PZHDBL5"
+    a.refresh_from_db()
+    assert a.resolution_action == ResolutionAction.CREATE
+    assert "KCFF6A4PZHDBL5-21" in a.resolution_notes
+
+
+def test_resolve_create_requires_product(client, rows):
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {"action": "create"},
+        format="json",
+    )
+    assert resp.status_code == 400
+
+
+def test_resolve_create_rejects_duplicate_sku(client, rows):
+    a, _b, _c = rows
+    Product.objects.create(sku_code="DUP-1", name="Exists")
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {"action": "create", "product": {"sku_code": "DUP-1"}},
+        format="json",
+    )
+    assert resp.status_code == 400
+    a.refresh_from_db()
+    assert a.resolved_at is None  # not resolved when creation fails
+
+
+def test_resolve_defaults_resolved_by_when_absent(client, rows):
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/", {"action": "ignore"}, format="json"
+    )
+    assert resp.status_code == 200
+    a.refresh_from_db()
+    assert a.resolved_by  # falls back (logged-in email or "système"), never blank-required

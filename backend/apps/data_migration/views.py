@@ -2,19 +2,24 @@ from __future__ import annotations
 
 from django.db.models import Count
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.products.models import Product
+from apps.products.services.sku_parser import parse_sku
+
 from .filters import MigrationUnmatchedFilter
-from .models import MigrationUnmatched
+from .models import MigrationUnmatched, ResolutionAction
 from .serializers import MigrationUnmatchedSerializer, ResolveSerializer
 
 
 class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
-    """Quarantine API (CDC §8.7).  Read mostly; resolution is the only
-    mutation users perform from the UI.  No auto-reinjection action exists by
-    design — Olivier creates the product manually then marks the row resolved."""
+    """Quarantine API (CDC §8.7).  Read + resolve.
+
+    Resolution now **executes** the chosen arbitrage instead of just logging a
+    note: ``create`` builds the product from the row, ``delete``/``ignore``
+    flag the row resolved (kept for audit — no hard-delete, §8.7)."""
 
     queryset = MigrationUnmatched.objects.all()
     serializer_class = MigrationUnmatchedSerializer
@@ -25,15 +30,56 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post", "patch"])
     def resolve(self, request, pk=None):
-        """Mark a quarantine row resolved with a resolver email + free note."""
+        """Resolve a row with an executed action (ignore / create / delete)."""
         row = self.get_object()
         ser = ResolveSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        action_type = data["action"]
+        resolved_by = data.get("resolved_by") or getattr(request.user, "email", "") or "système"
+        notes = data.get("resolution_notes", "")
+
+        if action_type == ResolutionAction.CREATE:
+            product = self._create_product_from_row(data["product"])
+            created_note = f"Produit créé : {product.sku_code}"
+            notes = f"{notes}\n{created_note}".strip() if notes else created_note
+
+        row.resolution_action = action_type
         row.resolved_at = timezone.now()
-        row.resolved_by = ser.validated_data["resolved_by"]
-        row.resolution_notes = ser.validated_data.get("resolution_notes", "")
-        row.save(update_fields=["resolved_at", "resolved_by", "resolution_notes", "updated_at"])
+        row.resolved_by = resolved_by
+        row.resolution_notes = notes
+        row.save(
+            update_fields=[
+                "resolution_action",
+                "resolved_at",
+                "resolved_by",
+                "resolution_notes",
+                "updated_at",
+            ]
+        )
         return Response(MigrationUnmatchedSerializer(row).data)
+
+    @staticmethod
+    def _create_product_from_row(product_data: dict) -> Product:
+        """Create a minimal product from a quarantine row (action=create).
+
+        Derives ``factory_code`` / ``parent_reference`` from the SKU (reusing
+        the shared parser) so the created product is consistent with the wizard.
+        The user enriches the rest in the catalog afterwards.
+        """
+        sku = product_data["sku_code"].upper().strip()
+        if Product.objects.filter(sku_code=sku).exists():
+            raise serializers.ValidationError({"product": f"Le SKU {sku} existe déjà."})
+        parsed = parse_sku(sku)
+        description = product_data.get("description_marketing_fr") or ""
+        return Product.objects.create(
+            sku_code=sku,
+            name=product_data.get("name") or sku,
+            description_marketing={"fr": description} if description else {},
+            factory_code=parsed.get("factory_code") or "",
+            parent_reference=parsed.get("parent_reference") or "",
+        )
 
     @action(detail=False, methods=["get"])
     def facets(self, request):
