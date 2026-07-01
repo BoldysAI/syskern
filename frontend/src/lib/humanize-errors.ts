@@ -67,7 +67,8 @@ export function humanizeEngineMessage(msg: string): string {
 /** Extract `detail` from `apiFetch` errors (`API 4xx: {"detail":"..."}`). */
 export function humanizeApiError(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
-  const match = error.message.match(/^API \d+: (.+)$/s);
+  // `[\s\S]` instead of the `s` (dotAll) flag, which needs an es2018+ target.
+  const match = error.message.match(/^API \d+: ([\s\S]+)$/);
   if (match) {
     try {
       const body = JSON.parse(match[1]) as { detail?: unknown };

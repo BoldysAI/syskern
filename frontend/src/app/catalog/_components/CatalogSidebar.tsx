@@ -70,10 +70,7 @@ export function CatalogSidebar({
     { revalidateOnFocus: false, dedupingInterval: 30_000 },
   );
 
-  const pampSlider = useMemo(
-    () => boundsToSliderConfig(bounds?.pamp_eur, 500),
-    [bounds?.pamp_eur],
-  );
+  const pampSlider = useMemo(() => boundsToSliderConfig(bounds?.pamp_eur, 500), [bounds?.pamp_eur]);
   const stockSlider = useMemo(
     () => boundsToSliderConfig(bounds?.stock_quantity, 200),
     [bounds?.stock_quantity],
@@ -143,16 +140,15 @@ export function CatalogSidebar({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      <FilterSection
-        title="Hiérarchie produit"
-        icon={TreeStructure}
-        activeCount={hierarchyCount}
-      >
+      <FilterSection title="Hiérarchie produit" icon={TreeStructure} activeCount={hierarchyCount}>
         <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
           Cochez plusieurs valeurs par niveau (univers, famille, gamme, sous-gamme). Les niveaux
           inférieurs restent combinables avec l&apos;ensemble des parents sélectionnés.
         </p>
-        <HierarchyFilterCascade filters={filters} onChange={onChange} />
+        <HierarchyFilterCascade
+          filters={filters}
+          onChange={(next) => onChange(typeof next === "function" ? next(filters) : next)}
+        />
       </FilterSection>
 
       <FilterSection title="Marque" icon={Tag} activeCount={filters.brand?.length ?? 0}>
@@ -235,11 +231,7 @@ export function CatalogSidebar({
                 id="stock-in"
                 checked={!!filters.stock_in}
                 onCheckedChange={(checked) =>
-                  patch(
-                    checked
-                      ? { stock_in: true, stock_out: false }
-                      : { stock_in: false },
-                  )
+                  patch(checked ? { stock_in: true, stock_out: false } : { stock_in: false })
                 }
               />
             </div>
@@ -354,7 +346,9 @@ export function CatalogSidebar({
               ))}
             </ul>
           ) : (
-            <p className="py-2 text-center text-xs text-muted-foreground">Aucun filtre sauvegardé.</p>
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              Aucun filtre sauvegardé.
+            </p>
           )}
         </div>
       </FilterSection>

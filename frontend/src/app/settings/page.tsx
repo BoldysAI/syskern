@@ -121,11 +121,7 @@ function todayIso(): string {
 }
 
 function ActiveBadge({ active }: { active: boolean }) {
-  return (
-    <StatusBadge variant={active ? "success" : "draft"}>
-      {active ? "Oui" : "Non"}
-    </StatusBadge>
-  );
+  return <StatusBadge variant={active ? "success" : "draft"}>{active ? "Oui" : "Non"}</StatusBadge>;
 }
 
 // ── Tab : Marché (Market parameters) ─────────────────────────────────────
@@ -227,7 +223,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
               <FormField label="Marché">
                 <OptionSelect
                   value={copperMarket ?? "LME"}
-                  onValueChange={setCopperMarket}
+                  onValueChange={(v) => setCopperMarket(v as "LME" | "SHE")}
                   options={COPPER_MARKETS}
                 />
               </FormField>
@@ -392,14 +388,16 @@ function TabMarche() {
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                {["Type", "Détail", "Valide du", "Au", "Dernière modification", "Actif", ""].map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
+                {["Type", "Détail", "Valide du", "Au", "Dernière modification", "Actif", ""].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -598,7 +596,9 @@ function TabTransport() {
 
       <Card className="overflow-hidden py-0">
         {error ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Impossible de charger.</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Impossible de charger.
+          </div>
         ) : isLoading ? (
           <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : !data?.length ? (
@@ -626,7 +626,9 @@ function TabTransport() {
                   <td className="px-4 py-2.5 font-mono text-sm font-semibold text-foreground">
                     {m.code}
                   </td>
-                  <td className="px-4 py-2.5 text-sm text-muted-foreground">{m.label?.fr ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">
+                    {m.label?.fr ?? "—"}
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {TRANSPORT_CATEGORIES.find((c) => c.value === m.category)?.label ?? m.category}
                   </td>
@@ -847,7 +849,9 @@ function TabOdoo() {
                       <td
                         className={cn(
                           "px-4 py-2 text-sm",
-                          l.items_failed ? "font-semibold text-destructive" : "text-muted-foreground",
+                          l.items_failed
+                            ? "font-semibold text-destructive"
+                            : "text-muted-foreground",
                         )}
                       >
                         {l.items_failed}
@@ -964,9 +968,7 @@ function TabAlerts() {
                 {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
                 Enregistrer
               </Button>
-              {saved && (
-                <span className="text-sm text-brand-green">Enregistré ✓</span>
-              )}
+              {saved && <span className="text-sm text-brand-green">Enregistré ✓</span>}
             </div>
           </>
         )}
@@ -1017,7 +1019,9 @@ export default function SettingsPage() {
       </div>
 
       <Suspense
-        fallback={<div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>}
+        fallback={
+          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+        }
       >
         <SettingsContent />
       </Suspense>

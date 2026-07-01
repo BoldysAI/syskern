@@ -513,3 +513,18 @@ attacher des documents à une offre → les retrouver **dans la sortie**.
   Recharts `Props<{PA}>` (graphique) + les 11 erreurs tsc déjà signalées (`simulator/wizard-draft.ts`,
   `MarketParamsModal.tsx`, `humanize-errors.ts`). **Le frontend ne build pas sur `main`** tant que ces erreurs ne sont
   pas corrigées — à traiter séparément (non introduit par ce lot, confirmé : mes fichiers D sont tsc-clean).
+
+## 2026-06-30 · [P] Frontend — réparation du build (`next build`) après le merge market/dashboard
+Correction des 10 erreurs tsc préexistantes qui bloquaient `next build` (issues du merge, pas de bug de contrat) :
+- **Rename cuivre** : le type front `MarketParamsDraft` utilise `copper_base_price`/`copper_current_price` (sans `_rmb`),
+  la conversion vers `copper_base_price_rmb` pour l'API vit dans `buildMarketParams`/`simToDraft` (contrat back **intact**).
+  Fixes de typage : cast des accès legacy `_rmb` (fallback vieux brouillons localStorage) en `Record<string,string>` ;
+  `simToDraft` renvoie `notFoundSkus: []` (devenu requis) ; `assign` de `MarketParamsModal` écrit via
+  `next as unknown as Record<string,string>` ; `settings/page` wrappe `setCopperMarket` (`v as "LME"|"SHE"`).
+- **Recharts custom dot** : `createClickableHistoryDot` typé avec un type structurel minimal (`cx/cy/stroke/payload`,
+  **sans** `points`) → assignable à `<Line dot={...}>` v3 (résout price-history-chart + les 3 `<Line>` de CommercialTab).
+- **CatalogSidebar** : `HierarchyFilterCascade` peut passer un updater fonctionnel → résolution locale contre `filters`.
+- **humanize-errors** : regex `/…/s` (dotAll, es2018) → `[\s\S]` sans flag.
+- Résultat : **`tsc` clean + `next build` passe** (20 routes générées). Restent 2 erreurs eslint préexistantes
+  (`react-hooks/set-state-in-effect` dans `SimulationTable.tsx` + `simulator/page.tsx`) **non bloquantes** pour le build,
+  dans des fichiers non touchés — à corriger séparément (refacto setState-in-effect).

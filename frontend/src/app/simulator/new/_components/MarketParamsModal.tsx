@@ -70,8 +70,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
         copper_base_price:
           convertCopperDraftPrice(d.copper_base_price, from, next, fx) ?? d.copper_base_price,
         copper_current_price:
-          convertCopperDraftPrice(d.copper_current_price, from, next, fx) ??
-          d.copper_current_price,
+          convertCopperDraftPrice(d.copper_current_price, from, next, fx) ?? d.copper_current_price,
       };
     });
   };
@@ -85,7 +84,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
 
     const assign = (key: keyof MarketParamsDraft, val: string | null | undefined) => {
       if (val?.trim()) {
-        next[key] = val as MarketParamsDraft[typeof key];
+        (next as unknown as Record<string, string>)[key] = val;
         fieldsFilled += 1;
       }
     };

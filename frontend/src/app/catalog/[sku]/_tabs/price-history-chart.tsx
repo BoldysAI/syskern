@@ -1,15 +1,24 @@
-import type { DotProps } from "recharts";
 import type { PriceHistoryPoint } from "@/lib/api";
 
 type ClickableDotPayload = {
   simulationId?: string;
 };
 
+// Minimal structural props (no `points`) so the custom dot is assignable to
+// Recharts' `<Line dot={...}>` across versions — Recharts' own DotProps drops
+// `payload` and types `points` incompatibly.
+type HistoryDotProps = {
+  cx?: number;
+  cy?: number;
+  stroke?: string;
+  payload?: ClickableDotPayload;
+};
+
 /** Large invisible hit target + visible dot — Recharts LineChart onClick is unreliable. */
 export function createClickableHistoryDot(onSelect: (simulationId: string) => void) {
-  return function ClickableHistoryDot(props: DotProps) {
+  return function ClickableHistoryDot(props: HistoryDotProps) {
     const { cx, cy, stroke, payload } = props;
-    const simulationId = (payload as ClickableDotPayload | undefined)?.simulationId;
+    const simulationId = payload?.simulationId;
     if (cx == null || cy == null) return null;
 
     return (
@@ -25,7 +34,15 @@ export function createClickableHistoryDot(onSelect: (simulationId: string) => vo
             if (simulationId) onSelect(simulationId);
           }}
         />
-        <circle cx={cx} cy={cy} r={4} fill={stroke} stroke={stroke} strokeWidth={1} pointerEvents="none" />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={4}
+          fill={stroke}
+          stroke={stroke}
+          strokeWidth={1}
+          pointerEvents="none"
+        />
       </g>
     );
   };
@@ -41,7 +58,9 @@ export function collapsePriceHistoryByDay(points: PriceHistoryPoint[]): PriceHis
       byDay.set(dayKey, p);
     }
   }
-  return [...byDay.values()].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return [...byDay.values()].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
 }
 
 export function formatPriceHistoryAxisLabel(isoDate: string): string {

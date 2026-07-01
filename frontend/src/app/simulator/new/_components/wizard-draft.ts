@@ -130,16 +130,16 @@ export function loadDraft(): WizardDraft {
       marketParams: {
         ...base.marketParams,
         ...(parsed.marketParams ?? {}),
-        copper_market:
-          parsed.marketParams?.copper_market === "SHE" ? "SHE" : "LME",
+        copper_market: parsed.marketParams?.copper_market === "SHE" ? "SHE" : "LME",
         copper_currency: normalizeCopperCurrency(parsed.marketParams?.copper_currency),
         copper_base_price:
           parsed.marketParams?.copper_base_price ??
-          parsed.marketParams?.copper_base_price_rmb ??
+          // Back-compat: older localStorage drafts stored the RMB value directly.
+          (parsed.marketParams as Record<string, string> | undefined)?.copper_base_price_rmb ??
           "",
         copper_current_price:
           parsed.marketParams?.copper_current_price ??
-          parsed.marketParams?.copper_current_price_rmb ??
+          (parsed.marketParams as Record<string, string> | undefined)?.copper_current_price_rmb ??
           "",
       },
       purchaseChain: { ...base.purchaseChain, ...(parsed.purchaseChain ?? {}) },
@@ -198,15 +198,16 @@ function parseTransportDraft(t: Record<string, unknown>): TransportDraft {
     category: String(t.category ?? ""),
     global_cost: t.global_cost != null ? String(t.global_cost) : "",
     currency: String(t.currency ?? "EUR"),
-    pallet_count:
-      pallets != null && pallets !== "" && Number(pallets) !== 0 ? String(pallets) : "",
+    pallet_count: pallets != null && pallets !== "" && Number(pallets) !== 0 ? String(pallets) : "",
     from_location: String(t.from_location ?? ""),
     to_location: String(t.to_location ?? ""),
   };
 }
 
 function parseChainDraft(chain: Record<string, unknown>, isPurchase: boolean): ChainDraft {
-  const transports = ((chain.transports as Record<string, unknown>[]) ?? []).map(parseTransportDraft);
+  const transports = ((chain.transports as Record<string, unknown>[]) ?? []).map(
+    parseTransportDraft,
+  );
   const customs = chain.customs as Record<string, unknown> | null | undefined;
   return {
     copper_variation: isPurchase && chain.copper_variation != null,
@@ -215,8 +216,7 @@ function parseChainDraft(chain: Record<string, unknown>, isPurchase: boolean): C
     customs: {
       enabled: customs != null,
       rate_pct: customs?.rate_pct != null ? String(customs.rate_pct) : "",
-      legacyGlobalCost:
-        customs?.global_cost != null ? String(customs.global_cost) : undefined,
+      legacyGlobalCost: customs?.global_cost != null ? String(customs.global_cost) : undefined,
       legacyCurrency: customs?.currency != null ? String(customs.currency) : undefined,
       legacyTotalQuantity:
         customs?.total_quantity != null ? String(customs.total_quantity) : undefined,
@@ -252,6 +252,7 @@ export function simulationToEditDraft(sim: {
     clientIds: [...(sim.client_ids ?? [])],
     projectName: sim.project_name ?? "",
     selectedSkus: [],
+    notFoundSkus: [],
     marketParams: {
       copper_market: "LME",
       copper_currency: currency,
@@ -303,7 +304,7 @@ export function buildSimulationPatch(
     | "symeaPosition"
     | "saleIncoterm"
     | "saleIncotermLocation"
-  >
+  >,
 ) {
   return {
     label: draft.label.trim(),
@@ -320,7 +321,9 @@ export function buildSimulationPatch(
   };
 }
 
-export function step1Valid(draft: Pick<WizardDraft, "label" | "type" | "projectName" | "clientIds">): boolean {
+export function step1Valid(
+  draft: Pick<WizardDraft, "label" | "type" | "projectName" | "clientIds">,
+): boolean {
   return (
     draft.label.trim().length > 0 &&
     (draft.type === "tariff" ||
@@ -389,9 +392,7 @@ export function buildCalculationChain(draft: WizardDraft): Record<string, unknow
 
 /** Returns a French error message when a transport leg is missing pallet_count. */
 export function validateTransportChains(draft: WizardDraft): string | null {
-  const palletIssue = collectWizardStep3Issues(draft).find((issue) =>
-    issue.includes("palettes"),
-  );
+  const palletIssue = collectWizardStep3Issues(draft).find((issue) => issue.includes("palettes"));
   return palletIssue ?? null;
 }
 
