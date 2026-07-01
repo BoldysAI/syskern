@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DocumentPicker } from "@/components/DocumentPicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,7 @@ function TariffWizard() {
   const [currency, setCurrency] = useState("EUR");
   const [language, setLanguage] = useState("fr");
   const [expiration, setExpiration] = useState("");
+  const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
   const [label, setLabel] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -244,6 +246,7 @@ function TariffWizard() {
           language,
           expiration_date: expiration,
           label,
+          attached_document_ids: attachedDocIds,
         },
       );
       const count = await pollTask(task_id);
@@ -393,9 +396,13 @@ function TariffWizard() {
                   placeholder={simulation?.label ?? ""}
                 />
               </FormField>
+              <FormField label="Documents joints (bibliothèque)">
+                <DocumentPicker selected={attachedDocIds} onChange={setAttachedDocIds} />
+              </FormField>
               <p className="text-xs text-muted-foreground">
                 {selectedClientIds.length} offre(s) · {selectedColumnKeys.length} colonne(s) ·{" "}
                 {currency} · {language.toUpperCase()}
+                {attachedDocIds.length > 0 ? ` · ${attachedDocIds.length} doc(s) → ZIP` : ""}
               </p>
             </div>
           </Section>

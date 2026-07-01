@@ -6,13 +6,14 @@ from django.db import transaction
 from django.db.models import Avg, Count, Max, Min
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
+from apps.core.pagination import DefaultLimitOffsetPagination
 from apps.offers.models import Offer
 from apps.offers.serializers import (
     GenerateProjectOfferSerializer,
@@ -20,8 +21,6 @@ from apps.offers.serializers import (
 )
 from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
-
-from apps.core.pagination import DefaultLimitOffsetPagination
 
 from .filters import SavedComparisonFilter, SimulationFilter
 from .models import (
@@ -78,7 +77,7 @@ def _filter_simulation_lines(simulation: Simulation, flt: dict):
         qs = qs.filter(product__factory_code=flt["factory_code"])
     line_ids = flt.get("line_ids")
     if line_ids:
-        if isinstance(line_ids, (list, tuple)):
+        if isinstance(line_ids, list | tuple):
             qs = qs.filter(id__in=line_ids)
         elif isinstance(line_ids, str):
             qs = qs.filter(id__in=[part.strip() for part in line_ids.split(",") if part.strip()])
@@ -100,7 +99,7 @@ def _parse_status_in(flt: dict) -> list[str] | None:
         return None
     if isinstance(raw, str):
         values = [part.strip() for part in raw.split(",") if part.strip()]
-    elif isinstance(raw, (list, tuple)):
+    elif isinstance(raw, list | tuple):
         values = [str(part).strip() for part in raw if str(part).strip()]
     else:
         return None
@@ -262,6 +261,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             ),
             "incoterm": data.get("incoterm") or "EXW",
             "label": data.get("label") or "",
+            "attached_document_ids": [str(d) for d in data.get("attached_document_ids") or []],
         }
         task = generate_tariff_offers_task.delay(str(simulation.id), payload)
         return Response(
@@ -296,6 +296,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             ),
             "ai_instructions": data.get("ai_instructions") or "",
             "sections_config": data.get("sections_config"),
+            "attached_document_ids": [str(d) for d in data.get("attached_document_ids") or []],
         }
         task = generate_project_offer_task.delay(str(simulation.id), payload)
         return Response(
@@ -724,8 +725,12 @@ class CompareSimulationsView(viewsets.ViewSet):
         def _entry(product_id, sku, name):
             return matrix.setdefault(
                 str(product_id),
-                {"product_id": str(product_id), "product_sku": sku, "product_name": name,
-                 "values": {}},
+                {
+                    "product_id": str(product_id),
+                    "product_sku": sku,
+                    "product_name": name,
+                    "values": {},
+                },
             )
 
         # ── Live simulation columns (baseline first) ──────────────────

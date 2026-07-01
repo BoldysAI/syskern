@@ -87,6 +87,7 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
                 export_format=ExportFormat.EXCEL,
                 status=OfferStatus.DRAFT,
                 version_number=1,
+                attached_document_ids=params.get("attached_document_ids") or [],
             )
 
             offer_lines = []
@@ -174,6 +175,7 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
         expiration_date=date.fromisoformat(expiration) if expiration else None,
         ai_instructions=params.get("ai_instructions") or "",
         sections_config=params.get("sections_config"),
+        attached_document_ids=params.get("attached_document_ids") or [],
     )
     offer = run_generation(offer)
     return _offer_generation_result(offer)

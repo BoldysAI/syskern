@@ -73,6 +73,7 @@ def create_project_offer(
     expiration_date: date | None,
     ai_instructions: str,
     sections_config: dict | None = None,
+    attached_document_ids: list | None = None,
 ) -> Offer:
     """Create the project Offer + OfferLines (one client, per-SKU quantities)."""
     offer = Offer.objects.create(
@@ -89,6 +90,7 @@ def create_project_offer(
         valid_to=expiration_date,
         export_format=ExportFormat.DEVIS_GAMMA,
         ai_instructions=ai_instructions,
+        attached_document_ids=attached_document_ids or [],
         generation_status=GenerationStatus.PENDING,
         version_number=1,
     )

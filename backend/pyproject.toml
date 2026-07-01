@@ -30,6 +30,8 @@ dependencies = [
     "pandas>=2.2",
     "openpyxl>=3.1",
     "Babel>=2.14",
+    # PDF merge for project offers (Gamma quote + document annexes, CDC §7.4.4).
+    "pypdf>=5.1",
     # ─── Production server ─────────────────────────────────
     "gunicorn>=22.0",
     "whitenoise>=6.6",

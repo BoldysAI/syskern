@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -218,20 +218,56 @@ class OfferViewSet(viewsets.ModelViewSet):
         lang = request.query_params.get("lang", "fr")
         return Response(available_columns(lang))
 
-    # ─── /download (generated Excel/PDF) ─────────────────────────────
+    # ─── /download (generated Excel/PDF, bundled with attachments) ────
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
-        """Stream the generated tariff Excel (CDC §7.8 — GET /offers/{id}/download)."""
-        offer = self.get_object()
-        path = offer_export_path(offer.id)
-        if not path.is_file():
-            raise Http404("Document non généré ou expiré.")
-        return FileResponse(
-            path.open("rb"),
-            as_attachment=True,
-            filename=f"tarif_{offer.id}.xlsx",
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        """Download the offer, bundling attached library documents (CDC §7.4.4).
+
+        Tariff → the Excel, or a **ZIP** (Excel + annexes) if documents are
+        attached. Project → the Gamma PDF, or a single **merged PDF** (quote +
+        annexes) if documents are attached. Language is resolved with FR fallback.
+        """
+        from .services.attachments import (
+            bundle_zip,
+            fetch_pdf,
+            merge_pdfs,
+            resolve_attached_documents,
         )
+
+        offer = self.get_object()
+        docs = resolve_attached_documents(offer.attached_document_ids, offer.language)
+
+        if offer.offer_type == OfferType.TARIFF:
+            path = offer_export_path(offer.id)
+            if not path.is_file():
+                raise Http404("Document non généré ou expiré.")
+            if not docs:
+                return FileResponse(
+                    path.open("rb"),
+                    as_attachment=True,
+                    filename=f"tarif_{offer.id}.xlsx",
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    ),
+                )
+            zip_bytes = bundle_zip(f"tarif_{offer.id}.xlsx", path.read_bytes(), docs)
+            resp = HttpResponse(zip_bytes, content_type="application/zip")
+            resp["Content-Disposition"] = f'attachment; filename="offre_{offer.id}.zip"'
+            return resp
+
+        # Project offer → Gamma PDF, optionally merged with the annexes.
+        export_url = (offer.project_info or {}).get("gamma_export_url")
+        if not export_url:
+            raise Http404("PDF du devis non disponible (génération Gamma incomplète).")
+        try:
+            pdf = fetch_pdf(export_url)
+        except Exception as exc:  # noqa: BLE001 — surface a clean 404 to the client
+            raise Http404("Impossible de récupérer le PDF du devis Gamma.") from exc
+        if docs:
+            pdf = merge_pdfs(pdf, docs)
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="devis_{offer.id}.pdf"'
+        return resp
 
     # ─── /generate (stub) ────────────────────────────────────────────
     @action(detail=True, methods=["post"])

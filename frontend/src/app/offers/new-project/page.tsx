@@ -3,12 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import {
-  Warning,
-  Check,
-  ArrowSquareOut,
-  CircleNotch,
-} from "@phosphor-icons/react";
+import { Warning, Check, ArrowSquareOut, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { FormField } from "@/components/FormField";
 import { FilterSelect } from "@/components/FilterSelect";
@@ -17,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DocumentPicker } from "@/components/DocumentPicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +119,7 @@ function ProjectWizard() {
   const [language, setLanguage] = useState("fr");
   const [expiration, setExpiration] = useState("");
   const [aiInstructions, setAiInstructions] = useState("");
+  const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<GenResult | null>(null);
@@ -167,6 +164,7 @@ function ProjectWizard() {
               expiration_date: expiration,
               ai_instructions: aiInstructions,
               sections_config: sectionsConfig,
+              attached_document_ids: attachedDocIds,
             },
           );
       setResult(await pollGeneration(task_id));
@@ -265,10 +263,7 @@ function ProjectWizard() {
                 />
               </FormField>
               <FormField label="Nom du projet" required>
-                <Input
-                  value={projectName}
-                  onChange={(e) => setNameOverride(e.target.value)}
-                />
+                <Input value={projectName} onChange={(e) => setNameOverride(e.target.value)} />
               </FormField>
             </div>
           </Section>
@@ -368,9 +363,15 @@ function ProjectWizard() {
               rows={6}
               placeholder="Ex : insister sur la conformité CPR, la garantie 30 ans, et l'expérience datacenter."
             />
+            <div className="mt-4">
+              <FormField label="Documents joints (bibliothèque → PDF fusionné)">
+                <DocumentPicker selected={attachedDocIds} onChange={setAttachedDocIds} />
+              </FormField>
+            </div>
             <p className="mt-3 text-xs text-muted-foreground">
               {Object.values(quantities).filter((q) => q > 0).length} SKU · {language.toUpperCase()}{" "}
               · {SECTIONS.filter((s) => sectionOn(s.key)).length} sections
+              {attachedDocIds.length > 0 ? ` · ${attachedDocIds.length} doc(s)` : ""}
             </p>
           </Section>
         )}

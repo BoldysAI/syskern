@@ -509,9 +509,7 @@ export function buildSimulationQuery(filters: SimulationFilters): Record<string,
   return params;
 }
 
-function resolveSimulationListFilters(
-  params: SimulationListParams,
-): SimulationFilters {
+function resolveSimulationListFilters(params: SimulationListParams): SimulationFilters {
   if (params.includeArchived === false && !params.status?.length) {
     return { ...params, status: ["draft", "finalized"] };
   }
@@ -519,7 +517,9 @@ function resolveSimulationListFilters(
   return filters;
 }
 
-export function getSimulationsList(params: SimulationListParams = {}): Promise<PaginatedSimulations> {
+export function getSimulationsList(
+  params: SimulationListParams = {},
+): Promise<PaginatedSimulations> {
   const filters = resolveSimulationListFilters(params);
   const q = new URLSearchParams(buildSimulationQuery(filters));
   const limit = params.limit ?? 50;
@@ -801,7 +801,7 @@ export function getClients(search?: string): Promise<Client[]> {
   const q = new URLSearchParams({ limit: "200" });
   if (search) q.set("search", search);
   return apiFetch<PaginatedResponse<Client>>(`/api/clients/?${q.toString()}`).then(
-    (r) => r.results
+    (r) => r.results,
   );
 }
 
@@ -846,7 +846,7 @@ export function createSimulation(data: CreateSimulationInput): Promise<Simulatio
 
 export function updateSimulation(
   id: string,
-  data: UpdateSimulationInput
+  data: UpdateSimulationInput,
 ): Promise<SimulationDetail> {
   return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/`, {
     method: "PATCH",
@@ -861,10 +861,7 @@ export function deleteSimulation(id: string): Promise<void> {
 }
 
 /** Attach products to a simulation (creates lines). */
-export function addSimulationLines(
-  id: string,
-  productIds: string[],
-): Promise<{ added: number }> {
+export function addSimulationLines(id: string, productIds: string[]): Promise<{ added: number }> {
   return apiFetch<{ added: number }>(`/api/simulations/${encodeURIComponent(id)}/lines/`, {
     method: "POST",
     body: JSON.stringify({ product_ids: productIds }),
@@ -893,12 +890,12 @@ export function deleteSimulationLine(lineId: string): Promise<void> {
 /** Force a full recalculation (CDC §6.9.4) — dispatches a Celery task and polls. */
 export function recalculateSimulation(
   id: string,
-  body?: { scope?: RecalcScope; market_params?: Record<string, unknown>; note?: string }
+  body?: { scope?: RecalcScope; market_params?: Record<string, unknown>; note?: string },
 ): Promise<SimulationDetail> {
   return dispatchAndPoll<SimulationDetail>(
     `/api/simulations/${encodeURIComponent(id)}/recalculate/`,
     { method: "POST", body: JSON.stringify(body ?? {}) },
-    { timeoutMs: 300_000 }
+    { timeoutMs: 300_000 },
   );
 }
 
@@ -906,7 +903,7 @@ export function recalculateSimulation(
 export function recalculateSimulationLine(lineId: string): Promise<SimulationLine> {
   return apiFetch<SimulationLine>(
     `/api/simulation-lines/${encodeURIComponent(lineId)}/recalculate/`,
-    { method: "POST" }
+    { method: "POST" },
   );
 }
 
@@ -925,7 +922,7 @@ export interface SimulationLineQuery {
 
 /** Paginated lines for the results table (filters + ordering, CDC §6.9.9). */
 export function getSimulationLines(
-  params: SimulationLineQuery
+  params: SimulationLineQuery,
 ): Promise<PaginatedResponse<SimulationLine>> {
   const limit = params.limit ?? 200;
   const page = params.page ?? 1;
@@ -938,19 +935,14 @@ export function getSimulationLines(
   if (params.has_warning) q.set("has_warning", "true");
   if (params.has_error) q.set("has_error", "true");
   if (params.ordering) q.set("ordering", params.ordering);
-  return apiFetch<PaginatedResponse<SimulationLine>>(
-    `/api/simulation-lines/?${q.toString()}`
-  );
+  return apiFetch<PaginatedResponse<SimulationLine>>(`/api/simulation-lines/?${q.toString()}`);
 }
 
 /** Count the lines a bulk-edit filter would touch (no mutation). */
-export function bulkEditPreview(
-  id: string,
-  filter: BulkEditFilter
-): Promise<{ count: number }> {
+export function bulkEditPreview(id: string, filter: BulkEditFilter): Promise<{ count: number }> {
   return apiFetch<{ count: number }>(
     `/api/simulations/${encodeURIComponent(id)}/lines/bulk/preview/`,
-    { method: "POST", body: JSON.stringify({ filter }) }
+    { method: "POST", body: JSON.stringify({ filter }) },
   );
 }
 
@@ -962,42 +954,42 @@ export function bulkEditLines(
     margin_override?: string | null;
     stock_purchase_mix_pct_override?: number | null;
     reset?: boolean;
-  }
+  },
 ): Promise<{ updated: number }> {
-  return apiFetch<{ updated: number }>(
-    `/api/simulations/${encodeURIComponent(id)}/lines/bulk/`,
-    { method: "POST", body: JSON.stringify(body) }
-  );
+  return apiFetch<{ updated: number }>(`/api/simulations/${encodeURIComponent(id)}/lines/bulk/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /** Remove lines from a simulation (by ids or cumulative filter). */
 export function bulkDeleteSimulationLines(
   id: string,
-  body: { filter?: BulkEditFilter; line_ids?: string[] }
+  body: { filter?: BulkEditFilter; line_ids?: string[] },
 ): Promise<{ deleted: number }> {
   return apiFetch<{ deleted: number }>(
     `/api/simulations/${encodeURIComponent(id)}/lines/bulk-delete/`,
-    { method: "POST", body: JSON.stringify(body) }
+    { method: "POST", body: JSON.stringify(body) },
   );
 }
 
 /** Paginated recalculation history of a simulation, DESC (CDC §6.9.12). */
 export function getRecalculations(
   id: string,
-  opts?: { limit?: number; offset?: number }
+  opts?: { limit?: number; offset?: number },
 ): Promise<PaginatedResponse<Recalculation>> {
   const q = new URLSearchParams();
   q.set("limit", String(opts?.limit ?? 10));
   if (opts?.offset) q.set("offset", String(opts.offset));
   return apiFetch<PaginatedResponse<Recalculation>>(
-    `/api/simulations/${encodeURIComponent(id)}/recalculations/?${q.toString()}`
+    `/api/simulations/${encodeURIComponent(id)}/recalculations/?${q.toString()}`,
   );
 }
 
 /** Full detail of a single recalc trace, incl. frozen line snapshots. */
 export function getRecalculation(simId: string, recalcId: string): Promise<Recalculation> {
   return apiFetch<Recalculation>(
-    `/api/simulations/${encodeURIComponent(simId)}/recalculations/${encodeURIComponent(recalcId)}/`
+    `/api/simulations/${encodeURIComponent(simId)}/recalculations/${encodeURIComponent(recalcId)}/`,
   );
 }
 
@@ -1082,7 +1074,7 @@ export async function exportSimulation(id: string): Promise<void> {
   const result = await dispatchAndPoll<{ file_url: string; filename: string }>(
     `/api/simulations/${encodeURIComponent(id)}/export/`,
     { method: "POST" },
-    { timeoutMs: 180_000 }
+    { timeoutMs: 180_000 },
   );
   const a = document.createElement("a");
   a.href = result.file_url;
@@ -1099,24 +1091,22 @@ export function finalizeSimulation(id: string): Promise<SimulationDetail> {
 }
 
 export function duplicateSimulation(id: string, label?: string): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
-    `/api/simulations/${encodeURIComponent(id)}/duplicate/`,
-    { method: "POST", body: JSON.stringify(label ? { label } : {}) }
-  );
+  return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/duplicate/`, {
+    method: "POST",
+    body: JSON.stringify(label ? { label } : {}),
+  });
 }
 
 export function archiveSimulation(id: string): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
-    `/api/simulations/${encodeURIComponent(id)}/archive/`,
-    { method: "POST" }
-  );
+  return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/archive/`, {
+    method: "POST",
+  });
 }
 
 export function unarchiveSimulation(id: string): Promise<SimulationDetail> {
-  return apiFetch<SimulationDetail>(
-    `/api/simulations/${encodeURIComponent(id)}/unarchive/`,
-    { method: "POST" }
-  );
+  return apiFetch<SimulationDetail>(`/api/simulations/${encodeURIComponent(id)}/unarchive/`, {
+    method: "POST",
+  });
 }
 
 // ── Market parameters (settings) ─────────────────────────────────────────
@@ -1177,9 +1167,7 @@ export function getMarketParameters(): Promise<MarketParameter[]> {
 
 // ── Transport modes ──────────────────────────────────────────────────────
 export function listIncoterms(): Promise<IncotermRef[]> {
-  return apiFetch<{ incoterms: IncotermRef[] }>("/api/incoterms").then(
-    (r) => r.incoterms
-  );
+  return apiFetch<{ incoterms: IncotermRef[] }>("/api/incoterms").then((r) => r.incoterms);
 }
 
 export function listTransportModes(activeOnly = false): Promise<TransportMode[]> {
@@ -1518,6 +1506,10 @@ export function listUsers(): Promise<PlatformUserSummary[]> {
 export interface DocumentLibraryEntry {
   id: string;
   label?: string;
+  name?: Record<string, string>;
+  category?: string;
+  file_name?: string;
+  language?: string;
   created_at: string;
 }
 
@@ -1525,6 +1517,13 @@ export function getDocumentLibraryCount(): Promise<number> {
   return apiFetch<{ count: number; results: DocumentLibraryEntry[] }>(
     "/api/document-library/?limit=1",
   ).then((r) => r.count);
+}
+
+/** Active library documents, for attaching to an offer (CDC §7.4). */
+export function listDocumentLibrary(): Promise<DocumentLibraryEntry[]> {
+  return apiFetch<{ results: DocumentLibraryEntry[] }>("/api/document-library/?limit=200").then(
+    (r) => r.results ?? [],
+  );
 }
 
 export interface OfferSummary {

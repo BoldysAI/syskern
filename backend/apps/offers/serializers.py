@@ -136,6 +136,9 @@ class GenerateTariffOffersSerializer(serializers.Serializer):
     expiration_date = serializers.DateField(required=False, allow_null=True)
     incoterm = serializers.CharField(required=False, allow_blank=True, default="EXW")
     label = serializers.CharField(required=False, allow_blank=True, default="")
+    attached_document_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list
+    )
 
     def validate_columns(self, value: list[str]) -> list[str]:
         if value:
@@ -164,6 +167,9 @@ class GenerateProjectOfferSerializer(serializers.Serializer):
     ai_instructions = serializers.CharField(required=False, allow_blank=True, default="")
     sections_config = serializers.DictField(
         child=serializers.BooleanField(), required=False, allow_null=True
+    )
+    attached_document_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list
     )
 
     def validate_client_id(self, value):

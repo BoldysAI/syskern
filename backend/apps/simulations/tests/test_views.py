@@ -123,7 +123,7 @@ class TestSimulationListFilters:
 
     def test_is_dirty_filter_and_ordering(self, client: APIClient) -> None:
         clean = Simulation.objects.create(label="Propre", simulation_type=SimulationType.TARIFF)
-        dirty = Simulation.objects.create(
+        Simulation.objects.create(
             label="Sale",
             simulation_type=SimulationType.TARIFF,
             is_dirty=True,
@@ -290,9 +290,7 @@ class TestLineFilters:
         assert resp.status_code == 200
         assert {row["status"] for row in resp.json()["results"]} == {"ok", "warning"}
 
-        resp = client.get(
-            f"/api/simulation-lines/?simulation={sim_with_lines.pk}&status_in=error"
-        )
+        resp = client.get(f"/api/simulation-lines/?simulation={sim_with_lines.pk}&status_in=error")
         assert resp.status_code == 200
         assert {row["status"] for row in resp.json()["results"]} == {"error"}
 
@@ -421,7 +419,9 @@ class TestFinalize:
         return sim, line
 
     def test_finalize_without_calculation_returns_400(self, client: APIClient) -> None:
-        sim = Simulation.objects.create(label="Jamais calculée", simulation_type=SimulationType.TARIFF)
+        sim = Simulation.objects.create(
+            label="Jamais calculée", simulation_type=SimulationType.TARIFF
+        )
         resp = client.post(f"/api/simulations/{sim.pk}/finalize/")
         assert resp.status_code == 400
         sim.refresh_from_db()
@@ -520,7 +520,9 @@ class TestArchive:
         assert SimulationStatus.ARCHIVED in statuses
         assert SimulationStatus.DRAFT in statuses
 
-    def test_list_status_filter_can_exclude_archived(self, client: APIClient, draft: Simulation) -> None:
+    def test_list_status_filter_can_exclude_archived(
+        self, client: APIClient, draft: Simulation
+    ) -> None:
         _archived()
         resp = client.get("/api/simulations/?status=draft,finalized")
         assert resp.status_code == 200
@@ -599,7 +601,9 @@ class TestDuplicate:
 
     def test_editing_original_does_not_affect_copy(self, client: APIClient) -> None:
         sim, line = self._sim_with_frozen_line()
-        copy_id = client.post(f"/api/simulations/{sim.pk}/duplicate/", {}, format="json").json()["id"]
+        copy_id = client.post(f"/api/simulations/{sim.pk}/duplicate/", {}, format="json").json()[
+            "id"
+        ]
         # Mutate the original line.
         line.pv_eur = Decimal("999")
         line.margin_override = Decimal("0.9000")
@@ -621,7 +625,9 @@ class TestDuplicate:
             export_format="excel",
             status=OfferStatus.DRAFT,
         )
-        copy_id = client.post(f"/api/simulations/{sim.pk}/duplicate/", {}, format="json").json()["id"]
+        copy_id = client.post(f"/api/simulations/{sim.pk}/duplicate/", {}, format="json").json()[
+            "id"
+        ]
         assert Offer.objects.filter(simulation_id=copy_id).count() == 0
 
     def test_duplicate_finalized_allowed(self, client: APIClient) -> None:
@@ -732,13 +738,12 @@ class TestSimulationLineDelete:
         assert sim.is_dirty is False
 
     def test_delete_line_finalized_returns_403(self, client: APIClient) -> None:
-        sim = Simulation.objects.create(
-            label="Del fin",
-            simulation_type=SimulationType.TARIFF,
-            status=SimulationStatus.FINALIZED,
-        )
+        # Build as draft, add the line, then finalize: the guard trigger blocks
+        # line inserts on an already-finalized parent.
+        sim = Simulation.objects.create(label="Del fin", simulation_type=SimulationType.TARIFF)
         product = Product.objects.create(sku_code="DEL-2", name="x")
         line = SimulationLine.objects.create(simulation=sim, product=product, status="ok")
+        Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
         resp = client.delete(f"/api/simulation-lines/{line.pk}/")
         assert resp.status_code == 403
 
@@ -746,8 +751,7 @@ class TestSimulationLineDelete:
         sim = Simulation.objects.create(label="Bulk del", simulation_type=SimulationType.TARIFF)
         products = [Product.objects.create(sku_code=f"BD-{i}", name="x") for i in range(3)]
         lines = [
-            SimulationLine.objects.create(simulation=sim, product=p, status="ok")
-            for p in products
+            SimulationLine.objects.create(simulation=sim, product=p, status="ok") for p in products
         ]
         resp = client.post(
             f"/api/simulations/{sim.pk}/lines/bulk-delete/",
@@ -784,8 +788,13 @@ class TestCompare:
         s1, p = self._sim_with_line("A", "CMP-1", "130")
         s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
         SimulationLine.objects.create(
-            simulation=s2, product=p, status="ok", pv_eur=Decimal("140"),
-            pr_eur=Decimal("115"), effective_margin_rate=Decimal("0.2500"), effective_mix_pct=10,
+            simulation=s2,
+            product=p,
+            status="ok",
+            pv_eur=Decimal("140"),
+            pr_eur=Decimal("115"),
+            effective_margin_rate=Decimal("0.2500"),
+            effective_mix_pct=10,
         )
         resp = client.post(
             "/api/simulations/compare",

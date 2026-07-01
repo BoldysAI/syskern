@@ -488,3 +488,28 @@ message « créez le produit manuellement via Catalogue → Nouveau produit, pui
 - **Tests** : 6 nouveaux (ignore/delete/create exécutés, create requiert product, SKU dupliqué 400, resolved_by
   par défaut) — 15 tests quarantaine verts, ruff + mypy propres. Front tsc + eslint clean (fichier livré).
   **Vérif live** (`:8000`) : POST resolve `create` → produit créé (factory/parent dérivés) + ligne résolue, puis nettoyage.
+
+## 2026-06-30 · [P] Bibliothèque de documents — vrai use case : attacher aux offres (CDC §7.4.4)
+Constat : la bibliothèque était un **îlot CRUD sans consommateur** (`Offer.attached_document_ids` jamais lu à la
+génération, aucune sélection dans les wizards, aucune fusion, 0 test d'intégration). Elle sert désormais réellement :
+attacher des documents à une offre → les retrouver **dans la sortie**.
+- **Service** `apps/offers/services/attachments.py` : `resolve_attached_documents(ids, language)` (fallback FR §7.4.2 :
+  swap vers le variant même `file_name` dans la langue cible si dispo, sinon garde le sélectionné ; ignore inactifs),
+  `bundle_zip` (tarif → ZIP `Excel` + `annexes/`), `merge_pdfs` (projet → devis Gamma + annexes PDF via **pypdf** ;
+  annexes non-PDF ignorées avec warning), `fetch_pdf` (récupère le PDF export Gamma).
+- **Câblage** : `attached_document_ids` accepté par les 2 serializers de génération + stringifié dans les payloads
+  (`simulations/views.py`), persisté sur l'`Offer` (tâches tarif + `create_project_offer`). L'endpoint
+  **`/offers/{id}/download/`** bundle à la lecture : tarif+docs → **ZIP**, projet+docs → **PDF fusionné**
+  (fetch Gamma export + merge) ; sans docs → comportement inchangé (Excel / PDF Gamma).
+- **Dépendance** : `pypdf>=5.1` ajoutée (`pyproject.toml` + `uv.lock` → 6.14.2, image rebuild).
+- **Front** : composant partagé `DocumentPicker` (liste `/api/document-library/`, cases à cocher) branché dans les 2
+  wizards (`new-tariff` étape Validité, `new-project` étape Instructions IA) + `attached_document_ids` dans les payloads ;
+  API `listDocumentLibrary()`.
+- **Tests (10, `test_attachments.py`)** : resolve + fallback FR + inactifs + vide ; ZIP contient main+annexes ; merge
+  concatène les pages + ignore non-PDF ; **download e2e** tarif→ZIP et projet→PDF fusionné (3 pages) via mocks. ruff +
+  mypy propres, **suite complète 661 verts** (dont fix d'un test préexistant `test_delete_line_finalized` — antipattern
+  finalized-puis-lignes, comme offers/report). Front tsc + eslint clean sur les fichiers livrés.
+- **⚠️ Build cassé préexistant (issue du merge pull, PAS ce lot)** : `next build` échoue au type-check sur une erreur
+  Recharts `Props<{PA}>` (graphique) + les 11 erreurs tsc déjà signalées (`simulator/wizard-draft.ts`,
+  `MarketParamsModal.tsx`, `humanize-errors.ts`). **Le frontend ne build pas sur `main`** tant que ces erreurs ne sont
+  pas corrigées — à traiter séparément (non introduit par ce lot, confirmé : mes fichiers D sont tsc-clean).
