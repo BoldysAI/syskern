@@ -42,7 +42,10 @@ import {
   SimulationFilterSheet,
   SimulationFilterTrigger,
 } from "./_components/SimulationFilterSheet";
-import { countActiveSimulationFilters, normalizeSimulationFilters } from "./_components/simulation-filters";
+import {
+  countActiveSimulationFilters,
+  normalizeSimulationFilters,
+} from "./_components/simulation-filters";
 import {
   loadSavedSimulationFilters,
   persistSavedSimulationFilters,
@@ -54,7 +57,13 @@ const MAX_COMPARE = 4;
 const DEFAULT_SORT: DataTableSortState = { field: "updated_at", dir: "desc" };
 const COLUMN_WIDTHS_KEY = "syskern:simulations-list-col-widths:v1";
 
-function SimulationStatusCell({ status, dirty }: { status: Simulation["status"]; dirty?: boolean }) {
+function SimulationStatusCell({
+  status,
+  dirty,
+}: {
+  status: Simulation["status"];
+  dirty?: boolean;
+}) {
   const config = {
     finalized: { label: "Finalisé", variant: "success" as const, Icon: SealCheck },
     archived: { label: "Archivé", variant: "draft" as const, Icon: Archive },
@@ -69,10 +78,7 @@ function SimulationStatusCell({ status, dirty }: { status: Simulation["status"];
         {label}
       </StatusBadge>
       {dirty && status === "draft" && (
-        <span
-          className="inline-flex h-2 w-2 rounded-full bg-warm"
-          title="Recalcul nécessaire"
-        />
+        <span className="inline-flex h-2 w-2 rounded-full bg-warm" title="Recalcul nécessaire" />
       )}
     </span>
   );
@@ -83,7 +89,11 @@ export default function SimulatorPage() {
   const searchParams = useSearchParams();
   const confirm = useConfirm();
 
-  const [filters, setFilters] = useState<SimulationFilters>({});
+  // Deep-link `?is_dirty=true` is applied once at mount via the lazy initializer
+  // (no effect → avoids the set-state-in-effect cascade).
+  const [filters, setFilters] = useState<SimulationFilters>(() =>
+    searchParams.get("is_dirty") === "true" ? { is_dirty: true } : {},
+  );
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
@@ -105,16 +115,12 @@ export default function SimulatorPage() {
     storageKey: "syskern:simulation-filters-width",
   });
 
-  const [savedFilters, setSavedFilters] = useState<SavedSimulationFilter[]>(loadSavedSimulationFilters);
+  const [savedFilters, setSavedFilters] = useState<SavedSimulationFilter[]>(
+    loadSavedSimulationFilters,
+  );
   useEffect(() => {
     persistSavedSimulationFilters(savedFilters);
   }, [savedFilters]);
-
-  useEffect(() => {
-    if (searchParams.get("is_dirty") === "true") {
-      setFilters((f) => ({ ...f, is_dirty: true }));
-    }
-  }, [searchParams]);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSearchChange = (v: string) => {
@@ -228,10 +234,13 @@ export default function SimulatorPage() {
     setSort((current) => cycleSortField(field, current, DEFAULT_SORT));
   }, []);
 
-  const applyFilters = useCallback((next: SimulationFilters | ((prev: SimulationFilters) => SimulationFilters)) => {
-    setFilters(next);
-    setPage(1);
-  }, []);
+  const applyFilters = useCallback(
+    (next: SimulationFilters | ((prev: SimulationFilters) => SimulationFilters)) => {
+      setFilters(next);
+      setPage(1);
+    },
+    [],
+  );
 
   const resetFilters = () => {
     setFilters({});
@@ -431,11 +440,7 @@ export default function SimulatorPage() {
         />
 
         <div className="border-b border-border bg-card px-4 py-3 md:hidden">
-          <SearchInput
-            value={searchInput}
-            onChange={onSearchChange}
-            placeholder="Rechercher…"
-          />
+          <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
         </div>
 
         {selected.size > 0 && (
@@ -484,9 +489,7 @@ export default function SimulatorPage() {
           isLoading={isLoading}
           onRowClick={(sim) => router.push(`/simulator/${sim.id}`)}
           rowClassName={(sim) =>
-            selected.has(sim.id)
-              ? "bg-primary/5"
-              : "bg-card even:bg-muted/20 hover:bg-primary/5"
+            selected.has(sim.id) ? "bg-primary/5" : "bg-card even:bg-muted/20 hover:bg-primary/5"
           }
           renderLeadingHeader={() => (
             <Checkbox
@@ -521,7 +524,7 @@ export default function SimulatorPage() {
               description={
                 activeFilterCount > 0
                   ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : 'Créez votre première simulation en cliquant sur « Nouvelle simulation ».'
+                  : "Créez votre première simulation en cliquant sur « Nouvelle simulation »."
               }
               action={
                 activeFilterCount > 0 ? (

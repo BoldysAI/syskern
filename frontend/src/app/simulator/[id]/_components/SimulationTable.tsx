@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
@@ -40,7 +40,15 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { decToPct, fmtEur, fmtNum, lineDiagnostics, LINE_STATUS, lineRowClassName, productEditHref } from "./sim-format";
+import {
+  decToPct,
+  fmtEur,
+  fmtNum,
+  lineDiagnostics,
+  LINE_STATUS,
+  lineRowClassName,
+  productEditHref,
+} from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 import { LineDiagnosticsDrawer } from "./LineDiagnosticsDrawer";
 import { CalculationBreakdownDrawer } from "./CalculationBreakdownDrawer";
@@ -89,10 +97,13 @@ function OverrideCell({
   onCommit: (raw: string) => void;
 }) {
   const [v, setV] = useState(override);
-
-  useEffect(() => {
+  // Reset the editable value when the canonical override changes — render-time
+  // pattern (React docs) instead of a set-state-in-effect.
+  const [prevOverride, setPrevOverride] = useState(override);
+  if (prevOverride !== override) {
+    setPrevOverride(override);
     setV(override);
-  }, [override]);
+  }
 
   return (
     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -224,7 +235,7 @@ export function SimulationTable({
   const statusIn = buildStatusIn(statusFilters);
   const fromSimulation = useMemo(
     () => ({ simulationId: sim.id, simulationLabel: sim.label }),
-    [sim.id, sim.label]
+    [sim.id, sim.label],
   );
   const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
   const { data, isLoading, mutate } = useSWR<PaginatedResponse<SimulationLine>>(
@@ -237,7 +248,7 @@ export function SimulationTable({
         page,
         limit: PAGE_SIZE,
       }),
-    { keepPreviousData: true }
+    { keepPreviousData: true },
   );
 
   const lines = data?.results ?? [];
@@ -350,11 +361,7 @@ export function SimulationTable({
       await mutate();
       onChanged();
       if (failed === 0) {
-        toast.success(
-          succeeded === 1
-            ? "1 ligne recalculée."
-            : `${succeeded} lignes recalculées.`,
-        );
+        toast.success(succeeded === 1 ? "1 ligne recalculée." : `${succeeded} lignes recalculées.`);
       } else {
         toast.warning(
           `${succeeded} ligne${succeeded !== 1 ? "s" : ""} recalculée${succeeded !== 1 ? "s" : ""}, ${failed} échec${failed !== 1 ? "s" : ""}.`,
@@ -373,7 +380,7 @@ export function SimulationTable({
   const patchLine = useCallback(
     async (
       lineId: string,
-      patch: { margin_override?: string | null; stock_purchase_mix_pct_override?: number | null }
+      patch: { margin_override?: string | null; stock_purchase_mix_pct_override?: number | null },
     ) => {
       setBusyLine(lineId);
       try {
@@ -386,7 +393,7 @@ export function SimulationTable({
         setBusyLine(null);
       }
     },
-    [mutate, onChanged]
+    [mutate, onChanged],
   );
 
   const recalcLine = async (lineId: string) => {
@@ -533,8 +540,7 @@ export function SimulationTable({
             disabled={readOnly || busyLine === line.id}
             onCommit={(raw) =>
               patchLine(line.id, {
-                margin_override:
-                  raw.trim() === "" ? null : (parseFloat(raw) / 100).toFixed(4),
+                margin_override: raw.trim() === "" ? null : (parseFloat(raw) / 100).toFixed(4),
               })
             }
           />
@@ -557,7 +563,6 @@ export function SimulationTable({
         render: (line) => {
           const st = LINE_STATUS[line.status] ?? LINE_STATUS.pending;
           const { errors, warnings } = lineDiagnostics(line);
-          const isError = errors.length > 0;
           return (
             <button
               type="button"
@@ -571,7 +576,7 @@ export function SimulationTable({
               <span
                 className={cn(
                   "inline-flex shrink-0 rounded px-2 py-0.5 text-xs font-medium",
-                  st.badge
+                  st.badge,
                 )}
               >
                 {st.label}
@@ -605,7 +610,7 @@ export function SimulationTable({
         },
       },
     ],
-    [readOnly, busyLine, patchLine, fromSimulation]
+    [readOnly, busyLine, patchLine, fromSimulation],
   );
 
   return (
@@ -629,17 +634,12 @@ export function SimulationTable({
             <ContextItem label="FX EUR→USD" value={mp(sim, "fx_eur_usd")} />
             <ContextItem
               label="Incoterm vente"
-              value={formatIncotermDisplay(
-                sim.sale_incoterm ?? "EXW",
-                sim.sale_incoterm_location
-              )}
+              value={formatIncotermDisplay(sim.sale_incoterm ?? "EXW", sim.sale_incoterm_location)}
             />
             <ContextItem
               label="Snapshot Odoo"
               value={
-                sim.odoo_snapshot_at
-                  ? new Date(sim.odoo_snapshot_at).toLocaleString("fr-FR")
-                  : "—"
+                sim.odoo_snapshot_at ? new Date(sim.odoo_snapshot_at).toLocaleString("fr-FR") : "—"
               }
             />
           </div>
@@ -654,7 +654,10 @@ export function SimulationTable({
               <Calculator size={15} />
               Recalculer
               {sim.is_dirty && (
-                <span className="h-2 w-2 rounded-full bg-primary-foreground" title="Recalcul nécessaire" />
+                <span
+                  className="h-2 w-2 rounded-full bg-primary-foreground"
+                  title="Recalcul nécessaire"
+                />
               )}
             </Button>
             <Button
@@ -670,8 +673,18 @@ export function SimulationTable({
             <Button onClick={() => onBulkEdit()} disabled={readOnly} variant="outline" size="sm">
               Édition groupée
             </Button>
-            <Button onClick={handleExport} disabled={exporting} variant="outline" size="sm" className="gap-2">
-              {exporting ? <CircleNotch size={15} className="animate-spin" /> : <DownloadSimple size={15} />}
+            <Button
+              onClick={handleExport}
+              disabled={exporting}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              {exporting ? (
+                <CircleNotch size={15} className="animate-spin" />
+              ) : (
+                <DownloadSimple size={15} />
+              )}
               Exporter Excel
             </Button>
             <Button onClick={onHistory} variant="outline" size="sm">
@@ -834,25 +847,22 @@ export function SimulationTable({
         }
         rowClassName={(line) => lineRowClassName(line.status)}
         renderTrailingCell={(line) => (
-                <RowMenu
-                  disabled={busyLine === line.id || removing || resetting || recalculating}
-                  readOnly={readOnly}
-                  onShowBreakdown={() => setBreakdownLine(line)}
-                  onRecalcLine={() => recalcLine(line.id)}
-                  onResetOverrides={() =>
-                    patchLine(line.id, {
-                      margin_override: null,
-                      stock_purchase_mix_pct_override: null,
-                    })
-                  }
-                  onRemove={() =>
-                    removeLines(
-                      [line.id],
-                      `Retirer ${line.product_sku} de cette simulation ?`,
-                    )
-                  }
-                />
-              )}
+          <RowMenu
+            disabled={busyLine === line.id || removing || resetting || recalculating}
+            readOnly={readOnly}
+            onShowBreakdown={() => setBreakdownLine(line)}
+            onRecalcLine={() => recalcLine(line.id)}
+            onResetOverrides={() =>
+              patchLine(line.id, {
+                margin_override: null,
+                stock_purchase_mix_pct_override: null,
+              })
+            }
+            onRemove={() =>
+              removeLines([line.id], `Retirer ${line.product_sku} de cette simulation ?`)
+            }
+          />
+        )}
         pagination={{
           page,
           totalPages,
@@ -879,9 +889,7 @@ async function onExportWrap(fn: () => void | Promise<void>): Promise<void> {
 function ContextItem({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex flex-col">
-      <span className="text-[10px] font-semibold text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-[10px] font-semibold text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground tabular-nums">{value}</span>
     </span>
   );
