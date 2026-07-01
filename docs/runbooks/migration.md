@@ -60,6 +60,22 @@ docker compose run --rm backend python manage.py run_migration --reset
 `--start-from` accepts the index (`2`), the `step_2` form, or the step key
 (`excel_enrichment`).
 
+### Loading a single Excel file (per-loader)
+
+To load one source without the full orchestrator (e.g. add one supplier's PO),
+use its dedicated loader command. Loaders: `load_po_fournisseurs` (Symea),
+`load_po_ayp`, `load_po_infoks`, `load_po_mirsan`, `load_technique`.
+
+```bash
+# Dry-run first (writes nothing):
+docker compose run --rm backend python manage.py load_po_ayp \
+  --file /migration/sources/PO_AYP.xlsx --sheet 0 --header-row 0 --dry-run
+# Real load (drop --dry-run). --sheet = name or 0-based index; --header-row 0-based.
+```
+
+⚠️ These loaders **enrich existing products** — run the Odoo sync (or a product
+import) first, otherwise every row lands in quarantine as `NO_MATCH` (see below).
+
 ## Resume behaviour
 
 - The checkpoint lives at `MIGRATION_STATE_FILE` (default
@@ -86,14 +102,28 @@ docker compose run --rm backend python manage.py run_migration --reset
 
 Unmatched rows land in `migration_unmatched`. Olivier reviews and resolves them
 from the admin UI at **`/admin/migration-quarantine`** (admin-only): filter by
-source file / reason / resolved status, read the raw JSON of each row, and mark
-rows resolved with a note. There is **no auto-reinjection** — to act on a row,
-create the product manually via *Catalogue → Nouveau produit*, then mark the
-row resolved.
+source file / reason / resolved status. Each row shows its data as a
+**structured key/value view** (no raw JSON), and resolution is **automatic** via
+one of three explicit actions (2026-06-30):
+
+- **Créer le produit** — builds & persists the `Product` directly from the row
+  (SKU prefilled, `factory_code`/`parent_reference` derived); no need to go to
+  *Catalogue → Nouveau produit* manually.
+- **Supprimer** — the row is discarded (soft, kept for audit).
+- **Ne rien faire** — the row is simply marked resolved.
+
+`resolved_by` defaults to the logged-in admin. The chosen action is stored
+(`resolution_action`) for the report.
+
+> ⚠️ **Root cause of mass quarantine**: the PO loaders *enrich existing
+> products* — they don't create them. If products aren't in the DB first
+> (Odoo sync, step 1), every PO row → `NO_MATCH`. Always run step 1 (or a
+> product import) **before** the PO enrichment loaders.
 
 API: `GET /api/migration/unmatched/` (paginated, filters `source_file`,
-`reason`, `resolved`), `GET .../facets/` (counts for the filter UI),
-`POST|PATCH .../{id}/resolve/` (`{resolved_by, resolution_notes}`).
+`reason`, `resolved`, `ordering`), `GET .../facets/` (counts for the filter UI),
+`POST|PATCH .../{id}/resolve/` (`{action: ignore|create|delete, product?,
+resolved_by?, resolution_notes?}`).
 
 ## Final report (CDC §8.8)
 

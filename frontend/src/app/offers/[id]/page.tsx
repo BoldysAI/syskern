@@ -14,19 +14,18 @@ import {
   PaperPlaneTilt,
   ThumbsDown,
   Trophy,
+  Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormField } from "@/components/FormField";
-import {
-  useBreadcrumbOverride,
-  type BreadcrumbCrumb,
-} from "@/components/layout/BreadcrumbContext";
+import { useBreadcrumbOverride, type BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
 import { persistLastVisited } from "@/lib/last-visited";
 import {
   Dialog,
@@ -118,6 +117,17 @@ async function patchStatus(id: string, status: string) {
     throw new Error(d?.detail ?? "Transition refusée");
   }
 }
+async function deleteOffer(id: string) {
+  const res = await fetch(`/api/offers/${id}/`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "X-CSRFToken": getCsrfToken() },
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d?.detail ?? "Suppression impossible.");
+  }
+}
 
 function daysUntil(date: string | null): number | null {
   if (!date) return null;
@@ -130,14 +140,17 @@ function daysUntil(date: string | null): number | null {
 export default function OfferDetailPage() {
   const id = String(useParams().id);
   const router = useRouter();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDate, setExtendDate] = useState("");
 
-  const { data: offer, mutate, isLoading } = useSWR<OfferDetail>(`offer:${id}`, () =>
-    getJson<OfferDetail>(`/api/offers/${id}/`),
-  );
+  const {
+    data: offer,
+    mutate,
+    isLoading,
+  } = useSWR<OfferDetail>(`offer:${id}`, () => getJson<OfferDetail>(`/api/offers/${id}/`));
   const { data: versions } = useSWR<VersionRow[]>(
     offer?.offer_type === "project" ? `offer-versions:${id}` : null,
     () => getJson<VersionRow[]>(`/api/offers/${id}/versions/`),
@@ -224,6 +237,27 @@ export default function OfferDetailPage() {
       await postJson(`/api/offers/${id}/extend-expiration/`, { new_date: extendDate });
       setExtendOpen(false);
     });
+  };
+
+  const remove = async () => {
+    const ok = await confirm({
+      title: "Supprimer cette offre ?",
+      description:
+        "Action irréversible. La simulation source n'est pas supprimée. " +
+        "Une offre en cours de génération ne peut pas être supprimée.",
+      confirmLabel: "Supprimer",
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteOffer(id);
+      router.push("/offers");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Suppression impossible.");
+      setBusy(false);
+    }
   };
 
   return (
@@ -316,7 +350,10 @@ export default function OfferDetailPage() {
             </span>
           )
         ) : (
-          <a href={`/api/offers/${id}/download/`} className={cn(buttonVariants(), "inline-flex gap-2")}>
+          <a
+            href={`/api/offers/${id}/download/`}
+            className={cn(buttonVariants(), "inline-flex gap-2")}
+          >
             <DownloadSimple size={14} weight="duotone" />
             Télécharger l&apos;Excel
           </a>
@@ -347,9 +384,7 @@ export default function OfferDetailPage() {
                     {STATUS_LABELS[v.status] ?? v.status}
                   </span>
                 </Link>
-                {i < versions.length - 1 && (
-                  <span className="text-muted-foreground/40">→</span>
-                )}
+                {i < versions.length - 1 && <span className="text-muted-foreground/40">→</span>}
               </span>
             ))}
           </div>
@@ -434,6 +469,15 @@ export default function OfferDetailPage() {
             Nouvelle version
           </Button>
         )}
+        <Button
+          variant="ghost"
+          onClick={remove}
+          disabled={busy}
+          className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash size={15} />
+          Supprimer
+        </Button>
       </div>
 
       <Dialog open={extendOpen} onOpenChange={setExtendOpen}>
@@ -445,11 +489,7 @@ export default function OfferDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <FormField label="Nouvelle date" required>
-            <Input
-              type="date"
-              value={extendDate}
-              onChange={(e) => setExtendDate(e.target.value)}
-            />
+            <Input type="date" value={extendDate} onChange={(e) => setExtendDate(e.target.value)} />
           </FormField>
           <DialogFooter>
             <Button variant="outline" onClick={() => setExtendOpen(false)}>
