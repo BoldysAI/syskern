@@ -450,3 +450,21 @@ Correctifs :
 - ⚠️ **Dette front préexistante (issue du merge pull, PAS ce lot)** : `npx tsc --noEmit` rouge (11 erreurs dans
   `simulator/wizard-draft.ts`, `MarketParamsModal.tsx`, `humanize-errors.ts` — `copper_base_price_rmb` renommé, flag
   regex es2018). Confirmé via git stash. À corriger séparément.
+
+## 2026-06-30 · [P] Sync Odoo — import de TOUS les fournisseurs (fix « seul Symea au catalogue »)
+Bug remonté : à la création/édition d'un fournisseur produit, seul « Symea » apparaît. Diagnostic (données réelles) :
+- Base locale : 784 produits (782 `odoo_id`), fournisseurs **uniquement** Symea (2 variantes ×660), **quarantaine vide**.
+- `/api/supplier-names` (`DistinctSupplierNamesView`) est **sans filtre** → correct, ne pas y toucher.
+- Cause code : `odoo_sync/services/runner.py` importait **`op.suppliers[0]` seulement** (« multi-supplier arbitration
+  pending ») alors que l'adapter (`v19._fetch_supplier_map`) récupère **tous** les `product.supplierinfo`. Le sync
+  jetait donc les fournisseurs secondaires.
+- Vérif Odoo impossible en live : staging v19 = **404** (instance expirée) ; les 2 MCP Odoo pointent sur **travelbook**
+  (autre client) ; fichiers sources migration **absents** (`migration/sources/` = `.gitkeep`).
+Correctif : `_upsert_supplier` (un seul) → **`_sync_suppliers`** — importe tous les fournisseurs distincts, garde
+**exactement un actif** (le premier, lu par le moteur pricing), les autres inactifs ; activation atomique
+(respecte l'index partiel `one_active_supplier_per_product`). Tests `test_supplier_sync.py` (4) : tous importés +
+premier actif ; re-sync bascule le primaire, 1 seul actif ; dédup ; liste vide = no-op. ruff propre, 21 tests odoo_sync verts.
+**⚠️ Volet données/ops (hors code, non reproductible localement)** : les fournisseurs AYP/Infoks/Mirsan ne viennent pas
+d'Odoo mais de **fichiers PO Excel** chargés par les loaders `loader_po_*` (corrects) via `run_migration` + manifest.
+Ces fichiers ne sont pas au repo → il faut les charger sur l'environnement réel pour que ces fournisseurs apparaissent.
+Le « tout en quarantaine » (A3) n'est pas reproductible ici (quarantaine vide) — probablement un run de migration passé.

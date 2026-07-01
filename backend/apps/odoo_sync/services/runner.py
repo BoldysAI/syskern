@@ -18,6 +18,7 @@ import re
 from datetime import datetime
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from apps.odoo_sync.adapters.base import OdooAdapter
@@ -207,10 +208,10 @@ def _upsert_product(
         else:
             log.items_updated += 1
 
-        # Sync first supplier (primary; multi-supplier arbitration pending).
-        if op.suppliers:
-            first = op.suppliers[0]
-            _upsert_supplier(product, first, ProductSupplier)
+        # Mirror ALL Odoo suppliers so the catalog supplier picker lists every
+        # source (CDC §2.1 multi-source). The first stays the active source
+        # (pricing reads the active one); the rest are recorded inactive.
+        _sync_suppliers(product, op.suppliers, ProductSupplier)
 
     except Exception as exc:
         log.errors.append({"item_id": str(op.odoo_id), "error_message": str(exc)})
@@ -220,34 +221,41 @@ def _upsert_product(
     log.save(update_fields=["items_created", "items_updated", "items_failed", "errors"])
 
 
-def _upsert_supplier(product, supplier_link, ProductSupplier) -> None:
-    """Upsert the active supplier on a product.
+def _sync_suppliers(product, supplier_links, ProductSupplier) -> None:
+    """Mirror every Odoo supplier of a product onto ``product_suppliers``.
 
-    We keep exactly one active supplier per product (partial unique index).
-    Deactivate previous supplier if the name changes.
+    Odoo can list several ``product.supplierinfo`` rows per product; we keep
+    them all so the catalog supplier picker reflects every real source
+    (previously only ``suppliers[0]`` was imported, which is why the picker
+    only ever showed one company). Exactly **one** stays active — the first,
+    which the pricing engine reads — respecting the partial unique index
+    ``one_active_supplier_per_product``; the others are stored inactive.
     """
-    if not supplier_link.name:
+    primary_name: str | None = None
+    seen: set[str] = set()
+    for link in supplier_links or []:
+        if not link.name or link.name in seen:
+            continue
+        seen.add(link.name)
+        if primary_name is None:
+            primary_name = link.name
+        currency = link.currency if link.currency in ("EUR", "USD", "RMB") else "EUR"
+        ProductSupplier.objects.update_or_create(
+            product=product,
+            supplier_name=link.name,
+            defaults={
+                "factory_code": link.factory_code or "",
+                "po_base_price": link.price,
+                "po_currency": currency,
+                # Activated below, atomically, so the unique index never trips.
+                "is_active": False,
+            },
+        )
+    if primary_name is None:
         return
-
-    # Clamp currency to known choices (EUR / USD / RMB).
-    currency = supplier_link.currency if supplier_link.currency in ("EUR", "USD", "RMB") else "EUR"
-
-    # Deactivate previous active supplier if it's a different company.
-    existing = ProductSupplier.objects.filter(product=product, is_active=True).first()
-    if existing and existing.supplier_name != supplier_link.name:
-        existing.is_active = False
-        existing.save(update_fields=["is_active"])
-
-    ProductSupplier.objects.update_or_create(
-        product=product,
-        supplier_name=supplier_link.name,
-        defaults={
-            "factory_code": supplier_link.factory_code or "",
-            "po_base_price": supplier_link.price,
-            "po_currency": currency,
-            "is_active": True,
-        },
-    )
+    with transaction.atomic():
+        product.suppliers.exclude(supplier_name=primary_name).update(is_active=False)
+        product.suppliers.filter(supplier_name=primary_name).update(is_active=True)
 
 
 # ── Stock ─────────────────────────────────────────────────────────────────────
