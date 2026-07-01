@@ -13,6 +13,7 @@ import {
 import { chainDraftHasContent, suggestSaleChainDraft } from "@/lib/incoterms";
 import { ChainBuilder } from "./ChainBuilder";
 import { MarketParamsModal } from "./MarketParamsModal";
+import { WizardStep3IssuesBanner } from "./WizardStep3IssuesBanner";
 import {
   applyImportChinePreset,
   type ChainDraft,
@@ -40,6 +41,7 @@ interface Props {
   onSaleIncoterm: (v: string) => void;
   onSaleIncotermLocation: (v: string) => void;
   introText?: string;
+  issues?: string[];
 }
 
 const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
@@ -75,6 +77,7 @@ export function ParamsStep({
   onSaleIncoterm,
   onSaleIncotermLocation,
   introText = "Configurez les paramètres marché et les chaînes de calcul. Les résultats seront calculés après création (clic sur « Recalculer »).",
+  issues = [],
 }: Props) {
   const [marketOpen, setMarketOpen] = useState(false);
   const { request: requestPrefill, modal: prefillModal } = useIncotermPrefillConfirm();
@@ -102,6 +105,8 @@ export function ParamsStep({
 
   return (
     <div className="flex flex-col gap-6">
+      <WizardStep3IssuesBanner issues={issues} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{introText}</p>
         <button
@@ -128,8 +133,14 @@ export function ParamsStep({
               Modifier
             </button>
           </div>
-          <MarketValue label="Cuivre base (RMB)" value={marketParams.copper_base_price_rmb} />
-          <MarketValue label="Cuivre actuel (RMB)" value={marketParams.copper_current_price_rmb} />
+          <MarketValue
+            label={`Cuivre base (${marketParams.copper_currency ?? "RMB"})`}
+            value={marketParams.copper_base_price}
+          />
+          <MarketValue
+            label={`Cuivre actuel (${marketParams.copper_currency ?? "RMB"})`}
+            value={marketParams.copper_current_price}
+          />
           <MarketValue label="FX EUR→RMB" value={marketParams.fx_eur_rmb} />
           <MarketValue label="FX EUR→USD" value={marketParams.fx_eur_usd} />
         </div>

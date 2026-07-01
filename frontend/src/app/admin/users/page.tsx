@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { useRouter } from "next/navigation";
 import { PencilSimple, Plus, ShieldCheck, Trash, UserPlus } from "@phosphor-icons/react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
@@ -16,17 +15,17 @@ import { AppIcon } from "@/components/AppIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { OptionSelect } from "@/components/OptionSelect";
 import type { Role } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Administrateur" },
+  { value: "commercial", label: "Commercial" },
+  { value: "viewer", label: "Lecteur" },
+] as const;
 
 interface PlatformUser {
   id: number;
@@ -177,16 +176,11 @@ function UserModal({
         </FormField>
 
         <FormField label="Rôle" required>
-          <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Administrateur</SelectItem>
-              <SelectItem value="commercial">Commercial</SelectItem>
-              <SelectItem value="viewer">Lecteur</SelectItem>
-            </SelectContent>
-          </Select>
+          <OptionSelect
+            value={role}
+            onValueChange={(v) => setRole(v as Role)}
+            options={ROLE_OPTIONS}
+          />
         </FormField>
 
         <div className="flex gap-3 pt-2">
@@ -204,8 +198,7 @@ function UserModal({
 
 export default function UsersPage() {
   const confirm = useConfirm();
-  const { role } = useAuth();
-  const router = useRouter();
+  const { isLoading: authLoading, allowed } = useRequireAdmin();
   const [modalUser, setModalUser] = useState<PlatformUser | "new" | null>(null);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
 
@@ -294,9 +287,12 @@ export default function UsersPage() {
     [],
   );
 
-  if (role !== "admin") {
-    router.replace("/catalog");
-    return null;
+  if (authLoading || !allowed) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+      </div>
+    );
   }
 
   return (

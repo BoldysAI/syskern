@@ -1,4 +1,5 @@
 import type { SimulationLine, SimulationLineStatus } from "@/lib/api";
+import { humanizeEngineMessage } from "@/lib/humanize-errors";
 import { transportModeLabel as defaultTransportModeLabel } from "@/lib/transport-modes";
 
 /**
@@ -16,10 +17,15 @@ export function lineDiagnostics(line: SimulationLine): {
     warnings?: unknown;
     error?: unknown;
   };
-  const errors = Array.isArray(b.errors) ? b.errors.map(String) : [];
-  const warnings = Array.isArray(b.warnings) ? b.warnings.map(String) : [];
-  if (typeof b.error === "string" && b.error && !errors.includes(b.error)) {
-    errors.unshift(b.error);
+  const errors = Array.isArray(b.errors)
+    ? b.errors.map((m) => humanizeEngineMessage(String(m)))
+    : [];
+  const warnings = Array.isArray(b.warnings)
+    ? b.warnings.map((m) => humanizeEngineMessage(String(m)))
+    : [];
+  if (typeof b.error === "string" && b.error) {
+    const humanized = humanizeEngineMessage(b.error);
+    if (!errors.includes(humanized)) errors.unshift(humanized);
   }
   return { errors, warnings };
 }
@@ -28,6 +34,14 @@ export function lineDiagnostics(line: SimulationLine): {
 export interface ProductEditFromSimulation {
   simulationId: string;
   simulationLabel: string;
+}
+
+/** Context when opening a simulation from a product fiche (e.g. price history chart). */
+export interface SimulationFromCatalog {
+  productSku: string;
+  productLabel: string;
+  /** Tab to restore on the product fiche when navigating back via breadcrumb. */
+  productTab?: string;
 }
 
 /** Deep-link to the product fiche in edit mode, optionally opening a relevant tab. */
@@ -49,6 +63,20 @@ export function productEditHref(
     q.set("simulation_label", fromSimulation.simulationLabel);
   }
   return `/catalog/${encodeURIComponent(sku)}?${q.toString()}`;
+}
+
+/** Deep-link to a simulation, preserving catalog breadcrumb context on return. */
+export function simulationHrefFromCatalog(
+  simulationId: string,
+  fromCatalog: SimulationFromCatalog,
+): string {
+  const q = new URLSearchParams({
+    from: "catalog",
+    product_sku: fromCatalog.productSku,
+    product_label: fromCatalog.productLabel,
+  });
+  if (fromCatalog.productTab) q.set("product_tab", fromCatalog.productTab);
+  return `/simulator/${simulationId}?${q.toString()}`;
 }
 
 /** Format a Decimal-string money value as EUR for display (never for math). */

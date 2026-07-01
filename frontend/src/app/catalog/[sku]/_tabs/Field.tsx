@@ -101,9 +101,14 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             className="resize-y text-left"
           />
         ) : kind === "select" && options ? (
-          <Select value={(value as string) || undefined} onValueChange={(v) => emit(v)}>
+          <Select
+            value={value == null || value === "" ? null : String(value)}
+            onValueChange={(v) => emit(v)}
+          >
             <SelectTrigger className="w-full text-left">
-              <SelectValue placeholder="Sélectionner…" />
+              <SelectValue placeholder="Sélectionner…">
+                {options.find((o) => o.value === value)?.label}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {options.map((opt) => (

@@ -46,6 +46,8 @@ from .incoterm_rules import (
     check_purchase_chain_coherence,
     check_sale_chain_coherence,
 )
+from .engine.errors import humanize_engine_error
+from .engine.validation import collect_preflight_fx_errors, negative_price_errors
 
 # ─── Per-line input ──────────────────────────────────────────────────────
 
@@ -65,6 +67,41 @@ class LineResult:
     line: SimulationLine
     status: str  # 'ok' | 'warning' | 'error'
     error: str | None = None
+
+
+# Line statuses that mean "this SKU still needs a recalculation".
+_OUTSTANDING_LINE_STATUSES = ("dirty", "pending")
+
+# Simulation header fields whose change invalidates existing line results.
+PRICING_AFFECTING_FIELDS = (
+    "market_params",
+    "calculation_chain",
+    "stock_purchase_mix_pct",
+    "syskern_margin_rate",
+    "symea_margin_rate",
+    "sale_incoterm",
+    "sale_incoterm_location",
+)
+
+
+def sync_simulation_dirty_flag(simulation_id) -> bool:
+    """Reconcile ``Simulation.is_dirty`` with outstanding line recalc work.
+
+  ``is_dirty`` is True while at least one line is ``dirty`` or ``pending``.
+  A partial line recalc can therefore clear the flag once every line has been
+  brought up to date — without requiring a global Celery recalc.
+    """
+    needs_recalc = SimulationLine.objects.filter(
+        simulation_id=simulation_id,
+        status__in=_OUTSTANDING_LINE_STATUSES,
+    ).exists()
+    Simulation.objects.filter(pk=simulation_id).update(is_dirty=needs_recalc)
+    return needs_recalc
+
+
+def mark_lines_dirty_after_pricing_change(simulation: Simulation) -> None:
+    """Invalidate line results after a pricing-relevant header edit."""
+    simulation.lines.exclude(status__in=_OUTSTANDING_LINE_STATUSES).update(status="dirty")
 
 
 # ─── Runner ──────────────────────────────────────────────────────────────
@@ -175,18 +212,21 @@ def recalculate_single_line(line: SimulationLine) -> LineResult:
 
     Reuses the parent simulation's frozen params/chain and the current product
     snapshot. Unlike a global recalc, this does **not** append a
-    `SimulationRecalculation` trace and does not touch the simulation's
-    `is_dirty`/`last_calculated_at` — it is an operational, single-row event.
+    `SimulationRecalculation` trace or update ``last_calculated_at`` on the
+    simulation header — but it **does** reconcile ``is_dirty`` once no line
+    remains ``dirty`` or ``pending``.
     """
     simulation = line.simulation
     chain_config = simulation.calculation_chain or {}
-    return _recalculate_line(
+    result = _recalculate_line(
         simulation=simulation,
         line=line,
         purchase_config=chain_config.get("purchase_chain") or {},
         sale_config=chain_config.get("sale_chain") or {},
         now=timezone.now(),
     )
+    sync_simulation_dirty_flag(simulation.pk)
+    return result
 
 
 def _recalculate_line(
@@ -209,11 +249,28 @@ def _recalculate_line(
     line.product_snapshot = _product_snapshot(product)
     line.supplier_snapshot = _supplier_snapshot(supplier)
 
-    # Pre-flight: a missing PO base price is a hard error; a zero base price is
-    # a warning (we still compute, but the result is meaningless until filled).
+    # Pre-flight: collect every blocking error and non-blocking warning before the chain.
     input_errors, input_warnings = _validate_line_inputs(product, supplier)
-    if input_errors:
-        return _persist_error(line, input_errors, now)
+    fx_errors = collect_preflight_fx_errors(
+        simulation.market_params or {},
+        product=product,
+        po_currency=supplier.po_currency if supplier else Currency.EUR.value,
+        purchase_config=purchase_config,
+        sale_config=sale_config,
+    )
+    purchase_incoterm = str(supplier.incoterm or "") if supplier else ""
+    preflight_warnings = input_warnings + check_sale_chain_coherence(
+        simulation.sale_incoterm,
+        sale_config,
+    ) + check_purchase_chain_coherence(purchase_incoterm, purchase_config)
+    preflight_errors = input_errors + fx_errors
+    if preflight_errors:
+        return _persist_diagnostics(
+            line,
+            errors=preflight_errors,
+            warnings=preflight_warnings,
+            now=now,
+        )
     # Narrowed by _validate_line_inputs (supplier + PO base price are present).
     assert supplier is not None
     po_base_price = supplier.po_base_price
@@ -295,6 +352,28 @@ def _recalculate_line(
             sale_config,
         ) + check_purchase_chain_coherence(purchase_incoterm, purchase_config)
 
+        pv = sale_result.final_price.amount
+
+        result_errors = negative_price_errors(
+            sku_code=product.sku_code,
+            pa_net_eur=pa_net,
+            pr_eur=pr,
+            pv_eur=pv,
+        )
+        if result_errors:
+            return _persist_diagnostics(
+                line,
+                errors=result_errors,
+                warnings=(
+                    input_warnings
+                    + mix_warnings
+                    + purchase_result.warnings
+                    + sale_result.warnings
+                    + incoterm_warnings
+                ),
+                now=now,
+            )
+
         # Persist results
         line.po_net_origin_currency = (
             purchase_result.steps[0].output_price.amount if purchase_result.steps else po_base_price
@@ -310,7 +389,7 @@ def _recalculate_line(
         line.pa_net_eur = pa_net
         line.pamp_predictive_eur = pamp_predictive
         line.pr_eur = pr
-        line.pv_eur = sale_result.final_price.amount
+        line.pv_eur = pv
         line.effective_mix_pct = mix_pct
         line.effective_margin_rate = margin_rate
         warnings = (
@@ -337,7 +416,12 @@ def _recalculate_line(
         return LineResult(line=line, status=line.status)
 
     except Exception as exc:  # surface as line-level error (CDC §6.6)
-        return _persist_error(line, [str(exc)], now)
+        return _persist_diagnostics(
+            line,
+            errors=[humanize_engine_error(exc)],
+            warnings=preflight_warnings,
+            now=now,
+        )
 
 
 def _validate_line_inputs(
@@ -358,25 +442,41 @@ def _validate_line_inputs(
         )
         return errors, warnings
     if supplier.po_base_price == 0:
-        warnings.append(
-            f"Produit {product.sku_code} : prix d'achat (PO) à 0 — le résultat "
-            f"reste nul tant que le prix fournisseur n'est pas renseigné."
+        errors.append(
+            f"Produit {product.sku_code} : prix d'achat (PO) à 0 ou non renseigné — "
+            f"calcul impossible."
         )
+        return errors, warnings
     return errors, warnings
 
 
-def _persist_error(line: SimulationLine, errors: list[str], now) -> LineResult:
-    """Persist a line-level failure with standardized diagnostics."""
-    line.status = "error"
+def _persist_diagnostics(
+    line: SimulationLine,
+    *,
+    errors: list[str],
+    warnings: list[str],
+    now,
+) -> LineResult:
+    """Persist line-level diagnostics (errors block; warnings are always retained)."""
+    line.status = "error" if errors else ("warning" if warnings else "ok")
     line.calculation_breakdown = {
         "errors": errors,
-        "warnings": [],
+        "warnings": warnings,
         # Legacy single-string key kept for backward compatibility.
         "error": errors[0] if errors else "",
     }
     line.last_calculated_at = now
     line.save()
-    return LineResult(line=line, status="error", error=errors[0] if errors else None)
+    return LineResult(
+        line=line,
+        status=line.status,
+        error=errors[0] if errors else None,
+    )
+
+
+def _persist_error(line: SimulationLine, errors: list[str], now) -> LineResult:
+    """Persist a line-level failure with standardized diagnostics."""
+    return _persist_diagnostics(line, errors=errors, warnings=[], now=now)
 
 
 def _market_params_snapshot(market_params: dict) -> dict:

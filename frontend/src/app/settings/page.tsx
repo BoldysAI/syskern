@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import {
   Pulse,
@@ -20,26 +20,20 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import SettingsNav from "./_components/SettingsNav";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
 import { AppModal } from "@/components/AppModal";
 import { FormField } from "@/components/FormField";
 import { AppIcon } from "@/components/AppIcon";
 import { StatusBadge } from "@/components/StatusBadge";
+import { OptionSelect } from "@/components/OptionSelect";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   listMarketParameters,
   createMarketParameter,
@@ -64,6 +58,64 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+const MARKET_CURRENCIES = [
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "USD", label: "USD — Dollar US" },
+  { value: "RMB", label: "RMB — Renminbi" },
+] as const;
+
+const COPPER_UNITS = [
+  { value: "tonne", label: "Tonne" },
+  { value: "kg", label: "Kilogramme" },
+] as const;
+
+function normalizeCopperUnit(unit?: string | null): string {
+  if (!unit || unit === "ton") return "tonne";
+  return unit;
+}
+
+function formatFxRateDisplay(rate?: string | null): string {
+  if (rate == null || rate === "") return "—";
+  const n = parseFloat(rate);
+  if (!Number.isFinite(n)) return rate;
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function sanitizeFxRateInput(raw: string, previous: string): string {
+  if (raw === "") return "";
+  const normalized = raw.replace(",", ".");
+  if (/^\d*\.?\d{0,2}$/.test(normalized)) return normalized;
+  return previous;
+}
+
+function formatMarketParamUpdatedAt(value?: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const COPPER_MARKETS = [
+  { value: "LME", label: "LME (London)" },
+  { value: "SHE", label: "SHE (Shanghai)" },
+] as const;
+
+const TRANSPORT_CATEGORIES = [
+  { value: "maritime", label: "Maritime" },
+  { value: "road", label: "Route" },
+  { value: "air", label: "Aérien" },
+  { value: "rail", label: "Ferroviaire" },
+] as const;
+
+function copperUnitLabel(unit?: string | null): string {
+  const normalized = normalizeCopperUnit(unit);
+  return COPPER_UNITS.find((u) => u.value === normalized)?.label ?? normalized;
+}
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -87,7 +139,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
   const [copperMarket, setCopperMarket] = useState(param?.copper_market ?? "LME");
   const [copperPrice, setCopperPrice] = useState(param?.copper_price ?? "");
   const [copperCurrency, setCopperCurrency] = useState(param?.copper_currency ?? "USD");
-  const [copperUnit, setCopperUnit] = useState(param?.copper_unit ?? "ton");
+  const [copperUnit, setCopperUnit] = useState(normalizeCopperUnit(param?.copper_unit));
   const [fxFrom, setFxFrom] = useState(param?.fx_from_currency ?? "EUR");
   const [fxTo, setFxTo] = useState(param?.fx_to_currency ?? "USD");
   const [fxRate, setFxRate] = useState(param?.fx_rate ?? "");
@@ -113,9 +165,20 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
       payload.copper_currency = copperCurrency;
       payload.copper_unit = copperUnit;
     } else {
+      if (fxFrom === fxTo) {
+        setError("Les devises « De » et « Vers » doivent être différentes.");
+        setSaving(false);
+        return;
+      }
+      const parsedRate = parseFloat(fxRate);
+      if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
+        setError("Indiquez un taux de change valide (max. 2 décimales).");
+        setSaving(false);
+        return;
+      }
       payload.fx_from_currency = fxFrom;
       payload.fx_to_currency = fxTo;
-      payload.fx_rate = fxRate;
+      payload.fx_rate = parsedRate.toFixed(2);
     }
     try {
       if (param) await updateMarketParameter(param.id, payload);
@@ -162,30 +225,18 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
           <>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Marché">
-                <Select
+                <OptionSelect
                   value={copperMarket ?? "LME"}
-                  onValueChange={(v) => setCopperMarket(v as "LME" | "SHE")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LME">LME (London)</SelectItem>
-                    <SelectItem value="SHE">SHE (Shanghai)</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onValueChange={setCopperMarket}
+                  options={COPPER_MARKETS}
+                />
               </FormField>
               <FormField label="Devise">
-                <Select value={copperCurrency ?? "USD"} onValueChange={(v) => v && setCopperCurrency(v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                    <SelectItem value="RMB">RMB</SelectItem>
-                  </SelectContent>
-                </Select>
+                <OptionSelect
+                  value={copperCurrency ?? "USD"}
+                  onValueChange={setCopperCurrency}
+                  options={MARKET_CURRENCIES}
+                />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -199,10 +250,10 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
                 />
               </FormField>
               <FormField label="Unité">
-                <Input
-                  value={copperUnit ?? ""}
-                  onChange={(e) => setCopperUnit(e.target.value)}
-                  placeholder="ton / kg"
+                <OptionSelect
+                  value={copperUnit}
+                  onValueChange={setCopperUnit}
+                  options={COPPER_UNITS}
                 />
               </FormField>
             </div>
@@ -210,28 +261,27 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
         ) : (
           <div className="grid grid-cols-3 gap-3">
             <FormField label="De" required>
-              <Input
-                value={fxFrom ?? ""}
-                onChange={(e) => setFxFrom(e.target.value.toUpperCase())}
-                required
-                maxLength={3}
+              <OptionSelect
+                value={fxFrom ?? "EUR"}
+                onValueChange={setFxFrom}
+                options={MARKET_CURRENCIES}
               />
             </FormField>
             <FormField label="Vers" required>
-              <Input
-                value={fxTo ?? ""}
-                onChange={(e) => setFxTo(e.target.value.toUpperCase())}
-                required
-                maxLength={3}
+              <OptionSelect
+                value={fxTo ?? "USD"}
+                onValueChange={setFxTo}
+                options={MARKET_CURRENCIES}
               />
             </FormField>
             <FormField label="Taux" required>
               <Input
                 value={fxRate ?? ""}
-                onChange={(e) => setFxRate(e.target.value)}
+                onChange={(e) => setFxRate((prev) => sanitizeFxRateInput(e.target.value, prev))}
                 required
-                type="number"
-                step="0.000001"
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
               />
             </FormField>
           </div>
@@ -342,7 +392,7 @@ function TabMarche() {
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                {["Type", "Détail", "Valide du", "Au", "Actif", ""].map((h) => (
+                {["Type", "Détail", "Valide du", "Au", "Dernière modification", "Actif", ""].map((h) => (
                   <th
                     key={h}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -360,11 +410,14 @@ function TabMarche() {
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {p.parameter_type === "copper_price"
-                      ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${p.copper_unit}`
-                      : `1 ${p.fx_from_currency} = ${p.fx_rate} ${p.fx_to_currency}`}
+                      ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${copperUnitLabel(p.copper_unit)}`
+                      : `1 ${p.fx_from_currency} = ${formatFxRateDisplay(p.fx_rate)} ${p.fx_to_currency}`}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_from}</td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_to || "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
+                    {formatMarketParamUpdatedAt(p.updated_at)}
+                  </td>
                   <td className="px-4 py-2.5">
                     <ActiveBadge active={p.is_active} />
                   </td>
@@ -461,20 +514,11 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
             />
           </FormField>
           <FormField label="Catégorie" required>
-            <Select
+            <OptionSelect
               value={category}
               onValueChange={(v) => setCategory(v as TransportMode["category"])}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="maritime">Maritime</SelectItem>
-                <SelectItem value="road">Route</SelectItem>
-                <SelectItem value="air">Aérien</SelectItem>
-                <SelectItem value="rail">Ferroviaire</SelectItem>
-              </SelectContent>
-            </Select>
+              options={TRANSPORT_CATEGORIES}
+            />
           </FormField>
         </div>
         <FormField label="Libellé (français)" required>
@@ -583,7 +627,9 @@ function TabTransport() {
                     {m.code}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{m.label?.fr ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-sm capitalize text-muted-foreground">{m.category}</td>
+                  <td className="px-4 py-2.5 text-sm text-muted-foreground">
+                    {TRANSPORT_CATEGORIES.find((c) => c.value === m.category)?.label ?? m.category}
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {m.default_pallet_capacity ?? "—"}
                   </td>
@@ -718,22 +764,13 @@ function TabOdoo() {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
-            <Select
+            <OptionSelect
               value={scope}
               onValueChange={(v) => setScope(v as typeof scope)}
               disabled={syncing}
-            >
-              <SelectTrigger className="min-w-[260px] flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SYNC_SCOPES.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className="min-w-[260px] flex-1"
+              options={SYNC_SCOPES.map((s) => ({ value: s.id, label: s.label }))}
+            />
             <Button onClick={handleTrigger} disabled={syncing}>
               {syncing ? (
                 <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />
@@ -960,12 +997,14 @@ function SettingsContent() {
 }
 
 export default function SettingsPage() {
-  const { role, isLoading } = useAuth();
-  const router = useRouter();
+  const { isLoading, allowed } = useRequireAdmin();
 
-  if (!isLoading && role !== "admin") {
-    router.replace("/catalog");
-    return null;
+  if (isLoading || !allowed) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+      </div>
+    );
   }
 
   return (

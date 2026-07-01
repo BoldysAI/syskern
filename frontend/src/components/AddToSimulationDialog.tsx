@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import {
   addSimulationLines,
   createSimulation,
@@ -34,6 +34,7 @@ export function AddToSimulationDialog({
   onAdded,
   children,
 }: AddToSimulationDialogProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("existing");
   const [selectedSim, setSelectedSim] = useState<string>("");
@@ -41,7 +42,6 @@ export function AddToSimulationDialog({
   const [newType, setNewType] = useState<SimulationType>("tariff");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [doneSimId, setDoneSimId] = useState<string | null>(null);
 
   // Only fetch when the dialog is open; only drafts can receive new lines.
   const { data: simulations, isLoading } = useSWR<Simulation[]>(
@@ -57,7 +57,6 @@ export function AddToSimulationDialog({
     setNewType("tariff");
     setSubmitting(false);
     setError(null);
-    setDoneSimId(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -78,8 +77,9 @@ export function AddToSimulationDialog({
         simId = sim.id;
       }
       await addSimulationLines(simId, productIds);
-      setDoneSimId(simId);
       onAdded?.();
+      setOpen(false);
+      router.push(`/simulator/${simId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");
     } finally {
@@ -107,28 +107,11 @@ export function AddToSimulationDialog({
 
           <div className="p-5">
             <Dialog.Description className="text-sm text-muted-foreground mb-4">
-              Produit <span className="font-mono font-medium text-foreground">{productLabel}</span>
+              {productIds.length > 1 ? "Produits" : "Produit"}{" "}
+              <span className="font-mono font-medium text-foreground">{productLabel}</span>
             </Dialog.Description>
 
-            {doneSimId ? (
-              <div className="flex flex-col items-center gap-3 py-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                  <Check size={24} className="text-green-600" />
-                </div>
-                <p className="text-sm font-medium text-foreground">
-                  Produit ajouté à la simulation.
-                </p>
-                <Link
-                  href={`/simulator/${doneSimId}`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80"
-                >
-                  Voir la simulation
-                  <ArrowRight size={15} />
-                </Link>
-              </div>
-            ) : (
-              <>
-                <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4">
                   {(["existing", "new"] as Tab[]).map((t) => (
                     <button
                       key={t}
@@ -241,8 +224,6 @@ export function AddToSimulationDialog({
                     {submitting ? "Ajout…" : "Ajouter"}
                   </button>
                 </div>
-              </>
-            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

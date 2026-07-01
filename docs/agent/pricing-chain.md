@@ -20,14 +20,24 @@ est signalée explicitement (FR) sur la ligne, jamais masquée derrière un `sta
 - **`calculation_breakdown` standardisé** (persisté sur `SimulationLine`) :
   `{"errors": [...], "warnings": [...], "purchase": {...}, "sale": {...}, ...}`.
   Clé legacy `error` (string) conservée pour compat front.
-- **Validation pré-vol** (`runner._validate_line_inputs`) :
-  - pas de fournisseur actif **ou** `po_base_price is None` → **error** FR (calcul interrompu).
-  - `po_base_price == 0` → **warning** FR (on calcule quand même, mais résultat nul signalé).
+- **Validation pré-vol** (`runner._validate_line_inputs` + `engine/validation.py`) :
+  - pas de fournisseur actif **ou** `po_base_price is None` **ou** `po_base_price == 0` → **error** FR (calcul interrompu).
+  - **PA / PR / PV négatifs** (ex. PO manquant ou trop faible + variation cuivre baissière) → **error** FR après la chaîne PA/PV (`negative_price_errors`).
+  - **FX manquants** : avant la chaîne, `collect_preflight_fx_errors` vérifie les taux
+    **standard** (`fx_eur_usd`, `fx_eur_rmb`) **et** les devises requises par la chaîne PA/PV
+    (devise PO, cuivre RMB, transports, douanes) ; **toutes** les erreurs FR sont cumulées
+    avec les erreurs d'entrée (ex. PO manquant + USD + RMB sur une même ligne).
+  - **Avertissements pré-vol** : warnings d'entrée + incoterms incohérents sont
+    persistés **même quand des erreurs bloquent** le calcul (`_persist_diagnostics`).
+- **Messages utilisateur** : `engine/errors.py` (`missing_fx_rate_message`, `humanize_engine_error`)
+  — jamais de clés techniques (`fx_eur_usd`, stack traces) dans `calculation_breakdown.errors`.
 - **Statut honnête** : `error` si erreurs ; sinon `warning` si warnings (entrées + moteur) ; sinon `ok`.
-- **Front** : `SimulationTable` affiche le 1er diagnostic en **texte lisible** (ambre=warning, rouge=error),
-  clic → `LineDiagnosticsDrawer` ; helper `lineDiagnostics(line)` dans `sim-format.ts`. Menu ligne
-  **Détail du calcul** → `CalculationBreakdownDrawer` (wizard read-only sur `calculation_breakdown`,
-  narrations module par module via `formatBreakdownStepDetails` — jamais de clés moteur brutes).
+- **Front** : `SimulationTable` affiche **toutes** les erreurs **et** tous les avertissements
+  en liste dans la colonne Statut (texte FR via `lineDiagnostics` + `humanizeEngineMessage`) ;
+  clic → `LineDiagnosticsDrawer` ;
+  helper `lineDiagnostics(line)` dans `sim-format.ts`. Menu ligne **Détail du calcul** →
+  `CalculationBreakdownDrawer` (wizard read-only sur `calculation_breakdown`, narrations module par
+  module via `formatBreakdownStepDetails` — jamais de clés moteur brutes).
 
 ## Odoo découplé du calcul (CDC §6.6)
 
@@ -68,10 +78,12 @@ ProductView + SimulationContext (market_params)
 
 ```
 engine/
-├── context.py   # ProductView, SimulationContext, PriceWithCurrency, CalculationStep, to_decimal
-├── modules.py   # CalculationModule (ABC) + 5 implémentations + quantize
-├── chain.py     # build_purchase_modules, build_sale_modules, run_chain → ChainResult
-└── pamp.py      # compute_predictive_pamp, compute_pr, resolve_mix_pct, resolve_margin_rate
+├── context.py     # ProductView, SimulationContext, PriceWithCurrency, fx_rate, CalculationStep, to_decimal
+├── errors.py      # Messages FR utilisateur (FX manquant, humanize_engine_error)
+├── validation.py  # Pré-vol FX : collect_line_fx_currencies, missing_fx_errors
+├── modules.py     # CalculationModule (ABC) + 5 implémentations + quantize
+├── chain.py       # build_purchase_modules, build_sale_modules, run_chain → ChainResult
+└── pamp.py        # compute_predictive_pamp, compute_pr, resolve_mix_pct, resolve_margin_rate
 ```
 
 **Jamais d'import Django ORM dans `engine/`.** Les modèles DB → `ProductView.from_model(product)`
@@ -106,6 +118,8 @@ dans `runner.py`. Replay historique → `ProductView.from_snapshot(snap)`.
 **Devises :**
 - Taux FX en format EUR-pivot : clé `fx_eur_<devise.lower()>` dans `market_params`
   (`fx_eur_usd` = "combien d'USD pour 1 EUR"). Paires non-EUR dérivées à la volée.
+  Taux absent → message FR via `missing_fx_rate_message` (pré-vol `validation.py` ou levée
+  `fx_rate` pendant la chaîne, humanisé par `humanize_engine_error` dans le runner).
 - Cours cuivre : `copper_base_price_rmb` et `copper_current_price_rmb` dans `market_params`.
 - Les paramètres marché sont **saisis manuellement** — aucun fetch auto de cours en MVP1.
 
@@ -265,7 +279,7 @@ Tables Django ORM (`apps/simulations/models.py`, `apps/market/models.py`) — **
 - API : `SimulationViewSet._ensure_writable` + `destroy` (offres attachées → 409).
 - DB : triggers PostgreSQL `simulations_guard_finalized` et `simulation_lines_guard_finalized_parent` (migration `simulations/0003`). Seule transition autorisée sur une simulation finalized : `status → archived`.
 
-**Paramètre marché actif** : `GET /api/market-parameters/current/?parameter_type=copper_price` (FX : ajouter `fx_from_currency` + `fx_to_currency`).
+**Paramètre marché actif** : `GET /api/market-parameters/current/?parameter_type=copper_price` (+ `copper_market=LME|SHE` si plusieurs marchés actifs ; FX : `fx_from_currency` + `fx_to_currency`).
 
 `runner.py` persiste `effective_*` sur chaque ligne et `odoo_snapshot_at` sur la simulation à chaque recalc global.
 
@@ -282,7 +296,9 @@ recalc pour tout scope** (pas seulement `full_refresh`). `with_odoo_refresh`/`fu
 
 > **Endpoints `GET /api/odoo/products/{odoo_id}/pending-purchases|pending-sales` (CDC §5.7) = superseded.** Le PAMP prévisionnel se nourrit du service bulk ci-dessus (un seul batch par recalc), pas d'un appel synchrone par produit — qui violerait `/AGENTS.md` §5.4 (appel externe = Celery). Aucun endpoint par produit n'est exposé (cf. `decisions.md` 2026-06-18 et 2026-06-23). `get_pending_sales` n'impacte pas le PAMP (les ventes consomment le stock au PAMP courant, CDC §6.7.1).
 
-**Recalcul ligne unique (CDC §6.9.5)** : `recalculate_single_line(line)` (runner, synchrone) via `POST /api/simulation-lines/{id}/recalculate/`. **N'écrit jamais** de `SimulationRecalculation` et ne touche pas `is_dirty`/`last_calculated_at` de la simulation.
+**Recalcul ligne unique (CDC §6.9.5)** : `recalculate_single_line(line)` (runner, synchrone) via `POST /api/simulation-lines/{id}/recalculate/`. **N'écrit jamais** de `SimulationRecalculation` ni ne met à jour `last_calculated_at` de la simulation — mais réconcilie `is_dirty` dès qu'aucune ligne n'est `dirty`/`pending`.
+
+**`is_dirty` (simulation)** : vrai tant qu'au moins une ligne est `dirty` ou `pending`. Un changement de paramètres pricing (marché, chaînes, mix, marges, incoterm vente) marque toutes les lignes `dirty`. Un recalcul partiel (ligne ou sélection) peut donc lever le blocage finalisation sans recalcul global.
 
 **Bulk-edit (CDC §6.9.5)** : `POST /api/simulations/{id}/lines/bulk/` (`filter` + `margin_override`/`stock_purchase_mix_pct_override`/`reset`) ; aperçu `POST .../lines/bulk/preview/` → `{count}`. Filtre (`_filter_simulation_lines`) : univers/famille/gamme, marque, `factory_code`, `has_warning`/`has_error` (pas d'attributs dynamiques). Lignes touchées → `status="dirty"`.
 
@@ -291,9 +307,9 @@ recalc pour tout scope** (pas seulement `full_refresh`). `with_odoo_refresh`/`fu
 **Cycle de vie (CDC §6.9.6–8, §6.9.11–12)** :
 - **Finalize** `POST /api/simulations/{id}/finalize/` — pré-vol : `last_calculated_at` non null (jamais calculée → 400), aucune ligne `status="error"` (sinon 400 + `{"errors": [skus]}`), pas `is_dirty`. Sur succès : `runner.snapshot_finalize_trace` fige une trace `trigger_type="finalize"` (avec `line_snapshots`) **pendant que la sim est encore draft** (aucun guard trigger sur `simulation_recalculations`), puis `status → finalized`. PATCH ultérieurs → 403.
 - **Duplicate** `POST /api/simulations/{id}/duplicate/` (body `{label?}`, défaut `"<label> (copie)"`) — copie intégrale en `draft` (header + lignes avec overrides, résultats figés **et** `effective_*`, hérite `last_calculated_at`). **Pas** d'offres ni d'historique recalc copiés. Actif aussi sur `finalized`.
-- **Archive / unarchive** `POST .../archive/` (finalized → archived ; draft → 400) · `POST .../unarchive/` (archived → finalized). Liste `GET /api/simulations/` **exclut les archivées** sauf `?include_archived=true` (`get_queryset`, action `list` uniquement). Offres non impactées.
+- **Archive / unarchive** `POST .../archive/` (finalized → archived ; draft → 400) · `POST .../unarchive/` (archived → finalized). Liste `GET /api/simulations/` inclut toutes les simulations par défaut ; filtrer via `?status=draft,finalized` pour exclure les archivées. Offres non impactées.
 - **Compare** `POST /api/simulations/compare` body `{simulation_ids?, recalculation_ids?}` (2–4 colonnes au total). Mixe simulations vivantes et snapshots de recalcul (`line_snapshots`) pour « comparer avec actuel ». Réponse : `columns[]` (`{key, type, id, simulation_id, label, status, aggregates, context}`, simulations d'abord puis recalculs) + `products[]` (matrice SKU × colonne : PV/PR/PA + marge/mix). **`context`** par colonne = paramètres figés (marché, mix, marges, incoterm vente, dates, trigger, `chain_module_count`) pour le diff paramètres côté front. **`aggregates`** inclut `warnings_count` / `errors_count` sur les simulations vivantes. Deltas PV (absolu/%) + code couleur (>5 % rouge, 1–5 % jaune, <1 % vert) calculés **côté front** vs la 1ʳᵉ colonne ; écarts PA/PR/PV/marge/mix calculés sur **valeurs brutes API** (pas les chaînes `fmtEur`).
-- **Comparaisons enregistrées** : modèle `SavedComparison` (migration `simulations/0006`) — `label`, `simulation_ids[]`, `recalculation_ids[]`, `note`. CRUD `GET/POST /api/saved-comparisons/`, `GET/PATCH/DELETE /api/saved-comparisons/{id}/` (liste non paginée). Validation identique à compare (2–4 colonnes, IDs existants ; `recalculation_ids` peut être `[]`). Réponse détail inclut `columns[]` résolus (libellés simulations / dates recalc).
+- **Comparaisons enregistrées** : modèle `SavedComparison` (migration `simulations/0006`) — `label`, `simulation_ids[]`, `recalculation_ids[]`, `note`. CRUD `GET/POST /api/saved-comparisons/`, `GET/PATCH/DELETE /api/saved-comparisons/{id}/` (**liste paginée** LimitOffset + recherche `?q=`). PATCH accepte aussi `simulation_ids` / `recalculation_ids`. Validation identique à compare (2–4 colonnes, IDs existants ; `recalculation_ids` peut être `[]`). Réponse détail inclut `columns[]` résolus (libellés simulations / dates recalc).
 - **Historique recalculs** `GET /api/simulations/{id}/recalculations/` **paginé LimitOffset** (`?limit=&offset=`, DESC) — serializer léger **sans** `line_snapshots` ; détail `GET /api/simulations/{id}/recalculations/{recalc_id}/` (trace complète **avec** `line_snapshots`). ⚠️ pagination = LimitOffset projet (pas `page/page_size` du CDC, cf. `decisions.md` 2026-06-22).
 
 **Lookup bulk SKU (wizard import)** : `POST /api/products/lookup-bulk` — résout une liste de codes SKU

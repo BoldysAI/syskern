@@ -89,6 +89,8 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 | `GET`/`POST` | `/api/products/` | liste (compact, filtrable+recherche+tri) / create. POST déclenche le push Odoo async (cf. `_push_to_odoo_async`). Tri via `ProductOrderingFilter` (`ordering.py`) |
 | `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
 | `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
+| `GET` | `/api/products/?is_active=true\|false` | filtre statut produit (soft-delete) ; omis = actifs + inactifs |
+| `GET` | `/api/products/filter-bounds` | min/max PAMP, stock, attributs numériques — mêmes query params que la liste (sauf bornes sliders) ; queryset de base = tous les produits |
 | `GET` | `/api/brands` · `/api/factory-codes` | valeurs distinctes (filtres sidebar) |
 | `POST` | `/api/products/export` | export Excel **async** ; body `{filters, columns, ids}` → `202 + task_id` |
 | `GET` | `/api/products/exports/{task_id}` | download du `.xlsx` produit par la tâche |
@@ -142,12 +144,12 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
   (timer en `ref`, pas de `setState` en effet).
 - **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, fournisseur
   en **multi-checkbox** (niveaux indépendants — pas de cascade UI obligatoire ; chaque niveau
-  via `getHierarchyLevel(level)`). Stock : toggles en stock / rupture + quantité min.
-  Attributs dynamiques `is_filterable` (rendus selon `data_type`, section sidebar
-  « Attributs dynamiques » — toutes catégories confondues ; `date` → `<input type="date">`).
-  État = `CatalogFilters`
-  (tableaux `string[]` pour les multi) → `buildCatalogQuery()` dans `lib/api.ts` (partagé liste
-  **et** export).
+  via `getHierarchyLevel(level)`). **Statut produit** : toggles exclusifs Actif / Non actif
+  (`active_in` / `active_out` → `?is_active=true|false` ; défaut = les deux visibles). Stock :
+  toggles en stock / rupture + quantité min. Attributs dynamiques `is_filterable` (rendus selon
+  `data_type`, section sidebar « Attributs dynamiques » — toutes catégories confondues ;
+  `date` → `<input type="date">`). État = `CatalogFilters` (tableaux `string[]` pour les multi)
+  → `buildCatalogQuery()` dans `lib/api.ts` (partagé liste **et** export).
 - **Tri serveur** : param `ordering` (`field` / `-field`). En-têtes = cycle UI **asc → desc →
   défaut (SKU ↑)**. Backend : `ProductOrderingFilter` (`NULLS LAST` sur `pamp_eur` /
   `stock_quantity`) — cf. `ordering.py`.

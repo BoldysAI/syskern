@@ -27,6 +27,7 @@ const BreadcrumbContext = createContext<{
 const SECTION_LABELS: Record<string, { label: string; href: string }> = {
   catalog: { label: "Catalogue", href: "/catalog" },
   simulator: { label: "Simulations", href: "/simulator" },
+  comparator: { label: "Comparaisons", href: "/comparator" },
   offers: { label: "Offres", href: "/offers" },
   library: { label: "Bibliothèque", href: "/library" },
   settings: { label: "Paramètres", href: "/settings" },
@@ -56,6 +57,7 @@ function segmentLabel(seg: string, parentSeg?: string): string {
   if (seg === "new") {
     if (parentSeg === "catalog") return "Nouveau produit";
     if (parentSeg === "simulator") return "Nouvelle simulation";
+    if (parentSeg === "comparator") return "Nouvelle comparaison";
     if (parentSeg === "offers") return "Nouvelle offre";
     return "Nouveau";
   }
@@ -63,11 +65,13 @@ function segmentLabel(seg: string, parentSeg?: string): string {
   if (isUuid(seg)) {
     if (parentSeg === "simulator") return "Simulation";
     if (parentSeg === "offers") return "Offre";
+    if (parentSeg === "comparator") return "Comparaison";
     return "Détail";
   }
 
   if (parentSeg === "catalog") return "Fiche produit";
   if (parentSeg === "simulator") return "Simulation";
+  if (parentSeg === "comparator") return "Comparaison";
   if (parentSeg === "offers") return "Offre";
 
   return "Détail";

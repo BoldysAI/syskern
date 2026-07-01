@@ -11,6 +11,7 @@ interface FilterSectionProps {
   title: string;
   icon?: React.ComponentType<IconProps>;
   activeCount?: number;
+  /** Sections repliables : fermées par défaut sur toute la plateforme (ne pas passer `true`). */
   defaultOpen?: boolean;
   children: ReactNode;
   className?: string;
@@ -25,9 +26,15 @@ export function FilterSection({
   className,
 }: FilterSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [hasOpened, setHasOpened] = useState(defaultOpen);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) setHasOpened(true);
+  };
 
   return (
-    <Collapsible.Root open={open} onOpenChange={setOpen} className={cn("border-b border-border", className)}>
+    <Collapsible.Root open={open} onOpenChange={handleOpenChange} className={cn("border-b border-border", className)}>
       <Collapsible.Trigger className="flex w-full items-center gap-2.5 px-4 py-3.5 text-left transition-colors hover:bg-muted/40">
         {icon && (
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -45,8 +52,8 @@ export function FilterSection({
           className={cn("shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")}
         />
       </Collapsible.Trigger>
-      <Collapsible.Content className="px-4 pb-4 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-        {open ? children : null}
+      <Collapsible.Content className="overflow-hidden px-4 pb-4 data-[state=closed]:hidden">
+        {hasOpened ? children : null}
       </Collapsible.Content>
     </Collapsible.Root>
   );

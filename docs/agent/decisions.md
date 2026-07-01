@@ -230,7 +230,7 @@ Ticket `[PRICING] Cycle de vie simulation` (parent + 5 sous-tâches, CDC §6.9.6
 - **Finalize pré-vol** : `last_calculated_at` non null + aucune ligne `error` (400 + liste des SKU) **+** garde `is_dirty` conservée (défense en profondeur, non exigée par le CDC mais évite de figer des résultats périmés). Modale front à saisie du libellé (anti-erreur).
 - **Duplicate** : copie désormais aussi `effective_margin_rate`/`effective_mix_pct` (manquants avant) ; libellé FR `"<label> (copie)"`, body `{label?}`. Pas d'offres ni d'historique recalc copiés.
 - **Agrégat `avg_margin`** ajouté à `_aggregate` (manquait alors que CDC §6.9.12 le liste dans chaque entrée d'historique).
-- **Liste exclut les archivées par défaut** : `SimulationViewSet.get_queryset` filtre `status="archived"` (action `list` uniquement) sauf `?include_archived=true`. Routes détail/action restent accessibles par id. Toggle « Inclure les archivées » côté front.
+- **Liste inclut les archivées par défaut** : `GET /api/simulations/` retourne draft, finalized et archived. Pour exclure les archivées : `?status=draft,finalized` ou `getSimulations({ includeArchived: false })` côté front (accueil). Filtre statut côté page liste simulations.
 - **Compare étendu** : `CompareSerializer` accepte `simulation_ids` **et** `recalculation_ids` (2–4 colonnes total) ; réponse `{columns[], products[]}` (matrice SKU × colonne avec PV/PR/PA + marge/mix + agrégats par colonne). Deltas/couleurs calculés côté front. Remplace l'ancien contrat `{simulations[], products[]}` (PV/PR/PV seuls).
 - **Pagination historique = LimitOffset projet** (`?limit=&offset=`), **pas** `page/page_size` du CDC : aligné sur `DefaultLimitOffsetPagination` (cf. décision « le code fait foi »). Serializer liste léger (`SimulationRecalculationListSerializer`, sans `line_snapshots`) ; détail complet via action `recalculation_detail`.
 - **Front** : `FinalizeModal` + `DuplicateModal` (sidebar), page `/simulator/compare` (voir `frontend.md` : synthèse graphique, diff paramètres, heatmap SKU, comparaisons enregistrées), `RecalcDetailModal` + drawer historique paginé avec actions « Voir détail » / « Comparer avec actuel ». Pas de tests front (DoD = tsc + eslint + build).
@@ -385,6 +385,31 @@ Migration visuelle complète des 18 routes frontend (plan redesign UI) :
 - **Phase 5 admin** : `settings/page.tsx` découpé composants + `AppModal`/`FormField`, admin users/quarantaine → `DataTable`.
 - **Phase 6** : composants partagés tokenisés (`BreadcrumbContext`, `AttributeRenderer`, `SupplierManager`), `docs/agent/product.md` + `docs/agent/design.md` (pas à la racine — seul `AGENTS.md` y reste), `DataTable` sélection + densité compacte, `universeBadgeVariant`.
 - **Hors scope inchangé** : dark mode, virtualisation catalogue.
+
+## 2026-06-29 · [P] Catalogue — filtre statut produit + login épuré + diagnostics pricing multi-erreurs
+
+- **Catalogue** : filtres sidebar **Actif / Non actif** (`active_in` / `active_out` → `?is_active=`,
+  exclusifs, défaut = tous). Chips, favoris `localStorage`, export et `filter-bounds` alignés ;
+  `CatalogFilterBoundsView` part de `Product.objects.all()` (plus de masquage implicite des inactifs).
+- **Login** (`/login`) : page minimale fond blanc — logos Syskern + Unikkern, carte connexion
+  uniquement (suppression panneau marketing latéral).
+- **Pricing — messages FR** : `engine/errors.py` + `lib/humanize-errors.ts` — plus de texte technique
+  (`Missing FX rate fx_eur_usd…`) côté utilisateur ; `humanizeApiError` pour toasts/modales simulateur.
+- **Pricing — pré-vol FX** : `engine/validation.py` accumule **toutes** les erreurs de taux manquants
+  avant d'exécuter la chaîne ; `SimulationTable` affiche la liste complète dans la colonne Statut.
+- Tests : `test_engine_errors.py`, `test_engine_validation.py`. Aucune migration.
+
+## 2026-06-29 · [P] Comparaisons — objets de première classe + wizard
+Extension UX post `SavedComparison` (CDC §6.9.8) :
+- **Module `/comparator`** : liste paginée, wizard création (nom → simulations + aperçu SKU communs → aperçu live), fiche `/comparator/{id}` avec modifier/supprimer. Les comparaisons sont des objets persistés réutilisables (comme les simulations), pas seulement une URL éphémère.
+- **API** : `GET /api/saved-comparisons/` paginé (`DefaultLimitOffsetPagination`, `?q=` sur label/note) ; PATCH étendu (`simulation_ids`, `recalculation_ids`).
+- **`/simulator/compare`** conservé pour comparaison ad-hoc rapide ; `?saved=` redirige vers `/comparator/{id}`. Entrées principales : nav Comparaisons, multi-select simulations → `/comparator/new?sims=`, drawer recalc → `/comparator/new?sims=&recalc=`.
+
+## 2026-06-29 · [P] Tableau de bord — endpoint agrégé + refonte UI
+
+- **API** : `GET /api/dashboard/summary` (`apps/core/dashboard.py`, `DashboardSummaryView`) — remplace 6 appels SWR front (produits, univers, simulations×200, offers/dashboard, bibliothèque, recent offers). Payload : `catalog`, `simulations`, `offers` (métriques factorisées via `apps/offers/dashboard_metrics.py`), `comparisons`, `library`, `market` (cuivre LME + FX), `todo[]` (sims dirty / jamais calculées / erreurs lignes, offres expirantes, Gamma error), `recent[]` (top 8 sims/offres/comparaisons).
+- **Frontend** : layout 2 colonnes, KPIs clarifiés (5 cartes dont Comparaisons), section « À traiter », timeline unifiée, carte marché, raccourcis création uniquement, onboarding état vide, personnalisation rôle (`viewer` sans CTAs), « Reprendre » via `last-visited.ts`. Admin : quarantaine + statut Odoo (SWR séparé).
+- **Tests** : `apps/core/tests/test_dashboard.py`.
 
 ## 2026-06-29 · [P] Monitoring & logs MVP1 (CDC §9.6) + email SMTP noreply@syskern.com
 Implémentation du ticket monitoring minimal. Runbook : `docs/runbooks/monitoring.md`. Décisions :

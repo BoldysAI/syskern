@@ -114,7 +114,7 @@ les boutons async renverront une erreur ou resteront en attente.
 |---|---|
 | http://127.0.0.1:8000/api/health | `{"status":"ok","database":"ok"}` (503 si BDD KO — CDC §9.6, runbook `monitoring.md`) |
 | http://127.0.0.1:8000/api/docs/ | Swagger |
-| http://localhost:3000/login | Page de connexion |
+| http://localhost:3000/login | Page de connexion (fond blanc, logos + formulaire) |
 | http://localhost:3000/catalog | Liste produits (après login) |
 | http://localhost:3000/settings (onglet Modes de transport) | 7 modes seedés (cf. `pim.md`) |
 | http://127.0.0.1:8000/admin/ | Django admin (compte `createsuperuser`, pas seulement `create_platform_user`) |

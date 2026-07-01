@@ -81,62 +81,66 @@ function SortableTransport({
         <DotsSixVertical size={18} />
       </button>
 
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <div className="col-span-2 sm:col-span-1">
+      <div className="min-w-0 flex-1 space-y-2">
+        <FilterSelect
+          value={transport.transport_mode_code}
+          onChange={(code) => {
+            const mode = modes.find((m) => m.code === code);
+            set({
+              transport_mode_code: code,
+              category: mode?.category ?? transport.category,
+            });
+          }}
+          placeholder="Mode…"
+          options={modes.map((m) => ({
+            value: m.code,
+            label: localizeLabel(m.label, m.code),
+          }))}
+          compact
+          className="w-full"
+        />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <input
+            value={transport.global_cost}
+            onChange={(e) => set({ global_cost: e.target.value })}
+            placeholder="Coût global"
+            inputMode="decimal"
+            className={fieldCls}
+            aria-label="Coût global"
+          />
           <FilterSelect
-            value={transport.transport_mode_code}
-            onChange={(code) => {
-              const mode = modes.find((m) => m.code === code);
-              set({
-                transport_mode_code: code,
-                category: mode?.category ?? transport.category,
-              });
-            }}
-            placeholder="Mode…"
-            options={modes.map((m) => ({
-              value: m.code,
-              label: localizeLabel(m.label, m.code),
-            }))}
-            className="text-sm"
+            value={transport.currency}
+            onChange={(currency) => set({ currency })}
+            placeholder="Devise"
+            options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+            compact
+            className="w-full"
+          />
+          <input
+            value={transport.pallet_count}
+            onChange={(e) => set({ pallet_count: e.target.value })}
+            placeholder="Palettes"
+            inputMode="numeric"
+            className={cn(fieldCls, "col-span-2 sm:col-span-1")}
+            aria-label="Nombre de palettes"
           />
         </div>
-        <input
-          value={transport.global_cost}
-          onChange={(e) => set({ global_cost: e.target.value })}
-          placeholder="Coût global"
-          inputMode="decimal"
-          className={fieldCls}
-          aria-label="Coût global"
-        />
-        <FilterSelect
-          value={transport.currency}
-          onChange={(currency) => set({ currency })}
-          placeholder="Devise"
-          options={CURRENCIES.map((c) => ({ value: c, label: c }))}
-          className="text-sm"
-        />
-        <input
-          value={transport.pallet_count}
-          onChange={(e) => set({ pallet_count: e.target.value })}
-          placeholder="Palettes"
-          inputMode="numeric"
-          className={fieldCls}
-          aria-label="Nombre de palettes"
-        />
-        <LocationSelectField
-          value={transport.from_location}
-          onChange={(from_location) => set({ from_location })}
-          ariaLabel="Origine"
-          emptyLabel="De"
-          inputClassName={fieldCls}
-        />
-        <LocationSelectField
-          value={transport.to_location}
-          onChange={(to_location) => set({ to_location })}
-          ariaLabel="Destination"
-          emptyLabel="À"
-          inputClassName={fieldCls}
-        />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <LocationSelectField
+            value={transport.from_location}
+            onChange={(from_location) => set({ from_location })}
+            ariaLabel="Origine"
+            emptyLabel="De"
+            inputClassName={fieldCls}
+          />
+          <LocationSelectField
+            value={transport.to_location}
+            onChange={(to_location) => set({ to_location })}
+            ariaLabel="Destination"
+            emptyLabel="À"
+            inputClassName={fieldCls}
+          />
+        </div>
       </div>
 
       <button

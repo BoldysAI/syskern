@@ -213,15 +213,19 @@ function SelectField({
   disabled?: boolean;
   placeholder?: string;
 }) {
+  const selectedLabel = options.find((o) => o.value === value)?.label;
+
   return (
     <FormField label={label}>
       <Select
-        value={value || undefined}
+        value={value === "" ? null : value}
         onValueChange={(v) => onChange(v ?? "")}
         disabled={disabled}
       >
         <SelectTrigger className="w-full bg-background">
-          <SelectValue placeholder={placeholder ?? "Sélectionner…"} />
+          <SelectValue placeholder={placeholder ?? "Sélectionner…"}>
+            {selectedLabel}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (

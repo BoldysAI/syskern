@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
@@ -12,8 +12,14 @@ import {
   DotsThreeVertical,
   ArrowsClockwise,
   ArrowCounterClockwise,
+  Trash,
+  X,
+  Plus,
 } from "@phosphor-icons/react";
 import {
+  bulkDeleteSimulationLines,
+  bulkEditLines,
+  deleteSimulationLine,
   getSimulationLines,
   recalculateSimulationLine,
   updateSimulationLine,
@@ -28,6 +34,8 @@ import {
   type DataTableSortState,
 } from "@/components/data-table";
 import { cn } from "@/lib/utils";
+import { humanizeApiError } from "@/lib/humanize-errors";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -41,7 +49,8 @@ interface Props {
   sim: SimulationDetail;
   readOnly: boolean;
   onRecalc: () => void;
-  onBulkEdit: () => void;
+  onBulkEdit: (lineIds?: string[]) => void;
+  onAddProducts: () => void;
   onExport: () => void;
   onHistory: () => void;
   onChanged: () => void;
@@ -80,8 +89,13 @@ function OverrideCell({
   onCommit: (raw: string) => void;
 }) {
   const [v, setV] = useState(override);
+
+  useEffect(() => {
+    setV(override);
+  }, [override]);
+
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
       <input
         value={v}
         disabled={disabled}
@@ -104,12 +118,14 @@ function RowMenu({
   onRecalcLine,
   onResetOverrides,
   onShowBreakdown,
+  onRemove,
 }: {
   disabled: boolean;
   readOnly?: boolean;
   onRecalcLine: () => void;
   onResetOverrides: () => void;
   onShowBreakdown: () => void;
+  onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -160,6 +176,18 @@ function RowMenu({
             <ArrowCounterClockwise size={14} />
             Réinitialiser surcharges
           </button>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setOpen(false);
+              onRemove();
+            }}
+            disabled={readOnly}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash size={14} />
+            Retirer de la simulation
+          </button>
         </div>
       )}
     </div>
@@ -171,10 +199,12 @@ export function SimulationTable({
   readOnly,
   onRecalc,
   onBulkEdit,
+  onAddProducts,
   onExport,
   onHistory,
   onChanged,
 }: Props) {
+  const confirm = useConfirm();
   const [statusFilters, setStatusFilters] = useState<Record<StatusFilterKey, boolean>>({
     ok: true,
     warning: true,
@@ -186,6 +216,10 @@ export function SimulationTable({
   const [page, setPage] = useState(1);
   const [busyLine, setBusyLine] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const statusIn = buildStatusIn(statusFilters);
   const fromSimulation = useMemo(
@@ -209,6 +243,127 @@ export function SimulationTable({
   const lines = data?.results ?? [];
   const total = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const selectedIds = useMemo(() => [...selected], [selected]);
+  const allPageSelected = lines.length > 0 && lines.every((line) => selected.has(line.id));
+
+  const toggleRow = (lineId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineId)) next.delete(lineId);
+      else next.add(lineId);
+      return next;
+    });
+  };
+
+  const toggleSelectPage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        for (const line of lines) next.delete(line.id);
+      } else {
+        for (const line of lines) next.add(line.id);
+      }
+      return next;
+    });
+  };
+
+  const removeLines = async (lineIds: string[], label: string) => {
+    const ok = await confirm({
+      title: "Retirer de la simulation",
+      description: label,
+      confirmLabel: "Retirer",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setRemoving(true);
+    try {
+      if (lineIds.length === 1) {
+        await deleteSimulationLine(lineIds[0]);
+      } else {
+        await bulkDeleteSimulationLines(sim.id, { line_ids: lineIds });
+      }
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const id of lineIds) next.delete(id);
+        return next;
+      });
+      await mutate();
+      onChanged();
+      toast.success(
+        lineIds.length === 1
+          ? "Produit retiré de la simulation."
+          : `${lineIds.length} produits retirés de la simulation.`,
+      );
+    } catch (e) {
+      toast.error(humanizeApiError(e, "Suppression échouée"));
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const resetSelectedOverrides = async () => {
+    const ok = await confirm({
+      title: "Réinitialiser les surcharges",
+      description: `Réinitialiser la marge et le mix surchargés de ${selected.size} ligne(s) ?`,
+      confirmLabel: "Réinitialiser",
+    });
+    if (!ok) return;
+
+    setResetting(true);
+    try {
+      await bulkEditLines(sim.id, { filter: { line_ids: selectedIds }, reset: true });
+      await mutate();
+      onChanged();
+      toast.success(
+        selected.size === 1
+          ? "Surcharges réinitialisées."
+          : `Surcharges réinitialisées sur ${selected.size} lignes.`,
+      );
+    } catch (e) {
+      toast.error(humanizeApiError(e, "Réinitialisation échouée"));
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const recalculateSelection = async () => {
+    const ok = await confirm({
+      title: "Recalculer la sélection",
+      description: `Recalculer ${selected.size} ligne(s) avec les paramètres actuels de la simulation ?`,
+      confirmLabel: "Recalculer",
+    });
+    if (!ok) return;
+
+    setRecalculating(true);
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      for (const lineId of selectedIds) {
+        try {
+          await recalculateSimulationLine(lineId);
+          succeeded += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      await mutate();
+      onChanged();
+      if (failed === 0) {
+        toast.success(
+          succeeded === 1
+            ? "1 ligne recalculée."
+            : `${succeeded} lignes recalculées.`,
+        );
+      } else {
+        toast.warning(
+          `${succeeded} ligne${succeeded !== 1 ? "s" : ""} recalculée${succeeded !== 1 ? "s" : ""}, ${failed} échec${failed !== 1 ? "s" : ""}.`,
+        );
+      }
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   const handleSort = useCallback((field: string) => {
     setPage(1);
@@ -226,7 +381,7 @@ export function SimulationTable({
         await mutate();
         onChanged();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Modification échouée");
+        toast.error(humanizeApiError(e, "Modification échouée"));
       } finally {
         setBusyLine(null);
       }
@@ -241,7 +396,7 @@ export function SimulationTable({
       await mutate();
       onChanged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Recalcul de ligne échoué");
+      toast.error(humanizeApiError(e, "Recalcul de ligne échoué"));
     } finally {
       setBusyLine(null);
     }
@@ -272,6 +427,7 @@ export function SimulationTable({
                 href={productEditHref(line.product_sku, [], fromSimulation)}
                 className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
                 title="Modifier le produit"
+                onClick={(e) => e.stopPropagation()}
               >
                 {line.product_sku}
               </Link>
@@ -290,13 +446,9 @@ export function SimulationTable({
         width: 280,
         cellClassName: "text-sm text-foreground truncate",
         render: (line) => (
-          <Link
-            href={productEditHref(line.product_sku, [], fromSimulation)}
-            className="block truncate hover:text-warm hover:underline"
-            title="Modifier le produit"
-          >
+          <span className="block truncate" title={line.product_designation || line.product_name}>
             {line.product_designation || line.product_name}
-          </Link>
+          </span>
         ),
       },
       {
@@ -324,6 +476,33 @@ export function SimulationTable({
         render: (line) => fmtEur(line.product_pamp_eur),
       },
       {
+        key: "pamp_predictive_eur",
+        label: "PAMP prév.",
+        width: 120,
+        align: "right",
+        cellClassName: "text-sm text-foreground font-data",
+        render: (line) => fmtEur(line.pamp_predictive_eur),
+      },
+      {
+        key: "mix",
+        label: "Mix eff.",
+        width: 100,
+        align: "right",
+        render: (line) => (
+          <OverrideCell
+            override={line.stock_purchase_mix_pct_override?.toString() ?? ""}
+            effective={line.effective_mix_pct?.toString() ?? ""}
+            suffix="%"
+            disabled={readOnly || busyLine === line.id}
+            onCommit={(raw) =>
+              patchLine(line.id, {
+                stock_purchase_mix_pct_override: raw.trim() === "" ? null : parseInt(raw, 10),
+              })
+            }
+          />
+        ),
+      },
+      {
         key: "pa_net_eur",
         label: "PA net",
         sortField: "pa_net_eur",
@@ -331,14 +510,6 @@ export function SimulationTable({
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtEur(line.pa_net_eur),
-      },
-      {
-        key: "pamp_predictive_eur",
-        label: "PAMP prév.",
-        width: 120,
-        align: "right",
-        cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pamp_predictive_eur),
       },
       {
         key: "pr_eur",
@@ -370,25 +541,6 @@ export function SimulationTable({
         ),
       },
       {
-        key: "mix",
-        label: "Mix eff.",
-        width: 100,
-        align: "right",
-        render: (line) => (
-          <OverrideCell
-            override={line.stock_purchase_mix_pct_override?.toString() ?? ""}
-            effective={line.effective_mix_pct?.toString() ?? ""}
-            suffix="%"
-            disabled={readOnly || busyLine === line.id}
-            onCommit={(raw) =>
-              patchLine(line.id, {
-                stock_purchase_mix_pct_override: raw.trim() === "" ? null : parseInt(raw, 10),
-              })
-            }
-          />
-        ),
-      },
-      {
         key: "pv_eur",
         label: "PV",
         sortField: "pv_eur",
@@ -401,19 +553,19 @@ export function SimulationTable({
         key: "status",
         label: "Statut",
         sortField: "status",
-        width: 240,
+        width: 320,
         render: (line) => {
           const st = LINE_STATUS[line.status] ?? LINE_STATUS.pending;
           const { errors, warnings } = lineDiagnostics(line);
           const isError = errors.length > 0;
-          const messages = [...errors, ...warnings];
-          const primary = messages[0];
-          const extraCount = messages.length > 1 ? messages.length - 1 : 0;
           return (
             <button
               type="button"
-              onClick={() => setDiagnosticsLine(line)}
-              className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-muted/80"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDiagnosticsLine(line);
+              }}
+              className="flex min-w-0 flex-col items-start gap-1 rounded px-1 py-0.5 text-left hover:bg-muted/80"
               title="Voir le détail des diagnostics"
             >
               <span
@@ -424,25 +576,29 @@ export function SimulationTable({
               >
                 {st.label}
               </span>
-              {primary && (
-                <span className="flex min-w-0 items-center gap-1">
-                  <Warning
-                    size={13}
-                    weight="fill"
-                    className={cn("shrink-0", isError ? "text-destructive" : "text-warm")}
-                  />
-                  <span
-                    className={cn(
-                      "truncate text-xs",
-                      isError ? "text-destructive" : "text-warm"
-                    )}
-                  >
-                    {primary}
-                    {extraCount > 0 && (
-                      <span className="ml-1 text-muted-foreground">(+{extraCount})</span>
-                    )}
-                  </span>
-                </span>
+              {errors.length > 0 && (
+                <ul className="flex w-full min-w-0 flex-col gap-0.5">
+                  {errors.map((msg, i) => (
+                    <li key={`e-${i}`} className="flex min-w-0 items-start gap-1">
+                      <Warning
+                        size={13}
+                        weight="fill"
+                        className="mt-0.5 shrink-0 text-destructive"
+                      />
+                      <span className="text-xs leading-snug text-destructive">{msg}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {warnings.length > 0 && (
+                <ul className="flex w-full min-w-0 flex-col gap-0.5">
+                  {warnings.map((msg, i) => (
+                    <li key={`w-${i}`} className="flex min-w-0 items-start gap-1">
+                      <Warning size={13} weight="fill" className="mt-0.5 shrink-0 text-warm" />
+                      <span className="text-xs leading-snug text-warm">{msg}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </button>
           );
@@ -501,7 +657,17 @@ export function SimulationTable({
                 <span className="h-2 w-2 rounded-full bg-primary-foreground" title="Recalcul nécessaire" />
               )}
             </Button>
-            <Button onClick={onBulkEdit} disabled={readOnly} variant="outline" size="sm">
+            <Button
+              onClick={onAddProducts}
+              disabled={readOnly}
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+            >
+              <Plus size={15} weight="bold" />
+              Ajouter des produits
+            </Button>
+            <Button onClick={() => onBulkEdit()} disabled={readOnly} variant="outline" size="sm">
               Édition groupée
             </Button>
             <Button onClick={handleExport} disabled={exporting} variant="outline" size="sm" className="gap-2">
@@ -545,6 +711,76 @@ export function SimulationTable({
         </div>
       </div>
 
+      {selected.size > 0 && !readOnly && (
+        <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-5 py-2.5">
+          <span className="text-sm font-semibold text-foreground">
+            {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={removing || resetting || recalculating}
+              onClick={() => onBulkEdit(selectedIds)}
+            >
+              Modifier la sélection
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={removing || resetting || recalculating}
+              className="gap-1.5"
+              onClick={resetSelectedOverrides}
+            >
+              {resetting ? (
+                <CircleNotch size={14} className="animate-spin" />
+              ) : (
+                <ArrowCounterClockwise size={14} />
+              )}
+              Réinitialiser surcharges
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={removing || resetting || recalculating}
+              className="gap-1.5"
+              onClick={recalculateSelection}
+            >
+              {recalculating ? (
+                <CircleNotch size={14} className="animate-spin" />
+              ) : (
+                <ArrowsClockwise size={14} />
+              )}
+              Recalculer la sélection
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={removing || resetting || recalculating}
+              className="gap-1.5"
+              onClick={() =>
+                removeLines(
+                  selectedIds,
+                  `Retirer ${selected.size} produit${selected.size > 1 ? "s" : ""} de cette simulation ?`,
+                )
+              }
+            >
+              {removing ? <CircleNotch size={14} className="animate-spin" /> : <Trash size={14} />}
+              Retirer la sélection
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setSelected(new Set())}
+              title="Vider la sélection"
+              aria-label="Vider la sélection"
+            >
+              <X size={16} weight="bold" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       <LineDiagnosticsDrawer
         line={diagnosticsLine}
         fromSimulation={fromSimulation}
@@ -568,6 +804,28 @@ export function SimulationTable({
         onSort={handleSort}
         density="compact"
         isLoading={isLoading && !data}
+        onRowClick={(line) => setBreakdownLine(line)}
+        selectedRowKeys={selected}
+        renderLeadingHeader={() =>
+          !readOnly ? (
+            <Checkbox
+              checked={allPageSelected}
+              onCheckedChange={() => toggleSelectPage()}
+              aria-label="Tout sélectionner sur la page"
+              disabled={lines.length === 0}
+            />
+          ) : null
+        }
+        renderLeadingCell={(line) =>
+          !readOnly ? (
+            <Checkbox
+              checked={selected.has(line.id)}
+              onCheckedChange={() => toggleRow(line.id)}
+              aria-label={`Sélectionner ${line.product_sku}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : null
+        }
         emptyState={
           <div className="text-muted-foreground">
             <Table size={36} weight="duotone" className="mx-auto mb-3 text-muted-foreground/40" />
@@ -577,7 +835,7 @@ export function SimulationTable({
         rowClassName={(line) => lineRowClassName(line.status)}
         renderTrailingCell={(line) => (
                 <RowMenu
-                  disabled={busyLine === line.id}
+                  disabled={busyLine === line.id || removing || resetting || recalculating}
                   readOnly={readOnly}
                   onShowBreakdown={() => setBreakdownLine(line)}
                   onRecalcLine={() => recalcLine(line.id)}
@@ -586,6 +844,12 @@ export function SimulationTable({
                       margin_override: null,
                       stock_purchase_mix_pct_override: null,
                     })
+                  }
+                  onRemove={() =>
+                    removeLines(
+                      [line.id],
+                      `Retirer ${line.product_sku} de cette simulation ?`,
+                    )
                   }
                 />
               )}
@@ -608,7 +872,7 @@ async function onExportWrap(fn: () => void | Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Export échoué");
+    toast.error(humanizeApiError(e, "Export échoué"));
   }
 }
 

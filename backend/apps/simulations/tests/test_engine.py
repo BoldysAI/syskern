@@ -566,7 +566,7 @@ class TestCurrencyConversion:
     def test_missing_rate_raises(self):
         ctx = _plain_ctx({})  # no FX rates at all
         price = PriceWithCurrency(amount=Decimal("100"), currency="USD")
-        with pytest.raises(ValueError, match="fx_eur_usd"):
+        with pytest.raises(ValueError, match="Taux de change EUR → USD manquant"):
             CurrencyConversionModule(target_currency="EUR").apply(price, ctx, order=1)
 
 

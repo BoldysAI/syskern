@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from django.db import transaction
-from django.db.models import Avg, Max, Min
+from django.db.models import Avg, Count, Max, Min
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
@@ -20,6 +21,9 @@ from apps.offers.serializers import (
 from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
 
+from apps.core.pagination import DefaultLimitOffsetPagination
+
+from .filters import SavedComparisonFilter, SimulationFilter
 from .models import (
     SavedComparison,
     Simulation,
@@ -44,7 +48,13 @@ from .serializers import (
     SimulationRecalculationSerializer,
     SimulationWriteSerializer,
 )
-from .services.runner import recalculate_single_line, snapshot_finalize_trace
+from .services.runner import (
+    PRICING_AFFECTING_FIELDS,
+    mark_lines_dirty_after_pricing_change,
+    recalculate_single_line,
+    snapshot_finalize_trace,
+    sync_simulation_dirty_flag,
+)
 from .tasks import EXPORT_DIR, export_simulation_task, recalculate_task
 
 
@@ -66,6 +76,12 @@ def _filter_simulation_lines(simulation: Simulation, flt: dict):
         qs = qs.filter(product__family=flt["family"])
     if flt.get("factory_code"):
         qs = qs.filter(product__factory_code=flt["factory_code"])
+    line_ids = flt.get("line_ids")
+    if line_ids:
+        if isinstance(line_ids, (list, tuple)):
+            qs = qs.filter(id__in=line_ids)
+        elif isinstance(line_ids, str):
+            qs = qs.filter(id__in=[part.strip() for part in line_ids.split(",") if part.strip()])
     status_in = _parse_status_in(flt)
     if status_in:
         qs = qs.filter(status__in=status_in)
@@ -94,26 +110,27 @@ def _parse_status_in(flt: dict) -> list[str] | None:
 
 
 class SimulationViewSet(viewsets.ModelViewSet):
-    queryset = Simulation.objects.all().prefetch_related("lines")
-    filterset_fields = ("simulation_type", "status", "is_dirty")
-    search_fields = ("label", "project_name")
-    ordering = ("-created_at",)
+    queryset = Simulation.objects.all()
+    filterset_class = SimulationFilter
+    ordering_fields = (
+        "label",
+        "simulation_type",
+        "status",
+        "updated_at",
+        "created_at",
+        "last_calculated_at",
+        "line_count",
+    )
+    ordering = ("-updated_at",)
 
     # ─── Queryset ─────────────────────────────────────────────────────
     def get_queryset(self):
-        """Exclude archived simulations from the list by default (CDC §6.9.11).
-
-        Pass `?include_archived=true` to include them. Detail/action routes
-        always resolve any simulation (no exclusion) so an archived one stays
-        reachable by id.
-        """
+        """List endpoint annotates line counts; detail routes prefetch lines."""
         qs = super().get_queryset()
         if self.action == "list":
-            include_archived = str(
-                self.request.query_params.get("include_archived", "")
-            ).lower() in {"true", "1"}
-            if not include_archived:
-                qs = qs.exclude(status=SimulationStatus.ARCHIVED)
+            qs = qs.annotate(line_count=Count("lines", distinct=True))
+        else:
+            qs = qs.prefetch_related("lines")
         return qs
 
     # ─── Serializer routing ───────────────────────────────────────────
@@ -138,9 +155,13 @@ class SimulationViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
-        # Re-mark as dirty whenever a structural field changed.
+        instance = serializer.instance
+        before = {f: getattr(instance, f) for f in PRICING_AFFECTING_FIELDS}
         simulation = serializer.save()
-        Simulation.objects.filter(pk=simulation.pk).update(is_dirty=True)
+        after = {f: getattr(simulation, f) for f in PRICING_AFFECTING_FIELDS}
+        if before != after:
+            mark_lines_dirty_after_pricing_change(simulation)
+        sync_simulation_dirty_flag(simulation.pk)
 
     def destroy(self, request, *args, **kwargs):
         simulation = self.get_object()
@@ -199,6 +220,8 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        sync_simulation_dirty_flag(simulation.pk)
+        simulation.refresh_from_db(fields=["is_dirty", "updated_at"])
         if simulation.is_dirty:
             return Response(
                 {"detail": "Recalculez la simulation avant de finaliser."},
@@ -373,7 +396,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 SimulationLine(simulation=simulation, product=product, status="pending")
             )
         SimulationLine.objects.bulk_create(new_lines)
-        Simulation.objects.filter(pk=simulation.pk).update(is_dirty=True)
+        sync_simulation_dirty_flag(simulation.pk)
         return Response({"added": len(new_lines)}, status=status.HTTP_201_CREATED)
 
     # ─── /lines/bulk (bulk-edit overrides) ────────────────────────────
@@ -400,8 +423,24 @@ class SimulationViewSet(viewsets.ModelViewSet):
             updated = qs.update(status="dirty", **payload) if payload else 0
 
         if updated:
-            Simulation.objects.filter(pk=simulation.pk).update(is_dirty=True)
+            sync_simulation_dirty_flag(simulation.pk)
         return Response({"updated": updated})
+
+    # ─── /lines/bulk-delete (remove lines from simulation) ────────────
+    @action(detail=True, methods=["post"], url_path="lines/bulk-delete")
+    def bulk_delete_lines(self, request, pk=None):
+        simulation = self.get_object()
+        self._ensure_writable(simulation)
+        data = request.data or {}
+        line_ids = data.get("line_ids")
+        if line_ids:
+            qs = simulation.lines.filter(id__in=line_ids)
+        else:
+            qs = _filter_simulation_lines(simulation, data.get("filter") or {})
+        deleted, _ = qs.delete()
+        if deleted:
+            sync_simulation_dirty_flag(simulation.pk)
+        return Response({"deleted": deleted})
 
     # ─── /lines/bulk/preview (impacted-row count, CDC §6.9.5) ─────────
     @action(detail=True, methods=["post"], url_path="lines/bulk/preview")
@@ -540,7 +579,14 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
         super().perform_update(serializer)
         line.status = "dirty"
         line.save(update_fields=["status", "updated_at"])
-        Simulation.objects.filter(pk=line.simulation_id).update(is_dirty=True)
+        sync_simulation_dirty_flag(line.simulation_id)
+
+    def perform_destroy(self, instance):
+        if instance.simulation.status in {SimulationStatus.FINALIZED, SimulationStatus.ARCHIVED}:
+            raise PermissionDenied("Simulation non modifiable — suppression de ligne interdite.")
+        sim_id = instance.simulation_id
+        super().perform_destroy(instance)
+        sync_simulation_dirty_flag(sim_id)
 
     # ─── /recalculate (single line, CDC §6.9.5) ──────────────────────
     @action(detail=True, methods=["post"])
@@ -745,11 +791,17 @@ class SavedComparisonViewSet(viewsets.ModelViewSet):
     """CRUD for persisted compare configurations."""
 
     queryset = SavedComparison.objects.all()
-    pagination_class = None
+    pagination_class = DefaultLimitOffsetPagination
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = SavedComparisonFilter
+    ordering_fields = ["label", "created_at", "updated_at"]
+    ordering = ["-updated_at"]
 
     def get_serializer_class(self):
-        if self.action in ("create", "update", "partial_update"):
+        if self.action == "create":
             return SavedComparisonWriteSerializer
+        if self.action in ("update", "partial_update"):
+            return SavedComparisonPatchSerializer
         return SavedComparisonSerializer
 
     def perform_create(self, serializer):

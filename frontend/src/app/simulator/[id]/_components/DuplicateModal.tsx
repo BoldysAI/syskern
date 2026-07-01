@@ -79,7 +79,7 @@ export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }:
           )}
         </div>
 
-        <DialogFooter className="border-t border-border p-4">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={close} disabled={running}>
             Annuler
           </Button>

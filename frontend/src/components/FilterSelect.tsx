@@ -18,6 +18,8 @@ interface FilterSelectProps {
   options: { value: string; label: string }[];
   className?: string;
   disabled?: boolean;
+  /** Dense trigger for tight forms (e.g. transport chain rows). */
+  compact?: boolean;
 }
 
 export function FilterSelect({
@@ -27,6 +29,7 @@ export function FilterSelect({
   options,
   className,
   disabled,
+  compact,
 }: FilterSelectProps) {
   const selectValue = value || ALL_VALUE;
 
@@ -41,7 +44,14 @@ export function FilterSelect({
       onValueChange={(v) => onChange(v === ALL_VALUE ? "" : String(v))}
       disabled={disabled}
     >
-      <SelectTrigger className={cn("w-full min-w-[10rem] bg-background", className)}>
+      <SelectTrigger
+        size={compact ? "sm" : "default"}
+        className={cn(
+          "w-full min-w-0 bg-background",
+          !compact && "min-w-[10rem]",
+          className,
+        )}
+      >
         <span
           className={cn(
             "flex flex-1 truncate text-left",

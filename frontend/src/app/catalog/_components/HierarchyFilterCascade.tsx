@@ -15,20 +15,20 @@ import type { CatalogFilters } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { AppIcon } from "@/components/AppIcon";
-import { fetchHierarchyOptions } from "./hierarchy-utils";
+import { fetchHierarchyOptions, hierarchyOptionsSwrKey, type CatalogFiltersUpdater } from "./hierarchy-utils";
 
 const LEVELS = [
   {
     key: "universe" as const,
     label: "Univers",
-    hint: "Point de départ — affinez ensuite famille, gamme et sous-gamme.",
+    hint: "Sélection multiple possible — affinez ensuite famille, gamme et sous-gamme.",
     icon: TreeStructure,
     parentKeys: [] as const,
   },
   {
     key: "family" as const,
     label: "Famille",
-    hint: "Sélectionnez un univers pour affiner les familles disponibles.",
+    hint: "Sélectionnez au moins un univers pour affiner les familles disponibles.",
     icon: Folder,
     parentKeys: ["universe"] as const,
   },
@@ -52,12 +52,11 @@ type LevelKey = (typeof LEVELS)[number]["key"];
 
 interface HierarchyFilterCascadeProps {
   filters: CatalogFilters;
-  onChange: (next: CatalogFilters) => void;
+  onChange: (next: CatalogFiltersUpdater) => void;
 }
 
 interface LevelStepProps {
   level: (typeof LEVELS)[number];
-  levelIndex: number;
   selected: string[];
   parents: Pick<CatalogFilters, "universe" | "family" | "range">;
   parentMissing: boolean;
@@ -66,27 +65,17 @@ interface LevelStepProps {
 
 const HierarchyLevelStep = memo(function HierarchyLevelStep({
   level,
-  levelIndex,
   selected,
   parents,
   parentMissing,
   onSetLevel,
 }: LevelStepProps) {
   const hasSelection = selected.length > 0;
-  const [open, setOpen] = useState(levelIndex === 0 ? true : hasSelection);
+  const [open, setOpen] = useState(false);
 
   const swrKey = useMemo(
-    () =>
-      open
-        ? ([
-            "hierarchy-cascade",
-            level.key,
-            parents.universe?.join("|") ?? "",
-            parents.family?.join("|") ?? "",
-            parents.range?.join("|") ?? "",
-          ] as const)
-        : null,
-    [open, level.key, parents.universe, parents.family, parents.range],
+    () => (open ? hierarchyOptionsSwrKey(level.key, parents) : null),
+    [open, level.key, parents],
   );
 
   const { data: options, isLoading } = useSWR(
@@ -95,10 +84,12 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
     { revalidateOnFocus: false, dedupingInterval: 60_000 },
   );
 
-  const optionList = useMemo(
-    () => (options ?? []).map((o) => ({ value: o, label: o })),
-    [options],
-  );
+  const optionList = useMemo(() => {
+    const merged = new Set([...(options ?? []), ...selected]);
+    return [...merged]
+      .sort((a, b) => a.localeCompare(b, "fr"))
+      .map((o) => ({ value: o, label: o }));
+  }, [options, selected]);
 
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen}>
@@ -141,7 +132,10 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
           </button>
         </Collapsible.Trigger>
 
-        <Collapsible.Content className="p-2.5 data-[state=closed]:hidden">
+        <Collapsible.Content
+          className="p-2.5 data-[state=closed]:hidden"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {parentMissing && level.key !== "universe" && (
             <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{level.hint}</p>
           )}
@@ -161,6 +155,7 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
               searchable={optionList.length > 5}
               maxHeight="max-h-40"
               sortSelectedFirst
+              idPrefix={`hierarchy-${level.key}`}
             />
           )}
         </Collapsible.Content>
@@ -180,26 +175,24 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
   );
 
   const setLevel = (key: LevelKey, next: string[]) => {
-    const value = next.length ? next : undefined;
-    if (key === "universe") {
-      onChange({
-        ...filters,
-        universe: value,
-        family: undefined,
-        range: undefined,
-        sub_range: undefined,
-      });
-      return;
-    }
-    if (key === "family") {
-      onChange({ ...filters, family: value, range: undefined, sub_range: undefined });
-      return;
-    }
-    if (key === "range") {
-      onChange({ ...filters, range: value, sub_range: undefined });
-      return;
-    }
-    onChange({ ...filters, sub_range: value });
+    onChange((prev) => {
+      const value = next.length ? next : undefined;
+
+      if (!value) {
+        if (key === "universe") {
+          return { ...prev, universe: undefined, family: undefined, range: undefined, sub_range: undefined };
+        }
+        if (key === "family") {
+          return { ...prev, family: undefined, range: undefined, sub_range: undefined };
+        }
+        if (key === "range") {
+          return { ...prev, range: undefined, sub_range: undefined };
+        }
+        return { ...prev, sub_range: undefined };
+      }
+
+      return { ...prev, [key]: value };
+    });
   };
 
   const selectedPath = [
@@ -221,7 +214,7 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
       )}
 
       <div className="flex flex-col gap-2">
-        {LEVELS.map((level, index) => {
+        {LEVELS.map((level) => {
           const parentMissing =
             level.parentKeys.length > 0 &&
             level.parentKeys.every((k) => !(filters[k]?.length));
@@ -230,7 +223,6 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
             <HierarchyLevelStep
               key={level.key}
               level={level}
-              levelIndex={index}
               selected={filters[level.key] ?? []}
               parents={parents}
               parentMissing={parentMissing}

@@ -1,4 +1,10 @@
 import type { SimulationType } from "@/lib/api";
+import {
+  copperDraftPriceToRmb,
+  copperRmbToDraft,
+  normalizeCopperCurrency,
+  type CopperCurrency,
+} from "./market-prefill";
 
 /** A SKU picked for the simulation (any of the 3 selection methods). */
 export interface SelectedSku {
@@ -39,8 +45,10 @@ export interface ChainDraft {
 }
 
 export interface MarketParamsDraft {
-  copper_base_price_rmb: string;
-  copper_current_price_rmb: string;
+  copper_market: "LME" | "SHE";
+  copper_currency: CopperCurrency;
+  copper_base_price: string;
+  copper_current_price: string;
   fx_eur_rmb: string;
   fx_eur_usd: string;
 }
@@ -55,6 +63,8 @@ export interface WizardDraft {
   projectName: string;
   // Step 2 — SKU selection (cumulative)
   selectedSkus: SelectedSku[];
+  /** SKU codes from file import that were not found in the catalog. */
+  notFoundSkus: string[];
   // Step 3 — market params & chains
   marketParams: MarketParamsDraft;
   purchaseChain: ChainDraft;
@@ -86,9 +96,12 @@ export function emptyDraft(): WizardDraft {
     clientIds: [],
     projectName: "",
     selectedSkus: [],
+    notFoundSkus: [],
     marketParams: {
-      copper_base_price_rmb: "",
-      copper_current_price_rmb: "",
+      copper_market: "LME",
+      copper_currency: "RMB",
+      copper_base_price: "",
+      copper_current_price: "",
       fx_eur_rmb: "",
       fx_eur_usd: "",
     },
@@ -114,10 +127,25 @@ export function loadDraft(): WizardDraft {
     return {
       ...base,
       ...parsed,
-      marketParams: { ...base.marketParams, ...(parsed.marketParams ?? {}) },
+      marketParams: {
+        ...base.marketParams,
+        ...(parsed.marketParams ?? {}),
+        copper_market:
+          parsed.marketParams?.copper_market === "SHE" ? "SHE" : "LME",
+        copper_currency: normalizeCopperCurrency(parsed.marketParams?.copper_currency),
+        copper_base_price:
+          parsed.marketParams?.copper_base_price ??
+          parsed.marketParams?.copper_base_price_rmb ??
+          "",
+        copper_current_price:
+          parsed.marketParams?.copper_current_price ??
+          parsed.marketParams?.copper_current_price_rmb ??
+          "",
+      },
       purchaseChain: { ...base.purchaseChain, ...(parsed.purchaseChain ?? {}) },
       saleChain: { ...base.saleChain, ...(parsed.saleChain ?? {}) },
       selectedSkus: parsed.selectedSkus ?? [],
+      notFoundSkus: parsed.notFoundSkus ?? [],
       clientIds: parsed.clientIds ?? [],
     };
   } catch {
@@ -215,6 +243,8 @@ export function simulationToEditDraft(sim: {
   const sale = (chain.sale_chain ?? {}) as Record<string, unknown>;
   const symea = (purchase.symea_margin ?? {}) as Record<string, unknown>;
   const mp = sim.market_params ?? {};
+  const currency = normalizeCopperCurrency(mp.copper_currency);
+  const fx = { eurRmb: String(mp.fx_eur_rmb ?? ""), eurUsd: String(mp.fx_eur_usd ?? "") };
 
   return {
     label: sim.label,
@@ -223,8 +253,12 @@ export function simulationToEditDraft(sim: {
     projectName: sim.project_name ?? "",
     selectedSkus: [],
     marketParams: {
-      copper_base_price_rmb: String(mp.copper_base_price_rmb ?? ""),
-      copper_current_price_rmb: String(mp.copper_current_price_rmb ?? ""),
+      copper_market: "LME",
+      copper_currency: currency,
+      copper_base_price:
+        copperRmbToDraft(String(mp.copper_base_price_rmb ?? ""), currency, fx) ?? "",
+      copper_current_price:
+        copperRmbToDraft(String(mp.copper_current_price_rmb ?? ""), currency, fx) ?? "",
       fx_eur_rmb: String(mp.fx_eur_rmb ?? ""),
       fx_eur_usd: String(mp.fx_eur_usd ?? ""),
     },
@@ -241,8 +275,12 @@ export function simulationToEditDraft(sim: {
 
 export function buildMarketParams(mp: MarketParamsDraft): Record<string, string> {
   const out: Record<string, string> = {};
-  if (mp.copper_base_price_rmb) out.copper_base_price_rmb = mp.copper_base_price_rmb;
-  if (mp.copper_current_price_rmb) out.copper_current_price_rmb = mp.copper_current_price_rmb;
+  const fx = { eurRmb: mp.fx_eur_rmb, eurUsd: mp.fx_eur_usd };
+  const baseRmb = copperDraftPriceToRmb(mp.copper_base_price, mp.copper_currency, fx);
+  const currentRmb = copperDraftPriceToRmb(mp.copper_current_price, mp.copper_currency, fx);
+  if (baseRmb) out.copper_base_price_rmb = baseRmb;
+  if (currentRmb) out.copper_current_price_rmb = currentRmb;
+  if (mp.copper_currency) out.copper_currency = mp.copper_currency;
   if (mp.fx_eur_rmb) out.fx_eur_rmb = mp.fx_eur_rmb;
   if (mp.fx_eur_usd) out.fx_eur_usd = mp.fx_eur_usd;
   return out;
@@ -351,16 +389,149 @@ export function buildCalculationChain(draft: WizardDraft): Record<string, unknow
 
 /** Returns a French error message when a transport leg is missing pallet_count. */
 export function validateTransportChains(draft: WizardDraft): string | null {
-  const check = (label: string, chain: ChainDraft) => {
-    for (let i = 0; i < chain.transports.length; i++) {
-      const pallets = parseInt(chain.transports[i].pallet_count, 10);
-      if (!Number.isFinite(pallets) || pallets <= 0) {
-        return `Transport ${label} (${i + 1}) : indiquez un nombre de palettes supérieur à 0.`;
-      }
-    }
-    return null;
+  const palletIssue = collectWizardStep3Issues(draft).find((issue) =>
+    issue.includes("palettes"),
+  );
+  return palletIssue ?? null;
+}
+
+function isFilled(value: string | undefined | null): boolean {
+  return value != null && String(value).trim() !== "";
+}
+
+function parsePositiveInt(value: string): number | null {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const FX_PARAM_LABELS: Record<string, string> = {
+  fx_eur_usd: "EUR → USD",
+  fx_eur_rmb: "EUR → RMB",
+  fx_eur_jpy: "EUR → JPY",
+  fx_eur_gbp: "EUR → GBP",
+};
+
+function fxMissingMessage(paramKey: string): string {
+  const label = FX_PARAM_LABELS[paramKey];
+  if (label) {
+    return `Taux de change ${label} manquant dans les paramètres marché.`;
+  }
+  return `Taux de change manquant (${paramKey}) dans les paramètres marché.`;
+}
+
+function collectRequiredFxKeys(draft: WizardDraft): string[] {
+  const keys = new Set<string>(["fx_eur_usd", "fx_eur_rmb"]);
+
+  const addCurrency = (currency: string) => {
+    const code = currency.trim().toUpperCase();
+    if (code && code !== "EUR") keys.add(`fx_eur_${code.toLowerCase()}`);
   };
-  return check("PA", draft.purchaseChain) ?? check("PV", draft.saleChain);
+
+  if (draft.purchaseChain.copper_variation) {
+    keys.add("fx_eur_rmb");
+  }
+
+  for (const transport of draft.purchaseChain.transports) {
+    addCurrency(transport.currency);
+  }
+  for (const transport of draft.saleChain.transports) {
+    addCurrency(transport.currency);
+  }
+
+  return [...keys].sort();
+}
+
+function collectTransportIssues(chainLabel: string, chain: ChainDraft): string[] {
+  const issues: string[] = [];
+  chain.transports.forEach((transport, index) => {
+    const leg = index + 1;
+    if (!parsePositiveInt(transport.pallet_count)) {
+      issues.push(
+        `${chainLabel} — transport ${leg} : indiquez un nombre de palettes supérieur à 0.`,
+      );
+    }
+  });
+  return issues;
+}
+
+/** Tous les problèmes bloquants de l'étape 3 (affichage + confirmation à la création). */
+export function collectWizardStep3Issues(draft: WizardDraft): string[] {
+  const issues: string[] = [];
+
+  if (draft.purchaseChain.copper_variation) {
+    if (!isFilled(draft.marketParams.copper_base_price)) {
+      issues.push("Paramètres marché : renseignez le cours cuivre de base.");
+    }
+    if (!isFilled(draft.marketParams.copper_current_price)) {
+      issues.push("Paramètres marché : renseignez le cours cuivre actuel.");
+    }
+  }
+
+  const builtMarket = buildMarketParams(draft.marketParams);
+  for (const key of collectRequiredFxKeys(draft)) {
+    if (!isFilled(builtMarket[key])) {
+      issues.push(fxMissingMessage(key));
+    }
+  }
+
+  issues.push(...collectTransportIssues("Chaîne PA (achat)", draft.purchaseChain));
+  issues.push(...collectTransportIssues("Chaîne PV (vente)", draft.saleChain));
+
+  return issues;
+}
+
+export type WizardWarningKind = "params" | "sku-empty" | "sku-not-found";
+
+export interface WizardCreateWarning {
+  id: string;
+  kind: WizardWarningKind;
+  title: string;
+  message: string;
+}
+
+function paramsWarningTitle(message: string): string {
+  if (message.startsWith("Paramètres marché")) return "Marché";
+  if (message.startsWith("Taux de change")) return "Taux de change";
+  if (message.includes("Chaîne PA")) return "Transport achat";
+  if (message.includes("Chaîne PV")) return "Transport vente";
+  return "Paramètres";
+}
+
+/** Avertissements structurés avant création (modale de confirmation). */
+export function collectWizardCreateWarnings(draft: WizardDraft): WizardCreateWarning[] {
+  const warnings: WizardCreateWarning[] = [];
+
+  for (const message of collectWizardStep3Issues(draft)) {
+    warnings.push({
+      id: `params-${warnings.length}-${message}`,
+      kind: "params",
+      title: paramsWarningTitle(message),
+      message,
+    });
+  }
+
+  if (draft.selectedSkus.length === 0) {
+    warnings.push({
+      id: "sku-empty",
+      kind: "sku-empty",
+      title: "Sélection produits",
+      message: "Aucun SKU sélectionné — la simulation sera créée sans lignes produit.",
+    });
+  }
+
+  if (draft.notFoundSkus.length > 0) {
+    const preview = draft.notFoundSkus.slice(0, 8).join(", ");
+    const suffix =
+      draft.notFoundSkus.length > 8 ? `… et ${draft.notFoundSkus.length - 8} autre(s)` : "";
+    warnings.push({
+      id: "sku-not-found",
+      kind: "sku-not-found",
+      title: "Import fichier",
+      message: `${draft.notFoundSkus.length} SKU importé${draft.notFoundSkus.length > 1 ? "s" : ""} introuvable${draft.notFoundSkus.length > 1 ? "s" : ""} dans le catalogue (${preview}${suffix}) — ils ne seront pas ajoutés.`,
+    });
+  }
+
+  return warnings;
 }
 
 /** Preset "Standard import Chine" — structural only, no invented monetary values. */

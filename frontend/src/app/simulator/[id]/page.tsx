@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
 import { SidebarSimple, WarningCircle } from "@phosphor-icons/react";
 import { exportSimulation, getSimulation, type SimulationDetail } from "@/lib/api";
+import { persistLastVisited } from "@/lib/last-visited";
 import {
   useBreadcrumbOverride,
   type BreadcrumbCrumb,
@@ -17,10 +18,12 @@ import { SimulationSidebar } from "./_components/SimulationSidebar";
 import { SimulationTable } from "./_components/SimulationTable";
 import { RecalculateModal } from "./_components/RecalculateModal";
 import { BulkEditModal } from "./_components/BulkEditModal";
+import { AddProductsModal } from "./_components/AddProductsModal";
 import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
 
 export default function SimulationDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = params?.id ?? "";
 
   const {
@@ -38,6 +41,8 @@ export default function SimulationDetailPage() {
   });
   const [recalcOpen, setRecalcOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkLineIds, setBulkLineIds] = useState<string[] | null>(null);
+  const [addProductsOpen, setAddProductsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingMarketParams, setPendingMarketParams] = useState<Record<string, string> | null>(
     null
@@ -45,14 +50,44 @@ export default function SimulationDetailPage() {
 
   const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
     if (!sim) return null;
+
+    const from = searchParams.get("from");
+    const productSku = searchParams.get("product_sku");
+    const productLabel = searchParams.get("product_label");
+    const productTab = searchParams.get("product_tab");
+
+    if (from === "catalog" && productSku) {
+      const productQ = new URLSearchParams();
+      if (productTab) productQ.set("tab", productTab);
+      const productHref = `/catalog/${encodeURIComponent(productSku)}${
+        productQ.size ? `?${productQ.toString()}` : ""
+      }`;
+      return [
+        { href: "/", label: "Tableau de bord" },
+        { href: "/catalog", label: "Catalogue" },
+        { href: productHref, label: productLabel || productSku },
+        { label: sim.label },
+      ];
+    }
+
     return [
       { href: "/", label: "Tableau de bord" },
       { href: "/simulator", label: "Simulations" },
       { label: sim.label },
     ];
-  }, [sim]);
+  }, [sim, searchParams]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));
+
+  useEffect(() => {
+    if (!sim) return;
+    persistLastVisited({
+      kind: "simulation",
+      id: sim.id,
+      label: sim.label,
+      path: `/simulator/${sim.id}`,
+    });
+  }, [sim]);
 
   const refreshLines = () =>
     globalMutate((key) => Array.isArray(key) && key[0] === "sim-lines");
@@ -142,7 +177,11 @@ export default function SimulationDetailPage() {
           sim={sim}
           readOnly={readOnly}
           onRecalc={() => setRecalcOpen(true)}
-          onBulkEdit={() => setBulkOpen(true)}
+          onAddProducts={() => setAddProductsOpen(true)}
+          onBulkEdit={(lineIds) => {
+            setBulkLineIds(lineIds?.length ? lineIds : null);
+            setBulkOpen(true);
+          }}
           onExport={() => exportSimulation(sim.id)}
           onHistory={() => setHistoryOpen(true)}
           onChanged={() => void mutateSim()}
@@ -151,16 +190,25 @@ export default function SimulationDetailPage() {
 
       <RecalculateModal
         simId={sim.id}
-        lineCount={sim.line_count}
         marketParams={pendingMarketParams ?? undefined}
         open={recalcOpen}
         onClose={() => setRecalcOpen(false)}
         onDone={refreshAll}
       />
+      <AddProductsModal
+        simId={sim.id}
+        open={addProductsOpen}
+        onClose={() => setAddProductsOpen(false)}
+        onAdded={refreshAll}
+      />
       <BulkEditModal
         simId={sim.id}
         open={bulkOpen}
-        onClose={() => setBulkOpen(false)}
+        lineIds={bulkLineIds}
+        onClose={() => {
+          setBulkOpen(false);
+          setBulkLineIds(null);
+        }}
         onApplied={refreshAll}
       />
       <RecalcHistoryDrawer simId={sim.id} open={historyOpen} onClose={() => setHistoryOpen(false)} />

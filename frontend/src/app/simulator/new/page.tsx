@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
@@ -11,13 +11,16 @@ import { Button } from "@/components/ui/button";
 import { ParamsStep } from "./_components/ParamsStep";
 import { SkuStep } from "./_components/SkuStep";
 import { TypeStep } from "./_components/TypeStep";
+import { WizardCreateWarningsDialog } from "./_components/WizardCreateWarningsDialog";
 import {
   buildSimulationPatch,
   clearDraft,
+  collectWizardCreateWarnings,
+  collectWizardStep3Issues,
   loadDraft,
   persistDraft,
   step1Valid,
-  validateTransportChains,
+  type WizardCreateWarning,
   type WizardDraft,
 } from "./_components/wizard-draft";
 
@@ -33,6 +36,7 @@ export default function NewSimulationPage() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createWarnings, setCreateWarnings] = useState<WizardCreateWarning[] | null>(null);
 
   useEffect(() => {
     persistDraft(draft);
@@ -41,10 +45,9 @@ export default function NewSimulationPage() {
   const update = (patch: Partial<WizardDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const step1Ok = step1Valid(draft);
-  const transportError = step === 3 ? validateTransportChains(draft) : null;
-  const step3Valid = transportError === null;
+  const step3Issues = useMemo(() => collectWizardStep3Issues(draft), [draft]);
 
-  const canSubmit = step1Ok && step3Valid && !saving;
+  const canSubmit = step1Ok && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -66,12 +69,12 @@ export default function NewSimulationPage() {
     }
   };
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step === 1 && !step1Ok) return;
     if (step === 3) {
-      const err = validateTransportChains(draft);
-      if (err) {
-        setError(err);
+      const warnings = collectWizardCreateWarnings(draft);
+      if (warnings.length > 0) {
+        setCreateWarnings(warnings);
         return;
       }
     }
@@ -81,18 +84,24 @@ export default function NewSimulationPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <Link
-        href="/simulator"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <CaretLeft size={16} />
-        Retour aux simulations
-      </Link>
+    <div
+      className={cn(
+        "flex flex-col",
+        step === 2 ? "h-[calc(100dvh-3.5rem)] overflow-hidden" : "mx-auto max-w-6xl p-6",
+      )}
+    >
+      <div className={cn("shrink-0", step === 2 ? "border-b border-border px-4 py-3 sm:px-6" : "")}>
+        <Link
+          href="/simulator"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <CaretLeft size={16} />
+          Retour aux simulations
+        </Link>
 
-      <PageHeader title="Nouvelle simulation" className="mb-6" />
+        {step !== 2 && <PageHeader title="Nouvelle simulation" className="mb-6" />}
 
-      <ol className="mb-8 flex items-center gap-2">
+        <ol className={cn("flex items-center gap-2", step === 2 ? "mb-0" : "mb-8")}>
         {STEPS.map((s, i) => {
           const active = step === s.id;
           const done = step > s.id;
@@ -137,35 +146,45 @@ export default function NewSimulationPage() {
           );
         })}
       </ol>
+      </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        <div
+          className={cn(
+            "rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive",
+            step === 2 ? "mx-4 mt-3 shrink-0 sm:mx-6" : "mb-4",
+          )}
+        >
           {error}
         </div>
       )}
-      {step === 3 && transportError && !error && (
-        <div className="mb-4 rounded-lg border border-warm/30 bg-warm/10 p-3 text-sm text-foreground">
-          {transportError}
-        </div>
-      )}
-
-      <div className="mb-8">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          step === 2 ? "overflow-hidden px-4 py-3 sm:px-6" : "mb-8",
+        )}
+      >
         {step === 1 && (
-          <TypeStep
-            label={draft.label}
-            type={draft.type}
-            clientIds={draft.clientIds}
-            projectName={draft.projectName}
-            onLabel={(v) => update({ label: v })}
-            onType={(v) => update({ type: v })}
-            onClientIds={(v) => update({ clientIds: v })}
-            onProjectName={(v) => update({ projectName: v })}
-          />
+          <div className="flex min-h-[calc(100dvh-18rem)] flex-col">
+            <TypeStep
+              label={draft.label}
+              type={draft.type}
+              clientIds={draft.clientIds}
+              projectName={draft.projectName}
+              onLabel={(v) => update({ label: v })}
+              onType={(v) => update({ type: v })}
+              onClientIds={(v) => update({ clientIds: v })}
+              onProjectName={(v) => update({ projectName: v })}
+            />
+          </div>
         )}
         {step === 2 && (
           <SkuStep
+            className="min-h-0 flex-1"
             selectedSkus={draft.selectedSkus}
+            notFoundSkus={draft.notFoundSkus}
             onChange={(v) => update({ selectedSkus: v })}
+            onNotFoundChange={(v) => update({ notFoundSkus: v })}
           />
         )}
         {step === 3 && (
@@ -188,11 +207,17 @@ export default function NewSimulationPage() {
             onSymeaPosition={(v) => update({ symeaPosition: v })}
             onSaleIncoterm={(v) => update({ saleIncoterm: v })}
             onSaleIncotermLocation={(v) => update({ saleIncotermLocation: v })}
+            issues={step3Issues}
           />
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-border pt-5">
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between border-t border-border pt-4",
+          step === 2 ? "px-4 pb-4 sm:px-6" : "",
+        )}
+      >
         <Button
           type="button"
           variant="outline"
@@ -204,7 +229,7 @@ export default function NewSimulationPage() {
         <Button
           type="button"
           onClick={goNext}
-          disabled={(step === 1 && !step1Ok) || (step === 3 && !step3Valid) || saving}
+          disabled={(step === 1 && !step1Ok) || saving}
           className="gap-2"
         >
           {saving && <CircleNotch size={15} className="animate-spin" />}
@@ -220,6 +245,18 @@ export default function NewSimulationPage() {
           )}
         </Button>
       </div>
+
+      <WizardCreateWarningsDialog
+        open={createWarnings !== null}
+        warnings={createWarnings ?? []}
+        saving={saving}
+        onCancel={() => setCreateWarnings(null)}
+        onConfirm={() => {
+          setCreateWarnings(null);
+          setError(null);
+          void handleSubmit();
+        }}
+      />
     </div>
   );
 }

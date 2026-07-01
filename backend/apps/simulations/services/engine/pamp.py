@@ -73,7 +73,9 @@ def compute_pr(
     The result is quantized to 4 decimal places (CDC §6.5).
     """
     if mix_pct < 0 or mix_pct > 100:
-        raise ValueError(f"mix_pct must be in [0, 100], got {mix_pct}")
+        raise ValueError(
+            f"Mix stock/achat invalide ({mix_pct}) : la valeur doit être comprise entre 0 et 100 %."
+        )
 
     pa = to_decimal(pa_net_eur)
     if pamp_predictive_eur is None:

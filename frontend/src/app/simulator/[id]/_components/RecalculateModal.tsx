@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Database, CircleNotch, ArrowsClockwise, Gear } from "@phosphor-icons/react";
 import { recalculateSimulation, type RecalcScope } from "@/lib/api";
+import { humanizeApiError } from "@/lib/humanize-errors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,6 @@ import {
 
 interface Props {
   simId: string;
-  lineCount: number;
   marketParams?: Record<string, unknown>;
   open: boolean;
   onClose: () => void;
@@ -48,13 +48,11 @@ const SCOPES: {
   },
 ];
 
-export function RecalculateModal({ simId, lineCount, marketParams, open, onClose, onDone }: Props) {
+export function RecalculateModal({ simId, marketParams, open, onClose, onDone }: Props) {
   const [scope, setScope] = useState<RecalcScope>("params_only");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const estimateSec = Math.max(2, Math.round(lineCount / 40));
 
   const handleRun = async () => {
     setRunning(true);
@@ -74,7 +72,7 @@ export function RecalculateModal({ simId, lineCount, marketParams, open, onClose
         onClose();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Recalcul échoué.");
+      setError(humanizeApiError(e, "Recalcul échoué."));
     } finally {
       setRunning(false);
     }
@@ -122,10 +120,6 @@ export function RecalculateModal({ simId, lineCount, marketParams, open, onClose
             );
           })}
 
-          <p className="text-xs text-muted-foreground">
-            Estimation : ~{estimateSec}s pour {lineCount} ligne{lineCount !== 1 ? "s" : ""}.
-          </p>
-
           {running && (
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full w-full animate-pulse rounded-full bg-primary" />
@@ -141,7 +135,7 @@ export function RecalculateModal({ simId, lineCount, marketParams, open, onClose
           )}
         </div>
 
-        <DialogFooter className="border-t border-border p-4">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={running}>
             Annuler
           </Button>

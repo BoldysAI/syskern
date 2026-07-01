@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CircleNotch, Sparkle } from "@phosphor-icons/react";
-import { getCurrentMarketParameter } from "@/lib/api";
+import { CircleNotch, Database } from "@phosphor-icons/react";
+import { getCurrentMarketParameter, listMarketParameters } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { OptionSelect } from "@/components/OptionSelect";
 import type { MarketParamsDraft } from "./wizard-draft";
+import {
+  convertCopperDraftPrice,
+  copperHistoryForMarket,
+  copperPriceInCurrency,
+  normalizeCopperCurrency,
+  type CopperCurrency,
+} from "./market-prefill";
 
 interface Props {
   open: boolean;
@@ -23,6 +31,17 @@ interface Props {
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
+
+const COPPER_MARKET_OPTIONS = [
+  { value: "LME", label: "LME (London)" },
+  { value: "SHE", label: "SHE (Shanghai)" },
+] as const;
+
+const COPPER_CURRENCY_OPTIONS = [
+  { value: "RMB", label: "RMB" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+] as const;
 
 export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) {
   const [draft, setDraft] = useState<MarketParamsDraft>(value);
@@ -39,26 +58,53 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
 
   const set = (patch: Partial<MarketParamsDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
+  const currency = draft.copper_currency ?? "RMB";
+
+  const onCurrencyChange = (next: CopperCurrency) => {
+    setDraft((d) => {
+      const from = normalizeCopperCurrency(d.copper_currency);
+      const fx = { eurRmb: d.fx_eur_rmb, eurUsd: d.fx_eur_usd };
+      return {
+        ...d,
+        copper_currency: next,
+        copper_base_price:
+          convertCopperDraftPrice(d.copper_base_price, from, next, fx) ?? d.copper_base_price,
+        copper_current_price:
+          convertCopperDraftPrice(d.copper_current_price, from, next, fx) ??
+          d.copper_current_price,
+      };
+    });
+  };
+
   const prefill = async () => {
     setPrefilling(true);
     setNote(null);
     const next: MarketParamsDraft = { ...draft };
-    let filled = 0;
+    let fieldsFilled = 0;
+    const market = next.copper_market ?? "LME";
+
+    const assign = (key: keyof MarketParamsDraft, val: string | null | undefined) => {
+      if (val?.trim()) {
+        next[key] = val as MarketParamsDraft[typeof key];
+        fieldsFilled += 1;
+      }
+    };
+
     const tryFetch = async (fn: () => Promise<void>) => {
       try {
         await fn();
-        filled += 1;
       } catch {
         // No active parameter for this dimension — leave the field as-is.
       }
     };
+
     await tryFetch(async () => {
       const fx = await getCurrentMarketParameter({
         parameter_type: "fx_rate",
         fx_from_currency: "EUR",
         fx_to_currency: "RMB",
       });
-      if (fx.fx_rate) next.fx_eur_rmb = fx.fx_rate;
+      if (fx.fx_rate) assign("fx_eur_rmb", fx.fx_rate);
     });
     await tryFetch(async () => {
       const fx = await getCurrentMarketParameter({
@@ -66,20 +112,45 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
         fx_from_currency: "EUR",
         fx_to_currency: "USD",
       });
-      if (fx.fx_rate) next.fx_eur_usd = fx.fx_rate;
+      if (fx.fx_rate) assign("fx_eur_usd", fx.fx_rate);
     });
+
+    const fx = { eurRmb: next.fx_eur_rmb, eurUsd: next.fx_eur_usd };
+
     await tryFetch(async () => {
-      const copper = await getCurrentMarketParameter({ parameter_type: "copper_price" });
-      if (copper.copper_price && copper.copper_currency === "RMB") {
-        next.copper_current_price_rmb = copper.copper_price;
-      }
+      const copper = await getCurrentMarketParameter({
+        parameter_type: "copper_price",
+        copper_market: market,
+      });
+      assign(
+        "copper_current_price",
+        copperPriceInCurrency(copper, normalizeCopperCurrency(next.copper_currency), fx),
+      );
     });
+
+    try {
+      const history = await listMarketParameters({
+        type: "copper_price",
+        copperMarket: market,
+      });
+      const sorted = copperHistoryForMarket(history, market);
+      const baseParam = sorted.length >= 2 ? sorted[1] : sorted[0];
+      if (baseParam) {
+        assign(
+          "copper_base_price",
+          copperPriceInCurrency(baseParam, normalizeCopperCurrency(next.copper_currency), fx),
+        );
+      }
+    } catch {
+      // History unavailable — copper base left as-is.
+    }
+
     setDraft(next);
     setPrefilling(false);
     setNote(
-      filled > 0
-        ? "Valeurs pré-remplies depuis les paramètres marché actifs."
-        : "Aucun paramètre marché actif compatible trouvé."
+      fieldsFilled > 0
+        ? `Valeurs pré-remplies (${market}, ${next.copper_currency}).`
+        : `Aucun paramètre cuivre ${market} trouvé dans les paramètres marché.`,
     );
   };
 
@@ -91,6 +162,25 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
         </DialogHeader>
 
         <div className="flex flex-col gap-4 p-5">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Marché cuivre</label>
+              <OptionSelect
+                value={draft.copper_market ?? "LME"}
+                onValueChange={(v) => set({ copper_market: v as "LME" | "SHE" })}
+                options={COPPER_MARKET_OPTIONS}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Devise cuivre</label>
+              <OptionSelect
+                value={currency}
+                onValueChange={(v) => onCurrencyChange(v as CopperCurrency)}
+                options={COPPER_CURRENCY_OPTIONS}
+              />
+            </div>
+          </div>
+
           <Button
             type="button"
             variant="outline"
@@ -98,29 +188,33 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
             disabled={prefilling}
             className="gap-2"
           >
-            {prefilling ? <CircleNotch size={15} className="animate-spin" /> : <Sparkle size={15} />}
+            {prefilling ? (
+              <CircleNotch size={15} className="animate-spin" />
+            ) : (
+              <Database size={15} />
+            )}
             Pré-remplir depuis les paramètres actifs
           </Button>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>Cuivre base (RMB)</label>
+              <label className={labelCls}>Cuivre base ({currency})</label>
               <input
-                value={draft.copper_base_price_rmb}
-                onChange={(e) => set({ copper_base_price_rmb: e.target.value })}
+                value={draft.copper_base_price}
+                onChange={(e) => set({ copper_base_price: e.target.value })}
                 inputMode="decimal"
-                placeholder="70000"
+                placeholder={currency === "RMB" ? "70000" : currency === "USD" ? "9500" : "8800"}
                 className={inputCls}
               />
             </div>
             <div>
-              <label className={labelCls}>Cuivre actuel (RMB)</label>
+              <label className={labelCls}>Cuivre actuel ({currency})</label>
               <input
-                value={draft.copper_current_price_rmb}
-                onChange={(e) => set({ copper_current_price_rmb: e.target.value })}
+                value={draft.copper_current_price}
+                onChange={(e) => set({ copper_current_price: e.target.value })}
                 inputMode="decimal"
-                placeholder="97000"
+                placeholder={currency === "RMB" ? "97000" : currency === "USD" ? "9700" : "9000"}
                 className={inputCls}
               />
             </div>
@@ -147,13 +241,12 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave }: Props) 
           </div>
         </div>
 
-        <DialogFooter className="gap-3 border-t border-border p-4 sm:justify-stretch">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
           <Button
             type="button"
-            className="flex-1"
             onClick={() => {
               onSave(draft);
               onOpenChange(false);

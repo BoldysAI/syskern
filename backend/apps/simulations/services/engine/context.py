@@ -12,6 +12,8 @@ from typing import Any
 
 from apps.core.models import Currency
 
+from .errors import missing_fx_rate_message
+
 DEC_ZERO = Decimal(0)
 DEC_ONE = Decimal(1)
 QUANTUM_4DP = Decimal("0.0001")
@@ -47,7 +49,7 @@ def fx_rate(from_currency: str, to_currency: str, market_params: dict) -> Decima
     def _eur_to(currency: str) -> Decimal:
         key = f"fx_eur_{currency.lower()}"
         if key not in market_params:
-            raise ValueError(f"Missing FX rate `{key}` in market parameters.")
+            raise ValueError(missing_fx_rate_message(key))
         return to_decimal(market_params[key])
 
     if fr == eur:

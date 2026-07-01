@@ -181,8 +181,11 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   `normalizeCatalogFilters` migre les anciennes valeurs string → `string[]`.
 - **Chips filtres actifs** : `active-filters.ts` (`buildFilterChips`, `countActiveFilters`,
   `removeFilterChip`) + `ActiveFilterBar.tsx` au-dessus du tableau.
+- **Statut produit** : toggles exclusifs `active_in` / `active_out` (section « Statut produit »,
+  même pattern que stock) → `buildCatalogQuery()` envoie `is_active=true|false` ; aucun des deux =
+  pas de filtre (actifs + inactifs). Chips « Actif » / « Non actif » ; persisté dans les favoris.
 - **Filtres mobile** : `CatalogFilterTrigger` + `CatalogFilterSheet` (Sheet shadcn, panneau gauche).
-- **Bornes sliders** : `GET /api/products/filter-bounds` via `getCatalogFilterBounds()` — min/max PAMP, stock et attributs numériques contextualisés aux filtres actifs (hors fourchettes PAMP/stock). Helpers `slider-bounds.ts`, composant `RangeFilterSlider`.
+- **Bornes sliders** : `GET /api/products/filter-bounds` via `getCatalogFilterBounds()` — min/max PAMP, stock et attributs numériques contextualisés aux filtres actifs (hors fourchettes PAMP/stock ; queryset de base = **tous** les produits, le filtre `is_active` de la requête s'applique via `ProductFilter`). Helpers `slider-bounds.ts`, composant `RangeFilterSlider`.
 - **Hiérarchie cascade** : `HierarchyFilterCascade` — niveaux repliables, fetch lazy par niveau, parents CSV (`hierarchy/distinct?universe=U1,U2`).
 - **Sélection persistée à travers les pages** : garder un `Set<string>` d'ids en state, **ne pas**
   le réinitialiser au changement de page (le faire seulement après une action groupée réussie).
@@ -194,6 +197,24 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   `ProductDrawer.tsx`).
 - **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
   fournisseurs, etc.).
+
+### Panneaux de filtres — sections fermées par défaut (playbook UX)
+
+**Règle plateforme** : toute catégorie de filtre (sidebar catalogue, simulations, modales catalogue
+embarquées, etc.) s’affiche **repliée** au premier rendu. L’utilisateur ouvre explicitement les
+sections dont il a besoin.
+
+- **Composant canonique** : `FilterSection` (`components/FilterSection.tsx`) — `defaultOpen` vaut
+  `false` ; **ne jamais** passer `defaultOpen` ni l’ouvrir automatiquement selon le contenu (ex.
+  favoris déjà enregistrés, filtres actifs, etc.).
+- **Sous-niveaux** : cascades hiérarchie (`HierarchyFilterCascade`), attributs dynamiques, etc. —
+  même règle (`useState(false)` sur chaque repliable).
+- **Badge `activeCount`** : indique qu’un filtre est appliqué **sans** déplier la section.
+- **Exceptions** : aucune pour l’instant ; le panneau filtres latéral peut rester visible/ouvert en
+  entier, seules les **sections internes** restent fermées.
+
+Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `CatalogFilterSheet` /
+`SimulationFilterSheet` (réutilisent les sidebars ci-dessus), `AddProductsModal`.
 
 ## Tableau de données partagé (`components/data-table/`)
 
@@ -252,7 +273,9 @@ const columns: DataTableColumnDef<Product>[] = [
 - **Colonnes optionnelles** : `renderLeadingHeader`/`renderLeadingCell` (checkbox catalogue),
   `renderTrailingCell` (menu kebab simulation), `rowClassName` (surlignage warning/error).
 
-Les consommateurs actuels : `app/catalog/page.tsx`, `app/simulator/[id]/_components/SimulationTable.tsx`.
+Les consommateurs actuels : `CatalogBrowser` (`catalog/_components/`), `SimulationTable`.
+Le catalogue partagé expose `useCatalogColumns` (colonnes) + `CatalogBrowser` (filtres + tableau) ;
+réutilisé par `/catalog`, le wizard (`WizardCatalogPicker`) et `AddProductsModal`.
 Les anciens `catalog/_components/useColumnWidths.ts` et `CatalogPagination.tsx` ré-exportent
 depuis `components/data-table/` (dépréciés — importer directement le module partagé).
 
@@ -297,6 +320,21 @@ Référence : `components/layout/BreadcrumbContext.tsx`, consommé par `AppShell
 - Cas catalogue : Accueil · Catalogue · {universe?} · {SKU}. Fiche produit lit `?from=simulation` pour
   restaurer le fil d'Ariane simulation au retour.
 
+## Liste simulations (`/simulator`)
+
+Référence : `app/simulator/page.tsx` + `app/simulator/_components/` — même ergonomie que le catalogue.
+
+- **Layout** : panneau filtres gauche (fermable, redimensionnable) · toolbar (recherche, actions) ·
+  `DataTable` paginé (50/page).
+- **Recherche** : debounce 300 ms → `q` (nom, nom de projet).
+- **Filtres sidebar** : type (tarif/projet), statut (brouillon/finalisé/archivé), recalcul nécessaire ;
+  filtres favoris en `localStorage` (`syskern:simulation-filters:v1`). Sans filtre statut, toutes
+  les simulations sont listées (y compris archivées).
+- **Tri** : colonnes nom, type, lignes, statut, dernier calcul, modifié → `ordering` DRF.
+- **Sélection** : cases + barre d’actions « Comparer la sélection » (2–4 sims → `/simulator/compare?sims=…`).
+- **API** : `getSimulationsList({ q, simulation_type, status, is_dirty, ordering, page, limit })` ;
+  `getSimulations()` reste un raccourci (200 premiers résultats, ex. page comparer).
+
 ## Wizard création simulation (`/simulator/new`)
 
 Référence : `app/simulator/new/` (CDC §6.9.2). Trois étapes : type/contexte → SKU → paramètres+chaîne.
@@ -305,18 +343,26 @@ Référence : `app/simulator/new/` (CDC §6.9.2). Trois étapes : type/contexte 
   d'écriture seule (cf. pattern `/catalog/new`). L'étape active n'est **pas** persistée.
 - **Étape 1** : `TypeStep` — toggle Tarif/Projet, multi-select clients (`getClients`), projet =
   1 client + `project_name` obligatoire.
-- **Étape 2** : `SkuStep` — 3 onglets combinables :
-  - `CatalogueSelectionPanel` : catalogue allégé multi-sélection (pas de redirect CDC).
-  - `HierarchyFilterPanel` : cascade univers→sous-gamme + ajout en masse (`getProducts`).
-  - `ImportFilePanel` : drag-and-drop `.xlsx`/`.csv`, parsing client `xlsx` (SheetJS), colonne
-    `sku_code` auto-détectée, `lookupBulkProducts` → panneau latéral persistant des non trouvés.
-  - `SelectedSkuList` : liste cumulative dédoublonnée par `id`.
-- **Étape 3** : `ParamsStep` — `MarketParamsModal` (pré-rempli via `getCurrentMarketParameter`),
+- **Étape 2** : `SkuStep` — plein écran (`h-[calc(100dvh-3.5rem)]`) ; 2 onglets (catalogue /
+  import fichier) ; panneau droit = SKU sélectionnés ; bannière d'erreur repliable pour les SKU
+  non trouvés ; confirmation à la création si des SKU importés sont introuvables :
+  - `WizardCatalogPicker` : délègue à `CatalogBrowser` (même tableau / colonnes que `/catalog`).
+  - `ImportFilePanel` : drag-and-drop `.xlsx`/`.csv`, `lookupBulkProducts` → `notFoundSkus`.
+  - `SelectedSkuList` : liste cumulative sticky à droite.
+  - *(Retiré)* onglet « filtre de gamme » — couvert par les filtres hiérarchie du catalogue.
+- **Étape 3** : `ParamsStep` — `MarketParamsModal` (sélecteur **LME/SHE** + **devise cuivre** RMB/USD/EUR ;
+  `getCurrentMarketParameter` + `listMarketParameters` filtrés par `copper_market` ; pré-remplissage dans la
+  devise choisie ; à l'enregistrement `buildMarketParams` convertit en RMB/tonne pour le moteur ;
+  FX EUR→RMB/USD),
   **incoterm de vente** (`SaleIncotermFields` + prefill PV semi-auto), mix/marges, `ChainBuilder` PA/PV,
   `ChainBuilder` DnD (`@dnd-kit`) pour chaînes PA/PV (douane = **taux %** `rate_pct`, transports avec
   sélecteur mode FR), mix/marges/position Symea, preset import Chine.
 - **Soumission** : `createSimulation` + `addSimulationLines` → redirect `/simulator/[id]` (draft).
-- **Validation transports** : `validateTransportChains` — chaque leg doit avoir `pallet_count > 0` avant création.
+- **Validation étape 3** : `collectWizardStep3Issues` (cuivre si variation PA, FX requis selon
+  chaînes, palettes transports) + bannière `WizardStep3IssuesBanner` dans `ParamsStep`.
+  À la création : `collectWizardCreateWarnings` → modale `WizardCreateWarningsDialog` (cartes
+  colorées par type : paramètres / SKU / import).
+  `validateTransportChains` reste pour l'autosave sidebar (premier problème palettes).
 - **Helpers partagés** (`wizard-draft.ts`) : `buildSimulationPatch`, `simulationToEditDraft`, `step1Valid`, `buildMarketParams`.
 - **Dépendance** : `xlsx@0.18.5` (npm registry) pour le parsing Excel côté client.
 - **npm** : installer les deps **uniquement** dans `frontend/` (`cd frontend && npm ci`). Jamais à la racine du repo (cf. `decisions.md`).
@@ -344,25 +390,41 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   monté avec `key={sim.id}`.
 - **`SimulationTable`** : bandeau contexte (dernier calcul, cuivre base/actuel, FX, **incoterm vente**,
   snapshot Odoo,
-  boutons **Recalculer** [proéminent si `is_dirty`] / Édition groupée / Exporter Excel / Historique) ;
+  boutons **Recalculer** [proéminent si `is_dirty`] / **Ajouter des produits** (`AddProductsModal` —
+  catalogue filtré, multi-sélection, `POST /api/simulations/{id}/lines/`) / Édition groupée / Exporter Excel / Historique) ;
   **grille via `DataTable` partagé** (`components/data-table/`, clé largeurs
   `syskern:simulation-col-widths:v1`) avec colonnes métier : SKU, Désignation (`product_designation`),
-  Gamme, Stock, PAMP, PA net, PAMP prév., PR, Marge eff., Mix eff., PV, Statut + menu kebab ;
+  Gamme, Stock, PAMP, PAMP prév., Mix eff., PA net, PR, Marge eff., PV, Statut + menu kebab ;
+  **sélection multiple** (cases à gauche, barre d'actions : modifier / réinitialiser surcharges /
+  recalculer la sélection / retirer la sélection) ;
+  menu ⋮ → **Retirer de la simulation** ; `DELETE /api/simulation-lines/{id}/` et
+  `POST /api/simulations/{id}/lines/bulk-delete/` ; édition groupée sur sélection via
+  `filter.line_ids` ;
   surlignage jaune (warning) / rouge (error), badge « surchargé », cellules éditables Marge/Mix →
   `updateSimulationLine` au blur (ligne dirty, PV non recalculé). Tri cyclique + pagination identiques
   au catalogue. **Filtres statut** : 3 cases OK / Avertissements / Erreurs (toutes cochées par défaut)
   → query `status_in=ok,warning,error` (omis si les 3 ou 0 cochées). Liste fetchée séparément
   (clé SWR `["sim-lines", simId, statusIn, ordering, page]`).
 - **Diagnostics & breakdown ligne** :
-  - Clic sur la colonne **Statut** → `LineDiagnosticsDrawer` (erreurs/avertissements + lien
-    « Modifier le produit » avec onglet cible selon le message).
+  - Colonne **Statut** : liste **toutes** les erreurs (rouge) et, si pas d'erreur, tous les
+    avertissements (ambre) — plus de troncature « 1ʳᵉ ligne (+N) ». Clic → `LineDiagnosticsDrawer`
+    (n'ouvre pas le breakdown ; `stopPropagation`).
+  - **Clic sur une ligne** (hors SKU, statut, surcharges, menu ⋮) → `CalculationBreakdownDrawer`
+    directement (`DataTable.onRowClick`).
+  - Messages via `lineDiagnostics()` (`sim-format.ts`) qui passe par `humanizeEngineMessage()`
+    (`lib/humanize-errors.ts`) — texte FR utilisateur, y compris pour diagnostics legacy anglais
+    déjà persistés en base.
+  - Toasts / modales simulateur (`RecalculateModal`, `SimulationTable`, `SimulationSidebar`) :
+    `humanizeApiError()` extrait le `detail` DRF ou humanise les erreurs moteur.
+  - Colonne Statut : erreurs (rouge) **puis** avertissements (ambre) affichés ensemble.
   - Menu kebab **⋮** → **Détail du calcul** → `CalculationBreakdownDrawer` (wizard 3 étapes :
     Synthèse PR/mix + snapshot marché + **incoterms achat/vente**, Chaîne PA, Chaîne PV ; lit `calculation_breakdown` +
     `formatBreakdownStepDetails` pour narrations FR par module ; modes transport résolus via
     `lib/transport-modes.ts` + `listTransportModes`).
   - Menu kebab visible aussi en **lecture seule** (recalcul / reset désactivés).
-- **Liens produit depuis simulation** : SKU + Désignation → `/catalog/{sku}?edit=1&from=simulation&…`
-  via `productEditHref()` (`sim-format.ts`). Fil d'Ariane surchargé (`useBreadcrumbOverride`) :
+- **Liens produit depuis simulation** : **SKU uniquement** → `/catalog/{sku}?edit=1&from=simulation&…`
+  via `productEditHref()` (`sim-format.ts`, `stopPropagation` sur le lien). Désignation = texte simple
+  (le clic ouvre le breakdown via la ligne). Fil d'Ariane surchargé (`useBreadcrumbOverride`) :
   Accueil · Simulations · {label sim} · {SKU}.
 - **`StockPurchaseMixSlider`** (`app/simulator/_components/StockPurchaseMixSlider.tsx`) :
   composant partagé mix stock/achat. **`value` = part stock (PAMP) dans le PR** (0 = 100 % achat à
@@ -375,34 +437,28 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   barre de progression → `recalculateSimulation(id, {scope, market_params})` (snapshot marché courant
   de la sidebar, tout scope) (`dispatchAndPoll`).
 - **`BulkEditModal`** : filtres cumulables (univers, famille, gamme **indépendants**, marque,
-  `factory_code`, has_warning/has_error), aperçu `{count}` débouncé (`bulkEditPreview`), actions
-  set_margin/set_mix/reset (`bulkEditLines`) + confirmation.
+  `factory_code`, has_warning/has_error) **ou** mode sélection (`lineIds` → `filter.line_ids`) ;
+  aperçu `{count}` débouncé (`bulkEditPreview`), mode **Définir marge et mix** (envoie
+  `margin_override` + `stock_purchase_mix_pct_override` ensemble) ou reset (`bulkEditLines`)
+  + confirmation.
 - **`RecalcHistoryDrawer`** : `getRecalculations(id, {limit})` **paginé** (LimitOffset, « Charger plus »
   par tranches de 10) — tag de scope coloré + paramètres figés (cuivre, FX, mix, marges, chaîne,
   snapshot Odoo) + agrégats (PA/PR/PV moyens, **marge moyenne**, PV min/max). 2 actions par entrée :
   **Voir détail** → `RecalcDetailModal` (lecture seule : agrégats + params figés + **breakdown par ligne**
   via `getRecalculation` + `line_snapshots`) ; **Comparer avec actuel** →
   `/simulator/compare?sims=<simId>&recalc=<recalcId>`.
-- **Comparaison (`/simulator/compare`)** : page `app/simulator/compare/page.tsx` sous `<Suspense>`.
-  **URL** : `?sims=a,b` (simulations, ordre = colonnes) ; `?recalc=id1,id2` (snapshots recalc, après les sims) ;
-  `?saved=<uuid>` (charge une comparaison enregistrée → résout vers `sims`/`recalc`) ; `?aside=saved` (ouvre l'onglet Enregistrées).
-  **Sidebar** : onglets **Sélection** (multi-select ≤4 + recherche) et **Enregistrées** (`SavedComparisonsPanel` :
-  liste, charger, supprimer). Bouton **Enregistrer** → `SaveComparisonModal` → `createSavedComparison`.
-  **API** : `compareSimulations({simulation_ids, recalculation_ids})` ; CRUD `getSavedComparisons` /
-  `createSavedComparison` / `deleteSavedComparison` / `getSavedComparison`.
-  **3 onglets contenu** (1ʳᵉ colonne = référence) :
-  - **Synthèse** (`CompareOverview`) — cartes identité par colonne, KPI + mini-barres, graphiques Recharts
-    (barres PA/PR/PV moyens, camembert impact PV par SKU, barres paramètres marché si écarts, top écarts PV).
-  - **Paramètres** (`CompareContextDiff`) — grille de cartes diff (sections repliables ; par défaut écarts seuls) :
-    identité, marché, simulation, agrégats ; style git-diff (identique / modifié / ajouté / absent).
-  - **Lignes SKU** (`CompareSkuTable`) — modes **Heatmap** (PV coloré par écart %), **Graphique** (barres
-    horizontales top 12 SKU), **Détail** (PA/PR/PV/marge/mix + delta vs réf.) ; tri par écart PV, filtre lignes communes.
-  Composants utilitaires : `compare-diff.ts` (`parseLocaleNum`, `fmtDelta`), `compare-stats.ts`, `compare-colors.ts`.
-  Accès : bouton « Comparer » + icône bookmark sur `/simulator` ; lien depuis `RecalcHistoryDrawer`
-  (`?sims=<simId>&recalc=<recalcId>`). Deltas calculés côté front — jamais de recalcul de prix.
+- **Comparaison (`/simulator/compare`)** : page legacy comparaison ad-hoc (sélection rapide via URL `?sims=` / `?recalc=`). **`?saved=<uuid>`** redirige vers `/comparator/<uuid>`. Préférer le module **Comparaisons** (`/comparator`) pour les objets persistés.
+- **Comparaisons (`/comparator`)** — objets `SavedComparison` de première classe (comme les simulations) :
+  - **Liste** `app/comparator/page.tsx` — `DataTable` paginé (`getComparisonsList`), recherche, tri, **multi-sélection** (checkbox par ligne + tout sélectionner sur la page) et barre d’actions « Supprimer la sélection ».
+  - **Wizard** `app/comparator/new/page.tsx` — 3 étapes : (1) nom + note, (2) sélection 2–4 simulations + **aperçu SKU communs** (`SkuOverlapPreview`), (3) aperçu live (`CompareWorkspace`) puis `createSavedComparison` → redirect `/comparator/{id}`. Draft `localStorage` `syskern:new-comparison-draft:v1`. Préremplissage URL `?sims=` / `?recalc=` (depuis liste simulations ou drawer recalc).
+  - **Détail** `app/comparator/[id]/` — header (modifier / supprimer) + `CompareWorkspace` (onglets Synthèse / Paramètres / Lignes SKU). **`ComparisonEditDialog`** : nom, note, re-sélection simulations (`updateSavedComparison` incl. colonnes).
+  - Nav principale : entrée **Comparaisons** dans `AppShell`. Depuis `/simulator` : multi-select → `/comparator/new?sims=…` ; bouton Comparaisons → liste.
+  - Composants partagés : `CompareWorkspace`, `compare-diff.ts`, `CompareOverview`, `CompareContextDiff`, `CompareSkuTable` (dossier `simulator/compare/_components/`).
+  - **API** : `compareSimulations` (calcul live) ; CRUD `getComparisonsList` / `getSavedComparison` / `createSavedComparison` / `updateSavedComparison` / `deleteSavedComparison`.
 - Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
   `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, `productEditHref`, `MODULE_LABELS`,
-  `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`). **Montants EUR = 2 décimales à l'affichage**
+  `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`). Erreurs moteur / API :
+  `lib/humanize-errors.ts` (`humanizeEngineMessage`, `humanizeApiError`). **Montants EUR = 2 décimales à l'affichage**
   (`displayMoneyOptions` dans `fmtEur` / `fmtPrice` / narrations breakdown) ; autres devises jusqu'à 4.
   Le moteur backend conserve 4 décimales — ne jamais arrondir côté front pour calculer.
 - **Libellés modes transport** : `lib/transport-modes.ts` — `localizeLabel`, `transportModeLabel`,
@@ -434,7 +490,7 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 | Token Tailwind | HEX | Usage |
 |---|---|---|
 | `brand-navy` | `#162F56` | Sidebar, texte principal |
-| `brand-navy-dark` | `#0F2444` | Dégradés sidebar / panneau login |
+| `brand-navy-dark` | `#0F2444` | Dégradés sidebar app |
 | `brand-green` / `primary` | `#649E5F` | CTA primaire, nav active, succès |
 | `brand-orange` / `warm` | `#F78F26` | Accent pricing, liens SKU, KPIs cuivre |
 | `brand-blue` | `#09B0E6` | Info, états en cours |
@@ -485,7 +541,7 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 | `StatusBadge` | `components/StatusBadge.tsx` | Badges statut sémantiques |
 | `KpiCard` | `components/KpiCard.tsx` | Cartes KPI |
 | `AppIcon` | `components/AppIcon.tsx` | Icônes Phosphor (taille/poids/couleur) |
-| `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable |
+| `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable — **fermée par défaut** (cf. playbook filtres) |
 | `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) |
 | `FilterSelect` | `components/FilterSelect.tsx` | Select filtre avec option « Tous » |
 | `SearchInput` | `components/SearchInput.tsx` | Recherche avec icône + clear |
@@ -501,14 +557,25 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 
 `StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
 
-**Page d'accueil** : `/` = tableau de bord (`app/(home)/page.tsx`) avec KPIs briques métier, raccourcis, activité récente. Post-login → `/` (plus `/catalog`).
+**Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
+
+- **Données** : un seul `useSWR("dashboard-summary", getDashboardSummary)` → `GET /api/dashboard/summary` (agrégats catalogue, simulations, offres, comparaisons, bibliothèque, marché, `todo`, `recent`). Admin : `getSyncStatus` séparé dans `DashboardAdminLinks`.
+- **Layout** : 2 colonnes (lg) — principale (2/3) : « À traiter » (`DashboardTodoPanel`), « Reprendre » (`DashboardResumeCard` + `localStorage` `syskern:last-visited:v1`, écrit sur détail simulation/comparaison/offre), activité (`DashboardActivityTimeline` unifiée sims/offres/comparaisons) ; latérale (1/3) : KPIs 5 cartes (`DashboardKpiGrid`), marché (`DashboardMarketCard` → `/settings?tab=marche`), raccourcis création (`DashboardQuickActions`), admin (`DashboardAdminLinks` si `isAdmin`).
+- **Sous-titre** : nombre d'éléments `todo`, « Tout est à jour », ou message onboarding si vide.
+- **Rôles** : `viewer` — pas de CTA création ni raccourcis ; `commercial` — vue complète ; `admin` — + bloc administration.
+- **État vide** : `DashboardOnboarding` (catalogue → simulation → offre) quand aucune simulation ni offre.
+- **Filtre dashboard → liste** : lien `/simulator?is_dirty=true` (lecture query param au mount sur `simulator/page.tsx`).
+
+**Page de connexion** (`/login`) : fond blanc plein écran, logo Syskern, carte formulaire (email /
+mot de passe), logo Unikkern en bas — pas de panneau marketing latéral. Hors `AppShell` ; session
+via `AuthProvider` + `proxy.ts` (routes publiques : `/login`, `/api`, assets statiques).
 
 - **Primitives shadcn** (checkbox, dialog…) : Lucide (interne au design system) — ne pas mélanger dans les primitives.
 - Migration progressive : shell + dashboard + catalogue/offres listes ; simulateur détail et fiche produit en cours.
 
 **Listes catalogue / offres** (phase 2 refonte UI) : tokens sémantiques (`border-border`, `text-muted-foreground`, `bg-card`), `EmptyState`, `StatusBadge`, `Checkbox` shadcn, `Button` shadcn, `SearchInput` / `FilterSelect`. Catalogue : toolbar + sidebar filtres (`FilterSection` icônes `primary`, pas `warm`), pagination/tri `DataTable` en `primary` (plus d’orange legacy), `ExportButton` / `ProductDrawer` shadcn, CTA verts. **SKU et PAMP** : `text-primary`. **Orange (`warm`)** : graphiques / accents pricing avancés (onglet Commercial) uniquement.
 
-**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : `HierarchyFilterPanel` → `FilterSelect`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
+**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : filtres catalogue via `WizardCatalogPicker` / `CatalogSidebar`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
 
 Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
 
@@ -520,6 +587,7 @@ Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDia
 
 ### Modales et contenu dense
 
+- **`DialogFooter` / `AlertDialogFooter`** : ne pas surcharger avec marges négatives ; le composant primitif (`components/ui/dialog.tsx`) gère `border-t`, `p-4`, `shrink-0` — compatible `DialogContent` avec `p-0 gap-0`.
 - Contenu riche (historique recalcul, breakdown calcul, édition groupée, formulaires admin) : **`AppModal` `size="xl"` ou `2xl`**, ou `DialogContent` avec `max-w-4xl` / `max-w-6xl`, `max-h-[90vh]`, corps scrollable (`overflow-y-auto`).
 - Formulaires simples (confirmation, doublon, 1–2 champs) : `md` / `lg` suffisent.
 - **Aucune variable interne visible** (`trigger_type`, `simulation_type`, ids, codes attributs bruts) : toujours un libellé français (`recalcTriggerLabel`, maps statut/type, `StatusBadge`).

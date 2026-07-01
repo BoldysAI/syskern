@@ -5,6 +5,7 @@ import useSWR from "swr";
 import {
   Bookmark,
   BookmarkSimple,
+  Checks,
   CurrencyEur,
   Factory,
   Faders,
@@ -36,7 +37,8 @@ import { HierarchyFilterCascade } from "./HierarchyFilterCascade";
 import { isEmptyFilter, type SavedFilter } from "./filters-storage";
 import { boundsToSliderConfig, clampFilterValue } from "./slider-bounds";
 
-const PINNED_BRANDS = ["Unnikern"];
+/** Known bad values — excluded from the brand filter (data typos). */
+const EXCLUDED_BRANDS = new Set(["unnikern"]);
 
 interface CatalogSidebarProps {
   filters: CatalogFilters;
@@ -81,13 +83,13 @@ export function CatalogSidebar({
   const { data: suppliers } = useSWR("supplier-names", getSupplierNames);
   const { data: attributes } = useSWR("filterable-attrs", getFilterableAttributes);
 
-  const brandOptions = useMemo(() => {
-    const merged = [...PINNED_BRANDS];
-    for (const b of brands ?? []) {
-      if (!merged.some((x) => x.toLowerCase() === b.toLowerCase())) merged.push(b);
-    }
-    return merged.sort((a, b) => a.localeCompare(b, "fr"));
-  }, [brands]);
+  const brandOptions = useMemo(
+    () =>
+      (brands ?? [])
+        .filter((b) => !EXCLUDED_BRANDS.has(b.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b, "fr")),
+    [brands],
+  );
 
   const patch = (p: Partial<CatalogFilters>) => onChange({ ...filters, ...p });
 
@@ -122,9 +124,13 @@ export function CatalogSidebar({
     (filters.sub_range?.length ?? 0);
 
   const stockCount =
-    (filters.stock_in && !filters.stock_out ? 1 : 0) +
-    (filters.stock_out && !filters.stock_in ? 1 : 0) +
-    (filters.stock_min != null && filters.stock_min > 0 ? 1 : 0);
+    (filters.stock_in ? 1 : 0) +
+    (filters.stock_out ? 1 : 0) +
+    (!filters.stock_out && filters.stock_min != null && filters.stock_min > 0 ? 1 : 0);
+
+  const activeCount = (filters.active_in ? 1 : 0) + (filters.active_out ? 1 : 0);
+
+  const showStockMinSlider = !filters.stock_out;
 
   const pampCount =
     (filters.pamp_min != null && filters.pamp_min > 0 ? 1 : 0) +
@@ -135,8 +141,6 @@ export function CatalogSidebar({
     return v ? n + 1 : n;
   }, 0);
 
-  const stockFilterNeutral = !!filters.stock_in && !!filters.stock_out;
-
   return (
     <div className={cn("flex flex-col", className)}>
       <FilterSection
@@ -145,8 +149,8 @@ export function CatalogSidebar({
         activeCount={hierarchyCount}
       >
         <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-          Naviguez de l&apos;univers vers la sous-gamme — chaque niveau affine les options
-          suivantes.
+          Cochez plusieurs valeurs par niveau (univers, famille, gamme, sous-gamme). Les niveaux
+          inférieurs restent combinables avec l&apos;ensemble des parents sélectionnés.
         </p>
         <HierarchyFilterCascade filters={filters} onChange={onChange} />
       </FilterSection>
@@ -169,6 +173,35 @@ export function CatalogSidebar({
           searchable={(suppliers?.length ?? 0) > 5}
           sortSelectedFirst
         />
+      </FilterSection>
+
+      <FilterSection title="Statut produit" icon={Checks} activeCount={activeCount}>
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="active-in" className="text-sm font-medium">
+              Actif
+            </Label>
+            <Switch
+              id="active-in"
+              checked={!!filters.active_in}
+              onCheckedChange={(checked) =>
+                patch(checked ? { active_in: true, active_out: false } : { active_in: false })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="active-out" className="text-sm font-medium">
+              Non actif
+            </Label>
+            <Switch
+              id="active-out"
+              checked={!!filters.active_out}
+              onCheckedChange={(checked) =>
+                patch(checked ? { active_out: true, active_in: false } : { active_out: false })
+              }
+            />
+          </div>
+        </div>
       </FilterSection>
 
       <FilterSection title="Prix PAMP" icon={CurrencyEur} activeCount={pampCount}>
@@ -201,7 +234,13 @@ export function CatalogSidebar({
               <Switch
                 id="stock-in"
                 checked={!!filters.stock_in}
-                onCheckedChange={(checked) => patch({ stock_in: checked })}
+                onCheckedChange={(checked) =>
+                  patch(
+                    checked
+                      ? { stock_in: true, stock_out: false }
+                      : { stock_in: false },
+                  )
+                }
               />
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -211,25 +250,28 @@ export function CatalogSidebar({
               <Switch
                 id="stock-out"
                 checked={!!filters.stock_out}
-                onCheckedChange={(checked) => patch({ stock_out: checked })}
+                onCheckedChange={(checked) =>
+                  patch(
+                    checked
+                      ? { stock_out: true, stock_in: false, stock_min: null }
+                      : { stock_out: false },
+                  )
+                }
               />
             </div>
-            {stockFilterNeutral && (
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Les deux options actives = aucun filtre de disponibilité.
-              </p>
-            )}
           </div>
 
-          <RangeFilterSlider
-            label="Quantité minimale en stock"
-            min={stockSlider.min}
-            max={stockSlider.max}
-            step={stockSlider.step}
-            minValue={clampFilterValue(filters.stock_min, stockSlider.max)}
-            onChange={(min) => patch({ stock_min: min })}
-            unit="u."
-          />
+          {showStockMinSlider && (
+            <RangeFilterSlider
+              label="Quantité minimale en stock"
+              min={stockSlider.min}
+              max={stockSlider.max}
+              step={stockSlider.step}
+              minValue={clampFilterValue(filters.stock_min, stockSlider.max)}
+              onChange={(min) => patch({ stock_min: min })}
+              unit="u."
+            />
+          )}
         </div>
       </FilterSection>
 

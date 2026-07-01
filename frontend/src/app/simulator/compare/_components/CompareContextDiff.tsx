@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 import Link from "next/link";
-import { CaretDown, CaretRight, Equals, Funnel } from "@phosphor-icons/react";
+import { Equals } from "@phosphor-icons/react";
 import type { CompareColumn } from "@/lib/api";
 import { RECALC_TRIGGER } from "@/app/simulator/[id]/_components/sim-format";
 import { cn } from "@/lib/utils";
@@ -11,8 +11,8 @@ import {
   countDiffs,
   diffKind,
   fmtDelta,
-  parseNum,
   type DiffKind,
+  type DiffRow,
 } from "./compare-diff";
 import { columnVisuals } from "./compare-colors";
 
@@ -26,20 +26,11 @@ export function CompareContextDiff({ columns }: Props) {
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
     () => columnVisuals(columns.map((c) => c.label), columns.map((c) => c.key)),
-    [columns]
+    [columns],
   );
-  const [showAll, setShowAll] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(sections.map((s) => [s.title, true]))
-  );
-
-  const toggleSection = (title: string) => {
-    setExpanded((prev) => ({ ...prev, [title]: !prev[title] }));
-  };
 
   return (
-    <div className="space-y-5">
-      {/* Toolbar */}
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-gradient-to-r from-slate-50 to-white px-4 py-3">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">Légende</span>
@@ -48,199 +39,166 @@ export function CompareContextDiff({ columns }: Props) {
           <LegendSwatch kind="added" label="Ajouté" />
           <LegendSwatch kind="missing" label="Absent" />
         </div>
-        <div className="flex items-center gap-3">
-          {diffCount > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-              {diffCount} écart{diffCount !== 1 ? "s" : ""}
-            </span>
-          )}
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Funnel size={13} />
-            <input
-              type="checkbox"
-              checked={showAll}
-              onChange={() => setShowAll((v) => !v)}
-              className="h-3.5 w-3.5 rounded accent-primary"
-            />
-            Afficher tout
-          </label>
-        </div>
+        {diffCount === 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+            <Equals size={13} />
+            Tous les paramètres sont identiques
+          </span>
+        ) : (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            {diffCount} écart{diffCount !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
-      {/* Column legend strip */}
-      <div className="flex flex-wrap gap-2">
-        {visuals.map((v, i) => (
-          <div
-            key={v.key}
-            className={cn(
-              "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
-              v.isRef ? "border-warm/30 bg-warm/10" : "border-border bg-card"
-            )}
-          >
-            <span
-              className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ backgroundColor: v.color }}
-            >
-              {String.fromCharCode(65 + i)}
-            </span>
-            <Link
-              href={`/simulator/${columns[i].simulation_id}`}
-              className="max-w-[140px] truncate font-medium text-foreground hover:text-warm"
-              title={v.label}
-            >
-              {v.shortLabel}
-            </Link>
-            {v.isRef && (
-              <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-700">
-                réf.
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Sections as card grids */}
-      {sections.map((section) => {
-        const rows = showAll ? section.rows : section.rows.filter((r) => r.hasDiff);
-        if (!rows.length) return null;
-        const open = expanded[section.title] !== false;
-        const sectionDiffs = section.rows.filter((r) => r.hasDiff).length;
-
-        return (
-          <section key={section.title} className="rounded-xl border border-border bg-card shadow-sm">
-            <button
-              type="button"
-              onClick={() => toggleSection(section.title)}
-              className="flex w-full items-center gap-2 border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted"
-            >
-              {open ? <CaretDown size={16} className="text-muted-foreground" /> : <CaretRight size={16} className="text-muted-foreground" />}
-              <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
-              {sectionDiffs > 0 && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                  {sectionDiffs}
-                </span>
-              )}
-              <span className="ml-auto text-xs text-muted-foreground">
-                {rows.length} champ{rows.length !== 1 ? "s" : ""}
-              </span>
-            </button>
-            {open && (
-              <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rows.map((row) => (
-                  <ParamDiffCard
-                    key={row.id}
-                    label={row.label}
-                    values={row.values}
-                    hasDiff={row.hasDiff}
-                    deltaUnit={row.deltaUnit}
-                    fieldId={row.id}
-                    columns={columns}
-                    visuals={visuals}
-                    baseKey={baseKey}
-                  />
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="sticky left-0 z-20 min-w-[200px] bg-muted/40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Paramètre
+                </th>
+                {visuals.map((v, i) => (
+                  <th
+                    key={v.key}
+                    className={cn(
+                      "min-w-[160px] px-4 py-3 text-left align-bottom",
+                      v.isRef && "bg-warm/5",
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                        style={{ backgroundColor: v.color }}
+                      >
+                        {String.fromCharCode(65 + i)}
+                      </span>
+                      <div className="min-w-0">
+                        <Link
+                          href={`/simulator/${columns[i].simulation_id}`}
+                          className="block truncate text-sm font-semibold text-foreground hover:text-warm"
+                          title={v.label}
+                        >
+                          {v.shortLabel}
+                        </Link>
+                        {v.isRef ? (
+                          <span className="mt-0.5 inline-block rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-700">
+                            référence
+                          </span>
+                        ) : (
+                          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                            vs réf.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </th>
                 ))}
-              </div>
-            )}
-          </section>
-        );
-      })}
-
-      {!showAll && diffCount === 0 && (
-        <div className="flex flex-col items-center rounded-xl border border-emerald-200 bg-emerald-50/50 py-12 text-center">
-          <Equals size={32} className="mb-2 text-primary" />
-          <p className="text-sm font-medium text-emerald-800">Tous les paramètres sont identiques</p>
-          <p className="mt-1 text-xs text-emerald-600">Activez « Afficher tout » pour voir le détail complet.</p>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map((section) => (
+                <Fragment key={section.title}>
+                  <tr className="border-y border-border bg-muted/30">
+                    <td
+                      colSpan={columns.length + 1}
+                      className="sticky left-0 z-10 bg-muted/30 px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground"
+                    >
+                      {section.title}
+                    </td>
+                  </tr>
+                  {section.rows.map((row) => (
+                    <ParamDiffRow
+                      key={row.id}
+                      row={row}
+                      visuals={visuals}
+                      baseKey={baseKey}
+                    />
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
     </div>
   );
 }
 
-function ParamDiffCard({
-  label,
-  values,
-  hasDiff,
-  deltaUnit,
-  fieldId,
-  columns,
+function ParamDiffRow({
+  row,
   visuals,
   baseKey,
 }: {
-  label: string;
-  values: Record<string, string>;
-  hasDiff: boolean;
-  deltaUnit?: "eur" | "pct" | "raw";
-  fieldId: string;
-  columns: CompareColumn[];
+  row: DiffRow;
   visuals: ReturnType<typeof columnVisuals>;
   baseKey: string;
 }) {
-  const ref = values[baseKey] ?? "";
-  const numericVals = columns.map((c) => parseNum(values[c.key] ?? ""));
-  const maxNum = Math.max(...numericVals.filter((n): n is number => n != null), 0.001);
+  const ref = row.values[baseKey] ?? "";
 
   return (
-    <div
+    <tr
       className={cn(
-        "rounded-lg border p-3 transition-shadow",
-        hasDiff ? "border-warm/30 bg-warm/10/30 shadow-sm" : "border-border bg-muted/50"
+        "border-b border-border transition-colors hover:bg-muted/20",
+        row.hasDiff && "bg-warm/[0.03]",
       )}
     >
-      <div className="mb-3 flex items-center gap-2">
-        {hasDiff ? (
-          <span className="h-2 w-2 rounded-full bg-warm/100" />
-        ) : (
-          <Equals size={12} className="text-primary" />
+      <td
+        className={cn(
+          "sticky left-0 z-10 border-r border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground",
+          row.hasDiff && "bg-warm/5",
         )}
-        <span className="text-xs font-semibold text-foreground">{label}</span>
-      </div>
-      <div className="space-y-2">
-        {visuals.map((v, i) => {
-          const raw = values[v.key] ?? "—";
-          const display =
-            fieldId === "trigger" && raw !== "—"
-              ? (RECALC_TRIGGER[raw]?.label ?? raw)
-              : raw;
-          const kind = i === 0 ? "same" : diffKind(ref, raw);
-          const delta = i > 0 && kind === "changed" && deltaUnit ? fmtDelta(ref, raw, deltaUnit) : null;
-          const num = parseNum(raw);
-          const barPct = num != null && maxNum > 0 ? (num / maxNum) * 100 : 0;
+      >
+        <div className="flex items-center gap-2">
+          {row.hasDiff ? (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-warm" />
+          ) : (
+            <Equals size={12} className="shrink-0 text-primary" />
+          )}
+          {row.label}
+        </div>
+      </td>
+      {visuals.map((v, i) => {
+        const raw = row.values[v.key] ?? "—";
+        const display =
+          row.id === "trigger" && raw !== "—" ? (RECALC_TRIGGER[raw]?.label ?? raw) : raw;
+        const kind: DiffKind = i === 0 ? "same" : diffKind(ref, raw);
+        const delta =
+          i > 0 && kind === "changed" && row.deltaUnit
+            ? fmtDelta(ref, raw, row.deltaUnit)
+            : null;
 
-          return (
-            <div key={v.key} className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: v.color }}>
-                  <span
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white"
-                    style={{ backgroundColor: v.color }}
-                  >
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  {v.isRef ? "Réf." : v.shortLabel}
-                </span>
-                <DiffValue kind={kind} value={display} delta={delta} />
-              </div>
-              {num != null && num > 0 && (
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.max(barPct, 4)}%`,
-                      backgroundColor: kind === "changed" ? "#F59E0B" : v.color,
-                      opacity: kind === "same" ? 0.5 : 0.9,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+        return (
+          <td
+            key={v.key}
+            className={cn(
+              "px-4 py-2.5 align-top tabular-nums",
+              v.isRef && "bg-warm/[0.02]",
+              cellBg(kind, row.hasDiff),
+            )}
+          >
+            <DiffCell kind={kind} value={display} delta={delta} />
+          </td>
+        );
+      })}
+    </tr>
   );
 }
 
-function DiffValue({
+function cellBg(kind: DiffKind, rowHasDiff: boolean): string {
+  if (!rowHasDiff) return "";
+  switch (kind) {
+    case "changed":
+      return "bg-warm/10";
+    case "added":
+      return "bg-emerald-50/80";
+    case "missing":
+      return "bg-destructive/5";
+    default:
+      return "";
+  }
+}
+
+function DiffCell({
   kind,
   value,
   delta,
@@ -250,19 +208,19 @@ function DiffValue({
   delta: string | null;
 }) {
   return (
-    <div className="text-right">
+    <div>
       <span
         className={cn(
-          "text-xs font-semibold tabular-nums",
-          kind === "same" && "text-muted-foreground",
-          kind === "changed" && "text-amber-900",
-          kind === "added" && "text-emerald-700",
-          kind === "missing" && "text-destructive"
+          "text-sm font-medium",
+          kind === "same" && "text-foreground",
+          kind === "changed" && "font-semibold text-amber-900",
+          kind === "added" && "font-semibold text-emerald-700",
+          kind === "missing" && "font-semibold text-destructive",
         )}
       >
         {value}
       </span>
-      {delta && <div className="text-[10px] font-bold text-warm">{delta}</div>}
+      {delta && <div className="mt-0.5 text-[11px] font-bold text-warm">{delta}</div>}
     </div>
   );
 }

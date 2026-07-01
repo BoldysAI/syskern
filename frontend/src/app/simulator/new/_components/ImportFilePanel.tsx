@@ -194,7 +194,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
           {summary.notFound > 0 && (
             <>
               {" "}
-              {summary.notFound} non trouvé{summary.notFound !== 1 ? "s" : ""} (voir le panneau latéral).
+              {summary.notFound} non trouvé{summary.notFound !== 1 ? "s" : ""} (voir la bannière d&apos;erreur ci-dessus).
             </>
           )}
         </div>

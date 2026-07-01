@@ -17,9 +17,11 @@ export function countActiveFilters(f: CatalogFilters): number {
   n += f.sub_range?.length ?? 0;
   n += f.brand?.length ?? 0;
   n += f.supplier?.length ?? 0;
-  if (f.stock_in && !f.stock_out) n++;
-  if (f.stock_out && !f.stock_in) n++;
-  if (f.stock_min != null && f.stock_min > 0) n++;
+  if (f.active_in) n++;
+  if (f.active_out) n++;
+  if (f.stock_in) n++;
+  if (f.stock_out) n++;
+  if (!f.stock_out && f.stock_min != null && f.stock_min > 0) n++;
   if (f.pamp_min != null && f.pamp_min > 0) n++;
   if (f.pamp_max != null && f.pamp_max > 0) n++;
   for (const v of Object.values(f.attrs ?? {})) {
@@ -69,13 +71,20 @@ export function buildFilterChips(
     }
   }
 
-  if (filters.stock_in && !filters.stock_out) {
+  if (filters.active_in) {
+    chips.push({ id: "active_in", label: "Actif", category: "Statut" });
+  }
+  if (filters.active_out) {
+    chips.push({ id: "active_out", label: "Non actif", category: "Statut" });
+  }
+
+  if (filters.stock_in) {
     chips.push({ id: "stock_in", label: "En stock", category: "Stock" });
   }
-  if (filters.stock_out && !filters.stock_in) {
+  if (filters.stock_out) {
     chips.push({ id: "stock_out", label: "Rupture", category: "Stock" });
   }
-  if (filters.stock_min != null && filters.stock_min > 0) {
+  if (!filters.stock_out && filters.stock_min != null && filters.stock_min > 0) {
     chips.push({
       id: "stock_min",
       label: `Stock ≥ ${filters.stock_min}`,
@@ -120,6 +129,8 @@ export function removeFilterChip(filters: CatalogFilters, chipId: string): Catal
     delete next.q;
     return next;
   }
+  if (chipId === "active_in") return { ...filters, active_in: false };
+  if (chipId === "active_out") return { ...filters, active_out: false };
   if (chipId === "stock_in") return { ...filters, stock_in: false };
   if (chipId === "stock_out") return { ...filters, stock_out: false };
   if (chipId === "stock_min") return { ...filters, stock_min: null };
