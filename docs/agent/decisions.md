@@ -427,3 +427,26 @@ GitHub Dependabot signalait 10 vulnérabilités (4 high, 5 moderate, 1 low) sur 
 - **Frontend (`package-lock.json`)** : `js-yaml` → **4.3.0** et `postcss` → **8.5.16** via bloc `overrides` (transitifs). `npm audit` = **0 vulnérabilité**. tsc + lint + `next build` OK.
 - **xlsx — revirement assumé de la décision 2026-06-18** : cette décision imposait « xlsx via npm registry (0.18.5), **pas** le tarball CDN SheetJS (corrompt package.json) ». Mais les CVE xlsx (GHSA-5pgg-2g8v-p4x9 ReDoS, GHSA-4r6h-8v6p-xvw6 prototype pollution) **n'ont aucun correctif sur le registre npm** (`first_patched_version = null`) : SheetJS ne distribue les versions patchées que via son CDN. Donc xlsx `^0.18.5` (npm) → **`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`** dans `package.json` (URL dep, résolue + intègre dans le lock). Le risque « corruption package.json » de 2026-06-18 **ne s'est pas reproduit** (install OK, JSON valide, 0 vuln, build vert). ⚠️ Conséquence build : `npm ci` (Coolify) doit pouvoir **fetch le CDN SheetJS** au build (réseau requis). API xlsx inchangée pour l'usage (`XLSX.read` / `sheet_to_json` dans `ImportFilePanel.tsx`).
 - **Local** : recréer `backend`/`celery-worker`/`celery-beat` (nouvelle image) et réinstaller les deps du conteneur `frontend` pour aligner le stack qui tourne sur les versions patchées.
+
+## 2026-06-30 · [P] Offres — génération : état terminal garanti (fix « offres qui tournent toutes seules »)
+Bug remonté : des offres semblent « tourner toutes seules » en génération Gamma. Diagnostic :
+- **Tarifaires** : `generation_status` défaut `PENDING` **jamais** mis à jour (les tarifs produisent un Excel, pas de
+  flux Gamma) → restaient `pending` à vie ; le front pollait la liste toutes les 5 s tant qu'une offre était
+  `generating` **ou** `pending` → rafraîchissement infini.
+- **Projet** : `run_generation` ne rattrapait que `GammaError` ; un échec OpenAI (`_resolve_arguments`/
+  `build_gamma_payload` étaient **hors** du `try`), un timeout httpx non-Gamma, un `SoftTimeLimitExceeded` ou un
+  worker tué laissaient l'offre bloquée en `generating`.
+Correctifs :
+- `run_generation` : tout le travail dans un `try` → **toute** exception donne un état terminal `error`
+  (`_mark_generation_error`, message FR) ; `SoftTimeLimitExceeded` → `error` + re-raise ; snapshot HTML dans son
+  propre `try` (n'inverse jamais un `ready`). Ne sort **jamais** en `generating`.
+- `tasks.py` : tarif → `READY` après l'Excel ; `soft_time_limit`/`time_limit` sur les 3 tâches (330/360 s projet,
+  120/180 s tarif) ; tâche **`offers.reap_stuck_generations`** (Beat 15 min, migration `offers/0005`, `IntervalSchedule`)
+  passant en `error` les offres `generating` + `updated_at` trop vieux (worker tué).
+- Front `offers/page.tsx` : poll **uniquement** sur `generating`.
+- **Tests** (`test_project_offers.py`, `test_tariff_offers.py`) : exception générique/pré-Gamma → `error` ;
+  `SoftTimeLimitExceeded` → `error` + re-raise ; snapshot KO → reste `ready` ; reap (vieux→`error`, récent intact) ;
+  tarif → `READY`. ruff + mypy propres ; 30 tests offres verts.
+- ⚠️ **Dette front préexistante (issue du merge pull, PAS ce lot)** : `npx tsc --noEmit` rouge (11 erreurs dans
+  `simulator/wizard-draft.ts`, `MarketParamsModal.tsx`, `humanize-errors.ts` — `copper_base_price_rmb` renommé, flag
+  regex es2018). Confirmé via git stash. À corriger séparément.

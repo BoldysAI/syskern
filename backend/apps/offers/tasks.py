@@ -20,7 +20,7 @@ from apps.clients.models import Client
 from apps.simulations.models import Simulation, SimulationStatus, SimulationType
 from apps.simulations.services.engine.context import fx_rate
 
-from .models import ExportFormat, Offer, OfferLine, OfferStatus, OfferType
+from .models import ExportFormat, GenerationStatus, Offer, OfferLine, OfferStatus, OfferType
 from .services.excel import build_tariff_xlsx, fx_note_for
 from .services.project_generator import create_project_offer, run_generation
 
@@ -35,7 +35,7 @@ def offer_export_path(offer_id) -> Path:
     return EXPORT_DIR / f"{offer_id}.xlsx"
 
 
-@shared_task(name="offers.generate_tariff_offers_task")
+@shared_task(name="offers.generate_tariff_offers_task", soft_time_limit=120, time_limit=180)
 def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
     """Generate one tariff offer (+ Excel) per client from a finalized simulation.
 
@@ -120,7 +120,11 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
             )
             offer_export_path(offer.id).write_bytes(xlsx)
             offer.generated_file_url = f"/api/offers/{offer.id}/download/"
-            offer.save(update_fields=["generated_file_url", "updated_at"])
+            # Excel is produced synchronously here — mark the offer READY so the
+            # front stops polling (tariff offers never touch the Gamma flow, and
+            # the default PENDING would keep the list refreshing forever).
+            offer.generation_status = GenerationStatus.READY
+            offer.save(update_fields=["generated_file_url", "generation_status", "updated_at"])
 
         results.append(
             {
@@ -146,7 +150,7 @@ def _offer_generation_result(offer: Offer) -> dict:
     }
 
 
-@shared_task(name="offers.generate_project_offer_task")
+@shared_task(name="offers.generate_project_offer_task", soft_time_limit=330, time_limit=360)
 def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
     """Create a project offer then generate its Gamma quote (CDC §7.3).
 
@@ -175,12 +179,35 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
     return _offer_generation_result(offer)
 
 
-@shared_task(name="offers.regenerate_project_offer_task")
+@shared_task(name="offers.regenerate_project_offer_task", soft_time_limit=330, time_limit=360)
 def regenerate_project_offer_task(offer_id: str) -> dict:
     """Re-run Gamma generation for an existing project offer (retry, CDC §7.6.3)."""
     offer = Offer.objects.get(pk=offer_id)
     offer = run_generation(offer)
     return _offer_generation_result(offer)
+
+
+@shared_task(name="offers.reap_stuck_generations")
+def reap_stuck_generations(max_age_minutes: int = 15) -> dict:
+    """Fail offers stuck in `generating` beyond the hard time-limit window.
+
+    ``run_generation`` always reaches a terminal state on a normal failure; this
+    backstop catches the pathological case where the worker was hard-killed
+    (SIGKILL / OOM) mid-generation, which would otherwise leave the offer polling
+    forever in the UI (CDC §7.6.3). Registered as a Celery Beat task (15 min).
+    """
+    cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
+    stuck = Offer.objects.filter(
+        generation_status=GenerationStatus.GENERATING, updated_at__lt=cutoff
+    )
+    count = stuck.update(
+        generation_status=GenerationStatus.ERROR,
+        generation_error=("Génération interrompue (worker indisponible). Relancez la génération."),
+        updated_at=timezone.now(),
+    )
+    if count:
+        logger.warning("Reaped %d stuck offer generation(s)", count)
+    return {"reaped": count}
 
 
 @shared_task(name="offers.daily_expiration_check")

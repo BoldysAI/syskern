@@ -14,7 +14,7 @@ from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from apps.clients.models import Client
-from apps.offers.models import Offer, OfferStatus, OfferType
+from apps.offers.models import GenerationStatus, Offer, OfferStatus, OfferType
 from apps.offers.tasks import generate_tariff_offers_task, offer_export_path
 from apps.products.models import Product
 from apps.simulations.models import Simulation, SimulationLine
@@ -148,6 +148,9 @@ def test_generates_one_offer_and_file_per_client(export_dir, finalized_tariff, t
     for entry in result["offers"]:
         offer = Offer.objects.get(id=entry["offer_id"])
         assert offer.status == OfferStatus.DRAFT
+        # Excel is produced synchronously → generation is terminal (READY), not
+        # left at the default PENDING (which would keep the UI polling — B1).
+        assert offer.generation_status == GenerationStatus.READY
         assert len(offer.client_ids) == 1
         assert offer.lines.count() == 2  # both priced lines
         assert offer.generated_file_url == f"/api/offers/{offer.id}/download/"

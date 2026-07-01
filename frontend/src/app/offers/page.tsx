@@ -264,8 +264,11 @@ export default function OffersPage() {
     `offers:${query}`,
     () => getJson(`/api/offers/?${query}`),
     {
+      // Poll only while a generation is actually running. `pending` is transient
+      // (tariff offers finish READY; project offers move to generating in-task),
+      // so polling on it would refresh the list forever (B1 fix).
       refreshInterval: (d) =>
-        d?.results?.some((o) => ["generating", "pending"].includes(o.generation_status)) ? 5000 : 0,
+        d?.results?.some((o) => o.generation_status === "generating") ? 5000 : 0,
     },
   );
   const { data: dash, isLoading: dashLoading } = useSWR<Dashboard>("offers-dashboard", () =>
@@ -291,10 +294,7 @@ export default function OffersPage() {
     [query],
   );
 
-  const sortedOffers = useMemo(
-    () => sortOffers(data?.results ?? [], sort),
-    [data?.results, sort],
-  );
+  const sortedOffers = useMemo(() => sortOffers(data?.results ?? [], sort), [data?.results, sort]);
 
   const columns = useMemo<DataTableColumnDef<OfferRow>[]>(
     () => [
@@ -345,8 +345,7 @@ export default function OffersPage() {
         width: 120,
         sortField: "valid_to",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (o) =>
-          o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—",
+        render: (o) => (o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—"),
       },
       {
         key: "document",

@@ -19,6 +19,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.utils import timezone
 
@@ -33,7 +34,7 @@ from ..models import (
     OfferType,
 )
 from .ai_arguments import generate_arguments, instructions_hash
-from .gamma import GammaClient, GammaError
+from .gamma import GammaClient
 
 logger = logging.getLogger("apps.offers.project_generator")
 
@@ -217,26 +218,39 @@ def _resolve_arguments(offer: Offer) -> tuple[dict | None, bool]:
     return args, False
 
 
+def _mark_generation_error(offer: Offer, message: str) -> Offer:
+    """Persist a terminal ERROR state so the UI stops polling (CDC §7.6.3)."""
+    offer.generation_status = GenerationStatus.ERROR
+    offer.generation_error = (message or "Erreur de génération.")[:2000]
+    offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
+    return offer
+
+
 def run_generation(offer: Offer, *, gamma_client: GammaClient | None = None) -> Offer:
-    """Generate the Gamma quote for *offer*. Idempotent / retry-safe."""
+    """Generate the Gamma quote for *offer*. Idempotent / retry-safe.
+
+    Guarantees a **terminal** status: on ANY failure (Gamma, OpenAI, soft time
+    limit, or any unexpected exception) the offer is saved as ``error`` — it is
+    never left stuck in ``generating``, so the front stops polling (CDC §7.6.3).
+    A worker hard-kill is caught out-of-band by ``offers.reap_stuck_generations``.
+    """
     offer.generation_status = GenerationStatus.GENERATING
     offer.generation_error = ""
     offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
 
-    arguments, _ = _resolve_arguments(offer)
-    payload = build_gamma_payload(offer, arguments=arguments)
-
     gamma = gamma_client or GammaClient()
     try:
+        arguments, _ = _resolve_arguments(offer)
+        payload = build_gamma_payload(offer, arguments=arguments)
         result = gamma.generate_and_wait(payload)
-    except GammaError as exc:
-        offer.generation_status = GenerationStatus.ERROR
-        offer.generation_error = str(exc)[:2000]
-        offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
+    except SoftTimeLimitExceeded:
+        _mark_generation_error(offer, "La génération a dépassé le temps imparti.")
+        raise  # surface the timeout to Celery
+    except Exception as exc:  # noqa: BLE001 — any failure must yield a terminal state
         logger.warning("Gamma generation failed for offer %s: %s", offer.id, exc)
-        return offer
+        return _mark_generation_error(offer, str(exc))
 
-    # Success — store the Gamma identifiers + cache the public HTML best-effort.
+    # Success — store the Gamma identifiers.
     offer.gamma_document_id = result.generation_id
     offer.generated_file_url = result.gamma_url
     info = dict(offer.project_info or {})
@@ -255,8 +269,12 @@ def run_generation(offer: Offer, *, gamma_client: GammaClient | None = None) -> 
         ]
     )
 
-    html = gamma.fetch_public_html(result.gamma_url)
-    if html:
-        SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-        snapshot_path(offer.id).write_text(html, encoding="utf-8")
+    # Best-effort HTML snapshot — must never flip a READY offer back to error.
+    try:
+        html = gamma.fetch_public_html(result.gamma_url)
+        if html:
+            SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+            snapshot_path(offer.id).write_text(html, encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        logger.info("Gamma HTML snapshot failed for offer %s (non-fatal)", offer.id)
     return offer

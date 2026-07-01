@@ -223,6 +223,126 @@ def test_regenerate_endpoint(
     assert resp.json()["task_id"] == "rt-1"
 
 
+# ── B1: generation must ALWAYS reach a terminal state (never stuck) ───────────
+
+
+class BrokenGamma:
+    """Raises a non-Gamma exception (network/library bug) mid-generation."""
+
+    def generate_and_wait(self, payload, **kwargs):
+        raise RuntimeError("network exploded")
+
+    def fetch_public_html(self, url):
+        return None
+
+
+class TimeoutGamma:
+    def generate_and_wait(self, payload, **kwargs):
+        from celery.exceptions import SoftTimeLimitExceeded
+
+        raise SoftTimeLimitExceeded()
+
+    def fetch_public_html(self, url):
+        return None
+
+
+class SnapshotFailGamma(FakeGamma):
+    def fetch_public_html(self, url):
+        raise OSError("disk full")
+
+
+def _new_offer(project_sim, project_client):
+    return pg.create_project_offer(
+        simulation=project_sim,
+        client=project_client,
+        project_name="X",
+        quantities={},
+        language="fr",
+        expiration_date=None,
+        ai_instructions="",
+        sections_config=None,
+    )
+
+
+def test_unexpected_exception_marks_error_not_stuck(
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client
+):
+    """A non-GammaError failure must end the offer in ERROR, never GENERATING."""
+    monkeypatch.setattr(pg, "GammaClient", BrokenGamma)
+    result = _run(project_sim, _params(project_client))
+    assert result["generation_status"] == GenerationStatus.ERROR
+    offer = Offer.objects.get(id=result["offer_id"])
+    assert offer.generation_status == GenerationStatus.ERROR
+    assert "network exploded" in offer.generation_error
+
+
+def test_payload_build_failure_marks_error(
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client
+):
+    """A failure BEFORE the Gamma call (payload/OpenAI) must also terminalise."""
+
+    def _boom(*args, **kwargs):
+        raise ValueError("payload broken")
+
+    monkeypatch.setattr(pg, "GammaClient", FakeGamma)
+    monkeypatch.setattr(pg, "build_gamma_payload", _boom)
+    result = _run(project_sim, _params(project_client))
+    assert result["generation_status"] == GenerationStatus.ERROR
+    assert "payload broken" in Offer.objects.get(id=result["offer_id"]).generation_error
+
+
+def test_soft_time_limit_marks_error_and_reraises(
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client
+):
+    from celery.exceptions import SoftTimeLimitExceeded
+
+    monkeypatch.setattr(pg, "GammaClient", TimeoutGamma)
+    offer = _new_offer(project_sim, project_client)
+    with pytest.raises(SoftTimeLimitExceeded):
+        pg.run_generation(offer)
+    offer.refresh_from_db()
+    assert offer.generation_status == GenerationStatus.ERROR
+
+
+def test_snapshot_failure_keeps_ready(
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client
+):
+    """A best-effort HTML snapshot error must NOT flip a READY offer to error."""
+    monkeypatch.setattr(pg, "GammaClient", SnapshotFailGamma)
+    result = _run(project_sim, _params(project_client))
+    assert result["generation_status"] == GenerationStatus.READY
+
+
+def test_reap_stuck_generation_marks_error(project_sim, project_client):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.offers.tasks import reap_stuck_generations
+
+    offer = _new_offer(project_sim, project_client)
+    old = timezone.now() - timedelta(minutes=30)
+    Offer.objects.filter(pk=offer.pk).update(
+        generation_status=GenerationStatus.GENERATING, updated_at=old
+    )
+    result = reap_stuck_generations.apply(args=[15]).get()
+    assert result["reaped"] == 1
+    offer.refresh_from_db()
+    assert offer.generation_status == GenerationStatus.ERROR
+    assert "interrompue" in offer.generation_error
+
+
+def test_reap_leaves_recent_generation(project_sim, project_client):
+    from apps.offers.tasks import reap_stuck_generations
+
+    offer = _new_offer(project_sim, project_client)
+    Offer.objects.filter(pk=offer.pk).update(generation_status=GenerationStatus.GENERATING)
+    result = reap_stuck_generations.apply(args=[15]).get()
+    assert result["reaped"] == 0
+    offer.refresh_from_db()
+    assert offer.generation_status == GenerationStatus.GENERATING
+
+
 def test_regenerate_rejected_for_tariff(client_api, project_sim):
     offer = Offer.objects.create(
         simulation=project_sim,
