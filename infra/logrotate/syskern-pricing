@@ -1,0 +1,60 @@
+# Log rotation for the Syskern Pricing Platform VPS — CDC §9.6.
+#
+# Policy (all sources): daily rotation, keep 30 days, compress at J+1
+# (delaycompress), drop logs older than 30 days.
+#
+# Install:
+#   sudo cp infra/logrotate/syskern-pricing /etc/logrotate.d/syskern-pricing
+#   sudo chown root:root /etc/logrotate.d/syskern-pricing
+#   sudo chmod 0644      /etc/logrotate.d/syskern-pricing
+# Validate (dry-run, no changes):
+#   logrotate -d /etc/logrotate.d/syskern-pricing
+# Force one rotation (testing):
+#   logrotate -f /etc/logrotate.d/syskern-pricing
+#
+# NOTE: Odoo sync history is NOT a file log — it lives in the `sync_logs` DB
+# table (CDC §5.4.3) and is out of scope for logrotate.
+
+# ── Application logs: gunicorn + Django ──────────────────────────────────────
+# App processes keep the file open; copytruncate avoids needing a reopen signal.
+/var/log/syskern-pricing/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    dateext
+    su root root
+}
+
+# ── Nginx access + error logs ────────────────────────────────────────────────
+# Nginx reopens its log files on USR1 — cleaner than copytruncate (no lost lines).
+/var/log/nginx/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    su root adm
+    postrotate
+        [ -f /run/nginx.pid ] && kill -USR1 "$(cat /run/nginx.pid)" || true
+    endscript
+}
+
+# ── PostgreSQL logs (native install on the VPS) ──────────────────────────────
+# If Postgres runs in Docker instead, rely on the Docker json-file log driver
+# (max-size/max-file) rather than this stanza.
+/var/log/postgresql/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su postgres postgres
+}

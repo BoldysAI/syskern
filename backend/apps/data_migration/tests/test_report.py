@@ -49,10 +49,13 @@ def seeded():
         reason=UnmatchedReason.NO_MATCH,
     )
 
-    sim = Simulation.objects.create(label="Tarif Q3", simulation_type="tariff", status="finalized")
+    # Draft → add line → finalize: the guard trigger blocks line inserts on a
+    # finalized parent, so the line must exist before the simulation is frozen.
+    sim = Simulation.objects.create(label="Tarif Q3", simulation_type="tariff", status="draft")
     SimulationLine.objects.create(
         simulation=sim, product=odoo, pv_eur=Decimal("487.70"), status="ok"
     )
+    Simulation.objects.filter(pk=sim.pk).update(status="finalized")
     return odoo
 
 

@@ -73,10 +73,13 @@ def fake_args(monkeypatch):
 
 @pytest.fixture()
 def project_sim():
+    # Build as draft, add the lines, then finalize: the DB guard trigger
+    # (simulation_lines_guard_finalized_parent) blocks line inserts once the
+    # parent is finalized, so the lines must exist first.
     sim = Simulation.objects.create(
         label="Datacenter Marseille",
         simulation_type="project",
-        status="finalized",
+        status="draft",
         market_params={"fx_eur_usd": "1.15"},
     )
     p1 = Product.objects.create(sku_code="CABLE-1", name="Câble cat7", range="Cat7")
@@ -85,6 +88,8 @@ def project_sim():
     SimulationLine.objects.create(
         simulation=sim, product=p2, pv_eur=Decimal("1200.00"), status="ok"
     )
+    Simulation.objects.filter(pk=sim.pk).update(status="finalized")
+    sim.refresh_from_db()
     return sim
 
 
