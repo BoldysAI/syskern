@@ -15,7 +15,14 @@ from rest_framework.views import APIView
 from apps.simulations.models import Simulation, SimulationStatus
 
 from .dashboard_metrics import build_offer_dashboard_metrics
-from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
+from .models import (
+    GenerationStatus,
+    Offer,
+    OfferAlertConfig,
+    OfferLine,
+    OfferStatus,
+    OfferType,
+)
 from .serializers import (
     ExtendExpirationSerializer,
     OfferAlertConfigSerializer,
@@ -56,6 +63,16 @@ class OfferViewSet(viewsets.ModelViewSet):
         if simulation.status != SimulationStatus.FINALIZED:
             raise ValidationError("Offers can only be created from finalized simulations.")
         serializer.save()
+
+    def perform_destroy(self, instance: Offer) -> None:
+        # Deleting an offer is the only destructive action (CDC §7.5.5), but a
+        # generation in flight would leave an orphaned Celery task + file.
+        if instance.generation_status == GenerationStatus.GENERATING:
+            raise ValidationError(
+                "Impossible de supprimer une offre en cours de génération. "
+                "Réessayez une fois la génération terminée."
+            )
+        instance.delete()
 
     # ─── /status (lifecycle transition) ───────────────────────────────
     @action(detail=True, methods=["patch"], url_path="status")

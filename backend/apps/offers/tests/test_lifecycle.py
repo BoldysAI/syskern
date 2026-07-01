@@ -54,6 +54,26 @@ def test_draft_to_sent_ok(client_api, sim):
     assert o.status == "sent" and o.sent_at is not None
 
 
+# ── Delete (only destructive action, guarded while generating) ────────────────
+
+
+def test_delete_offer_ok(client_api, sim):
+    o = _offer(sim)
+    resp = client_api.delete(f"/api/offers/{o.id}/")
+    assert resp.status_code == 204
+    assert not Offer.objects.filter(id=o.id).exists()
+
+
+def test_cannot_delete_generating_offer(client_api, sim):
+    from apps.offers.models import GenerationStatus
+
+    o = _offer(sim)
+    Offer.objects.filter(id=o.id).update(generation_status=GenerationStatus.GENERATING)
+    resp = client_api.delete(f"/api/offers/{o.id}/")
+    assert resp.status_code == 400
+    assert Offer.objects.filter(id=o.id).exists()
+
+
 def test_draft_to_won_rejected(client_api, sim):
     o = _offer(sim)
     resp = client_api.patch(f"/api/offers/{o.id}/status/", {"status": "won"}, format="json")
