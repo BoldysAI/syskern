@@ -17,6 +17,29 @@ migration. For the destructive reset (replay on a fresh env) see
 Each step persists a **resume checkpoint** on disk after it completes, so a
 failed run resumes from the failed step instead of restarting from scratch.
 
+## Automatic one-shot bootstrap on deploy (`bootstrap_catalog`)
+
+The container start command runs `python manage.py bootstrap_catalog` after
+`migrate` (both local `docker-compose` and prod `Dockerfile`). It is
+**idempotent and deploy-safe**:
+
+- **No-op** if the catalog is already populated (`Product` exists) or
+  `MIGRATION_LOCKED=true` → so every deploy after the first does nothing.
+- On a **fresh** DB it auto-discovers the client Excel in
+  `MIGRATION["SOURCES_DIR"]` (default `/migration/sources`) by filename glob and
+  loads them once: `UKN_RANGE_PRICES*.xlsx` → `po_fournisseurs --create-missing`
+  (PO&SC sheet auto-detected), `LAN_CABLE_PRICE_LIST*.xlsx` → `po_ayp`, then
+  `seed_client_market_params`.
+- A **missing** source file is skipped with a warning — it never fails the deploy.
+
+**Prod requirement**: the confidential .xlsx are **gitignored** (not in the
+image), so they must be present in the prod `MIGRATION_SOURCES_DIR` — mount a
+persistent volume at `/migration` in Coolify and upload the files there **once**.
+On the next deploy the bootstrap loads them a single time; further deploys no-op.
+
+Force a reload (e.g. staging): `python manage.py bootstrap_catalog --force`
+(still honours `MIGRATION_LOCKED`).
+
 ## Prerequisites (CDC §8.3)
 
 - Odoo API access configured (`ODOO_*` env — see `.env.example`).

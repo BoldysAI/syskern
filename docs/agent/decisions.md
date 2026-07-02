@@ -600,3 +600,19 @@ correspond → un seul loader gère les deux formats. Nouvelle prep `_prepare_ay
 - Tests : `test_loader_ayp_grid.py` (2, fixture grille : match + upsert AYP prix-colonne-70000 + base + cuivre) ;
   27 tests po_ayp/migration liés verts (227 data_migration au total), ruff + mypy propres (+ fix 1 nit mypy pré-existant
   dans `_prepare_lan_cu_dataframe`).
+
+## 2026-07-02 · [P] Migration — bootstrap catalogue automatique « single shot » au déploiement
+Demande utilisateur : « les Excel se chargent en single shot si elles ne sont pas là, sinon on ne fait rien » (pas de
+re-run manuel). Commande `bootstrap_catalog` (idempotente, deploy-safe) branchée au **démarrage** (docker-compose
+`command` + Dockerfile prod `CMD`), après `migrate` :
+- **No-op** si `Product` existe déjà OU `MIGRATION_LOCKED=true` → tout déploiement après le premier ne fait rien.
+- Sur base vierge : auto-découverte des sources dans `MIGRATION["SOURCES_DIR"]` (défaut `/migration/sources`) par glob
+  de nom (`UKN_RANGE_PRICES*` → `po_fournisseurs --create-missing`, feuille `PO & SC*` auto-détectée ;
+  `LAN_CABLE_PRICE_LIST*` → `po_ayp`), puis `seed_client_market_params`. Config typée `_Source` (TypedDict).
+- **Deploy-safe** : source absente = warning + skip (jamais d'échec de déploiement) ; chaque loader en try/except.
+- Mount `./migration:/migration` ajouté au service backend local. **Prod** : les .xlsx étant gitignorés (hors image),
+  monter un volume persistant `/migration` dans Coolify et y déposer les fichiers **une fois** → le prochain deploy
+  charge, les suivants no-op. `--force` pour rejouer (respecte toujours `MIGRATION_LOCKED`).
+- Tests : `test_bootstrap_catalog` (skip si peuplé / si locked / no-op si sources absentes) — 230 tests data_migration
+  verts, ruff + le fichier mypy-clean (7 erreurs mypy résiduelles = **préexistantes dans `apps/odoo_sync`**, tirées par
+  le graphe d'import, mypy n'étant pas un hook de commit).

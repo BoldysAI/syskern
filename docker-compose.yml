@@ -55,6 +55,9 @@ services:
     volumes:
       - ./backend:/app
       - exports_data:/tmp/syskern_exports
+      # Client Excel sources for the one-shot catalog bootstrap (gitignored files;
+      # resolves to /migration/sources = MIGRATION_SOURCES_DIR default).
+      - ./migration:/migration
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +65,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate --noinput &&
+             python manage.py bootstrap_catalog &&
              python manage.py runserver 0.0.0.0:8000"
 
   celery-worker:
