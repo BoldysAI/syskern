@@ -558,3 +558,29 @@ quarantaine (= la cause « tout en quarantaine » A3). L'étape 3 « créer hors
   backend existait mais n'était pas exposé (manque B2 signalé par l'utilisateur).
 - **Fichiers client** copiés dans `migration/sources/` (gitignoré). Reste à mapper : MKT TOOL (technique, format ≠
   loader actuel), Monthly Copper Evolution (→ market_parameters), LAN cable (par fournisseur), PRICES_LIST/TARIF, RAW MATERIALS.
+
+## 2026-07-02 · [P] Migration — analyse des 6 Excel client + DEUX systèmes de codes produit (blocage)
+Analyse définitive des jointures des 6 fichiers client (clés de code produit vérifiées contre le catalogue chargé).
+**Découverte structurante : le client a DEUX systèmes de codes produit**, ce qui conditionne tout l'enrichissement :
+- **Unikkern** (`KCU5E4PGR5`, `OEFU64PDT50`, préfixes KC/KF/KP/KR/KS/KW/XE/KJ/OEFU/ST…) = `products.sku_code`
+  (= `default_code` Odoo, CDC §5.3). Fichiers : **UKN `PO & SC`** (catalogue ✅ chargé), **LAN cable** (fournisseurs ✅ joignable).
+- **Legacy positionnel** (`01IP09EGFA`) = **absent du catalogue** (ni sku_code, ni item_code=`U0101004` Odoo, ni factory_code).
+  Fichiers : **MKT TOOL** (attributs marketing) et **PRICES_LIST `TARIF`** (tarif de vente).
+
+**Verdict par fichier** :
+- `UKN PO & SC Dec 2026` — ✅ chargé (`po_fournisseurs --create-missing`, en-tête l.12).
+- `LAN cable` (feuilles HT/ZD/**AYP**/LINOYA) — ✅ **joignable** (codes Unikkern) mais **loader net-new requis** : layout
+  ≠ `po_ayp` existant. Spec AYP (`AYP NOV 21 - DEC 25 ¥`, en-tête l.8) : col `ITEM` = SKU slash-séparés
+  (`OEFU64PDT50/BSLFU64PDT50` → exploser en N lignes), `Copper weight` col8, **grille de prix par niveau cuivre**
+  (colonnes 50000→79000+ RMB/t) → `po_base_price` = valeur de la colonne du cuivre de base (ex. « 70000 »),
+  `copper_base_price=70000`, `supplier_name="AYP"`, devise RMB. Chaque feuille fournisseur = un layout à vérifier.
+- `AA-MARKETING MKT TOOL` (attributs) — ❌ **bloqué** : code legacy `01IP…`, pas de jointure.
+- `PRICES_LIST TARIF` (tarif vente) — ❌ **bloqué** : code legacy `01IP…`, pas de jointure.
+- `AA-RAW_MATERIALS ITEMS BOM` — ⚠️ format **tableau croisé** (pivot) + code encore différent (`SFTP4P6AZH26D`) — complexe.
+- `Monthly_Copper_Evolution` — → market_parameters (cuivre courant `SH 3mm RMB`), seedé via `seed_client_market_params`.
+
+**Prérequis bloquant (à obtenir du client / Odoo)** : une **table de correspondance `01IP… ↔ KC-SKU`** pour débloquer
+MKT TOOL + TARIF. Per CDC §5.10, elle vit probablement dans un **champ custom Odoo `x_*`** (investigation Odoo). Le
+connecteur `odoo_prod` n'est pas accessible dans cette session (refusé). Sans cette table, ces 2 fichiers ne sont pas
+rattachables automatiquement (le matching CDC §8.6 est par SKU/factory, pas par code marketing).
+**Prochain build clairement défini** : loader LAN AYP (spec ci-dessus). Fichiers client dans `migration/sources/` (gitignoré).
