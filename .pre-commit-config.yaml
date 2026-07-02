@@ -22,6 +22,10 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=512]
+        # Confidential client Excel baked into the prod image for the one-shot
+        # catalog bootstrap (see backend/migration_sources/README.md). These
+        # exceed 512 ko by design; the guard still applies everywhere else.
+        exclude: ^backend/migration_sources/.*\.xlsx$
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: check-case-conflict

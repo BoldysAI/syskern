@@ -5,9 +5,10 @@ populated (or the migration is locked), it does nothing. Designed to run at
 container start (after `migrate`), so a fresh environment self-loads once and
 every later deploy is a no-op.
 
-Sources are auto-discovered in ``MIGRATION["SOURCES_DIR"]`` by filename glob, so
-the confidential .xlsx (gitignored) just need to be present in that dir. A
-missing source is skipped with a warning — it never fails the deploy.
+Sources are auto-discovered by filename glob: first in ``MIGRATION["SOURCES_DIR"]``
+(a mounted volume), then falling back to the Excel baked into the image at
+``backend/migration_sources/`` — so prod self-loads with no volume and no env var.
+A missing source is skipped with a warning — it never fails the deploy.
 """
 
 from __future__ import annotations
@@ -73,12 +74,13 @@ class Command(BaseCommand):
             self.stdout.write("Catalog already populated — bootstrap skipped (nothing to do).")
             return
 
-        sources_dir = settings.MIGRATION.get("SOURCES_DIR", "")
-        if not sources_dir or not os.path.isdir(sources_dir):
+        sources_dir = self._resolve_sources_dir()
+        if not sources_dir:
             self.stdout.write(
-                self.style.WARNING(f"Sources dir absent ({sources_dir!r}) — nothing to load.")
+                self.style.WARNING("No sources dir with client Excel found — nothing to load.")
             )
             return
+        self.stdout.write(f"Loading client Excel from {sources_dir}")
 
         loaded = 0
         for src in _SOURCES:
@@ -101,6 +103,25 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Market params seeding failed: {exc}"))
 
         self.stdout.write(self.style.SUCCESS(f"Bootstrap done ({loaded} source file(s) loaded)."))
+
+    def _resolve_sources_dir(self) -> str:
+        """First candidate dir that actually holds one of our source globs.
+
+        Prefers the configured ``MIGRATION_SOURCES_DIR`` (a mounted volume), then
+        falls back to the Excel baked into the image at ``backend/migration_sources/``
+        — so prod self-loads with no volume and no env var to set.
+        """
+        candidates = [
+            settings.MIGRATION.get("SOURCES_DIR", ""),
+            str(settings.BASE_DIR / "migration_sources"),
+        ]
+        for candidate in candidates:
+            if not candidate or not os.path.isdir(candidate):
+                continue
+            has_source = any(glob.glob(os.path.join(candidate, src["glob"])) for src in _SOURCES)
+            if has_source:
+                return candidate
+        return ""
 
     def _load(self, file_path: str, src: _Source):
         loader = LOADER_REGISTRY[src["loader"]]()

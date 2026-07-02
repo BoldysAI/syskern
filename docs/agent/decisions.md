@@ -616,3 +616,20 @@ re-run manuel). Commande `bootstrap_catalog` (idempotente, deploy-safe) branché
 - Tests : `test_bootstrap_catalog` (skip si peuplé / si locked / no-op si sources absentes) — 230 tests data_migration
   verts, ruff + le fichier mypy-clean (7 erreurs mypy résiduelles = **préexistantes dans `apps/odoo_sync`**, tirées par
   le graphe d'import, mypy n'étant pas un hook de commit).
+
+## 2026-07-02 · [P] Migration — Excel client embarqués dans l'image (repo privé) + fallback baked-in
+Suite du bootstrap ci-dessus. L'utilisateur, pour éviter la config d'un volume Coolify, a **explicitement choisi de
+committer les 2 Excel requis dans le repo** (privé `BoldysAI/syskern`) plutôt que de les monter en volume.
+- Fichiers versionnés dans **`backend/migration_sources/`** (et **pas** la racine `migration/sources/`, hors contexte
+  de build prod dont `Base Directory: backend/`). Seuls les 2 nécessaires au bootstrap : `UKN_RANGE_PRICES*` +
+  `LAN_CABLE_PRICE_LIST*`. README dans le dossier (confidentialité + usage).
+- `bootstrap_catalog._resolve_sources_dir()` : essaie d'abord `MIGRATION["SOURCES_DIR"]` (volume, si présent et
+  peuplé), **puis** `BASE_DIR/migration_sources` (baked-in) → **prod self-load sans volume ni variable d'env**. Un
+  volume monté reste prioritaire (permet de garder les .xlsx hors git plus tard sans changer le code).
+- Hook `check-added-large-files` (512 ko) : `exclude: ^backend/migration_sources/.*\.xlsx$` (les 2 fichiers font
+  1200/628 ko) — le garde-fou reste actif partout ailleurs.
+- **Compromis assumé** : les prix/marges client entrent dans l'historique git **de façon permanente** (retrait ultérieur
+  = réécriture d'historique). Acceptable ici car repo privé à accès restreint (Boldys/Kamka) ; décision utilisateur.
+  Alternative propre conservée = le volume (option 2 du runbook migration).
+- Tests : `test_bootstrap_catalog` maj (no-op pointe `BASE_DIR` sur un tmp vide) + `test_falls_back_to_baked_in_sources_dir`
+  (résolution du fallback baked-in) — 4 verts, ruff + format propres.

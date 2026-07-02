@@ -32,10 +32,19 @@ The container start command runs `python manage.py bootstrap_catalog` after
   `seed_client_market_params`.
 - A **missing** source file is skipped with a warning — it never fails the deploy.
 
-**Prod requirement**: the confidential .xlsx are **gitignored** (not in the
-image), so they must be present in the prod `MIGRATION_SOURCES_DIR` — mount a
-persistent volume at `/migration` in Coolify and upload the files there **once**.
-On the next deploy the bootstrap loads them a single time; further deploys no-op.
+**Prod sources — two options** (the resolver tries them in this order):
+
+1. **Baked into the image** (current prod choice): the 2 required .xlsx are
+   committed to `backend/migration_sources/` (private repo — see that dir's
+   README). They ship in the image, so prod self-loads with **no volume and no
+   env var**. Update = replace the file + commit + redeploy.
+2. **Mounted volume** (keeps the .xlsx out of git): set `MIGRATION_SOURCES_DIR`
+   (default `/migration/sources`), mount a persistent volume at `/migration` in
+   Coolify, upload the files there once. Takes precedence over the baked-in dir.
+
+Either way the load runs a **single time** on a fresh DB; further deploys no-op.
+⚠️ Option 1 puts confidential client prices in git history permanently — chosen
+deliberately for this private repo (see `decisions.md` 2026-07-02).
 
 Force a reload (e.g. staging): `python manage.py bootstrap_catalog --force`
 (still honours `MIGRATION_LOCKED`).

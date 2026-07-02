@@ -33,9 +33,29 @@ def test_skips_when_locked():
     assert Product.objects.count() == 0
 
 
-@override_settings(MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"})
-def test_empty_db_missing_sources_is_noop():
-    # Fresh DB, no sources dir → graceful no-op (never fails the deploy).
-    output = _run()
+def test_empty_db_missing_sources_is_noop(tmp_path):
+    # Fresh DB, neither the configured dir nor the baked-in fallback exists →
+    # graceful no-op (never fails the deploy). BASE_DIR is pointed at an empty
+    # tmp dir so the `backend/migration_sources/` fallback doesn't kick in.
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
+        BASE_DIR=tmp_path,
+    ):
+        output = _run()
     assert "nothing to load" in output.lower()
     assert Product.objects.count() == 0
+
+
+def test_falls_back_to_baked_in_sources_dir(tmp_path):
+    # Configured dir absent, but a baked-in `<BASE_DIR>/migration_sources/` holds a
+    # matching source → the resolver picks it up (prod runs with no volume/env var).
+    from apps.data_migration.management.commands.bootstrap_catalog import Command
+
+    baked = tmp_path / "migration_sources"
+    baked.mkdir()
+    (baked / "UKN_RANGE_PRICES_TEST.xlsx").write_bytes(b"stub")  # name matches a _SOURCES glob
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
+        BASE_DIR=tmp_path,
+    ):
+        assert Command()._resolve_sources_dir() == str(baked)
