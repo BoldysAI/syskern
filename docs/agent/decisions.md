@@ -546,7 +546,12 @@ quarantaine (= la cause « tout en quarantaine » A3). L'étape 3 « créer hors
 - **Résultat sur données réelles** (run local) : produits **784 → 1089** (~305 créés), quarantaine **330 → 2** ;
   `product_suppliers` distincts = **Symea, Mirsan, Infoks, Otrans, Honto, HT, KK, SDGI, LY, Wekino…** → **C1 résolu**
   (le dropdown fournisseur ne montre plus que Symea). Le fichier UKN porte aussi les **paramètres marché** (cuivre base
-  102000, LME USD/EUR, EUR/USD 1.17, EUR/CNY 8.19, fret) — extraction market_parameters = TODO.
+  102000, LME USD/EUR, EUR/USD 1.17, EUR/CNY 8.19, fret).
+- **Paramètres marché seedés** : commande idempotente `seed_client_market_params` (valeurs client par défaut,
+  ajustables : `--copper-rmb 102000 --fx-eur-rmb 8.19 --fx-eur-usd 1.17`, désactive les actifs précédents, garde
+  l'historique). Cuivre SHE 102000 RMB/t + FX EUR/RMB + EUR/USD → `/api/market-parameters/current/` renvoie les vraies
+  valeurs (prefill wizard de prix). 3 tests verts, vérif live. Cuivre courant depuis `Monthly_Copper_Evolution`
+  (`SH 3mm RMB`) = à rafraîchir périodiquement (via l'UI ou re-run avec `--copper-rmb`).
 - **Tests** : `test_loader_po_fournisseurs` mis à jour (FOB toléré : matched 2→3, quarantaine 3→2) + 2 tests
   `create_missing` (crée l'inconnu / sans flag quarantine). **225 tests data_migration verts**, ruff + mypy propres.
 - **Offres — suppression UI** : bouton « Supprimer » sur `/offers/[id]` (confirm destructif + redirect) — le DELETE
