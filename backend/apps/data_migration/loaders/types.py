@@ -72,6 +72,10 @@ class LoaderConfig:
     header_row: int = 0  # 0-based pandas index (0 = first row)
     batch_size: int = 500
     dry_run: bool = False
+    # When True, a row with no matching product CREATES the product (loaders that
+    # opt in via ``creates_products``) instead of going to quarantine. Used to
+    # bootstrap the catalog from a source that carries the full product definition.
+    create_missing: bool = False
 
 
 @dataclass
@@ -83,6 +87,7 @@ class LoaderReport:
     rows_total: int = 0
     rows_matched: int = 0
     rows_updated: int = 0
+    rows_created: int = 0  # products created (create_missing mode)
     rows_skipped_blank: int = 0
     rows_deduped: int = 0  # rows collapsed by dedup_key / merge logic
     rows_unmatched: dict[UnmatchedReason, int] = field(default_factory=dict)
@@ -104,6 +109,7 @@ class LoaderReport:
             f"  Deduped (merged): {self.rows_deduped}",
             f"  Matched         : {self.rows_matched}",
             f"  Updated         : {self.rows_updated}",
+            f"  Created         : {self.rows_created}",
             f"  Quarantined     : {self.rows_quarantined}",
         ]
         for reason, count in sorted(self.rows_unmatched.items(), key=lambda x: x[0]):

@@ -137,11 +137,14 @@ def _run_manifest_entries(ctx: MigrationContext, entries: list[dict], phase: str
             header_row=int(entry.get("header_row", 0)),
             batch_size=int(entry.get("batch_size", 500)),
             dry_run=ctx.dry_run,
+            # `create` phase bootstraps products from the source; a manifest entry
+            # may override explicitly (e.g. create-and-enrich in one pass).
+            create_missing=bool(entry.get("create_missing", phase == "create")),
         )
         loader = LOADER_REGISTRY[loader_key]()
         report = loader.run(config)
         ran += 1
-        total.updated += report.rows_updated
+        total.updated += report.rows_updated + report.rows_created
         total.failed += report.rows_quarantined
         logger.info("Loaded %s (%s): %s", loader_key, file_value.name, report)
 

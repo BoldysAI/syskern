@@ -80,6 +80,10 @@ class BaseExcelLoader(abc.ABC):
 
     migration_source: MigrationSource  # e.g. MigrationSource.EXCEL_PRICING
 
+    # Opt-in: when the source carries the full product definition, a loader can
+    # CREATE the product for an unmatched row (only when run with create_missing).
+    creates_products: bool = False
+
     # ── Hook: column renaming ─────────────────────────────────────────────────
 
     @abc.abstractmethod
@@ -142,6 +146,18 @@ class BaseExcelLoader(abc.ABC):
         at write-time (e.g. a Decimal overflow), so the row goes to quarantine
         rather than crashing the batch.
         """
+
+    # ── Hook: create (opt-in, create_missing mode) ────────────────────────────
+
+    def create_product(self, row: NormalizedRow) -> Product:
+        """Create a new Product from an unmatched row (loaders that opt in).
+
+        Called only when ``creates_products`` is True and the run was started
+        with ``create_missing``. ``apply_update`` runs right after to fill the
+        rest. Raise MissingRequiredFieldError / InvalidRowError to quarantine
+        instead of creating.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support create_missing")
 
     # ── Optional hook: deduplication (for multi-origin files like loader_technique) ──
 
@@ -345,6 +361,21 @@ class BaseExcelLoader(abc.ABC):
         result = matcher.match(hint)
 
         if result.product_id is None:
+            # create_missing: bootstrap the product from the row (opt-in loaders).
+            if (
+                config.create_missing
+                and self.creates_products
+                and result.reason
+                in (
+                    None,
+                    UnmatchedReason.NO_MATCH,
+                )
+            ):
+                product = self.create_product(norm)
+                self.apply_update(product, norm)
+                matcher.register(product)  # so a duplicate SKU later re-matches
+                report.rows_created += 1
+                return
             reason = result.reason or UnmatchedReason.NO_MATCH
             logger.debug("Row %d: no match (%s)", excel_row, reason)
             self._log_unmatched(source_name, excel_row, raw_row, reason)

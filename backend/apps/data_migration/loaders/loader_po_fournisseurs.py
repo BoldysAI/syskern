@@ -53,7 +53,7 @@ from apps.core.models import Currency
 from apps.products.models import Incoterm, MigrationSource, Product, ProductSupplier
 
 from .base import BaseExcelLoader
-from .exceptions import InvalidRowError
+from .exceptions import InvalidRowError, MissingRequiredFieldError
 from .io import coerce_decimal, coerce_int, coerce_str, row_to_raw
 from .types import LoaderConfig, MatchHint, NormalizedRow, RowOutcome
 
@@ -84,6 +84,9 @@ class POFournisseursLoader(BaseExcelLoader):
     """Loader for the Symea Shanghai PO supplier Excel file."""
 
     migration_source = MigrationSource.EXCEL_PRICING
+    # This file carries the full product definition, so it can bootstrap the
+    # catalog: unmatched rows CREATE the product (only with --create-missing).
+    creates_products = True
 
     def __init__(self) -> None:
         # Populated by pre_run()
@@ -265,6 +268,21 @@ class POFournisseursLoader(BaseExcelLoader):
         self._upsert_supplier(product, row)
         return RowOutcome(row_number=0, matched=True, updated=True, quarantined=False)
 
+    def create_product(self, row: NormalizedRow) -> Product:
+        """Create the product from an unmatched row (--create-missing).
+
+        Only the identity is created here (SKU + name); ``apply_update`` runs
+        next to fill hierarchy, descriptions, copper, GTIN, HS and the supplier.
+        """
+        sku = row.data.get("sku_code")
+        if not sku:
+            raise MissingRequiredFieldError("sku_code is empty — cannot create a product")
+        return Product.objects.create(
+            sku_code=sku,
+            name=sku,  # most SKUs carry name == sku_code; designation = description_marketing.fr
+            migration_source=self.migration_source,
+        )
+
     def _update_product(self, product: Product, row: NormalizedRow) -> None:
         d = row.data
         changed = False
@@ -346,14 +364,16 @@ class POFournisseursLoader(BaseExcelLoader):
         if not supplier_code and parsed_factory:
             supplier_code = self._factory_to_name.get(parsed_factory, "")
 
+        # FOB may be missing on some rows — still record the supplier (inactive,
+        # no price) so the product/link exists; the price is filled in later.
         fob_price = d.get("fob_price_usd")
-        if fob_price is None:
-            raise InvalidRowError("fob_price_usd is null — cannot create supplier record")
 
         copper_weight = d.get("copper_weight")
         is_copper = copper_weight is not None and copper_weight > 0
 
         supplier_notes_parts = []
+        if fob_price is None:
+            supplier_notes_parts.append("FOB manquant (à compléter)")
         if parsed_factory is None:
             supplier_notes_parts.append(
                 "factory_code: derived from Supplier column (Internal Code suffix missing)"

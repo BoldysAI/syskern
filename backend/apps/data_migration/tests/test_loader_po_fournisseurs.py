@@ -255,6 +255,7 @@ def default_config(**overrides: object) -> LoaderConfig:
         header_row=12,
         batch_size=500,
         dry_run=bool(overrides.get("dry_run", False)),
+        create_missing=bool(overrides.get("create_missing", False)),
     )
 
 
@@ -284,9 +285,9 @@ class TestPOLoaderReport:
 
     def test_matched_rows(self) -> None:
         report = POFournisseursLoader().run(default_config())
-        # Rows 1 and 2 match KCFU64PZHDGR5; row 5 matches KCUF6A4PZHDBL5 BUT fob=empty → quarantine
-        # Row 3: NO_SKU, Row 4: NO_MATCH
-        assert report.rows_matched == 2  # rows 1 & 2 only
+        # Rows 1 & 2 match KCFU64PZHDGR5; row 5 matches KCUF6A4PZHDBL5 (empty FOB is
+        # tolerated → supplier created without a price). Row 3: NO_SKU, Row 4: NO_MATCH.
+        assert report.rows_matched == 3
 
     def test_quarantine_no_sku(self) -> None:
         report = POFournisseursLoader().run(default_config())
@@ -296,15 +297,36 @@ class TestPOLoaderReport:
         report = POFournisseursLoader().run(default_config())
         assert report.rows_unmatched.get(UnmatchedReason.NO_MATCH, 0) == 1
 
-    def test_quarantine_missing_fob(self) -> None:
+    def test_missing_fob_is_tolerated(self) -> None:
         report = POFournisseursLoader().run(default_config())
-        # Row 5 has a matching product but empty fob_price → INVALID_FORMAT or MISSING_REQUIRED_FIELD
-        total_q = report.rows_quarantined
-        assert total_q == 3  # NO_SKU + NO_MATCH + bad fob
+        # Empty FOB no longer quarantines — only NO_SKU + NO_MATCH remain.
+        assert report.rows_quarantined == 2
 
     def test_quarantine_records_in_db(self) -> None:
         POFournisseursLoader().run(default_config())
-        assert MigrationUnmatched.objects.filter(source_file="po_sample.xlsx").count() == 3
+        assert MigrationUnmatched.objects.filter(source_file="po_sample.xlsx").count() == 2
+
+
+@pytest.mark.django_db(transaction=True)
+class TestPOLoaderCreateMissing:
+    def setup_method(self) -> None:
+        make_product("KCFU64PZHDGR5")
+        make_product("KCUF6A4PZHDBL5")
+        # Row 4 ("UNKNOWNSKU99") absent → would be NO_MATCH without create_missing.
+
+    def test_creates_unmatched_product(self) -> None:
+        report = POFournisseursLoader().run(default_config(create_missing=True))
+        assert report.rows_created == 1
+        assert Product.objects.filter(sku_code="UNKNOWNSKU99").exists()
+        # Only NO_SKU (row 3) remains in quarantine — no SKU to create from.
+        assert report.rows_unmatched.get(UnmatchedReason.NO_MATCH, 0) == 0
+        assert report.rows_quarantined == 1
+
+    def test_without_flag_still_quarantines(self) -> None:
+        report = POFournisseursLoader().run(default_config())
+        assert report.rows_created == 0
+        assert not Product.objects.filter(sku_code="UNKNOWNSKU99").exists()
+        assert report.rows_unmatched.get(UnmatchedReason.NO_MATCH, 0) == 1
 
 
 @pytest.mark.django_db(transaction=True)
@@ -437,7 +459,7 @@ class TestPODryRun:
 
     def test_dry_run_report_matched(self) -> None:
         report = POFournisseursLoader().run(default_config(dry_run=True))
-        assert report.rows_matched == 2
+        assert report.rows_matched == 3  # empty FOB now tolerated (row 5 matches)
         assert report.rows_updated == 0
         assert report.dry_run is True
 

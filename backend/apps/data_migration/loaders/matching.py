@@ -99,6 +99,26 @@ class ProductMatcher:
             len(self._by_factory_category),
         )
 
+    def register(self, product: Product) -> None:
+        """Add a newly-created product to the in-memory indexes (create_missing).
+
+        Keeps the matcher consistent within a run so a later duplicate SKU
+        re-matches the created product instead of creating it twice.
+        """
+        pid: uuid.UUID = product.id
+        if product.sku_code:
+            self._by_sku[product.sku_code.strip().upper()] = pid
+        if product.parent_reference and product.factory_code:
+            key2 = (product.parent_reference.strip().upper(), product.factory_code.strip().upper())
+            self._by_parent_factory.setdefault(key2, []).append(pid)
+        if product.factory_code:
+            cat = self._category_key(
+                product.universe, product.family, product.range, product.sub_range
+            )
+            if cat:
+                key3 = (product.factory_code.strip().upper(), cat)
+                self._by_factory_category.setdefault(key3, []).append(pid)
+
     @staticmethod
     def _category_key(universe: str, family: str, range_: str, sub_range: str) -> str | None:
         """Normalise hierarchy fields into a single comparable key."""

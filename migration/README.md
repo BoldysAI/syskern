@@ -35,6 +35,12 @@ backend container (it resolves to `/migration/sources` there — see
 - `loader` — one of: `po_fournisseurs`, `po_ayp`, `po_infoks`, `po_mirsan`, `technique`.
 - `file` — relative to `sources/` (or absolute).
 - `sheet` / `header_row` — sheet name (or 0-based index) and 0-based header row.
-- `phase` — `enrich` (step 2, default) or `create` (step 3, hors-Odoo).
+- `phase` — `enrich` (step 2, default) or `create` (step 3). **`create` bootstraps
+  the catalog**: `po_fournisseurs` carries the full product definition, so in `create`
+  phase an unmatched row **creates** the product (+ its supplier) instead of going to
+  quarantine. Use `create` for the primary catalog source (UKN `PO & SC`).
+- `create_missing` (optional bool) — override the create behaviour independently of
+  `phase` (e.g. create-and-enrich in one enrich pass). Only loaders that opt in
+  (`po_fournisseurs`) can create.
 
 See `docs/runbooks/migration.md` for the full runbook.

@@ -528,3 +528,28 @@ Correction des 10 erreurs tsc préexistantes qui bloquaient `next build` (issues
 - Résultat : **`tsc` clean + `next build` passe** (20 routes générées). Restent 2 erreurs eslint préexistantes
   (`react-hooks/set-state-in-effect` dans `SimulationTable.tsx` + `simulator/page.tsx`) **non bloquantes** pour le build,
   dans des fichiers non touchés — à corriger séparément (refacto setState-in-effect).
+
+## 2026-07-02 · [P] Migration — mode CREATE (bootstrap catalogue depuis Excel) + suppression offre UI
+Sur réception des vrais Excel client, dry-run `po_fournisseurs` sur `UKN … PO & SC Dec 2026` (en-tête l.12) :
+**725 matchés / 330 quarantaine** (315 `no_match` = produits absents de la base). Constat : les loaders
+**enrichissent seulement** (match SKU → update), ils ne créent pas → sans produits préchargés (Odoo), tout part en
+quarantaine (= la cause « tout en quarantaine » A3). L'étape 3 « créer hors-Odoo » avait été laissée vide (loader à
+écrire à l'arrivée du fichier). Le fichier est arrivé → j'ai ajouté un **mode CREATE générique** :
+- `LoaderConfig.create_missing` + flag CLI `--create-missing` + `LoaderReport.rows_created`. Base loader : attribut
+  opt-in `creates_products` + hook `create_product(row)` ; dans `_process_row_inner`, no-match + `create_missing` +
+  `creates_products` → crée le produit, enrichit, l'enregistre dans le matcher (`ProductMatcher.register`, évite les
+  doublons intra-run). L'orchestrateur route **`phase: create` → `create_missing=True`** (override `create_missing`
+  possible en manifest).
+- `POFournisseursLoader` : `creates_products=True`, `create_product` (crée `Product(sku, name=sku,
+  migration_source=EXCEL_PRICING)`), et **FOB nul toléré** (crée le fournisseur inactif sans prix + note « FOB
+  manquant » au lieu de quarantiner — assouplissement assumé vs le comportement précédent).
+- **Résultat sur données réelles** (run local) : produits **784 → 1089** (~305 créés), quarantaine **330 → 2** ;
+  `product_suppliers` distincts = **Symea, Mirsan, Infoks, Otrans, Honto, HT, KK, SDGI, LY, Wekino…** → **C1 résolu**
+  (le dropdown fournisseur ne montre plus que Symea). Le fichier UKN porte aussi les **paramètres marché** (cuivre base
+  102000, LME USD/EUR, EUR/USD 1.17, EUR/CNY 8.19, fret) — extraction market_parameters = TODO.
+- **Tests** : `test_loader_po_fournisseurs` mis à jour (FOB toléré : matched 2→3, quarantaine 3→2) + 2 tests
+  `create_missing` (crée l'inconnu / sans flag quarantine). **225 tests data_migration verts**, ruff + mypy propres.
+- **Offres — suppression UI** : bouton « Supprimer » sur `/offers/[id]` (confirm destructif + redirect) — le DELETE
+  backend existait mais n'était pas exposé (manque B2 signalé par l'utilisateur).
+- **Fichiers client** copiés dans `migration/sources/` (gitignoré). Reste à mapper : MKT TOOL (technique, format ≠
+  loader actuel), Monthly Copper Evolution (→ market_parameters), LAN cable (par fournisseur), PRICES_LIST/TARIF, RAW MATERIALS.

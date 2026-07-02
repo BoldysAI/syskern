@@ -85,6 +85,15 @@ class BaseLoaderCommand(BaseCommand):
             help="Run without writing to the database.  Prints the report only.",
         )
         parser.add_argument(
+            "--create-missing",
+            action="store_true",
+            default=False,
+            help=(
+                "Create the product for an unmatched row instead of quarantining it "
+                "(only for loaders that carry the full product definition, e.g. po_fournisseurs)."
+            ),
+        )
+        parser.add_argument(
             "--log-level",
             default="INFO",
             choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -110,6 +119,7 @@ class BaseLoaderCommand(BaseCommand):
             header_row=options["header_row"],
             batch_size=options["batch_size"],
             dry_run=options["dry_run"],
+            create_missing=options["create_missing"],
         )
 
         loader = self.loader_class()

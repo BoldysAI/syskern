@@ -73,8 +73,23 @@ docker compose run --rm backend python manage.py load_po_ayp \
 # Real load (drop --dry-run). --sheet = name or 0-based index; --header-row 0-based.
 ```
 
-⚠️ These loaders **enrich existing products** — run the Odoo sync (or a product
-import) first, otherwise every row lands in quarantine as `NO_MATCH` (see below).
+**Bootstrapping the catalog from Excel** (`po_fournisseurs` only): add
+`--create-missing` so unmatched rows **create** the product (the UKN `PO & SC`
+sheet carries the full definition — SKU, hierarchy, descriptions, copper, GTIN,
+HS, supplier). Verified on the real client file: 1055 rows → 748 enriched,
+~305 created, 2 quarantined; suppliers Symea/Mirsan/Infoks/Otrans/HT/… all
+populated.
+
+```bash
+docker compose run --rm -v "$(pwd)/migration/sources:/migration/sources" backend \
+  python manage.py load_po_fournisseurs \
+  --file "/migration/sources/UKN_RANGE_PRICES_..._(avec_copper_adjust).xlsx" \
+  --sheet "PO & SC Dec 2026" --header-row 12 --create-missing
+```
+
+⚠️ Without `--create-missing`, the loaders **enrich existing products only** — run
+the Odoo sync (or bootstrap with `--create-missing` / `phase: create`) first,
+otherwise unmatched rows land in quarantine as `NO_MATCH`.
 
 ## Resume behaviour
 
