@@ -76,5 +76,6 @@ CMD ["sh", "-c", "python manage.py migrate --noinput && \
      --bind 0.0.0.0:8000 \
      --workers ${GUNICORN_WORKERS} \
      --timeout ${GUNICORN_TIMEOUT} \
+     --no-control-socket \
      --access-logfile - \
      --error-logfile -"]
