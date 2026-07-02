@@ -584,3 +584,19 @@ MKT TOOL + TARIF. Per CDC §5.10, elle vit probablement dans un **champ custom O
 connecteur `odoo_prod` n'est pas accessible dans cette session (refusé). Sans cette table, ces 2 fichiers ne sont pas
 rattachables automatiquement (le matching CDC §8.6 est par SKU/factory, pas par code marketing).
 **Prochain build clairement défini** : loader LAN AYP (spec ci-dessus). Fichiers client dans `migration/sources/` (gitignoré).
+
+## 2026-07-02 · [P] Migration — loader LAN AYP (feuille grille de prix par niveau cuivre)
+Extension de `AYPLoader` (`po_ayp`) pour la vraie feuille client `AYP NOV 21 - DEC 25 ¥` (LAN_CABLE), en plus des 2
+anciennes feuilles. `run()` détecte les feuilles présentes (`pd.ExcelFile.sheet_names`) et lance la préparation qui
+correspond → un seul loader gère les deux formats. Nouvelle prep `_prepare_ayp_grid_dataframe` (en-tête l.8) :
+- `ITEM` (col6) = SKU Unikkern **slash-séparés** → une ligne par code (réutilise `_split_odoo_codes`).
+- **Grille de prix par niveau cuivre** (colonnes d'en-tête = 50000…79000+ RMB/t) → `po_base_price` = valeur de la
+  colonne dont l'en-tête == cuivre de base (`_BASE_COPPER=70000`, aligné UKN + CDC §6.4) ; `copper_base_price=70000`
+  posé sur le fournisseur ; `copper_weight` col8 ; `supplier_name="AYP"`, `factory_code="91"`, devise RMB, indexé cuivre.
+- **Résultat sur données réelles** : 14 lignes (codes) → **1 matchée / 13 no_match**. Le faible taux = **réalité données**
+  (les variantes SKU d'AYP, ex. `OEFU64PDT50`, ne sont pas dans le catalogue UKN qui a `OEFU64PXSDWHT…`) — **pas un bug**.
+  Le loader est correct (la ligne matchée reçoit AYP-91 @ 1700 RMB / base 70000, vérifié) et enrichira dès que le
+  catalogue contiendra ces produits (ou après chargement des autres feuilles LAN HT/ZD/LINOYA, layouts à mapper).
+- Tests : `test_loader_ayp_grid.py` (2, fixture grille : match + upsert AYP prix-colonne-70000 + base + cuivre) ;
+  27 tests po_ayp/migration liés verts (227 data_migration au total), ruff + mypy propres (+ fix 1 nit mypy pré-existant
+  dans `_prepare_lan_cu_dataframe`).

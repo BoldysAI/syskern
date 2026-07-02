@@ -62,6 +62,19 @@ _SHEET_CCA = "AYP CAT6 UTP CCA 2026"
 _SHEET_LAN = "AYP LAN CU 2026"
 _HEADER_ROW = 1  # 0-based — Excel row 2
 
+# Real client price-grid sheet (LAN_CABLE_PRICE_LIST). One price column per copper
+# level (RMB/tonne): the PO base price is read from the base-copper column.
+_SHEET_GRID = "AYP NOV 21 - DEC 25 ¥"
+_GRID_HEADER_ROW = 7  # 0-based — Excel row 8
+_BASE_COPPER = 70000  # RMB/tonne — PO reference base (matches UKN + CDC §6.4)
+# Fixed-column positions in the grid sheet (0-based).
+_GRID_COL_CATALOGUE = 1
+_GRID_COL_TYPE = 2
+_GRID_COL_EUROCLASS = 3
+_GRID_COL_PACKING = 4
+_GRID_COL_ITEM = 6
+_GRID_COL_COPPER = 8
+
 _FACTORY_CODE = "91"
 _SUPPLIER_NAME = "AYP"
 _ORIGIN = "China"
@@ -184,13 +197,82 @@ def _prepare_lan_cu_dataframe(file_path: str) -> pd.DataFrame:
 
     out_rows: list[dict[str, object]] = []
     for r in grouped:
-        codes = r.pop("__codes__")
-        for code in codes:
+        item_codes = r.pop("__codes__")
+        assert isinstance(item_codes, list)
+        for code in item_codes:
             row = dict(r)
             row["sku_code"] = code
             out_rows.append(row)
 
     return pd.DataFrame(out_rows) if out_rows else pd.DataFrame(columns=empty_cols)
+
+
+def _prepare_ayp_grid_dataframe(file_path: str, base_copper: int = _BASE_COPPER) -> pd.DataFrame:
+    """Prepare the real client sheet: a price grid keyed by copper level.
+
+    The PO base price is the value in the column whose header equals
+    ``base_copper`` (RMB/tonne). The ``ITEM`` cell may list several slash-
+    separated Unikkern codes → one output row each. ``copper_base_price`` is set
+    so the engine's copper-variation module has its reference.
+    """
+    df, _ = read_sheet(file_path, _SHEET_GRID, _GRID_HEADER_ROW)
+    empty = pd.DataFrame(
+        columns=[
+            "sku_code",
+            "po_price",
+            "po_currency",
+            "copper_kg_km",
+            "copper_base_price",
+            "catalogue",
+            "cable_type",
+            "euroclass",
+            "packing",
+            "__sheet__",
+        ]
+    )
+    if df.shape[1] <= _GRID_COL_COPPER:
+        logger.warning("AYP grid sheet has too few columns — skipping.")
+        return empty
+
+    # Locate the price column whose header equals the base copper level.
+    price_col = None
+    for col in df.columns:
+        try:
+            if int(float(col)) == int(base_copper):
+                price_col = col
+                break
+        except (ValueError, TypeError):
+            continue
+    if price_col is None:
+        logger.warning("AYP grid: no copper column %s found — skipping.", base_copper)
+        return empty
+
+    out_rows: list[dict[str, object]] = []
+    for i in range(len(df)):
+        codes = _split_odoo_codes(df.iloc[i, _GRID_COL_ITEM])
+        if not codes:
+            continue
+        price = pd.to_numeric(df.iloc[i][price_col], errors="coerce")
+        if pd.isna(price):
+            continue
+        cu = pd.to_numeric(df.iloc[i, _GRID_COL_COPPER], errors="coerce")
+        base: dict[str, object] = {
+            "po_price": str(price),
+            "po_currency": Currency.RMB,
+            "copper_kg_km": "" if pd.isna(cu) else str(cu),
+            "copper_base_price": str(base_copper),
+            "catalogue": coerce_str(df.iloc[i, _GRID_COL_CATALOGUE]),
+            "cable_type": coerce_str(df.iloc[i, _GRID_COL_TYPE]),
+            "euroclass": coerce_str(df.iloc[i, _GRID_COL_EUROCLASS]),
+            "packing": coerce_str(df.iloc[i, _GRID_COL_PACKING]),
+            "__sheet__": "ayp_grid",
+        }
+        for code in codes:
+            row = dict(base)
+            row["sku_code"] = code
+            out_rows.append(row)
+
+    return pd.DataFrame(out_rows) if out_rows else empty
 
 
 class AYPLoader(BaseExcelLoader):
@@ -218,29 +300,30 @@ class AYPLoader(BaseExcelLoader):
         )
         matcher = ProductMatcher()
 
-        df_cca = _prepare_cca_dataframe(config.file_path)
-        cfg_cca = LoaderConfig(
-            file_path=config.file_path,
-            sheet_name=_SHEET_CCA,
-            header_row=_HEADER_ROW,
-            batch_size=config.batch_size,
-            dry_run=config.dry_run,
-        )
-        if not df_cca.empty:
-            self._validate_header(df_cca)
-            self._run_dataframe(df_cca, cfg_cca, matcher, report, source_name)
+        # Only run the preparers whose sheet exists in this workbook — the old
+        # AYP file (CCA + LAN CU) and the real client price-grid file are distinct.
+        available = set(pd.ExcelFile(config.file_path).sheet_names)
 
-        df_lan = _prepare_lan_cu_dataframe(config.file_path)
-        cfg_lan = LoaderConfig(
-            file_path=config.file_path,
-            sheet_name=_SHEET_LAN,
-            header_row=_HEADER_ROW,
-            batch_size=config.batch_size,
-            dry_run=config.dry_run,
-        )
-        if not df_lan.empty:
-            self._validate_header(df_lan)
-            self._run_dataframe(df_lan, cfg_lan, matcher, report, source_name)
+        def _cfg(sheet: str, header: int) -> LoaderConfig:
+            return LoaderConfig(
+                file_path=config.file_path,
+                sheet_name=sheet,
+                header_row=header,
+                batch_size=config.batch_size,
+                dry_run=config.dry_run,
+            )
+
+        for sheet, header, prep in (
+            (_SHEET_CCA, _HEADER_ROW, _prepare_cca_dataframe),
+            (_SHEET_LAN, _HEADER_ROW, _prepare_lan_cu_dataframe),
+            (_SHEET_GRID, _GRID_HEADER_ROW, _prepare_ayp_grid_dataframe),
+        ):
+            if sheet not in available:
+                continue
+            df = prep(config.file_path)
+            if not df.empty:
+                self._validate_header(df)
+                self._run_dataframe(df, _cfg(sheet, header), matcher, report, source_name)
 
         report.duration_seconds = time.monotonic() - start
         logger.info("Finished AYPLoader:\n%s", report)
@@ -260,6 +343,9 @@ class AYPLoader(BaseExcelLoader):
         cu_s = coerce_decimal(raw.get("copper_kg_km"))
         copper = Decimal(cu_s) if cu_s else None
 
+        base_s = coerce_decimal(raw.get("copper_base_price"))
+        copper_base = Decimal(base_s) if base_s else None
+
         pqty = coerce_int(raw.get("pallet_qty"))
 
         data: dict[str, object] = {
@@ -267,6 +353,7 @@ class AYPLoader(BaseExcelLoader):
             "po_price": price,
             "po_currency": raw.get("po_currency") or Currency.RMB,
             "copper_kg_km": copper,
+            "copper_base_price": copper_base,
             "pallet_qty": pqty,
             "description_line": _clean_str(raw.get("description_line")),
             "catalogue": _clean_str(raw.get("catalogue")),
@@ -357,6 +444,9 @@ class AYPLoader(BaseExcelLoader):
         supplier.incoterm = _INCOTERM
         supplier.incoterm_location = _ORIGIN
         supplier.is_copper_indexed = is_cu
+        base = d.get("copper_base_price")
+        if is_cu and isinstance(base, Decimal):
+            supplier.copper_base_price = base
         supplier.notes = " | ".join(notes_parts)
         supplier.save()
 
