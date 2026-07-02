@@ -19,7 +19,8 @@ from apps.data_migration.loaders.loader_po_ayp import (
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
-AYP_FIXTURE = FIXTURE_DIR / "ayp_sample.xlsx"
+GEN_DIR = FIXTURE_DIR / "_generated"  # runtime-generated fixtures (gitignored)
+AYP_FIXTURE = GEN_DIR / "ayp_sample.xlsx"
 
 
 def _write_ayp_fixture(path: Path) -> None:
@@ -145,7 +146,7 @@ def _write_ayp_fixture(path: Path) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def ayp_fixture() -> None:
-    FIXTURE_DIR.mkdir(exist_ok=True)
+    GEN_DIR.mkdir(parents=True, exist_ok=True)
     _write_ayp_fixture(AYP_FIXTURE)
 
 

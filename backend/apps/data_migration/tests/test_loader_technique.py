@@ -34,7 +34,8 @@ from apps.data_migration.models import MigrationUnmatched, UnmatchedReason
 from apps.products.models import MigrationSource, Product
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
-TECH_FIXTURE = FIXTURE_DIR / "technique_sample.xlsx"
+GEN_DIR = FIXTURE_DIR / "_generated"  # runtime-generated fixtures (gitignored)
+TECH_FIXTURE = GEN_DIR / "technique_sample.xlsx"
 
 # ─── Fixture generation ───────────────────────────────────────────────────────
 
@@ -307,7 +308,7 @@ def generate_technique_fixture(path: Path) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def create_technique_fixture() -> None:
-    FIXTURE_DIR.mkdir(exist_ok=True)
+    GEN_DIR.mkdir(parents=True, exist_ok=True)
     generate_technique_fixture(TECH_FIXTURE)
 
 

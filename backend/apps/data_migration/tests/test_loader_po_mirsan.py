@@ -23,7 +23,8 @@ from apps.data_migration.loaders.loader_po_mirsan import (
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
-MIRSAN_FIXTURE = FIXTURE_DIR / "mirsan_sample.xlsx"
+GEN_DIR = FIXTURE_DIR / "_generated"  # runtime-generated fixtures (gitignored)
+MIRSAN_FIXTURE = GEN_DIR / "mirsan_sample.xlsx"
 
 # ─── Fixture generation ───────────────────────────────────────────────────────
 
@@ -240,7 +241,7 @@ def _generate_mirsan_fixture(path: Path) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def create_mirsan_fixture() -> None:
-    FIXTURE_DIR.mkdir(exist_ok=True)
+    GEN_DIR.mkdir(parents=True, exist_ok=True)
     _generate_mirsan_fixture(MIRSAN_FIXTURE)
 
 

@@ -18,7 +18,8 @@ from apps.data_migration.loaders.types import LoaderConfig
 from apps.products.models import MigrationSource, Product, ProductSupplier
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
-GRID_FIXTURE = FIXTURE_DIR / "ayp_grid_sample.xlsx"
+GEN_DIR = FIXTURE_DIR / "_generated"  # runtime-generated fixtures (gitignored)
+GRID_FIXTURE = GEN_DIR / "ayp_grid_sample.xlsx"
 
 
 def _write_grid_fixture(path: Path) -> None:
@@ -65,7 +66,7 @@ def _write_grid_fixture(path: Path) -> None:
     )
     # A row whose ITEM is "-" → skipped.
     ws.append(["CAT6", "CAT6", "F/UTP", "Dca", "500M", 6.4, "-", "90m", 16.8, 12.8, 1, 1, 1])
-    FIXTURE_DIR.mkdir(exist_ok=True)
+    GEN_DIR.mkdir(parents=True, exist_ok=True)
     wb.save(path)
 
 

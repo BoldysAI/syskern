@@ -80,3 +80,5 @@ migration/manifest.json
 
 .agents/
 .claude/
+# Runtime-generated test fixtures (written by the loader tests' autouse fixtures)
+backend/apps/data_migration/tests/fixtures/_generated/

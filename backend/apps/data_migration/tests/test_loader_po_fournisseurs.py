@@ -32,6 +32,7 @@ from apps.products.models import (
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
+GEN_DIR = FIXTURE_DIR / "_generated"  # runtime-generated fixtures (gitignored)
 
 # ─── Fixture generation ───────────────────────────────────────────────────────
 
@@ -239,12 +240,12 @@ def generate_po_fixture(path: Path) -> None:
     wb.save(path)
 
 
-PO_FIXTURE = FIXTURE_DIR / "po_sample.xlsx"
+PO_FIXTURE = GEN_DIR / "po_sample.xlsx"
 
 
 @pytest.fixture(scope="module", autouse=True)
 def create_po_fixture() -> None:
-    FIXTURE_DIR.mkdir(exist_ok=True)
+    GEN_DIR.mkdir(parents=True, exist_ok=True)
     generate_po_fixture(PO_FIXTURE)
 
 
