@@ -27,7 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { DocumentPicker } from "@/components/DocumentPicker";
+import { OfferCoverageWarning } from "@/components/OfferCoverageWarning";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +166,7 @@ function TariffWizard() {
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [currency, setCurrency] = useState("EUR");
   const [language, setLanguage] = useState("fr");
+  const [languagePerClient, setLanguagePerClient] = useState(false);
   const [expiration, setExpiration] = useState("");
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
   const [label, setLabel] = useState("");
@@ -244,6 +247,7 @@ function TariffWizard() {
           columns: selectedColumnKeys,
           target_currency: currency,
           language,
+          language_per_client: languagePerClient,
           expiration_date: expiration,
           label,
           attached_document_ids: attachedDocIds,
@@ -364,17 +368,31 @@ function TariffWizard() {
 
         {step === 3 && (
           <Section title="Langue de l'offre">
-            <div className="flex gap-3">
-              {LANGUAGES.map((l) => (
-                <Button
-                  key={l.code}
-                  type="button"
-                  variant={language === l.code ? "default" : "outline"}
-                  onClick={() => setLanguage(l.code)}
-                >
-                  {l.label}
-                </Button>
-              ))}
+            <div className="flex flex-col gap-4">
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card/40 p-3">
+                <div>
+                  <span className="text-sm font-medium text-foreground">
+                    Langue par client (automatique)
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    Chaque offre utilise la langue préférée du client. Sinon, choisis une langue
+                    unique ci-dessous (repli).
+                  </p>
+                </div>
+                <Switch checked={languagePerClient} onCheckedChange={setLanguagePerClient} />
+              </label>
+              <div className="flex gap-3">
+                {LANGUAGES.map((l) => (
+                  <Button
+                    key={l.code}
+                    type="button"
+                    variant={language === l.code ? "default" : "outline"}
+                    onClick={() => setLanguage(l.code)}
+                  >
+                    {l.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </Section>
         )}
@@ -399,6 +417,14 @@ function TariffWizard() {
               <FormField label="Documents joints (bibliothèque)">
                 <DocumentPicker selected={attachedDocIds} onChange={setAttachedDocIds} />
               </FormField>
+              <OfferCoverageWarning
+                simulationId={simulationId}
+                body={
+                  languagePerClient
+                    ? { client_ids: selectedClientIds, language_per_client: true }
+                    : { language }
+                }
+              />
               <p className="text-xs text-muted-foreground">
                 {selectedClientIds.length} offre(s) · {selectedColumnKeys.length} colonne(s) ·{" "}
                 {currency} · {language.toUpperCase()}

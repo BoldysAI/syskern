@@ -26,13 +26,20 @@ from .models import Product, ProductSupplier
 from .ordering import ProductOrderingFilter
 from .serializers import (
     BulkLookupSerializer,
+    BulkTranslateSerializer,
     ProductDetailSerializer,
     ProductListSerializer,
     ProductSupplierSerializer,
     ProductWriteSerializer,
 )
 from .services.sku_parser import parse_sku
-from .tasks import EXPORT_DIR, export_products_task, refresh_pamp_task, translate_product_task
+from .tasks import (
+    EXPORT_DIR,
+    bulk_translate_products_task,
+    export_products_task,
+    refresh_pamp_task,
+    translate_product_task,
+)
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -232,6 +239,29 @@ class ProductViewSet(viewsets.ModelViewSet):
         result = translate_product_task.delay(str(product.pk), target)
         return Response(
             {"task_id": result.id, "status": "PENDING"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    # ── /api/products/bulk-translate (CDC §10.3.2) ───────────────────────────
+
+    @action(detail=False, methods=["post"], url_path="bulk-translate")
+    def bulk_translate(self, request):
+        """Translate several products' descriptions via DeepL (async, CDC §10.3.2).
+
+        Returns 202 with `task_id`; client polls `/api/tasks/{task_id}/` and reads
+        `progress` ({current, total}) to render a progress bar.
+        """
+        ser = BulkTranslateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        task = bulk_translate_products_task.delay(
+            [str(i) for i in data["ids"]],
+            data["source_lang"],
+            data["target_langs"],
+            data.get("content_fields") or ["marketing", "technical"],
+        )
+        return Response(
+            {"task_id": task.id, "status": "PENDING", "product_count": len(data["ids"])},
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -460,7 +490,24 @@ class CatalogFilterBoundsView(APIView):
     current facet context, not the active range selection.
     """
 
-    _IGNORED_PARAMS = frozenset({"pamp_min", "pamp_max", "stock_min", "page", "limit", "offset", "ordering"})
+    _IGNORED_PARAMS = frozenset(
+        {
+            "pamp_min",
+            "pamp_max",
+            "stock_min",
+            "page",
+            "limit",
+            "offset",
+            "ordering",
+            "i18n_incomplete",
+            "lang_fr_in",
+            "lang_fr_out",
+            "lang_en_in",
+            "lang_en_out",
+            "lang_es_in",
+            "lang_es_out",
+        }
+    )
 
     def get(self, request):
         from django.db.models import Max, Min

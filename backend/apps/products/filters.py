@@ -45,6 +45,16 @@ class ProductFilter(filters.FilterSet):
     in_stock = filters.BooleanFilter(method="filter_in_stock")
     stock_min = filters.NumberFilter(field_name="stock_quantity", lookup_expr="gte")
 
+    # Multilingual coverage — `true` keeps products missing at least one language
+    # (< 100% coverage) so Olivier can spot untranslated SKUs (CDC §10.7.3).
+    i18n_incomplete = filters.BooleanFilter(method="filter_i18n_incomplete")
+    lang_fr_in = filters.BooleanFilter(method="filter_lang_fr_in")
+    lang_fr_out = filters.BooleanFilter(method="filter_lang_fr_out")
+    lang_en_in = filters.BooleanFilter(method="filter_lang_en_in")
+    lang_en_out = filters.BooleanFilter(method="filter_lang_en_out")
+    lang_es_in = filters.BooleanFilter(method="filter_lang_es_in")
+    lang_es_out = filters.BooleanFilter(method="filter_lang_es_out")
+
     class Meta:
         model = Product
         fields = [
@@ -113,6 +123,44 @@ class ProductFilter(filters.FilterSet):
         if value:
             return queryset.filter(stock_quantity__gt=0)
         return queryset.filter(stock_quantity__lte=0) | queryset.filter(stock_quantity__isnull=True)
+
+    @staticmethod
+    def _lang_covered_q(lang: str) -> Q:
+        """Non-empty marketing or technical description in ``lang``."""
+        return (
+            Q(**{f"description_marketing__{lang}__isnull": False})
+            & ~Q(**{f"description_marketing__{lang}": ""})
+        ) | (
+            Q(**{f"description_technical__{lang}__isnull": False})
+            & ~Q(**{f"description_technical__{lang}": ""})
+        )
+
+    def filter_i18n_incomplete(self, queryset, name, value: bool):
+        """Keep products whose multilingual coverage is < 100% (CDC §10.7.3)."""
+        if value is None:
+            return queryset
+        complete = (
+            self._lang_covered_q("fr") & self._lang_covered_q("en") & self._lang_covered_q("es")
+        )
+        return queryset.exclude(complete) if value else queryset.filter(complete)
+
+    def filter_lang_fr_in(self, queryset, name, value: bool):
+        return queryset.filter(self._lang_covered_q("fr")) if value else queryset
+
+    def filter_lang_fr_out(self, queryset, name, value: bool):
+        return queryset.exclude(self._lang_covered_q("fr")) if value else queryset
+
+    def filter_lang_en_in(self, queryset, name, value: bool):
+        return queryset.filter(self._lang_covered_q("en")) if value else queryset
+
+    def filter_lang_en_out(self, queryset, name, value: bool):
+        return queryset.exclude(self._lang_covered_q("en")) if value else queryset
+
+    def filter_lang_es_in(self, queryset, name, value: bool):
+        return queryset.filter(self._lang_covered_q("es")) if value else queryset
+
+    def filter_lang_es_out(self, queryset, name, value: bool):
+        return queryset.exclude(self._lang_covered_q("es")) if value else queryset
 
     @staticmethod
     def _filter_csv_iexact(queryset, field: str, value: str):

@@ -35,6 +35,23 @@ def offer_export_path(offer_id) -> Path:
     return EXPORT_DIR / f"{offer_id}.xlsx"
 
 
+def _log_language_fallbacks(products, target_lang: str, *, offer_ref: str) -> int:
+    """Log products emitted in FR because the target language is missing (§10.5.1)."""
+    from .services.offer_i18n import products_missing_language
+
+    missing = products_missing_language(list(products), target_lang)
+    if missing:
+        skus = ", ".join(p.sku_code for p in missing[:20])
+        logger.info(
+            "Offer %s (lang=%s): %d product(s) fall back to FR — %s",
+            offer_ref,
+            target_lang,
+            len(missing),
+            skus,
+        )
+    return len(missing)
+
+
 @shared_task(name="offers.generate_tariff_offers_task", soft_time_limit=120, time_limit=180)
 def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
     """Generate one tariff offer (+ Excel) per client from a finalized simulation.
@@ -57,12 +74,14 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
     expiration = params.get("expiration_date")
     valid_to = date.fromisoformat(expiration) if expiration else None
     columns = params.get("columns") or None
-    lang = params.get("language") or "fr"
+    default_lang = params.get("language") or "fr"
+    per_client_lang = params.get("language_per_client", False)
     incoterm = params.get("incoterm") or "EXW"
     base_label = params.get("label") or simulation.label
 
     # Only priced lines feed an offer (final_price is NOT NULL).
     priced_lines = [ln for ln in simulation.lines.all() if ln.pv_eur is not None]
+    line_products = [ln.product for ln in priced_lines]
 
     clients = {str(c.id): c for c in Client.objects.filter(id__in=params["client_ids"])}
 
@@ -72,6 +91,15 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
     for client_id in params["client_ids"]:
         client = clients.get(str(client_id))
         client_label = client.name if client else str(client_id)
+
+        # Target language: the client's preference when requested, else the
+        # wizard language (CDC §10.5).
+        lang = default_lang
+        if per_client_lang and client and client.preferred_language:
+            lang = client.preferred_language
+
+        # Log products that will fall back to FR in the target language (§10.5.1).
+        _log_language_fallbacks(line_products, lang, offer_ref=f"tariff/{client_label}")
 
         with transaction.atomic():
             offer = Offer.objects.create(
@@ -166,12 +194,16 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
 
     client = Client.objects.get(pk=params["client_id"])
     expiration = params.get("expiration_date")
+    lang = params.get("language") or "fr"
+    _log_language_fallbacks(
+        [ln.product for ln in simulation.lines.all()], lang, offer_ref=f"project/{client.name}"
+    )
     offer = create_project_offer(
         simulation=simulation,
         client=client,
         project_name=params["project_name"],
         quantities=params.get("quantities") or {},
-        language=params.get("language") or "fr",
+        language=lang,
         expiration_date=date.fromisoformat(expiration) if expiration else None,
         ai_instructions=params.get("ai_instructions") or "",
         sections_config=params.get("sections_config"),

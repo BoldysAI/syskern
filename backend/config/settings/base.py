@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.documents",
     "apps.odoo_sync",
     "apps.data_migration",
+    "apps.i18n",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -212,9 +213,22 @@ GAMMA = {
     "API_KEY": env("GAMMA_API_KEY", default=""),
     "TEMPLATE_ID_DEVIS_PROJET": env("GAMMA_TEMPLATE_ID_DEVIS_PROJET", default=""),
     "TEMPLATE_ID_CATALOGUE_TARIFE": env("GAMMA_TEMPLATE_ID_CATALOGUE_TARIFE", default=""),
+    # Set false only on dev/staging when Python cannot validate public CAs (macOS native).
+    "VERIFY_TLS": env.bool("GAMMA_VERIFY_TLS", default=True),
 }
 
 DEEPL_API_KEY = env("DEEPL_API_KEY", default="")
+# Optional override (e.g. https://api-free.deepl.com/v2). When unset, Pro vs Free is
+# inferred from the key suffix (:fx → api-free.deepl.com).
+DEEPL_API_URL = env("DEEPL_API_URL", default="")
+# Translation cache TTL (CDC §10.4.3) and DeepL auth-failure alert recipients
+# (CDC §10.4.4). The cache is a dedicated table (apps.i18n.TranslationCache);
+# deviation from the JSONB-only cache is documented in decisions.md.
+TRANSLATION_CACHE_TTL_DAYS = env.int("TRANSLATION_CACHE_TTL_DAYS", default=90)
+TRANSLATION_AUTH_ALERT_RECIPIENTS = env.list(
+    "TRANSLATION_AUTH_ALERT_RECIPIENTS",
+    default=["yassine@boldys.ai", "karim@boldys.ai"],
+)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 # Model for offer copy generation (CDC §7.6.1) — overridable per the evolving
 # model landscape (Annexe Technique §3.6).

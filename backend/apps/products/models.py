@@ -14,6 +14,9 @@ SKU_VALIDATOR = RegexValidator(
     message="SKU must contain only uppercase letters, digits and dashes.",
 )
 
+# Content languages tracked for the multilingual coverage indicator (CDC §10.7.3).
+CONTENT_LANGUAGES = ("fr", "en", "es")
+
 
 class BaseUnit(models.TextChoices):
     UNIT = "unit", "Unit"
@@ -159,6 +162,28 @@ class Product(BaseModel):
         if fr:
             return fr
         return self.name or self.sku_code
+
+    @property
+    def i18n_coverage(self) -> dict:
+        """Multilingual coverage of the product content (CDC §10.7.3).
+
+        A language counts as covered when at least one description field
+        (marketing or technical) holds non-empty text in that language.
+        Returns ``{languages, percent, complete}`` for the catalog indicator.
+        """
+        marketing = self.description_marketing or {}
+        technical = self.description_technical or {}
+        languages = [
+            lang
+            for lang in CONTENT_LANGUAGES
+            if (marketing.get(lang) or "").strip() or (technical.get(lang) or "").strip()
+        ]
+        total = len(CONTENT_LANGUAGES)
+        return {
+            "languages": languages,
+            "percent": round(100 * len(languages) / total),
+            "complete": len(languages) == total,
+        }
 
     def __str__(self) -> str:
         return f"{self.sku_code} — {self.name}"

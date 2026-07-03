@@ -66,6 +66,20 @@ async function dispatchAndPoll<T>(
   return pollTask<T>(dispatch.task_id, pollOpts);
 }
 
+/** Single snapshot of a Celery task's state (with optional progress). */
+export interface TaskStatus<T> {
+  task_id: string;
+  status: string;
+  result?: T;
+  error?: string;
+  progress?: { current: number; total: number };
+}
+
+/** Fetch a Celery task's current state (for custom progress-aware polling). */
+export function getTaskStatus<T>(taskId: string): Promise<TaskStatus<T>> {
+  return apiFetch<TaskStatus<T>>(`/api/tasks/${encodeURIComponent(taskId)}/`);
+}
+
 /** Catalog sidebar filter state (multi-select, persisted in localStorage). */
 export interface CatalogFilters {
   /** Full-text search (Postgres tsvector, FR + simple). */
@@ -88,6 +102,15 @@ export interface CatalogFilters {
   /** PAMP price range (EUR). */
   pamp_min?: number | null;
   pamp_max?: number | null;
+  /** Keep only products with < 100% multilingual coverage (CDC §10.7.3). */
+  i18n_incomplete?: boolean;
+  /** Per-language content filters (marketing or technical description non-empty). */
+  lang_fr_in?: boolean;
+  lang_fr_out?: boolean;
+  lang_en_in?: boolean;
+  lang_en_out?: boolean;
+  lang_es_in?: boolean;
+  lang_es_out?: boolean;
   /** Dynamic attribute filters, keyed by attribute code (value or values). */
   attrs?: Record<string, string | string[] | undefined>;
 }
@@ -129,6 +152,13 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
   if (filters.pamp_max != null && filters.pamp_max > 0) {
     params.pamp_max = String(filters.pamp_max);
   }
+  if (filters.i18n_incomplete) params.i18n_incomplete = "true";
+  if (filters.lang_fr_in) params.lang_fr_in = "true";
+  if (filters.lang_fr_out) params.lang_fr_out = "true";
+  if (filters.lang_en_in) params.lang_en_in = "true";
+  if (filters.lang_en_out) params.lang_en_out = "true";
+  if (filters.lang_es_in) params.lang_es_in = "true";
+  if (filters.lang_es_out) params.lang_es_out = "true";
   for (const [code, raw] of Object.entries(filters.attrs ?? {})) {
     if (raw == null) continue;
     const v = Array.isArray(raw) ? raw.join(",") : String(raw);
@@ -188,7 +218,16 @@ export interface Product {
   stock_quantity?: string;
   /** List endpoint returns the active supplier name as a plain string */
   active_supplier?: string;
+  /** Multilingual coverage of the product content (CDC §10.7.3). */
+  i18n_coverage?: I18nCoverage;
   updated_at?: string;
+}
+
+/** Multilingual coverage summary attached to product payloads. */
+export interface I18nCoverage {
+  languages: string[];
+  percent: number;
+  complete: boolean;
 }
 
 /** Full shape returned by the detail endpoint */
@@ -755,6 +794,64 @@ export function translateProduct(sku: string, targetLang: "en" | "es"): Promise<
     { method: "POST", body: JSON.stringify({ target_lang: targetLang }) },
     { timeoutMs: 60_000 },
   );
+}
+
+/** Result payload of the bulk product-translation task (CDC §10.3.2). */
+export interface BulkTranslateResult {
+  product_count: number;
+  processed: number;
+  translated_fields: number;
+  skipped: string[];
+}
+
+/** Dispatch the bulk product-translation Celery task; returns the task id. */
+export function startBulkTranslate(body: {
+  ids: string[];
+  source_lang?: string;
+  target_langs: string[];
+  content_fields?: string[];
+}): Promise<{ task_id: string; product_count: number }> {
+  return apiFetch("/api/products/bulk-translate/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** One product missing content in an offer's target language(s) (CDC §10.5.1). */
+export interface OfferCoverageProduct {
+  id: string;
+  sku_code: string;
+  designation: string;
+  missing_langs: string[];
+}
+
+export interface OfferCoverage {
+  languages: string[];
+  products: OfferCoverageProduct[];
+  product_ids: string[];
+}
+
+/** Pre-generation i18n coverage check for an offer's target language(s). */
+export function checkOfferCoverage(
+  simulationId: string,
+  body: { language?: string; client_ids?: string[]; language_per_client?: boolean },
+): Promise<OfferCoverage> {
+  return apiFetch<OfferCoverage>(
+    `/api/simulations/${encodeURIComponent(simulationId)}/offer-coverage-check/`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** Translate a single string on the fly via DeepL + cache (CDC §10.4.2). */
+export function translateText(
+  text: string,
+  targetLang: "fr" | "en" | "es",
+  sourceLang: "fr" | "en" | "es" = "fr",
+): Promise<{ translated_text: string; from_cache: boolean }> {
+  return apiFetch<{ translated_text: string; from_cache: boolean }>("/api/translate", {
+    method: "POST",
+    body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang }),
+  });
 }
 
 /** Partially update a product's core fields (CDC §4.3 — édition en place). */

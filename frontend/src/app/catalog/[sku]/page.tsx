@@ -23,7 +23,6 @@ import {
   getProductAttributes,
   refreshPamp,
   setProductAttribute,
-  translateProduct,
   updateProduct,
   type AttributeCategory,
   type AttributeRegistry,
@@ -267,7 +266,6 @@ function ProductPageContent() {
   const [fieldValidity, setFieldValidity] = useState<Record<string, boolean>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [recalcing, setRecalcing] = useState(false);
-  const [translating, setTranslating] = useState<"en" | "es" | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const editing = manualEditing ?? (wantEdit && userCanEdit && Boolean(product));
@@ -462,22 +460,6 @@ function ProductPageContent() {
     }
   };
 
-  const handleTranslate = useCallback(
-    async (lang: "en" | "es") => {
-      if (!decodedSku) return;
-      setTranslating(lang);
-      try {
-        const updated = await translateProduct(decodedSku, lang);
-        await mutate(productKey, updated, { revalidate: false });
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Échec de la traduction");
-      } finally {
-        setTranslating(null);
-      }
-    },
-    [decodedSku, mutate, productKey],
-  );
-
   const editContext: EditContextValue | null = useMemo(() => {
     if (!product) return null;
     return {
@@ -603,10 +585,10 @@ function ProductPageContent() {
 
                 <div className="mt-4">
                   <TabsContent value="general">
-                    <GeneralTab onTranslate={handleTranslate} translating={translating} />
+                    <GeneralTab />
                   </TabsContent>
                   <TabsContent value="technical">
-                    <TechnicalTab onTranslate={handleTranslate} translating={translating} />
+                    <TechnicalTab />
                   </TabsContent>
                   <TabsContent value="marketing">
                     <MarketingTab />

@@ -12,6 +12,7 @@ import {
   Package,
   Star,
   Tag,
+  Translate,
   Trash,
   TreeStructure,
 } from "@phosphor-icons/react";
@@ -49,6 +50,12 @@ interface CatalogSidebarProps {
   onDeleteFilter: (id: string) => void;
   className?: string;
 }
+
+const LANG_CONTENT_FILTERS = [
+  { code: "fr", label: "Français", inKey: "lang_fr_in", outKey: "lang_fr_out" },
+  { code: "en", label: "Anglais", inKey: "lang_en_in", outKey: "lang_en_out" },
+  { code: "es", label: "Español", inKey: "lang_es_in", outKey: "lang_es_out" },
+] as const;
 
 export function CatalogSidebar({
   filters,
@@ -137,6 +144,14 @@ export function CatalogSidebar({
     if (Array.isArray(v)) return n + v.length;
     return v ? n + 1 : n;
   }, 0);
+
+  const langCount =
+    (filters.i18n_incomplete ? 1 : 0) +
+    LANG_CONTENT_FILTERS.reduce((n, lang) => {
+      const withContent = filters[lang.inKey as keyof CatalogFilters];
+      const withoutContent = filters[lang.outKey as keyof CatalogFilters];
+      return n + (withContent ? 1 : 0) + (withoutContent ? 1 : 0);
+    }, 0);
 
   return (
     <div className={cn("flex flex-col", className)}>
@@ -264,6 +279,62 @@ export function CatalogSidebar({
               unit="u."
             />
           )}
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Langues" icon={Translate} activeCount={langCount}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/40 p-3">
+            <Label htmlFor="lang-incomplete" className="text-sm font-medium">
+              Au moins une langue manquante
+            </Label>
+            <Switch
+              id="lang-incomplete"
+              checked={!!filters.i18n_incomplete}
+              onCheckedChange={(checked) => patch({ i18n_incomplete: checked || undefined })}
+            />
+          </div>
+
+          {LANG_CONTENT_FILTERS.map((lang) => (
+            <div
+              key={lang.code}
+              className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {lang.label}
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor={`${lang.code}-in`} className="text-sm font-medium">
+                  Avec contenu
+                </Label>
+                <Switch
+                  id={`${lang.code}-in`}
+                  checked={!!filters[lang.inKey as keyof CatalogFilters]}
+                  onCheckedChange={(checked) =>
+                    patch({
+                      [lang.inKey]: checked || undefined,
+                      ...(checked ? { [lang.outKey]: undefined } : {}),
+                    } as Partial<CatalogFilters>)
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor={`${lang.code}-out`} className="text-sm font-medium">
+                  Sans contenu
+                </Label>
+                <Switch
+                  id={`${lang.code}-out`}
+                  checked={!!filters[lang.outKey as keyof CatalogFilters]}
+                  onCheckedChange={(checked) =>
+                    patch({
+                      [lang.outKey]: checked || undefined,
+                      ...(checked ? { [lang.inKey]: undefined } : {}),
+                    } as Partial<CatalogFilters>)
+                  }
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </FilterSection>
 

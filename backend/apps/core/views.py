@@ -95,7 +95,8 @@ def task_status(_request: Request, task_id: str) -> Response:
     elif r.failed():
         info = r.info
         body["error"] = str(info) if info is not None else "Tâche échouée"
-    elif r.status == "STARTED" and isinstance(r.info, dict):
+    elif isinstance(r.info, dict):
+        # Non-terminal states (STARTED, custom PROGRESS) carry {current, total}.
         body["progress"] = r.info
     return Response(body)
 

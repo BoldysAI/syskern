@@ -3,12 +3,7 @@
 import { AttributeSection } from "./AttributeSection";
 import { DescriptionsEditor } from "./DescriptionsEditor";
 
-interface TechnicalTabProps {
-  onTranslate: (lang: "en" | "es") => void;
-  translating: "en" | "es" | null;
-}
-
-export function TechnicalTab({ onTranslate, translating }: TechnicalTabProps) {
+export function TechnicalTab() {
   return (
     <div className="flex flex-col gap-6">
       <AttributeSection
@@ -16,12 +11,7 @@ export function TechnicalTab({ onTranslate, translating }: TechnicalTabProps) {
         title="Attributs techniques"
         emptyLabel="Aucun attribut technique défini pour ce produit."
       />
-      <DescriptionsEditor
-        which="technical"
-        title="Descriptions techniques"
-        onTranslate={onTranslate}
-        translating={translating}
-      />
+      <DescriptionsEditor which="technical" title="Descriptions techniques" />
     </div>
   );
 }

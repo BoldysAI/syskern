@@ -17,6 +17,32 @@ class BulkLookupSerializer(serializers.Serializer):
     )
 
 
+_LANG_CHOICES = ["fr", "en", "es"]
+_CONTENT_FIELD_CHOICES = ["marketing", "technical"]
+
+
+class BulkTranslateSerializer(serializers.Serializer):
+    """Body for `POST /api/products/bulk-translate` (CDC §10.3.2)."""
+
+    ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False, max_length=1000)
+    source_lang = serializers.ChoiceField(choices=_LANG_CHOICES, default="fr")
+    target_langs = serializers.ListField(
+        child=serializers.ChoiceField(choices=_LANG_CHOICES), allow_empty=False
+    )
+    content_fields = serializers.ListField(
+        child=serializers.ChoiceField(choices=_CONTENT_FIELD_CHOICES), required=False
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        targets = [lang for lang in attrs["target_langs"] if lang != attrs["source_lang"]]
+        if not targets:
+            raise serializers.ValidationError(
+                "Au moins une langue cible différente de la source est requise."
+            )
+        attrs["target_langs"] = targets
+        return attrs
+
+
 class ProductSupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductSupplier
@@ -43,6 +69,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     """Compact representation used in the catalog table."""
 
     active_supplier = serializers.SerializerMethodField()
+    i18n_coverage = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -60,6 +87,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "pamp_eur",
             "is_active",
             "active_supplier",
+            "i18n_coverage",
             "updated_at",
         )
 
@@ -70,11 +98,15 @@ class ProductListSerializer(serializers.ModelSerializer):
                 return s.supplier_name
         return ""
 
+    def get_i18n_coverage(self, obj: Product) -> dict:
+        return obj.i18n_coverage
+
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     """Full product payload used by the detail view."""
 
     suppliers = ProductSupplierSerializer(many=True, read_only=True)
+    i18n_coverage = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -86,6 +118,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             "odoo_last_sync_at",
             "pamp_synced_at",
         )
+
+    def get_i18n_coverage(self, obj: Product) -> dict:
+        return obj.i18n_coverage
 
 
 class ProductWriteSerializer(serializers.ModelSerializer):

@@ -633,3 +633,50 @@ committer les 2 Excel requis dans le repo** (privé `BoldysAI/syskern`) plutôt 
   Alternative propre conservée = le volume (option 2 du runbook migration).
 - Tests : `test_bootstrap_catalog` maj (no-op pointe `BASE_DIR` sur un tmp vide) + `test_falls_back_to_baked_in_sources_dir`
   (résolution du fallback baked-in) — 4 verts, ruff + format propres.
+
+## 2026-07-02 · [P] i18n — table `translation_cache` dédiée (écart CDC §10.4.3)
+Le CDC §10.4.3 dit « pas de cache applicatif Redis ou mémoire en MVP1 ; le cache est porté implicitement par les champs
+JSONB produit ». Le ticket i18n demande une **table dédiée `translation_cache`** (hash unique de `source|src|tgt`, TTL
+90 j, `hit_count`, cron de purge). Décision (instruction dev explicite, source §2) : **implémenter la table** dans une
+nouvelle app **`apps/i18n`** (label `app_i18n`, `db_table="translation_cache"`). Elle sert le endpoint générique
+`POST /api/translate` (tout contenu : descriptions produit, libellés d'attribut). Le cache JSONB des fiches produit
+**reste** la source des descriptions (non supprimé) — la table est une couche additionnelle, pas un remplacement. Une
+table BDD reste « la base », donc pas de contradiction dure avec « pas de Redis/mémoire ». TTL via
+`TRANSLATION_CACHE_TTL_DAYS` (défaut 90), purge = Beat `i18n.purge_translation_cache` (03:30 UTC, migration
+`app_i18n/0002`).
+
+## 2026-07-02 · [P] i18n — `POST /api/translate` synchrone (écart règle d'or §4)
+La règle d'or §4 impose « tout I/O externe = tâche Celery (202 + polling) ». Le CDC §10.4.2 conçoit pourtant
+`/api/translate` comme **synchrone** (retour inline `translated_text` + `from_cache`), et le bouton « Traduire depuis FR »
+du `MultilingualField` a besoin d'une réponse immédiate. Décision : `/api/translate` (chaîne unique **et** petit batch,
+cap 50) est **synchrone** — appel borné (timeout 10 s, retry ×2, cache read-through). La **traduction bulk multi-produits**
+(`POST /api/products/bulk-translate`) reste **async Celery** (202 + `progress`). Écart assumé, limité au cas court/caché.
+
+## 2026-07-02 · [P] i18n — client DeepL conservé dans `apps/offers/services/translation.py`
+Le ticket situe le client dans `app/clients/deepl.py`. La convention repo (`integrations.md`) place les 3 clients HTTP
+externes dans `apps/offers/services/`. Décision : **étendre le `DeepLClient` existant sur place** (ajout `translate_batch`,
+retry ×2 sur 5xx, gestion 503 → `TranslationUnavailableError`, limite 5000 car. → `TranslationInputError`, alerte email
+sur 401/403 → `yassine@boldys.ai`/`karim@boldys.ai` via `TRANSLATION_AUTH_ALERT_RECIPIENTS`). `apps.i18n.services`
+importe ce client. Pas de nouveau chemin `app/clients/`.
+
+## 2026-07-02 · [P] Offres — langue tarifaire résolue par client
+Le wizard tarif appliquait **une** langue à toutes les offres clients. Le CDC §10.5 (+ ticket) veut « 1 offre par client,
+langue = `client.language` (ou choix wizard) ». Décision : `GenerateTariffOffersSerializer.language_per_client` (bool,
+défaut `false`) ; quand `true`, `generate_tariff_offers_task` résout `lang = client.preferred_language or language or "fr"`
+**par client**. Le wizard projet pré-remplit la langue avec `client.preferred_language` (surchargeable). Helper
+`apps/offers/services/offer_i18n.resolve_product_description` (§10.5.1, fallback FR + `fallback_used`) + log des replis à
+la génération. Endpoint pré-génération `POST /api/simulations/{id}/offer-coverage-check` → produits sans contenu cible ;
+UI wizard : warning + bouton « Traduire automatiquement » (bulk translate puis re-check).
+
+## 2026-07-02 · [P] i18n — notes fournisseur multilingues reportées
+Le ticket listait les **notes fournisseur** comme usage du `MultilingualField`. `ProductSupplier.notes` est un `TextField`
+mono-langue ; le rendre multilingue impose une migration modèle + data-migration. Décision (validée) : **hors scope** de
+ce lot — `MultilingualField` appliqué aux **descriptions produit** (marketing/technique) et aux **libellés d'attribut**
+(déjà JSONB). « Notes fournisseur multilingues » = reste-à-faire si le besoin se confirme.
+
+## 2026-07-02 · [P] DeepL — auth header + endpoint Free/Pro + formality conditionnelle
+L'API DeepL (2026) a retiré l'auth par `auth_key` dans le body (403 « Legacy authentication… »).
+Décision : `DeepLClient` envoie `Authorization: DeepL-Auth-Key …` ; hôte résolu auto (`:fx` →
+`api-free.deepl.com/v2`, sinon `api.deepl.com/v2`, surcharge `DEEPL_API_URL`). Écart mineur CDC §10.4.1 :
+`formality=more` n'est envoyé que pour les langues cibles qui le supportent (ES oui, EN non) — évite
+un 400 DeepL tout en conservant le ton formel pour FR→ES. Clé manquante → message FR + HTTP 503.

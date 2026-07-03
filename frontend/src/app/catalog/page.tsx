@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
-import { Plus, X } from "@phosphor-icons/react";
+import { Plus, Translate, X } from "@phosphor-icons/react";
 import type { CatalogFilters, Product } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { CatalogBrowser } from "./_components/CatalogBrowser";
 import { ProductDrawer } from "./_components/ProductDrawer";
 import { ExportButton } from "./_components/ExportButton";
+import { BulkTranslateDialog } from "./_components/BulkTranslateDialog";
 
 export default function CatalogPage() {
   const { role } = useAuth();
@@ -18,6 +19,8 @@ export default function CatalogPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [drawerSku, setDrawerSku] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkIds, setBulkIds] = useState<string[]>([]);
 
   const onToggleProduct = useCallback((product: Product) => {
     setSelected((prev) => {
@@ -47,6 +50,19 @@ export default function CatalogPage() {
         </span>
         <div className="flex items-center gap-2">
           <ExportButton filters={filters} selectedIds={ids} />
+          {userCanEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setBulkIds(ids);
+                setBulkOpen(true);
+              }}
+            >
+              <Translate size={15} weight="duotone" />
+              Traduire
+            </Button>
+          )}
           <AddToSimulationDialog
             productIds={ids}
             productLabel={`${ids.length} produit${ids.length > 1 ? "s" : ""}`}
@@ -69,7 +85,7 @@ export default function CatalogPage() {
         </div>
       </div>
     ),
-    [],
+    [userCanEdit],
   );
 
   return (
@@ -95,6 +111,12 @@ export default function CatalogPage() {
         paginationJumpInputId="catalog-page-jump"
       />
       <ProductDrawer sku={drawerSku} onClose={() => setDrawerSku(null)} />
+      <BulkTranslateDialog
+        productIds={bulkIds}
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onDone={() => setSelected(new Set())}
+      />
     </>
   );
 }
