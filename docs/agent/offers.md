@@ -18,9 +18,12 @@
 - Endpoint : `POST /api/simulations/{id}/generate-tariff-offers/` (action `SimulationViewSet`).
   Garde : simulation `finalized` + type `tariff`, sinon **400**. Renvoie `202 + {task_id}`.
 - Tâche : `offers/tasks.py:generate_tariff_offers_task(simulation_id, params)` — 1 offre + 1 Excel
-  par client. `params` = {client_ids, columns, target_currency, language, expiration_date(ISO),
-  incoterm(def EXW), label}. Résultat `{count, currency, offers:[{offer_id, client_id, file_url,
-  line_count, total_amount_eur}]}`. Front poll `/api/tasks/{task_id}/`.
+  par client. `params` = {client_ids, columns, target_currency, language, **language_per_client**,
+  expiration_date(ISO), incoterm(def EXW), label}. Résultat `{count, currency, offers:[{offer_id,
+  client_id, file_url, line_count, total_amount_eur}]}`. Front poll `/api/tasks/{task_id}/`.
+- **Langue par client** (CDC §10.5) : si `language_per_client=true`, chaque offre =
+  `client.preferred_language or language or "fr"` (résolu dans la tâche) ; sinon `language` unique.
+  Wizard tarif : toggle « Langue par client ». Détail multilingue → `i18n.md`.
 - Excel : `offers/services/excel.py`. `_COLUMN_REGISTRY` (clé → en-têtes FR/EN/ES + extracteur) ;
   `validate_columns`, `available_columns(lang)` ; `build_tariff_xlsx(...)`. En-têtes traduits en code
   (§10.5.4) ; note de taux si devise ≠ EUR (§7.2.5). Catalogue exposé via
@@ -57,6 +60,18 @@
 - UI : `frontend/src/app/offers/new-project/?simulation_id=` (wizard 5 étapes : client+projet,
   quantités éditables, langue+expiration, sections, instructions IA ; poll long 1-3 min ;
   lien Gamma + bouton « Réessayer » sur erreur).
+
+## Langue cible & couverture i18n (§10.5)
+
+- Résolution du contenu produit dans la langue cible avec **fallback FR** :
+  `offers/services/offer_i18n.resolve_product_description` / `resolve_product_designation`
+  (désignation Excel + tableau devis projet ; flag `fallback_used`, loggé à la génération via
+  `_log_language_fallbacks`). Projet : le wizard pré-remplit la langue avec
+  `client.preferred_language`.
+- **Contrôle pré-génération** : `POST /api/simulations/{id}/offer-coverage-check/`
+  (body `{language}` ou `{client_ids, language_per_client}`) → produits sans contenu cible.
+  UI : `components/OfferCoverageWarning` dans les 2 wizards (warning + « Traduire automatiquement »
+  = bulk translate puis re-check). Détail → `i18n.md`.
 
 ## Cycle de vie & suivi (§7.5 / §7.6)
 

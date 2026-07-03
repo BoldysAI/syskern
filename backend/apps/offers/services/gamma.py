@@ -22,6 +22,8 @@ from typing import Any
 import httpx
 from django.conf import settings
 
+from apps.core.http_ssl import httpx_verify
+
 logger = logging.getLogger("apps.offers.gamma")
 
 
@@ -58,6 +60,9 @@ class GammaClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
+    def _verify_tls(self) -> bool | str:
+        return httpx_verify(settings.GAMMA.get("VERIFY_TLS", True))
+
     # ── HTTP plumbing ───────────────────────────────────────────────────────
 
     def _client(self) -> httpx.Client:
@@ -66,6 +71,7 @@ class GammaClient:
         return httpx.Client(
             base_url=self.BASE_URL,
             timeout=self.timeout,
+            verify=self._verify_tls(),
             headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"},
         )
 
@@ -148,7 +154,9 @@ class GammaClient:
         if not gamma_url:
             return None
         try:
-            with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            with httpx.Client(
+                timeout=30.0, follow_redirects=True, verify=self._verify_tls()
+            ) as client:
                 resp = client.get(gamma_url)
             return resp.text if resp.status_code == 200 else None
         except httpx.RequestError as exc:

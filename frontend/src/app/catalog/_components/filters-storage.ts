@@ -96,6 +96,13 @@ export function isEmptyFilter(f: CatalogFilters): boolean {
     (f.stock_min == null || f.stock_min <= 0) &&
     (f.pamp_min == null || f.pamp_min <= 0) &&
     (f.pamp_max == null || f.pamp_max <= 0) &&
+    !f.i18n_incomplete &&
+    !f.lang_fr_in &&
+    !f.lang_fr_out &&
+    !f.lang_en_in &&
+    !f.lang_en_out &&
+    !f.lang_es_in &&
+    !f.lang_es_out &&
     Object.values(f.attrs ?? {}).every((v) => (Array.isArray(v) ? v.length === 0 : !v))
   );
 }

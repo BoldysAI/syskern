@@ -97,11 +97,26 @@ cd ..
 
 **Terminal 3 — Celery (optionnel)**
 
-Requis pour : recalcul PAMP Odoo, traduction DeepL, exports Excel.
+Requis pour : recalcul PAMP Odoo, **traduction bulk** DeepL, exports Excel.
+
+> **Traduction unitaire** (« Traduire depuis FR » sur une fiche) passe par `POST /api/translate`
+> (synchrone) — le backend seul suffit. La **traduction bulk** catalogue / offres utilise Celery.
+
+**DeepL en local** : renseigner `DEEPL_API_KEY` dans `backend/.env`. Compte Free DeepL → clé
+se terminant par `:fx` (endpoint `api-free.deepl.com` détecté automatiquement). Redémarrer
+`dev-backend.sh` après modification ; redémarrer `dev-celery.sh` pour le bulk.
 
 ```bash
 ./scripts/dev-celery.sh
 ```
+
+**Offres projet (Gamma)** : `GAMMA_API_KEY` dans `backend/.env` + redémarrer Celery après changement.
+
+Sur **macOS dev natif**, erreur `CERTIFICATE_VERIFY_FAILED` vers `public-api.gamma.app` → ajouter
+`GAMMA_VERIFY_TLS=false` dans `backend/.env` (dev uniquement ; prod/Docker : laisser `true`).
+
+**Argumentaires IA** (optionnel) : `OPENAI_API_KEY` dans `backend/.env`. Sans clé, le devis Gamma
+part quand même mais sans les 3 blocs argumentaires (warning dans les logs Celery).
 
 Sans Celery, le catalogue et la fiche produit (lecture + édition PATCH) fonctionnent ;
 les boutons async renverront une erreur ou resteront en attente.

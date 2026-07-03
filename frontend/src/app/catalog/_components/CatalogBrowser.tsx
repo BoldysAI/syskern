@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import useSWR from "swr";
-import { Faders, Package, SidebarSimple, Sparkle, SquaresFour } from "@phosphor-icons/react";
+import {
+  Faders,
+  Package,
+  SidebarSimple,
+  Sparkle,
+  SquaresFour,
+} from "@phosphor-icons/react";
 import {
   getCatalogProducts,
   getFilterableAttributes,
@@ -234,7 +240,11 @@ export function CatalogBrowser({
   const emptySavedFilters = useMemo<SavedFilter[]>(() => [], []);
   const noop = useCallback(() => {}, []);
 
-  const columns = useCatalogColumns({ skuAsLink, extraColumns });
+  const columns = useCatalogColumns({
+    skuAsLink,
+    extraColumns,
+    showLanguageColumn: variant === "page",
+  });
 
   const handleRowClick = (product: Product) => {
     if (disabled.has(product.id)) return;
@@ -393,7 +403,9 @@ export function CatalogBrowser({
               }
             />
           </div>
-          {toolbarNode ? <div className="flex shrink-0 items-center gap-2">{toolbarNode}</div> : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {toolbarNode}
+          </div>
         </div>
 
         <CatalogFilterSheet

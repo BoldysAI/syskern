@@ -35,6 +35,7 @@ from ..models import (
 )
 from .ai_arguments import generate_arguments, instructions_hash
 from .gamma import GammaClient
+from .offer_i18n import resolve_product_designation
 
 logger = logging.getLogger("apps.offers.project_generator")
 
@@ -133,8 +134,9 @@ def _price_table_markdown(offer: Offer, lang: str) -> str:
     for ln in offer.lines.select_related("product").all():
         qty = ln.quantity or Decimal(0)
         total = (ln.final_price or Decimal(0)) * qty
+        designation, _ = resolve_product_designation(ln.product, lang)
         rows.append(
-            f"| {ln.product.sku_code} | {ln.product.name} | {qty:g} | "
+            f"| {ln.product.sku_code} | {designation} | {qty:g} | "
             f"{ln.final_price:.2f} {cur} | {total:.2f} {cur} |"
         )
     return "\n".join(rows)
@@ -202,7 +204,11 @@ def _resolve_arguments(offer: Offer) -> tuple[dict | None, bool]:
         return {k: cached.get(k, "") for k in ("technical", "commercial", "logistic")}, True
 
     products = [
-        {"sku_code": ln.product.sku_code, "name": ln.product.name, "range": ln.product.range}
+        {
+            "sku_code": ln.product.sku_code,
+            "name": resolve_product_designation(ln.product, offer.language)[0],
+            "range": ln.product.range,
+        }
         for ln in offer.lines.select_related("product").all()
     ]
     client = Client.objects.filter(id__in=offer.client_ids).first()

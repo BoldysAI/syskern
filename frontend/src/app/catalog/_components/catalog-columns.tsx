@@ -16,17 +16,55 @@ function UniverseBadge({ universe }: { universe: string }) {
   return <StatusBadge variant={universeBadgeVariant(universe)}>{universe}</StatusBadge>;
 }
 
+/** Compact multilingual-coverage badge (CDC §10.7.3): FR / FR·EN / FR·EN·ES. */
+function CoverageBadge({ product }: { product: Product }) {
+  const coverage = product.i18n_coverage;
+  if (!coverage || coverage.languages.length === 0) {
+    return <span className="text-muted-foreground/50">—</span>;
+  }
+  const label = coverage.languages.map((l) => l.toUpperCase()).join("·");
+  return (
+    <span
+      className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium tabular-nums"
+      title={`${coverage.percent}% des langues renseignées`}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "size-1 shrink-0 rounded-full",
+          coverage.complete ? "bg-emerald-500" : "bg-amber-500",
+        )}
+      />
+      <span className={cn(coverage.complete ? "text-foreground" : "text-muted-foreground")}>
+        {label}
+      </span>
+    </span>
+  );
+}
+
+const COVERAGE_COLUMN: DataTableColumnDef<Product> = {
+  key: "lang_coverage",
+  label: "Langues",
+  width: 80,
+  resizable: false,
+  cellClassName: "!px-2",
+  render: (product) => <CoverageBadge product={product} />,
+};
+
 export interface UseCatalogColumnsOptions {
   /** Lien vers la fiche produit (page catalogue). Désactivé en mode sélection embarqué. */
   skuAsLink?: boolean;
   /** Colonnes supplémentaires (ex. « Déjà ajouté » dans une modale). */
   extraColumns?: DataTableColumnDef<Product>[];
+  /** Affiche la colonne « Langues » (CDC §10.7.3) — page catalogue uniquement. */
+  showLanguageColumn?: boolean;
 }
 
 /** Colonnes du tableau catalogue — source unique pour toutes les vues catalogue. */
 export function useCatalogColumns({
   skuAsLink = true,
   extraColumns = [],
+  showLanguageColumn = false,
 }: UseCatalogColumnsOptions = {}) {
   return useMemo<DataTableColumnDef<Product>[]>(
     () => [
@@ -127,8 +165,9 @@ export function useCatalogColumns({
           </StatusBadge>
         ),
       },
+      ...(showLanguageColumn ? [COVERAGE_COLUMN] : []),
       ...extraColumns,
     ],
-    [skuAsLink, extraColumns],
+    [skuAsLink, extraColumns, showLanguageColumn],
   );
 }

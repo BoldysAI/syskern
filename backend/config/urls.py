@@ -25,6 +25,8 @@ api_patterns = [
     path("", include("apps.offers.urls")),
     # Document library (attachments for project offers).
     path("", include("apps.documents.urls")),
+    # Translation service (DeepL) + cache.
+    path("", include("apps.i18n.urls")),
     # Odoo sync (Brique 2).
     path("", include("apps.odoo_sync.urls")),
     # Initial data migration quarantine.

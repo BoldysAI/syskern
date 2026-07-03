@@ -18,6 +18,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from .offer_i18n import resolve_product_designation
+
 # ── Column registry ──────────────────────────────────────────────────────────
 # Each column: multilingual header + a value extractor (line, offer, client).
 # Extractors return plain primitives (str / int / float / None) — never Decimal,
@@ -39,11 +41,17 @@ def _weight(line, offer, client) -> _Number | None:
     return float(w) if w is not None else None
 
 
+def _product_designation(line, offer, client) -> str | None:
+    lang = offer.language if offer.language in {"fr", "en", "es"} else "fr"
+    text, _ = resolve_product_designation(line.product, lang)
+    return text or None
+
+
 _COLUMN_REGISTRY: dict[str, dict[str, Any]] = {
     "sku_code": {"h": {"fr": "Réf. SKU", "en": "SKU", "es": "SKU"}, "v": _product_attr("sku_code")},
     "name": {
         "h": {"fr": "Désignation", "en": "Name", "es": "Designación"},
-        "v": _product_attr("name"),
+        "v": _product_designation,
     },
     "brand": {"h": {"fr": "Marque", "en": "Brand", "es": "Marca"}, "v": _product_attr("brand")},
     "universe": {

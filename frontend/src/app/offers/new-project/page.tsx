@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DocumentPicker } from "@/components/DocumentPicker";
+import { OfferCoverageWarning } from "@/components/OfferCoverageWarning";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface SimulationDetail {
 interface ClientLite {
   id: string;
   name: string;
+  preferred_language?: string;
 }
 interface GenResult {
   offer_id: string;
@@ -116,7 +118,7 @@ function ProjectWizard() {
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [qtyOverride, setQtyOverride] = useState<Record<string, number>>({});
   const [sectionOverride, setSectionOverride] = useState<Record<string, boolean>>({});
-  const [language, setLanguage] = useState("fr");
+  const [languageOverride, setLanguageOverride] = useState<string | null>(null);
   const [expiration, setExpiration] = useState("");
   const [aiInstructions, setAiInstructions] = useState("");
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
@@ -126,6 +128,9 @@ function ProjectWizard() {
   const [error, setError] = useState<string | null>(null);
 
   const clientId = clientOverride ?? sim?.client_ids?.[0] ?? "";
+  const selectedClient = clients.find((c) => c.id === clientId);
+  // Default to the client's preferred language until the user picks one (CDC §10.5).
+  const language = languageOverride ?? selectedClient?.preferred_language ?? "fr";
   const projectName = nameOverride ?? (sim?.project_name || sim?.label || "");
   const qty = (sku: string) => qtyOverride[sku] ?? 1;
   const sectionOn = (key: string) => sectionOverride[key] ?? true;
@@ -316,12 +321,17 @@ function ProjectWizard() {
                     key={l.code}
                     type="button"
                     variant={language === l.code ? "default" : "outline"}
-                    onClick={() => setLanguage(l.code)}
+                    onClick={() => setLanguageOverride(l.code)}
                   >
                     {l.label}
                   </Button>
                 ))}
               </div>
+              {!languageOverride && selectedClient?.preferred_language && (
+                <p className="text-xs text-muted-foreground">
+                  Langue par défaut du client ({selectedClient.name}).
+                </p>
+              )}
               <FormField label="Date d'expiration" required>
                 <Input
                   type="date"
@@ -330,6 +340,7 @@ function ProjectWizard() {
                   className="max-w-xs"
                 />
               </FormField>
+              <OfferCoverageWarning simulationId={simulationId} body={{ language }} />
             </div>
           </Section>
         )}

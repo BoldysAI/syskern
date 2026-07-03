@@ -13,6 +13,7 @@ import {
 import { AppModal } from "@/components/AppModal";
 import { FormField } from "@/components/FormField";
 import { AppIcon } from "@/components/AppIcon";
+import { MultilingualField, type MultilingualValue } from "@/components/MultilingualField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -45,9 +46,11 @@ export default function AttributeFormModal({
 }) {
   const isEdit = !!attribute;
 
-  const [labelFr, setLabelFr] = useState(attribute?.label?.fr ?? "");
-  const [labelEn, setLabelEn] = useState(attribute?.label?.en ?? "");
-  const [labelEs, setLabelEs] = useState(attribute?.label?.es ?? "");
+  const [label, setLabel] = useState<MultilingualValue>({
+    fr: attribute?.label?.fr ?? "",
+    en: attribute?.label?.en ?? "",
+    es: attribute?.label?.es ?? "",
+  });
   const [code, setCode] = useState(attribute?.code ?? "");
   const [codeTouched, setCodeTouched] = useState(isEdit);
   const [category, setCategory] = useState<AttributeCategory>(
@@ -70,15 +73,17 @@ export default function AttributeFormModal({
 
   const needsOptions = dataType === "select" || dataType === "multiselect";
 
-  const onLabelFrChange = (v: string) => {
-    setLabelFr(v);
-    if (!isEdit && !codeTouched) setCode(slugifyCode(v));
+  const handleLabelChange = (next: MultilingualValue) => {
+    const nextFr = next.fr ?? "";
+    if (!isEdit && !codeTouched && nextFr !== (label.fr ?? "")) setCode(slugifyCode(nextFr));
+    setLabel(next);
   };
 
   const codeValid = CODE_REGEX.test(code);
   const optionsValid =
     !needsOptions || (options.length > 0 && options.every((o) => o.value.trim() !== ""));
-  const canSubmit = labelFr.trim() !== "" && (isEdit || codeValid) && optionsValid && !saving;
+  const canSubmit =
+    (label.fr ?? "").trim() !== "" && (isEdit || codeValid) && optionsValid && !saving;
 
   const helperCode = useMemo(() => {
     if (isEdit) return "Le code est immuable après création.";
@@ -92,9 +97,9 @@ export default function AttributeFormModal({
     setSaving(true);
     setError(null);
 
-    const label: Record<string, string> = { fr: labelFr.trim() };
-    if (labelEn.trim()) label.en = labelEn.trim();
-    if (labelEs.trim()) label.es = labelEs.trim();
+    const builtLabel: Record<string, string> = { fr: (label.fr ?? "").trim() };
+    if ((label.en ?? "").trim()) builtLabel.en = (label.en ?? "").trim();
+    if ((label.es ?? "").trim()) builtLabel.es = (label.es ?? "").trim();
 
     const builtOptions: AttributeOption[] | null = needsOptions
       ? options.map((o) => ({
@@ -104,7 +109,7 @@ export default function AttributeFormModal({
       : null;
 
     const payload: Partial<AttributeRegistry> = {
-      label,
+      label: builtLabel,
       category,
       data_type: dataType,
       options: builtOptions,
@@ -141,23 +146,14 @@ export default function AttributeFormModal({
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <FormField label="Label (français)" required>
-          <Input
-            value={labelFr}
-            onChange={(e) => onLabelFrChange(e.target.value)}
-            required
-            placeholder="Diamètre du conducteur"
-          />
-        </FormField>
-
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Label (anglais)">
-            <Input value={labelEn} onChange={(e) => setLabelEn(e.target.value)} />
-          </FormField>
-          <FormField label="Label (espagnol)">
-            <Input value={labelEs} onChange={(e) => setLabelEs(e.target.value)} />
-          </FormField>
-        </div>
+        <MultilingualField
+          label="Label"
+          value={label}
+          onChange={handleLabelChange}
+          kind="input"
+          requiredSource
+          placeholder="Diamètre du conducteur"
+        />
 
         <FormField
           label="Code"

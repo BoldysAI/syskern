@@ -12,7 +12,7 @@ Trois services externes, tous via `httpx`, tous dans `apps/offers/services/` :
 |---|---|---|---|
 | `GammaClient` | `gamma.py` | Génération offres/catalogues (CDC §7.7) | **Stub** — `generate_quote`/`generate_tariff_catalog` lèvent `NotImplementedError` |
 | `OpenAIClient` | `openai_client.py` | Argumentation IA des offres projet | Fonctionnel (`generate_copy`) — system+user → `chat/completions` |
-| `DeepLClient` | `translation.py` | Traduction contenu produit (CDC §10.4) | Fonctionnel (`translate`) — appelé depuis `apps/products/tasks.py` |
+| `DeepLClient` | `translation.py` | Traduction contenu produit (CDC §10.4) | Fonctionnel — header auth `DeepL-Auth-Key`, hôte Free/Pro auto (`:fx`), `translate` + `translate_batch`, retry ×2 sur 5xx, 456/503/auth + limite 5000 car. Via `apps.i18n.services` + `products/tasks.py`. Détail → `i18n.md` |
 
 > Odoo **ne** suit **pas** ce pattern : c'est la seule intégration avec versioning multi-instance,
 > donc factory + ABC. Ces trois-là sont des clients simples sans factory.
@@ -82,9 +82,28 @@ La vue dispatch (`202 + {"task_id"}`), le client poll `/api/tasks/{id}/`. → `c
 
 ## Cache traduction
 
-Pas de couche Redis pour DeepL : la traduction est **persistée dans les champs JSONB
-`Product.description_*`** (`{"fr": ..., "en": ...}`). Avant d'appeler DeepL, vérifie si la
-langue cible est déjà remplie. `translate("")` court-circuite (renvoie `""`) pour épargner le quota.
+Deux couches (détail → `i18n.md`) :
+- **Table `translation_cache`** (`apps/i18n`, read-through via `apps.i18n.services.translate_cached`)
+  — cache générique pour `POST /api/translate` (descriptions, libellés d'attribut), TTL 90 j,
+  purge cron. **Écart CDC §10.4.3 assumé** (`decisions.md`).
+- **Champs JSONB `Product.description_*`** (`{"fr","en",…}`) — restent la source des fiches ;
+  la traduction bulk n'écrit que les langues vides. `translate("")` court-circuite (`""`).
+
+N'appelle **pas** `DeepLClient` nu hors `offers` : passe par `apps.i18n.services` (cache + quota).
+
+**Exception synchrone** : `POST /api/translate` (chaîne courte / petit batch) appelle DeepL dans
+le thread requête — écart assumé (`decisions.md`, `i18n.md`). Bulk multi-produits = Celery.
+
+### DeepL — spécificités (≠ pattern générique ci-dessus)
+
+- **Auth** : `Authorization: DeepL-Auth-Key {DEEPL_API_KEY}` — ne pas envoyer `auth_key` dans le
+  formulaire POST (obsolète, renvoie 403).
+- **URL** : propriété `base_url` — Free (`*:fx`) → `api-free.deepl.com/v2`, Pro → `api.deepl.com/v2` ;
+  override `DEEPL_API_URL` si besoin.
+- **Formality** : `formality=more` seulement pour les langues cibles supportées (FR, ES, DE, …) ;
+  **pas** pour EN (cible courante Syskern).
+- **Exceptions** : sous-classes de `TranslationError` — mapper en HTTP dans `apps/i18n/views.py`
+  (402 quota, 503 indispo/auth/config, 400 input).
 
 ---
 

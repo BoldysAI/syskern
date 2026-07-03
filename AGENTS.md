@@ -88,6 +88,7 @@ syskern/
 │       ├── documents/         # PJ pour offres projet
 │       ├── odoo_sync/         # adapters Odoo (factory v16/v19), SyncLog, tâches Celery
 │       ├── accounts/          # auth : User Django + Profile (rôles admin/commercial/viewer), CRUD users admin
+│       ├── i18n/              # traduction DeepL : cache (translation_cache), /api/translate, purge cron
 │       └── data_migration/    # quarantaine migration initiale
 └── frontend/                  # Next.js (App Router, TS) : src/{app,components,contexts,lib}
                                # lib/api.ts = client API · proxy.ts = BFF
@@ -207,6 +208,7 @@ Avant de considérer une tâche **terminée**, parcours cette checklist et mets 
 - PIM (catalogue, attributs, seeds référence) → `pim.md`
 - migration initiale one-shot (orchestrateur, loaders, reset, dérivations) → `migration.md`
 - offres (génération tarif/projet, Excel/Gamma, suivi) → `offers.md`
+- multilingue / traduction (DeepL, cache, couverture, langue offre) → `i18n.md`
 - comparaisons simulations → `pricing-chain.md` + `frontend.md` (§ `/comparator`)
 - tableau de bord / page d'accueil → `frontend.md` (§ page d'accueil)
 - sinon → `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`

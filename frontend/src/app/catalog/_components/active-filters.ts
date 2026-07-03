@@ -24,6 +24,13 @@ export function countActiveFilters(f: CatalogFilters): number {
   if (!f.stock_out && f.stock_min != null && f.stock_min > 0) n++;
   if (f.pamp_min != null && f.pamp_min > 0) n++;
   if (f.pamp_max != null && f.pamp_max > 0) n++;
+  if (f.i18n_incomplete) n++;
+  if (f.lang_fr_in) n++;
+  if (f.lang_fr_out) n++;
+  if (f.lang_en_in) n++;
+  if (f.lang_en_out) n++;
+  if (f.lang_es_in) n++;
+  if (f.lang_es_out) n++;
   for (const v of Object.values(f.attrs ?? {})) {
     if (Array.isArray(v)) n += v.length;
     else if (v) n++;
@@ -107,6 +114,32 @@ export function buildFilterChips(
     });
   }
 
+  if (filters.i18n_incomplete) {
+    chips.push({
+      id: "i18n_incomplete",
+      label: "Au moins une langue manquante",
+      category: "Langues",
+    });
+  }
+  if (filters.lang_fr_in) {
+    chips.push({ id: "lang_fr_in", label: "Français : avec contenu", category: "Langues" });
+  }
+  if (filters.lang_fr_out) {
+    chips.push({ id: "lang_fr_out", label: "Français : sans contenu", category: "Langues" });
+  }
+  if (filters.lang_en_in) {
+    chips.push({ id: "lang_en_in", label: "Anglais : avec contenu", category: "Langues" });
+  }
+  if (filters.lang_en_out) {
+    chips.push({ id: "lang_en_out", label: "Anglais : sans contenu", category: "Langues" });
+  }
+  if (filters.lang_es_in) {
+    chips.push({ id: "lang_es_in", label: "Español : avec contenu", category: "Langues" });
+  }
+  if (filters.lang_es_out) {
+    chips.push({ id: "lang_es_out", label: "Español : sans contenu", category: "Langues" });
+  }
+
   for (const [code, raw] of Object.entries(filters.attrs ?? {})) {
     const category = attrLabels[code] ?? code;
     const values = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
@@ -136,6 +169,13 @@ export function removeFilterChip(filters: CatalogFilters, chipId: string): Catal
   if (chipId === "stock_min") return { ...filters, stock_min: null };
   if (chipId === "pamp_min") return { ...filters, pamp_min: null };
   if (chipId === "pamp_max") return { ...filters, pamp_max: null };
+  if (chipId === "i18n_incomplete") return { ...filters, i18n_incomplete: false };
+  if (chipId === "lang_fr_in") return { ...filters, lang_fr_in: false };
+  if (chipId === "lang_fr_out") return { ...filters, lang_fr_out: false };
+  if (chipId === "lang_en_in") return { ...filters, lang_en_in: false };
+  if (chipId === "lang_en_out") return { ...filters, lang_en_out: false };
+  if (chipId === "lang_es_in") return { ...filters, lang_es_in: false };
+  if (chipId === "lang_es_out") return { ...filters, lang_es_out: false };
 
   for (const key of ARRAY_KEYS) {
     const prefix = `${key}:`;

@@ -5,12 +5,7 @@ import { Field } from "./Field";
 import { AttributeSection } from "./AttributeSection";
 import { DescriptionsEditor } from "./DescriptionsEditor";
 
-interface GeneralTabProps {
-  onTranslate: (lang: "en" | "es") => void;
-  translating: "en" | "es" | null;
-}
-
-export function GeneralTab({ onTranslate, translating }: GeneralTabProps) {
+export function GeneralTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -44,12 +39,7 @@ export function GeneralTab({ onTranslate, translating }: GeneralTabProps) {
         </Card>
       </div>
 
-      <DescriptionsEditor
-        which="marketing"
-        title="Descriptions multilingues"
-        onTranslate={onTranslate}
-        translating={translating}
-      />
+      <DescriptionsEditor which="marketing" title="Descriptions multilingues" />
 
       <AttributeSection
         category="structural"

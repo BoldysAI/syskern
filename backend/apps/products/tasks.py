@@ -102,6 +102,92 @@ def export_products_task(
     }
 
 
+_FIELD_MAP = {
+    "marketing": "description_marketing",
+    "technical": "description_technical",
+}
+
+
+@shared_task(
+    name="products.bulk_translate_products_task",
+    bind=True,
+    soft_time_limit=600,
+    time_limit=660,
+)
+def bulk_translate_products_task(
+    self,
+    product_ids: list[str],
+    source_lang: str = "fr",
+    target_langs: list[str] | None = None,
+    fields: list[str] | None = None,
+) -> dict:
+    """Translate several products' descriptions via DeepL + cache (CDC §10.3.2).
+
+    Only empty target-language slots are filled (existing translations are kept).
+    Reports `{current, total}` progress so the UI can show a progress bar. Aborts
+    on quota / service-unavailable so the user gets a clear message.
+    """
+    from apps.i18n.services import translate_cached
+    from apps.offers.services.translation import (
+        TranslationInputError,
+        TranslationQuotaError,
+        TranslationUnavailableError,
+    )
+
+    source = source_lang.lower()
+    targets = [lang.lower() for lang in (target_langs or ["en", "es"]) if lang.lower() != source]
+    selected = [_FIELD_MAP[f] for f in (fields or ["marketing", "technical"]) if f in _FIELD_MAP]
+
+    total = len(product_ids)
+    processed = 0
+    translated_fields = 0
+    skipped: list[str] = []
+
+    for pid in product_ids:
+        try:
+            product = Product.objects.get(pk=pid)
+        except Product.DoesNotExist:
+            processed += 1
+            self.update_state(state="PROGRESS", meta={"current": processed, "total": total})
+            continue
+
+        changed_attrs: set[str] = set()
+        for attr in selected:
+            data = dict(getattr(product, attr) or {})
+            source_text = (data.get(source) or "").strip()
+            if not source_text:
+                continue
+            for lang in targets:
+                if (data.get(lang) or "").strip():
+                    continue  # never overwrite an existing translation
+                try:
+                    translated, _ = translate_cached(source_text, source, lang)
+                except (TranslationQuotaError, TranslationUnavailableError) as exc:
+                    # Non-recoverable for the rest of the batch — fail loudly.
+                    raise _TaskError(str(exc)) from exc
+                except TranslationInputError as exc:
+                    skipped.append(f"{product.sku_code} ({attr}/{lang}) : {exc}")
+                    continue
+                if translated:
+                    data[lang] = translated
+                    changed_attrs.add(attr)
+                    translated_fields += 1
+            setattr(product, attr, data)
+
+        if changed_attrs:
+            product.save(update_fields=[*changed_attrs, "updated_at"])
+
+        processed += 1
+        self.update_state(state="PROGRESS", meta={"current": processed, "total": total})
+
+    return {
+        "product_count": total,
+        "processed": processed,
+        "translated_fields": translated_fields,
+        "skipped": skipped[:50],
+    }
+
+
 @shared_task(name="products.translate_product_task")
 def translate_product_task(product_pk: str, target_lang: str) -> dict:
     """Translate the FR descriptions to EN/ES via DeepL and cache them.

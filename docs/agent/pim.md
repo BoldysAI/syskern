@@ -90,6 +90,9 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 | `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
 | `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
 | `GET` | `/api/products/?is_active=true\|false` | filtre statut produit (soft-delete) ; omis = actifs + inactifs |
+| `GET` | `/api/products/?i18n_incomplete=true` | au moins une langue manquante (CDC §10.7.3 → `i18n.md`) |
+| `GET` | `/api/products/?lang_{fr,en,es}_{in,out}=true` | avec / sans contenu par langue (description marketing ou technique) |
+| `POST` | `/api/products/bulk-translate/` | traduction bulk async (DeepL) `{ids, target_langs, content_fields}` → `202 + task_id` (§10.3.2) |
 | `GET` | `/api/products/filter-bounds` | min/max PAMP, stock, attributs numériques — mêmes query params que la liste (sauf bornes sliders) ; queryset de base = tous les produits |
 | `GET` | `/api/brands` · `/api/factory-codes` | valeurs distinctes (filtres sidebar) |
 | `POST` | `/api/products/export` | export Excel **async** ; body `{filters, columns, ids}` → `202 + task_id` |
@@ -113,6 +116,8 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 **Gotchas** :
 - `ProductDetailSerializer` **n'embarque pas** `attribute_values` → les charger via
   `/attributes/`. Le frontend fusionne registre (définitions) + valeurs (par produit).
+- `i18n_coverage` (`{languages, percent, complete}`) est exposé sur la liste **et** le détail
+  (calculé sur `description_marketing`/`technical`). Multilingue → `i18n.md`.
 - Pas de `pv_eur` sur `Product` : le « prix de vente actuel » = dernier point de
   `price-history` (simulations finalisées uniquement).
 - Upsert attribut = **PUT** (pas PATCH), body = juste `{"value": ...}`.
@@ -155,7 +160,12 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
   `stock_quantity`) — cf. `ordering.py`.
 - **Pagination** : `limit=100` ; composant `CatalogPagination`.
 - **Sélection multiple** : `Set<string>` d'ids **persistée à travers les pages** → barre d'actions
-  groupées (export sélection, `AddToSimulationDialog` `productIds[]`).
+  groupées (export sélection, `AddToSimulationDialog` `productIds[]`, **« Traduire »** →
+  `BulkTranslateDialog` bulk DeepL avec progress — cf. `i18n.md`).
+- **Langues** (sidebar § « Langues ») : colonne « Langues » toujours visible sur la page
+  catalogue (`useCatalogColumns({ showLanguageColumn })`), filtre « Au moins une langue manquante »
+  (`i18n_incomplete`), et par langue (FR/EN/ES) toggles « Avec contenu » / « Sans contenu »
+  (`lang_*_{in,out}`). Jamais de libellé « i18n » côté UI. Détail → `i18n.md`.
 - **Détail** : clic ligne → drawer ; cellule SKU = lien `/catalog/[sku]`.
 - **Export** : `exportProducts({filters, columns, ids})` → tâche Celery ; **redémarrer le worker**
   si la signature de `export_products_task` change.
@@ -178,6 +188,9 @@ Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections
   et commitent via `setCore`/`setAttr`/`setDesc`.
 - Champs cœur → `Field.tsx` (mappé sur `keyof ProductDetail`). Attributs dynamiques →
   `AttributeRenderer` via `AttributeSection.tsx` (un bloc par `category`).
+- **Descriptions multilingues** (marketing/technique) → `DescriptionsEditor` rend
+  `components/MultilingualField` (onglets FR/EN/ES + « Traduire depuis FR » via `/api/translate`).
+  Détail multilingue → `i18n.md`.
 - Édition gardée par `canEdit(role)` (admin/commercial). Viewer = lecture seule.
 - **Supprimer** (soft-delete) : bouton sur la fiche pour `canEdit` → `deleteProduct(idOrSku)`
   (`DELETE /api/products/{id|sku}/`) puis redirection `/catalog`.
@@ -220,7 +233,7 @@ Olivier d'ajouter / modifier / supprimer / réordonner les attributs **sans migr
 |---|---|
 | `SettingsNav.tsx` (`../_components/`) | Barre d'onglets de liens partagée par `/settings` (Marché/Transport/Odoo via `?tab=`) et `/settings/attributes` |
 | `rows.tsx` | `AttributeRow` (statique) + `SortableAttributeRow` (`useSortable`, drag handle `GripVertical`) |
-| `AttributeFormModal.tsx` | Création / édition : labels FR(*)/EN/ES, catégorie, type, éditeur d'options, unité, toggles Obligatoire/Recherchable/**Filtrable** |
+| `AttributeFormModal.tsx` | Création / édition : label via **`MultilingualField`** (FR* / EN / ES + « Traduire depuis FR »), catégorie, type, éditeur d'options, unité, toggles Obligatoire/Recherchable/**Filtrable** |
 | `DeleteAttributeDialog.tsx` | Confirmation : affiche `value_count` + **saisie du code** pour activer la suppression |
 | `constants.ts` | `CATEGORIES`/`DATA_TYPES` (labels FR), `CODE_REGEX`, `slugifyCode()` |
 

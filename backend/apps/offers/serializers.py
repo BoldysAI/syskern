@@ -133,6 +133,9 @@ class GenerateTariffOffersSerializer(serializers.Serializer):
     columns = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     target_currency = serializers.ChoiceField(choices=Currency.choices, default=Currency.EUR)
     language = serializers.ChoiceField(choices=Language.choices, default=Language.FR)
+    # When true, each client's offer uses the client's own preferred language
+    # (CDC §10.5); `language` then acts as the fallback (default FR).
+    language_per_client = serializers.BooleanField(required=False, default=False)
     expiration_date = serializers.DateField(required=False, allow_null=True)
     incoterm = serializers.CharField(required=False, allow_blank=True, default="EXW")
     label = serializers.CharField(required=False, allow_blank=True, default="")
@@ -154,6 +157,18 @@ class GenerateTariffOffersSerializer(serializers.Serializer):
         if missing:
             raise serializers.ValidationError(f"Clients introuvables : {missing}")
         return value
+
+
+class OfferCoverageCheckSerializer(serializers.Serializer):
+    """Input for `POST /api/simulations/{id}/offer-coverage-check` (CDC §10.5.1).
+
+    Resolves the target language(s): an explicit `language`, and/or the preferred
+    language of each client (when `language_per_client`).
+    """
+
+    language = serializers.ChoiceField(choices=Language.choices, required=False)
+    client_ids = serializers.ListField(child=serializers.UUIDField(), required=False, default=list)
+    language_per_client = serializers.BooleanField(required=False, default=False)
 
 
 class GenerateProjectOfferSerializer(serializers.Serializer):

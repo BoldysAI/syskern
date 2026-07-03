@@ -171,6 +171,17 @@ Pour les formulaires multi-étapes (ex. wizard de création produit `/catalog/ne
 - Purger (`removeItem`) après succès. Clé versionnée (ex. `syskern:new-product-draft:v1`).
 - Toujours `try/catch` les accès `localStorage` (mode privé / quota).
 
+## Champs multilingues (`MultilingualField`)
+
+Composant réutilisable `components/MultilingualField.tsx` pour tout contenu JSONB
+`{fr,en,es}` (CDC §10.7.1). Onglets FR/EN/ES, `kind="input"|"textarea"`, indicateur d'état
+par onglet (rempli/vide), bouton « Traduire depuis FR » (EN/ES) → `translateText()`
+(`/api/translate`, synchrone + cache). Erreurs API (`503`, quota…) affichées sous le champ.
+`mode="read"|"edit"`, `requiredSource` marque FR d'un `*`.
+Props : `{ value, onChange, mode, kind, label, requiredSource, rows }`. Utilisé par
+`DescriptionsEditor` (fiche produit) et `AttributeFormModal` (label). Domaine i18n complet
+(couverture catalogue, bulk translate, langue offre) → `docs/agent/i18n.md`.
+
 ## Catalogue : favoris, sélection multi-pages, colonnes, filtres actifs
 
 Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_components/`) :

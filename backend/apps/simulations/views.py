@@ -13,11 +13,13 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
+from apps.clients.models import Client
 from apps.core.pagination import DefaultLimitOffsetPagination
 from apps.offers.models import Offer
 from apps.offers.serializers import (
     GenerateProjectOfferSerializer,
     GenerateTariffOffersSerializer,
+    OfferCoverageCheckSerializer,
 )
 from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
 from apps.products.models import Product
@@ -256,6 +258,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             "columns": data.get("columns") or [],
             "target_currency": data["target_currency"],
             "language": data["language"],
+            "language_per_client": data.get("language_per_client", False),
             "expiration_date": (
                 data["expiration_date"].isoformat() if data.get("expiration_date") else None
             ),
@@ -302,6 +305,57 @@ class SimulationViewSet(viewsets.ModelViewSet):
         return Response(
             {"task_id": task.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
+        )
+
+    # ─── /offer-coverage-check (CDC §10.5.1) ──────────────────────────────
+    @action(detail=True, methods=["post"], url_path="offer-coverage-check")
+    def offer_coverage_check(self, request, pk=None):
+        """Pre-generation i18n coverage check for an offer's target language(s).
+
+        Lists the products whose content would fall back to FR in the target
+        language, so the wizard can warn and offer an auto-translation before
+        generating (CDC §10.5.1).
+        """
+        from apps.offers.services.offer_i18n import products_missing_language
+
+        simulation = self.get_object()
+        ser = OfferCoverageCheckSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        languages: set[str] = set()
+        if data.get("language"):
+            languages.add(data["language"])
+        if data.get("language_per_client") and data.get("client_ids"):
+            for client in Client.objects.filter(id__in=data["client_ids"]):
+                languages.add(client.preferred_language or "fr")
+        if not languages:
+            languages = {"fr"}
+        languages.discard("fr")  # FR is the source — never a missing target
+
+        products = [ln.product for ln in simulation.lines.select_related("product").all()]
+
+        by_product: dict = {}
+        for lang in languages:
+            for product in products_missing_language(products, lang):
+                entry = by_product.setdefault(
+                    str(product.id),
+                    {
+                        "id": str(product.id),
+                        "sku_code": product.sku_code,
+                        "designation": product.designation,
+                        "missing_langs": [],
+                    },
+                )
+                entry["missing_langs"].append(lang)
+
+        product_list = list(by_product.values())
+        return Response(
+            {
+                "languages": sorted(languages),
+                "products": product_list,
+                "product_ids": [p["id"] for p in product_list],
+            }
         )
 
     # ─── /archive  /unarchive  (CDC §6.9.11) ──────────────────────────
