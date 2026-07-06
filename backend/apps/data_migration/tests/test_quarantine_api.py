@@ -199,7 +199,9 @@ def test_resolve_create_requires_product(client, rows):
     assert resp.status_code == 400
 
 
-def test_resolve_create_rejects_duplicate_sku(client, rows):
+def test_resolve_create_existing_sku_is_idempotent(client, rows):
+    # A quarantine row whose product already exists (Odoo sync / create-missing
+    # bootstrap) resolves against it instead of failing with a 400 duplicate.
     a, _b, _c = rows
     Product.objects.create(sku_code="DUP-1", name="Exists")
     resp = client.post(
@@ -207,9 +209,12 @@ def test_resolve_create_rejects_duplicate_sku(client, rows):
         {"action": "create", "product": {"sku_code": "DUP-1"}},
         format="json",
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200
+    assert Product.objects.filter(sku_code="DUP-1").count() == 1  # not duplicated
     a.refresh_from_db()
-    assert a.resolved_at is None  # not resolved when creation fails
+    assert a.resolved_at is not None
+    assert a.resolution_action == ResolutionAction.CREATE
+    assert "déjà présent" in a.resolution_notes.lower()
 
 
 def test_resolve_defaults_resolved_by_when_absent(client, rows):

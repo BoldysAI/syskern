@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.db.models import Count
 from django.utils import timezone
-from rest_framework import serializers, viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -41,9 +41,13 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
         notes = data.get("resolution_notes", "")
 
         if action_type == ResolutionAction.CREATE:
-            product = self._create_product_from_row(data["product"])
-            created_note = f"Produit créé : {product.sku_code}"
-            notes = f"{notes}\n{created_note}".strip() if notes else created_note
+            product, created = self._create_or_get_product_from_row(data["product"])
+            note_line = (
+                f"Produit créé : {product.sku_code}"
+                if created
+                else f"Produit déjà présent au catalogue : {product.sku_code}"
+            )
+            notes = f"{notes}\n{note_line}".strip() if notes else note_line
 
         row.resolution_action = action_type
         row.resolved_at = timezone.now()
@@ -61,25 +65,29 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
         return Response(MigrationUnmatchedSerializer(row).data)
 
     @staticmethod
-    def _create_product_from_row(product_data: dict) -> Product:
-        """Create a minimal product from a quarantine row (action=create).
+    def _create_or_get_product_from_row(product_data: dict) -> tuple[Product, bool]:
+        """Create the product from a quarantine row, or return it if it exists.
 
-        Derives ``factory_code`` / ``parent_reference`` from the SKU (reusing
-        the shared parser) so the created product is consistent with the wizard.
-        The user enriches the rest in the catalog afterwards.
+        Idempotent: when the SKU already matches a catalog product (e.g. it was
+        created by the initial Odoo sync or the create-missing bootstrap), we do
+        **not** fail — the row is resolved against the existing product. Returns
+        ``(product, created)``. Derives ``factory_code`` / ``parent_reference``
+        from the SKU (shared parser) so a newly-created product matches the wizard.
         """
         sku = product_data["sku_code"].upper().strip()
-        if Product.objects.filter(sku_code=sku).exists():
-            raise serializers.ValidationError({"product": f"Le SKU {sku} existe déjà."})
+        existing = Product.objects.filter(sku_code=sku).first()
+        if existing is not None:
+            return existing, False
         parsed = parse_sku(sku)
         description = product_data.get("description_marketing_fr") or ""
-        return Product.objects.create(
+        product = Product.objects.create(
             sku_code=sku,
             name=product_data.get("name") or sku,
             description_marketing={"fr": description} if description else {},
             factory_code=parsed.get("factory_code") or "",
             parent_reference=parsed.get("parent_reference") or "",
         )
+        return product, True
 
     @action(detail=False, methods=["get"])
     def facets(self, request):

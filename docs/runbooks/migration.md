@@ -154,8 +154,12 @@ source file / reason / resolved status. Each row shows its data as a
 one of three explicit actions (2026-06-30):
 
 - **Créer le produit** — builds & persists the `Product` directly from the row
-  (SKU prefilled, `factory_code`/`parent_reference` derived); no need to go to
-  *Catalogue → Nouveau produit* manually.
+  (SKU prefilled from the `sku_code` column — never the GTIN;
+  `factory_code`/`parent_reference` derived); no need to go to *Catalogue →
+  Nouveau produit* manually. **Idempotent**: if the SKU already matches a catalog
+  product (created earlier by the Odoo sync or the create-missing bootstrap), the
+  row is resolved against the existing product (note *« Produit déjà présent »*)
+  instead of failing — so re-creating an existing product no longer returns 400.
 - **Supprimer** — the row is discarded (soft, kept for audit).
 - **Ne rien faire** — the row is simply marked resolved.
 
