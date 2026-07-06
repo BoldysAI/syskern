@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { countActiveFilters } from "./active-filters";
 import { CatalogAttributeFilter } from "./CatalogAttributeFilter";
 import { HierarchyFilterCascade } from "./HierarchyFilterCascade";
+import { SupplierFilterGroup } from "./SupplierFilterGroup";
 import { isEmptyFilter, type SavedFilter } from "./filters-storage";
 import { boundsToSliderConfig, clampFilterValue } from "./slider-bounds";
 
@@ -178,17 +179,18 @@ export function CatalogSidebar({
           selected={filters.brand ?? []}
           onChange={(next) => patch({ brand: next.length ? next : undefined })}
           searchable={brandOptions.length > 5}
-          sortSelectedFirst
         />
       </FilterSection>
 
-      <FilterSection title="Fournisseur" icon={Factory} activeCount={filters.supplier?.length ?? 0}>
-        <FilterCheckboxGroup
-          options={(suppliers ?? []).map((s) => ({ value: s, label: s }))}
-          selected={filters.supplier ?? []}
-          onChange={(next) => patch({ supplier: next.length ? next : undefined })}
-          searchable={(suppliers?.length ?? 0) > 5}
-          sortSelectedFirst
+      <FilterSection
+        title="Fournisseur"
+        icon={Factory}
+        activeCount={(filters.supplier?.length ?? 0) + (filters.active_supplier?.length ?? 0)}
+      >
+        <SupplierFilterGroup
+          filters={filters}
+          suppliers={suppliers ?? []}
+          onPatch={patch}
         />
       </FilterSection>
 

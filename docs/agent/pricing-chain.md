@@ -18,8 +18,8 @@ est signalée explicitement (FR) sur la ligne, jamais masquée derrière un `sta
 - **Diagnostics first-class** : chaque `CalculationStep` porte `warnings: list[str]` ;
   `ChainResult.warnings` les agrège ; `to_breakdown()` les expose.
 - **`calculation_breakdown` standardisé** (persisté sur `SimulationLine`) :
-  `{"errors": [...], "warnings": [...], "purchase": {...}, "sale": {...}, ...}`.
-  Clé legacy `error` (string) conservée pour compat front.
+  `{"errors": [...], "warnings": [...], "purchase": {...}, "pr": {...}, "sale": {...}, ...}`.
+  La clé `pr` expose le PAMP prévisionnel + le mix stock/achat (`build_pr_breakdown`). Clé legacy `error` (string) conservée pour compat front.
 - **Validation pré-vol** (`runner._validate_line_inputs` + `engine/validation.py`) :
   - pas de fournisseur actif **ou** `po_base_price is None` **ou** `po_base_price == 0` → **error** FR (calcul interrompu).
   - **PA / PR / PV négatifs** (ex. PO manquant ou trop faible + variation cuivre baissière) → **error** FR après la chaîne PA/PV (`negative_price_errors`).
@@ -36,7 +36,7 @@ est signalée explicitement (FR) sur la ligne, jamais masquée derrière un `sta
   en liste dans la colonne Statut (texte FR via `lineDiagnostics` + `humanizeEngineMessage`) ;
   clic → `LineDiagnosticsDrawer` ;
   helper `lineDiagnostics(line)` dans `sim-format.ts`. Menu ligne **Détail du calcul** →
-  `CalculationBreakdownDrawer` (wizard read-only sur `calculation_breakdown`, narrations module par
+  `CalculationBreakdownDrawer` (wizard read-only sur `calculation_breakdown`, onglets Synthèse · Chaîne PA · **Chaîne PR** · Chaîne PV, narrations module par
   module via `formatBreakdownStepDetails` — jamais de clés moteur brutes).
 
 ## Odoo découplé du calcul (CDC §6.6)

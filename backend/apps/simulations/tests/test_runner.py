@@ -112,7 +112,7 @@ class TestRunnerCdcExample:
         # Syskern margin 20 % → PV = 390.1636 / 0.80 = 487.7045.
         assert line.pv_eur == Decimal("487.7045")
 
-    def test_breakdown_stores_both_chains(self) -> None:
+    def test_breakdown_stores_all_chains(self) -> None:
         sim = _cdc_simulation()
         line = _cdc_line(sim)
 
@@ -120,8 +120,11 @@ class TestRunnerCdcExample:
 
         line.refresh_from_db()
         breakdown = line.calculation_breakdown
-        assert "purchase" in breakdown and "sale" in breakdown
+        assert "purchase" in breakdown and "pr" in breakdown and "sale" in breakdown
         assert breakdown["purchase"]["final_amount"] == "390.1636"
+        assert breakdown["pr"]["final_amount"] == "390.1636"
+        pr_modules = [step["module"] for step in breakdown["pr"]["steps"]]
+        assert pr_modules == ["predictive_pamp", "pr_mix"]
         # The purchase chain records every module as an ordered step.
         modules = [step["module"] for step in breakdown["purchase"]["steps"]]
         assert modules == [

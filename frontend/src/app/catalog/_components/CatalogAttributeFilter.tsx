@@ -94,7 +94,6 @@ export function CatalogAttributeFilter({
             }
             searchable={opts.length > 5}
             maxHeight="max-h-36"
-            sortSelectedFirst
           />
         </div>
       </div>

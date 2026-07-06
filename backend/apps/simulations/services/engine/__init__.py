@@ -36,8 +36,10 @@ from .modules import (
 )
 from .pamp import (
     PendingPurchase,
+    build_pr_breakdown,
     compute_pr,
     compute_predictive_pamp,
+    explain_predictive_pamp,
     resolve_margin_rate,
     resolve_mix_pct,
 )
@@ -56,10 +58,12 @@ __all__ = [
     "ProductView",
     "SimulationContext",
     "TransportModule",
+    "build_pr_breakdown",
     "build_purchase_modules",
     "build_sale_modules",
     "compute_pr",
     "compute_predictive_pamp",
+    "explain_predictive_pamp",
     "quantize",
     "resolve_margin_rate",
     "resolve_mix_pct",

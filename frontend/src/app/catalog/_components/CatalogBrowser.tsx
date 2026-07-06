@@ -60,6 +60,8 @@ export interface CatalogBrowserProps {
   columnWidthsKey?: string;
   /** Préfixe de clé SWR (évite les collisions entre instances) */
   swrKey?: string;
+  /** When set, PV column is shown and list API is scoped to this simulation. */
+  simulationId?: string;
   density?: "default" | "compact";
   skuAsLink?: boolean;
   extraColumns?: DataTableColumnDef<Product>[];
@@ -96,6 +98,7 @@ export function CatalogBrowser({
   pageSize = DEFAULT_PAGE_SIZE,
   columnWidthsKey = CATALOG_COLUMN_WIDTHS_KEY,
   swrKey = "catalog-products",
+  simulationId,
   density = "default",
   skuAsLink = true,
   extraColumns = [],
@@ -128,6 +131,15 @@ export function CatalogBrowser({
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() =>
     variant === "page" ? loadVisibleCatalogColumns() : [],
   );
+  const effectiveVisibleColumnKeys = useMemo(() => {
+    if (!simulationId) return visibleColumnKeys;
+    if (visibleColumnKeys.includes("catalog_pv")) return visibleColumnKeys;
+    const next = [...visibleColumnKeys];
+    const pampIdx = next.indexOf("pamp_eur");
+    if (pampIdx >= 0) next.splice(pampIdx + 1, 0, "catalog_pv");
+    else next.push("catalog_pv");
+    return next;
+  }, [simulationId, visibleColumnKeys]);
   const {
     width: filterSidebarWidth,
     startResize: startFilterResize,
@@ -179,19 +191,20 @@ export function CatalogBrowser({
   const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
   const filtersKey = JSON.stringify(filters);
   const attrCodesForApi = useMemo(
-    () => (variant === "page" ? visibleAttrCodes(visibleColumnKeys) : []),
-    [variant, visibleColumnKeys],
+    () => (variant === "page" ? visibleAttrCodes(effectiveVisibleColumnKeys) : []),
+    [variant, effectiveVisibleColumnKeys],
   );
   const listFilters = useMemo(
     () => ({
       ...filters,
+      ...(simulationId ? { simulation_id: simulationId } : {}),
       ...(attrCodesForApi.length ? { attr_columns: attrCodesForApi } : {}),
     }),
-    [filters, attrCodesForApi],
+    [filters, simulationId, attrCodesForApi],
   );
-  const visibleColumnsKey = visibleColumnKeys.join(",");
+  const visibleColumnsKey = effectiveVisibleColumnKeys.join(",");
   const { data, isLoading, error } = useSWR<PaginatedProducts>(
-    enabled ? [swrKey, filtersKey, visibleColumnsKey, ordering, page] : null,
+    enabled ? [swrKey, filtersKey, visibleColumnsKey, ordering, page, simulationId] : null,
     () => getCatalogProducts({ ...listFilters, ordering, page, limit: pageSize }),
     { keepPreviousData: true },
   );
@@ -266,14 +279,15 @@ export function CatalogBrowser({
   const noop = useCallback(() => {}, []);
 
   const visibleAttrDefs = useMemo(
-    () => (allAttributes ?? []).filter((a) => visibleColumnKeys.includes(`attr:${a.code}`)),
-    [allAttributes, visibleColumnKeys],
+    () => (allAttributes ?? []).filter((a) => effectiveVisibleColumnKeys.includes(`attr:${a.code}`)),
+    [allAttributes, effectiveVisibleColumnKeys],
   );
 
   const columns = useCatalogColumns({
     skuAsLink,
     extraColumns,
-    visibleColumnKeys: variant === "page" ? visibleColumnKeys : undefined,
+    visibleColumnKeys:
+      variant === "page" || simulationId ? effectiveVisibleColumnKeys : undefined,
     attributeColumns: variant === "page" ? visibleAttrDefs : [],
   });
 

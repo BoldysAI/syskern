@@ -14,7 +14,6 @@ interface FilterCheckboxGroupProps {
   searchPlaceholder?: string;
   /** Tailwind max-height class for the scroll area. */
   maxHeight?: string;
-  sortSelectedFirst?: boolean;
   /** Prefix for checkbox ids — avoids collisions across filter sections. */
   idPrefix?: string;
   className?: string;
@@ -31,7 +30,6 @@ export function FilterCheckboxGroup({
   searchable,
   searchPlaceholder = "Rechercher…",
   maxHeight = "max-h-48",
-  sortSelectedFirst = false,
   idPrefix = "filter",
   className,
 }: FilterCheckboxGroupProps) {
@@ -47,17 +45,8 @@ export function FilterCheckboxGroup({
       const q = query.toLowerCase();
       list = list.filter((o) => o.label.toLowerCase().includes(q));
     }
-    if (sortSelectedFirst) {
-      const sel = new Set(selected);
-      list = [...list].sort((a, b) => {
-        const as = sel.has(a.value);
-        const bs = sel.has(b.value);
-        if (as !== bs) return as ? -1 : 1;
-        return a.label.localeCompare(b.label, "fr");
-      });
-    }
     return list;
-  }, [options, query, selected, sortSelectedFirst]);
+  }, [options, query]);
 
   const toggle = (value: string) => {
     const current = selectedRef.current;

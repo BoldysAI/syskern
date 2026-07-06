@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import Product, ProductSupplier
@@ -64,6 +65,42 @@ class ProductSupplierSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "created_at", "updated_at")
 
+    @staticmethod
+    def _activate_exclusive(instance: ProductSupplier) -> None:
+        """Ensure only this supplier is active for its product (mutex index)."""
+        with transaction.atomic():
+            ProductSupplier.objects.filter(product=instance.product).exclude(pk=instance.pk).update(
+                is_active=False
+            )
+            if not instance.is_active:
+                instance.is_active = True
+                instance.save(update_fields=["is_active", "updated_at"])
+
+    def create(self, validated_data: dict) -> ProductSupplier:
+        if validated_data.get("is_active"):
+            with transaction.atomic():
+                ProductSupplier.objects.filter(product=validated_data["product"]).update(
+                    is_active=False
+                )
+                return ProductSupplier.objects.create(**validated_data)
+        return ProductSupplier.objects.create(**validated_data)
+
+    def update(self, instance: ProductSupplier, validated_data: dict) -> ProductSupplier:
+        wants_active = validated_data.pop("is_active", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if wants_active is True:
+            self._activate_exclusive(instance)
+        elif wants_active is False:
+            instance.is_active = False
+            instance.save()
+        else:
+            instance.save()
+
+        return instance
+
 
 class ProductListSerializer(serializers.ModelSerializer):
     """Compact representation used in the catalog table."""
@@ -71,6 +108,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     active_supplier = serializers.SerializerMethodField()
     i18n_coverage = serializers.SerializerMethodField()
     attribute_values = serializers.SerializerMethodField()
+    catalog_pv = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -90,6 +128,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "active_supplier",
             "i18n_coverage",
             "attribute_values",
+            "catalog_pv",
             "updated_at",
         )
 
@@ -114,6 +153,9 @@ class ProductListSerializer(serializers.ModelSerializer):
             if code in code_set:
                 result[code] = pav.value
         return result
+
+    def get_catalog_pv(self, obj: Product) -> dict | None:
+        return self.context.get("catalog_pv_map", {}).get(str(obj.id))
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):

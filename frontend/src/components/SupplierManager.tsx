@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import * as Select from "@radix-ui/react-select";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -87,6 +87,18 @@ function sanitize(data: ProductSupplierInput): ProductSupplierInput {
     po_base_price: trimPrice(data.po_base_price),
     copper_base_price: data.is_copper_indexed ? trimPrice(data.copper_base_price) : null,
   };
+}
+
+/** Fields sent on PATCH — `is_active` is managed only via the activate endpoint. */
+function toUpdatePayload(data: ProductSupplierInput): Omit<ProductSupplierInput, "is_active"> {
+  const { is_active: _ignored, ...payload } = sanitize(data);
+  return payload;
+}
+
+/** Compare editable fields only (activation is a separate action). */
+function editableSnapshot(data: ProductSupplierInput): string {
+  const { is_active: _ignored, ...rest } = sanitize(data);
+  return JSON.stringify(rest);
 }
 
 function isValid(data: ProductSupplierInput): boolean {
@@ -423,7 +435,14 @@ function SupplierCard({
 }) {
   const [draft, setDraft] = useState<ProductSupplierInput>(() => toInput(supplier));
   const [busy, setBusy] = useState(false);
-  const dirty = JSON.stringify(sanitize(draft)) !== JSON.stringify(sanitize(toInput(supplier)));
+
+  useEffect(() => {
+    setDraft((current) =>
+      current.is_active === supplier.is_active ? current : { ...current, is_active: supplier.is_active },
+    );
+  }, [supplier.id, supplier.is_active]);
+
+  const dirty = editableSnapshot(draft) !== editableSnapshot(toInput(supplier));
 
   const run = async (fn: () => Promise<void> | void) => {
     setBusy(true);
@@ -494,7 +513,7 @@ function SupplierCard({
           <button
             type="button"
             disabled={busy || !isValid(draft)}
-            onClick={() => run(() => onUpdate(supplier.id, sanitize(draft)))}
+            onClick={() => run(() => onUpdate(supplier.id, toUpdatePayload(draft)))}
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}

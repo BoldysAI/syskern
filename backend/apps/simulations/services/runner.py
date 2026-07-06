@@ -33,6 +33,7 @@ from .engine import (
     PriceWithCurrency,
     ProductView,
     SimulationContext,
+    build_pr_breakdown,
     build_purchase_modules,
     build_sale_modules,
     compute_pr,
@@ -326,6 +327,20 @@ def _recalculate_line(
                 f"— mix stock/achat forcé à 0 % (PR = PA net)."
             )
         pr = compute_pr(pa_net_eur=pa_net, pamp_predictive_eur=pamp_predictive, mix_pct=mix_pct)
+        pr_breakdown = build_pr_breakdown(
+            pa_net_eur=pa_net,
+            pamp_predictive_eur=pamp_predictive,
+            pr_eur=pr,
+            simulation_mix_pct=simulation.stock_purchase_mix_pct,
+            line_override=line.stock_purchase_mix_pct_override,
+            requested_mix_pct=requested_mix_pct,
+            effective_mix_pct=mix_pct,
+            odoo_synced=product.odoo_id is not None,
+            stock_quantity=product.stock_quantity,
+            pamp_eur=product.pamp_eur,
+            pending_purchases=pending_purchases or [],
+            mix_warnings=mix_warnings,
+        )
 
         # ─── Sale chain → PV ──────────────────────────────────────────
         margin_rate = resolve_margin_rate(
@@ -401,6 +416,7 @@ def _recalculate_line(
         )
         line.calculation_breakdown = {
             "purchase": purchase_result.to_breakdown(),
+            "pr": pr_breakdown,
             "sale": sale_result.to_breakdown(),
             "mix_pct": mix_pct,
             "syskern_margin_rate": str(margin_rate),

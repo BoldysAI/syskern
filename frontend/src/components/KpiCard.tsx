@@ -25,7 +25,7 @@ export function KpiCard({ label, value, subValue, accent = "default", className 
       )}
     >
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold font-data text-foreground">{value}</p>
+      <div className="mt-1 text-2xl font-bold font-data text-foreground">{value}</div>
       {subValue && (
         <p className="mt-0.5 text-xs text-muted-foreground">{subValue}</p>
       )}

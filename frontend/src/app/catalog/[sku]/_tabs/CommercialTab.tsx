@@ -28,6 +28,7 @@ import {
   formatPriceHistoryTooltipLabel,
   resolveChartPointIndex,
 } from "./price-history-chart";
+import { CatalogPvDisplay, CatalogPvSimulationSource, latestPvSourceFromHistory } from "@/app/catalog/_components/catalog-pv-display";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
@@ -108,7 +109,7 @@ export function CommercialTab() {
   );
 
   const points = useMemo(() => collapsePriceHistoryByDay(history?.points ?? []), [history?.points]);
-  const latestPv = points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
+  const latestPvSource = useMemo(() => latestPvSourceFromHistory(points), [points]);
   const chartData = useMemo(
     (): ChartRow[] =>
       points.map((p) => ({
@@ -171,12 +172,15 @@ export function CommercialTab() {
             <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-blue">
               Prix de vente actuel
             </div>
-            <div className="mt-2 text-2xl font-bold font-data text-foreground">
-              {latestPv > 0
-                ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                : "—"}
+            <div className="mt-2">
+              <CatalogPvDisplay pv={latestPvSource?.pv} layout="stack" size="lg" />
             </div>
-            <div className="mt-2 text-xs text-muted-foreground">Dernière simulation finalisée</div>
+            <CatalogPvSimulationSource
+              source={latestPvSource}
+              productSku={product.sku_code}
+              productLabel={product.name}
+              productTab="commercial"
+            />
           </CardContent>
         </Card>
 

@@ -364,6 +364,21 @@ class TestNestedSupplierEndpoints:
         supplier.refresh_from_db()
         assert supplier.supplier_name == "Symea Updated"
 
+    def test_patch_is_active_true_switches_active_supplier_atomically(self, client, product):
+        s1 = ProductSupplier.objects.create(
+            product=product, supplier_name="Fournisseur 1", is_active=True
+        )
+        s2 = ProductSupplier.objects.create(
+            product=product, supplier_name="Fournisseur 2", is_active=False
+        )
+        url = f"/api/products/{product.pk}/suppliers/{s2.pk}/"
+        resp = client.patch(url, {"is_active": True}, format="json")
+        assert resp.status_code == 200
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        assert s2.is_active is True
+        assert s1.is_active is False
+
     def test_delete_removes_supplier(self, client, product, supplier):
         url = f"/api/products/{product.pk}/suppliers/{supplier.pk}/"
         resp = client.delete(url)

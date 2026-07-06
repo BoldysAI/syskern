@@ -21,6 +21,7 @@ export const CATALOG_CORE_COLUMN_META: CatalogColumnMeta[] = [
   { key: "brand", label: "Marque", kind: "core" },
   { key: "active_supplier", label: "Fournisseur actif", kind: "core" },
   { key: "pamp_eur", label: "PAMP", kind: "core" },
+  { key: "catalog_pv", label: "PV", kind: "core" },
   { key: "stock_quantity", label: "Stock", kind: "core" },
   { key: "is_copper_indexed", label: "Indexé cuivre", kind: "core" },
   { key: "is_active", label: "Actif", kind: "core" },

@@ -256,12 +256,17 @@ sections dont il a besoin.
 - **Sous-niveaux** : cascades hiérarchie (`HierarchyFilterCascade`), attributs dynamiques, etc. —
   même règle (`useState(false)` sur chaque repliable).
 - **Badge `activeCount`** : indique qu’un filtre est appliqué **sans** déplier la section.
+- **Ordre des options** : l’ordre d’affichage des cases à cocher (`FilterCheckboxGroup`) reste
+  **fixe** (ordre fourni par l’appelant / API) — cocher une valeur **ne la remonte pas** en tête de
+  liste. La recherche locale filtre uniquement, sans réordonner selon la sélection.
 - **Exceptions** : aucune pour l’instant ; le panneau filtres latéral peut rester visible/ouvert en
   entier, seules les **sections internes** restent fermées.
 
 Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFiltersSidebar`,
 `QuarantineFiltersSidebar`, `ComparisonFiltersSidebar`, `LibraryFiltersSidebar`, + les
-`*FilterSheet` mobiles associés, `AddProductsModal`. **Tous** les modules de liste
+`*FilterSheet` mobiles associés, `AddProductsModal`. **Catalogue** : section **Fournisseur** avec
+sous-filtre repliable **Fournisseur actif** (`?supplier=` toute source · `?active_supplier=`
+source active ; option **Pas de fournisseur** = `__none__`). **Tous** les modules de liste
 (catalogue, simulations, offres, comparaisons, bibliothèque, quarantaine) adoptent désormais ce
 pattern (sidebar gauche repliable/redimensionnable + `FilterSection` + chips actifs + favoris
 `localStorage` + sheet mobile). Nouveau module de liste → suivre ce même pattern.
@@ -658,7 +663,7 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 | `KpiCard` | `components/KpiCard.tsx` | Cartes KPI |
 | `AppIcon` | `components/AppIcon.tsx` | Icônes Phosphor (taille/poids/couleur) |
 | `FilterSection` | `components/FilterSection.tsx` | Section filtre repliable — **fermée par défaut** (cf. playbook filtres) |
-| `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) |
+| `FilterCheckboxGroup` | `components/FilterCheckboxGroup.tsx` | Liste checkboxes filtre (shadcn) — ordre stable, pas de remontée des cochés |
 | `FilterSelect` | `components/FilterSelect.tsx` | Select filtre avec option « Tous » |
 | `SearchInput` | `components/SearchInput.tsx` | Recherche avec icône + clear |
 | `RangeFilterSlider` | `components/RangeFilterSlider.tsx` | Slider simple ou fourchette (PAMP, stock, attributs) |

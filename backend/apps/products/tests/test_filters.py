@@ -90,6 +90,71 @@ class TestSupplierFilter:
         resp = client.get("/api/products/", {"supplier": "Symea Shanghai,Autre"})
         assert _skus(resp) == {"SUP-M1", "SUP-M2"}
 
+    def test_filter_by_inactive_supplier_name(self, client):
+        """`supplier` matches any linked source, not only the active one."""
+        p = _make("SUP-INACT")
+        ProductSupplier.objects.create(
+            product=p, supplier_name="Symea Shanghai", is_active=False
+        )
+        ProductSupplier.objects.create(
+            product=p, supplier_name="Autre", is_active=True
+        )
+        resp = client.get("/api/products/", {"supplier": "Symea Shanghai"})
+        assert _skus(resp) == {"SUP-INACT"}
+
+    def test_filter_by_active_supplier_name(self, client):
+        p = _make("SUP-ACT")
+        ProductSupplier.objects.create(
+            product=p, supplier_name="Symea Shanghai", is_active=False
+        )
+        ProductSupplier.objects.create(product=p, supplier_name="Autre", is_active=True)
+        resp = client.get("/api/products/", {"active_supplier": "Autre"})
+        assert _skus(resp) == {"SUP-ACT"}
+
+    def test_active_supplier_ignores_inactive_match(self, client):
+        p = _make("SUP-ACT2")
+        ProductSupplier.objects.create(
+            product=p, supplier_name="Symea Shanghai", is_active=False
+        )
+        ProductSupplier.objects.create(product=p, supplier_name="Autre", is_active=True)
+        resp = client.get("/api/products/", {"active_supplier": "Symea Shanghai"})
+        assert _skus(resp) == set()
+
+    def test_active_supplier_multi_select(self, client):
+        p1 = _make("SUP-AM1")
+        p2 = _make("SUP-AM2")
+        p3 = _make("SUP-AM3")
+        ProductSupplier.objects.create(product=p1, supplier_name="Symea Shanghai", is_active=True)
+        ProductSupplier.objects.create(product=p2, supplier_name="Autre", is_active=True)
+        ProductSupplier.objects.create(product=p3, supplier_name="Tiers", is_active=True)
+        resp = client.get("/api/products/", {"active_supplier": "Symea Shanghai,Autre"})
+        assert _skus(resp) == {"SUP-AM1", "SUP-AM2"}
+
+    def test_filter_no_supplier_linked(self, client):
+        p_none = _make("SUP-NONE")
+        p_with = _make("SUP-WITH")
+        ProductSupplier.objects.create(product=p_with, supplier_name="Symea Shanghai")
+        resp = client.get("/api/products/", {"supplier": "__none__"})
+        assert _skus(resp) == {"SUP-NONE"}
+
+    def test_filter_no_supplier_or_named(self, client):
+        p_none = _make("SUP-NONE2")
+        p_named = _make("SUP-NAMED2")
+        ProductSupplier.objects.create(product=p_named, supplier_name="Symea Shanghai")
+        resp = client.get("/api/products/", {"supplier": "__none__,Symea Shanghai"})
+        assert _skus(resp) == {"SUP-NONE2", "SUP-NAMED2"}
+
+    def test_filter_no_active_supplier(self, client):
+        p_none = _make("SUP-ANO")
+        p_inactive = _make("SUP-INACTONLY")
+        p_active = _make("SUP-ACTOK")
+        ProductSupplier.objects.create(
+            product=p_inactive, supplier_name="Symea Shanghai", is_active=False
+        )
+        ProductSupplier.objects.create(product=p_active, supplier_name="Autre", is_active=True)
+        resp = client.get("/api/products/", {"active_supplier": "__none__"})
+        assert _skus(resp) == {"SUP-ANO", "SUP-INACTONLY"}
+
 
 class TestAttributeFilters:
     def test_filterable_attribute_matches(self, client):
@@ -154,3 +219,20 @@ class TestAttributeFilters:
         ProductAttributeValue.objects.create(product=p2, attribute=attr, value=140)
         resp = client.get("/api/products/", {"attr_filter_num_json": "78"})
         assert _skus(resp) == {"NUM-N2"}
+
+
+class TestDistinctBrandsEndpoint:
+    def test_includes_brands_from_inactive_products(self, client):
+        """Sidebar brand list must match the catalog list (all products by default)."""
+        _make("BR-ACT", brand="Nexans", is_active=True)
+        _make("BR-OEM", brand="OEM", is_active=False)
+        resp = client.get("/api/brands")
+        assert resp.status_code == 200
+        assert set(resp.data["values"]) == {"Nexans", "OEM"}
+
+    def test_excludes_empty_and_legacy_typo_brands(self, client):
+        _make("BR-EMPTY", brand="")
+        _make("BR-TYPO", brand="Unnikern")
+        _make("BR-OK", brand="Acome")
+        resp = client.get("/api/brands")
+        assert resp.data["values"] == ["Acome"]

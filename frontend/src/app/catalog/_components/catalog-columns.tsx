@@ -12,6 +12,7 @@ import {
   attrSortField,
   CATALOG_COLUMN_ORDER,
 } from "./catalog-column-registry";
+import { CatalogPvDisplay } from "./catalog-pv-display";
 import { visibleAttrCodes } from "./catalog-column-storage";
 
 export function parseDec(v?: string | null): number {
@@ -156,6 +157,15 @@ function buildCoreColumnDef(
             ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
             : "—";
         },
+      };
+    case "catalog_pv":
+      return {
+        key: "catalog_pv",
+        label: "PV",
+        width: 148,
+        align: "right",
+        cellClassName: "align-top py-2.5",
+        render: (product) => <CatalogPvDisplay pv={product.catalog_pv} size="sm" />,
       };
     case "stock_quantity":
       return {

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { lineDiagnostics, LINE_STATUS, productEditHref, type ProductEditFromSimulation } from "./sim-format";
+import { diagnosticTextClass, lineDiagnostics, LINE_STATUS, productEditHref, type ProductEditFromSimulation } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 interface Props {
@@ -41,8 +41,8 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-lg gap-0 p-0">
-        <DialogHeader className="border-b border-border px-5 py-4">
+      <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
           <DialogTitle>Diagnostic de calcul</DialogTitle>
           <DialogDescription className="truncate font-mono text-sm text-warm">
             {line.product_sku}
@@ -52,7 +52,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
           </p>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-5 py-4">
           <div className="flex items-center gap-2">
             <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-medium", st.badge)}>
               {st.label}
@@ -94,7 +94,10 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
                 {errors.map((msg, i) => (
                   <li
                     key={`e-${i}`}
-                    className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                    className={cn(
+                      "rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive",
+                      diagnosticTextClass,
+                    )}
                   >
                     {msg}
                   </li>
@@ -113,7 +116,10 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
                 {warnings.map((msg, i) => (
                   <li
                     key={`w-${i}`}
-                    className="rounded-lg border border-warm/30 bg-warm/10 px-3 py-2 text-sm text-foreground"
+                    className={cn(
+                      "rounded-lg border border-warm/30 bg-warm/10 px-3 py-2 text-sm text-foreground",
+                      diagnosticTextClass,
+                    )}
                   >
                     {msg}
                   </li>
@@ -130,7 +136,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
           )}
         </div>
 
-        <DialogFooter className="px-5 py-3">
+        <DialogFooter className="shrink-0 px-5 py-3">
           <Link
             href={productEditHref(line.product_sku, [...errors, ...warnings], fromSimulation)}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

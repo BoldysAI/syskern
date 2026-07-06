@@ -146,6 +146,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
             key={open ? simId : "closed"}
             className="min-h-[280px] flex-1 rounded-none border-0 shadow-none"
             variant="embedded"
+            simulationId={simId}
             enabled={open}
             skuAsLink={false}
             pageSize={50}

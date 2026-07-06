@@ -15,7 +15,7 @@ import type { SimulationLine } from "@/lib/api";
 import { listTransportModes } from "@/lib/api";
 import { transportModeLabelMap } from "@/lib/transport-modes";
 import { cn } from "@/lib/utils";
-import { decToPct, fmtEur, fmtPrice, formatBreakdownStepDetails, lineDiagnostics, moduleLabel, mpStr, parseLineBreakdown, type BreakdownStep } from "./sim-format";
+import { decToPct, diagnosticTextClass, fmtEur, fmtPrice, formatBreakdownStepDetails, lineDiagnostics, moduleLabel, mpStr, parseLineBreakdown, prChainSteps, type BreakdownStep } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 interface Props {
@@ -27,6 +27,7 @@ interface Props {
 const STEPS = [
   { id: "summary", label: "Synthèse" },
   { id: "purchase", label: "Chaîne PA" },
+  { id: "pr", label: "Chaîne PR" },
   { id: "sale", label: "Chaîne PV" },
 ] as const;
 
@@ -55,7 +56,7 @@ function StepDetailBlock({
   return (
     <div className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted px-3 py-2.5">
       {details.map((line, i) => (
-        <p key={i} className="text-sm leading-snug text-foreground">
+        <p key={i} className={cn("text-sm leading-snug text-foreground", diagnosticTextClass)}>
           {line}
         </p>
       ))}
@@ -116,10 +117,13 @@ function ChainSteps({
               {step.warnings.map((w, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-1.5 rounded border border-warm/30 bg-warm/10 px-2.5 py-2 text-sm text-foreground"
+                  className={cn(
+                    "flex items-start gap-1.5 rounded border border-warm/30 bg-warm/10 px-2.5 py-2 text-sm text-foreground",
+                    diagnosticTextClass,
+                  )}
                 >
                   <Warning size={14} className="mt-0.5 shrink-0" weight="fill" />
-                  {w}
+                  <span className={diagnosticTextClass}>{w}</span>
                 </li>
               ))}
             </ul>
@@ -143,10 +147,11 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
   const breakdown = parseLineBreakdown(line);
   const { errors, warnings } = lineDiagnostics(line);
   const purchaseSteps = breakdown.purchase?.steps ?? [];
+  const prSteps = prChainSteps(line, breakdown);
   const saleSteps = breakdown.sale?.steps ?? [];
   const mixPct = breakdown.mix_pct ?? line.effective_mix_pct ?? 0;
   const purchasePct = 100 - (mixPct ?? 0);
-  const hasBreakdown = purchaseSteps.length > 0 || saleSteps.length > 0;
+  const hasBreakdown = purchaseSteps.length > 0 || prSteps.length > 0 || saleSteps.length > 0;
   const mpSnap = breakdown.market_params_snapshot ?? {};
   const incSnap = breakdown.incoterm_context ?? {};
 
@@ -165,7 +170,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
         }
       }}
     >
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 p-0 sm:max-w-4xl">
+      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
         <div className="shrink-0 border-b border-border px-5 py-4">
           <DialogHeader className="gap-1 p-0">
             <DialogTitle>Détail du calcul</DialogTitle>
@@ -197,13 +202,16 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
             {errors.length > 0 && !hasBreakdown && (
-              <div className="mb-4 space-y-2">
+              <div className="mb-4 max-h-[min(40vh,16rem)] space-y-2 overflow-y-auto overscroll-contain">
                 {errors.map((msg, i) => (
                   <div
                     key={i}
-                    className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                    className={cn(
+                      "rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive",
+                      diagnosticTextClass,
+                    )}
                   >
                     {msg}
                   </div>
@@ -311,7 +319,10 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       {warnings.map((w, i) => (
                         <li
                           key={i}
-                          className="rounded-lg border border-warm/30 bg-warm/10 px-3 py-2 text-sm text-foreground"
+                          className={cn(
+                            "rounded-lg border border-warm/30 bg-warm/10 px-3 py-2 text-sm text-foreground",
+                            diagnosticTextClass,
+                          )}
                         >
                           {w}
                         </li>
@@ -337,6 +348,28 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   )}
                 </p>
                 <ChainSteps steps={purchaseSteps} chainLabel="PA" transportLabels={transportLabels} />
+              </div>
+            )}
+
+            {currentStep === "pr" && (
+              <div>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Chaîne PR : du PA net et du PAMP prévisionnel au prix de revient en EUR.
+                  {(breakdown.pr?.final_amount ?? line.pr_eur) && (
+                    <span className="ml-1 font-medium text-foreground">
+                      Résultat :{" "}
+                      {fmtPrice(
+                        breakdown.pr?.final_amount
+                          ? {
+                              amount: breakdown.pr.final_amount,
+                              currency: breakdown.pr.final_currency ?? "EUR",
+                            }
+                          : { amount: line.pr_eur!, currency: "EUR" },
+                      )}
+                    </span>
+                  )}
+                </p>
+                <ChainSteps steps={prSteps} chainLabel="PR" transportLabels={transportLabels} />
               </div>
             )}
 

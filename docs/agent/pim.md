@@ -106,11 +106,15 @@ Miroir frontend : `components/AttributeRenderer.tsx` (`validateAttributeValue`,
 | `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
 | `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
 | `GET` | `/api/products/?is_active=true\|false` | filtre statut produit (soft-delete) ; omis = actifs + inactifs |
+| `GET` | `/api/products/?supplier=…` | produits ayant **au moins une** source fournisseur avec ce nom (active ou inactive) ; multi CSV ; `__none__` = aucune source liée |
+| `GET` | `/api/products/?active_supplier=…` | source **active** uniquement ; multi CSV ; `__none__` = pas de fournisseur actif |
+| `GET` | `/api/products/?simulation_id=…` | enrichit chaque ligne avec `catalog_pv` (EUR + USD + RMB via `market_params` de la simulation) pour les produits présents dans cette simulation |
+| `GET` | `/api/products/` (sans `simulation_id`) | `catalog_pv` = dernier PV d'une simulation **finalisée** par produit (même logique que price-history) |
 | `GET` | `/api/products/?i18n_incomplete=true` | au moins une langue manquante (CDC §10.7.3 → `i18n.md`) |
 | `GET` | `/api/products/?lang_{fr,en,es}_{in,out}=true` | avec / sans contenu par langue (description marketing ou technique) |
 | `POST` | `/api/products/bulk-translate/` | traduction bulk async (DeepL) `{ids, target_langs, content_fields}` → `202 + task_id` (§10.3.2) |
 | `GET` | `/api/products/filter-bounds` | min/max PAMP, stock, attributs numériques — mêmes query params que la liste (sauf bornes sliders) ; queryset de base = tous les produits |
-| `GET` | `/api/brands` · `/api/factory-codes` | valeurs distinctes (filtres sidebar) |
+| `GET` | `/api/brands` · `/api/factory-codes` | valeurs distinctes (filtres sidebar). **`/api/brands`** : tous les produits (actifs + inactifs), hors marque vide et typo legacy `unnikern` |
 | `POST` | `/api/products/export` | export Excel **async** ; body `{filters, columns, ids}` → `202 + task_id` |
 | `GET` | `/api/products/exports/{task_id}` | download du `.xlsx` produit par la tâche |
 | `POST` | `/api/products/parse-sku` | utilitaire wizard → `{sku, parent_reference, factory_code}` (service `sku_parser`) ; 400 si `sku` absent |
@@ -135,7 +139,9 @@ Miroir frontend : `components/AttributeRenderer.tsx` (`validateAttributeValue`,
 - `i18n_coverage` (`{languages, percent, complete}`) est exposé sur la liste **et** le détail
   (calculé sur `description_marketing`/`technical`). Multilingue → `i18n.md`.
 - Pas de `pv_eur` sur `Product` : le « prix de vente actuel » = dernier point de
-  `price-history` (simulations finalisées uniquement).
+  `price-history` (simulations finalisées uniquement), affiché en **EUR + USD + RMB**
+  (taux `fx_eur_usd` / `fx_eur_rmb` de la simulation source). Liste catalogue :
+  champ `catalog_pv` (idem) ; `?simulation_id=` pour cadrer sur une simulation en cours.
 - Upsert attribut = **PUT** (pas PATCH), body = juste `{"value": ...}`.
 - `refresh-pamp` / `translate` exigent un `odoo_id` / une description FR.
 
@@ -167,9 +173,9 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
 
 - **Recherche full-text** : champ global → param `?q=` (tsvector backend). Debounce 300 ms
   (timer en `ref`, pas de `setState` en effet).
-- **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, fournisseur
-  en **multi-checkbox** (niveaux indépendants — pas de cascade UI obligatoire ; chaque niveau
-  via `getHierarchyLevel(level)`). **Statut produit** : toggles exclusifs Actif / Non actif
+- **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, section
+  **Fournisseur** (toute source liée + sous-filtre repliable **Fournisseur actif** pour la source
+  `is_active=true` uniquement — miroir colonne tableau) en **multi-checkbox**. **Statut produit** : toggles exclusifs Actif / Non actif
   (`active_in` / `active_out` → `?is_active=true|false` ; défaut = les deux visibles). Stock :
   toggles en stock / rupture + quantité min. Attributs dynamiques `is_filterable` (rendus selon
   `data_type`, section sidebar « Attributs dynamiques » — toutes catégories confondues ;
@@ -186,7 +192,7 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
   uniquement ; pas en mode `embedded`). Deux sections à cases à cocher (libellé FR uniquement, pas
   de code technique) :
   - **Colonnes produit** : SKU (verrouillé), Désignation, Univers, Famille, Gamme, Sous-gamme,
-    Marque, Fournisseur actif, PAMP, Stock, Indexé cuivre, Actif, Langues.
+    Marque, Fournisseur actif, PAMP, **PV** (EUR/USD/RMB si simulation), Stock, Indexé cuivre, Actif, Langues.
   - **Attributs dynamiques** : tout le registre (`listAttributes`).
   Boutons **Réinitialiser** (défaut = SKU, Désignation, Univers, Famille, Fournisseur, PAMP, Stock,
   Actif, Langues), **Annuler**, **Appliquer**. Persistance `localStorage`

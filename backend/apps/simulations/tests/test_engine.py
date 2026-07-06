@@ -24,6 +24,7 @@ from apps.simulations.services.engine import (
     SimulationContext,
     TransportModule,
     build_purchase_modules,
+    build_pr_breakdown,
     build_sale_modules,
     compute_pr,
     compute_predictive_pamp,
@@ -364,6 +365,50 @@ def test_resolve_mix_pct_forced_to_zero_without_pamp():
     # Predictive PAMP unavailable → mix forced to 0 even when an override is set.
     assert resolve_mix_pct(simulation_mix_pct=30, line_override=70, pamp_available=False) == 0
     assert resolve_mix_pct(simulation_mix_pct=30, line_override=None, pamp_available=False) == 0
+
+
+def test_build_pr_breakdown_with_pamp_and_mix():
+    breakdown = build_pr_breakdown(
+        pa_net_eur=Decimal("400"),
+        pamp_predictive_eur=Decimal("300"),
+        pr_eur=Decimal("350"),
+        simulation_mix_pct=30,
+        line_override=50,
+        requested_mix_pct=50,
+        effective_mix_pct=50,
+        odoo_synced=True,
+        stock_quantity=Decimal("10"),
+        pamp_eur=Decimal("80"),
+        pending_purchases=[],
+        mix_warnings=[],
+    )
+    modules = [step["module"] for step in breakdown["steps"]]
+    assert modules == ["predictive_pamp", "pr_mix"]
+    assert breakdown["final_amount"] == "350"
+    assert breakdown["mix_pct"] == 50
+    pr_step = breakdown["steps"][1]
+    assert pr_step["metadata"]["weighted_pa_component"] == "200.0000"
+    assert pr_step["metadata"]["weighted_pamp_component"] == "150.0000"
+
+
+def test_build_pr_breakdown_without_pamp_marks_first_step_passthrough():
+    breakdown = build_pr_breakdown(
+        pa_net_eur=Decimal("400"),
+        pamp_predictive_eur=None,
+        pr_eur=Decimal("400"),
+        simulation_mix_pct=50,
+        line_override=None,
+        requested_mix_pct=50,
+        effective_mix_pct=0,
+        odoo_synced=False,
+        stock_quantity=Decimal("10"),
+        pamp_eur=Decimal("80"),
+        pending_purchases=[],
+        mix_warnings=["Mix forcé à 0 %"],
+    )
+    assert breakdown["steps"][0]["applied"] is False
+    assert breakdown["steps"][0]["metadata"]["reason"] == "not_synced_odoo"
+    assert breakdown["steps"][1]["warnings"] == ["Mix forcé à 0 %"]
 
 
 def test_quantize_rounds_half_up():

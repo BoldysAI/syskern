@@ -132,6 +132,8 @@ export const MODULE_LABELS: Record<string, string> = {
   symea_margin: "Marge Symea",
   syskern_margin: "Marge Syskern",
   margin: "Marge",
+  predictive_pamp: "PAMP prévisionnel",
+  pr_mix: "Mix stock / achat → PR",
 };
 
 /** Passthrough reasons stored in step metadata when a module is skipped. */
@@ -146,6 +148,9 @@ export const PASSTHROUGH_REASONS: Record<string, string> = {
   missing_total_quantity:
     "Frais de douane renseignés mais quantité totale absente — impossible de répartir par unité.",
   no_customs_charge: "Aucun frais de douane applicable.",
+  not_synced_odoo: "Produit non synchronisé avec Odoo — PAMP prévisionnel indisponible.",
+  no_stock_or_purchases:
+    "Stock à 0 et aucun achat engagé — PAMP prévisionnel indisponible.",
 };
 
 /** EUR = 2 decimals for display; other currencies keep up to 4 (engine precision). */
@@ -309,6 +314,57 @@ export function formatBreakdownStepDetails(
       }
       break;
     }
+    case "predictive_pamp": {
+      lines.push(
+        `Stock actuel : ${fmtNum(String(meta.stock_quantity))} unité(s) × PAMP ${fmtMoney(meta.pamp_eur, "EUR")} = ${fmtMoney(meta.stock_value_eur, "EUR")}.`
+      );
+      const pending = Array.isArray(meta.pending_purchases) ? meta.pending_purchases : [];
+      if (pending.length > 0) {
+        lines.push(`Achats engagés (${pending.length}) :`);
+        for (const row of pending) {
+          const r = row as { quantity?: string; price_unit_eur?: string };
+          lines.push(
+            `• ${fmtNum(String(r.quantity ?? "0"))} × ${fmtMoney(r.price_unit_eur, "EUR")} = ${fmtMoney(
+              parseFloat(String(r.quantity ?? "0")) * parseFloat(String(r.price_unit_eur ?? "0")),
+              "EUR",
+            )}.`
+          );
+        }
+        lines.push(`Valeur achats engagés : ${fmtMoney(meta.purchase_value_eur, "EUR")}.`);
+      } else {
+        lines.push("Aucun achat engagé en attente.");
+      }
+      lines.push(
+        `PAMP prévisionnel = (stock + achats) ÷ quantité totale = ${fmtMoney(meta.stock_value_eur, "EUR")} + ${fmtMoney(meta.purchase_value_eur, "EUR")} ÷ ${fmtNum(String(meta.total_quantity))} = ${fmtPrice(step.output_price)}.`
+      );
+      break;
+    }
+    case "pr_mix": {
+      const effective = meta.effective_mix_pct ?? meta.stock_weight_pct ?? 0;
+      const purchaseWeight = meta.purchase_weight_pct ?? 100 - Number(effective);
+      const stockWeight = meta.stock_weight_pct ?? effective;
+      lines.push(
+        `Mix simulation : ${meta.simulation_mix_pct ?? "—"} %` +
+          (meta.line_override != null ? ` · override ligne : ${meta.line_override} %` : "") +
+          ` · mix demandé : ${meta.requested_mix_pct ?? effective} % · mix effectif : ${effective} %.`
+      );
+      lines.push(`Répartition : ${purchaseWeight} % PA net · ${stockWeight} % PAMP prév.`);
+      if (meta.pamp_predictive_eur == null) {
+        lines.push("PAMP prévisionnel indisponible — PR = PA net.");
+      } else {
+        lines.push(
+          `PA net : ${fmtMoney(meta.pa_net_eur, "EUR")} · PAMP prév. : ${fmtMoney(meta.pamp_predictive_eur, "EUR")}.`
+        );
+        lines.push(
+          `PR = (${purchaseWeight} % × PA net) + (${stockWeight} % × PAMP prév.)` +
+            (meta.weighted_pa_component && meta.weighted_pamp_component
+              ? ` = ${fmtMoney(meta.weighted_pa_component, "EUR")} + ${fmtMoney(meta.weighted_pamp_component, "EUR")}`
+              : "") +
+            ` → ${fmtPrice(step.output_price)}.`
+        );
+      }
+      break;
+    }
     default:
       break;
   }
@@ -343,8 +399,10 @@ export interface BreakdownChain {
 
 export interface LineBreakdown {
   purchase?: BreakdownChain;
+  pr?: BreakdownChain;
   sale?: BreakdownChain;
   mix_pct?: number;
+  requested_mix_pct?: number;
   syskern_margin_rate?: string;
   market_params_snapshot?: Record<string, string | number>;
   incoterm_context?: {
@@ -360,6 +418,62 @@ export interface LineBreakdown {
 
 export function parseLineBreakdown(line: SimulationLine): LineBreakdown {
   return (line.calculation_breakdown ?? {}) as LineBreakdown;
+}
+
+/** PR chain steps from persisted breakdown, with a lightweight fallback for older lines. */
+export function prChainSteps(line: SimulationLine, breakdown: LineBreakdown): BreakdownStep[] {
+  const persisted = breakdown.pr?.steps ?? [];
+  if (persisted.length > 0) return persisted;
+
+  const mixPct = breakdown.mix_pct ?? line.effective_mix_pct ?? 0;
+  const purchaseWeight = 100 - mixPct;
+  const paAmount = line.pa_net_eur ?? "0";
+  const prAmount = line.pr_eur ?? paAmount;
+  const eur = "EUR";
+  const steps: BreakdownStep[] = [];
+
+  if (line.pamp_predictive_eur) {
+    steps.push({
+      module: "predictive_pamp",
+      order: 1,
+      applied: true,
+      input_price: { amount: line.pamp_predictive_eur, currency: eur },
+      output_price: { amount: line.pamp_predictive_eur, currency: eur },
+      metadata: { pamp_predictive_eur: line.pamp_predictive_eur },
+      warnings: [],
+    });
+  } else {
+    steps.push({
+      module: "predictive_pamp",
+      order: 1,
+      applied: false,
+      input_price: { amount: paAmount, currency: eur },
+      output_price: { amount: paAmount, currency: eur },
+      metadata: { reason: "unavailable" },
+      warnings: [],
+    });
+  }
+
+  steps.push({
+    module: "pr_mix",
+    order: 2,
+    applied: true,
+    input_price: { amount: paAmount, currency: eur },
+    output_price: { amount: prAmount, currency: eur },
+    metadata: {
+      simulation_mix_pct: mixPct,
+      line_override: line.stock_purchase_mix_pct_override,
+      requested_mix_pct: breakdown.requested_mix_pct ?? mixPct,
+      effective_mix_pct: mixPct,
+      purchase_weight_pct: purchaseWeight,
+      stock_weight_pct: mixPct,
+      pa_net_eur: paAmount,
+      pamp_predictive_eur: line.pamp_predictive_eur,
+    },
+    warnings: [],
+  });
+
+  return steps;
 }
 
 export function moduleLabel(module: string): string {
@@ -403,3 +517,7 @@ export function recalcTriggerLabel(triggerType: string | null | undefined): stri
   if (!triggerType) return "—";
   return RECALC_TRIGGER[triggerType]?.label ?? "Recalcul";
 }
+
+/** Keep long engine messages inside drawers and wizard panels (wrap + no horizontal spill). */
+export const diagnosticTextClass =
+  "min-w-0 max-w-full break-words [overflow-wrap:anywhere]";

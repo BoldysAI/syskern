@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import django_filters as filters
 from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F, FloatField, Q
+from django.db.models import Exists, F, FloatField, OuterRef, Q
 from django.db.models.expressions import RawSQL
 
 from apps.attributes.models import AttributeRegistry
 
-from .models import Product
+from .models import Product, ProductSupplier
 
 # Query params prefixed like `attr_<code>=value` filter on dynamic attributes.
 _ATTR_PREFIX = "attr_"
+
+# Sentinel CSV value for « no supplier » filters (must match frontend `CATALOG_NO_SUPPLIER_VALUE`).
+NO_SUPPLIER_FILTER = "__none__"
 
 
 class ProductFilter(filters.FilterSet):
@@ -35,6 +38,7 @@ class ProductFilter(filters.FilterSet):
     brand = filters.CharFilter(method="filter_brand")
     factory_code = filters.CharFilter(method="filter_factory_code")
     supplier = filters.CharFilter(method="filter_supplier")
+    active_supplier = filters.CharFilter(method="filter_active_supplier")
     is_active = filters.BooleanFilter(field_name="is_active")
     is_copper_indexed = filters.BooleanFilter(field_name="is_copper_indexed")
 
@@ -68,6 +72,7 @@ class ProductFilter(filters.FilterSet):
             "brand",
             "factory_code",
             "supplier",
+            "active_supplier",
             "is_active",
             "is_copper_indexed",
         ]
@@ -109,13 +114,40 @@ class ProductFilter(filters.FilterSet):
         return self._filter_csv_iexact(queryset, "factory_code", value)
 
     def filter_supplier(self, queryset, name, value: str):
-        """Match products having a supplier with one of the given names."""
+        """Match products having a supplier with one of the given names (active or not).
+
+        The sentinel ``__none__`` matches products with no linked supplier at all.
+        """
         values = [v.strip() for v in value.split(",") if v.strip()]
         if not values:
             return queryset
         q = Q()
+        if NO_SUPPLIER_FILTER in values:
+            q |= ~Exists(ProductSupplier.objects.filter(product_id=OuterRef("pk")))
         for v in values:
+            if v == NO_SUPPLIER_FILTER:
+                continue
             q |= Q(suppliers__supplier_name__iexact=v)
+        return queryset.filter(q).distinct()
+
+    def filter_active_supplier(self, queryset, name, value: str):
+        """Match products whose active supplier has one of the given names.
+
+        The sentinel ``__none__`` matches products without any active supplier
+        (no suppliers, or only inactive sources).
+        """
+        values = [v.strip() for v in value.split(",") if v.strip()]
+        if not values:
+            return queryset
+        q = Q()
+        if NO_SUPPLIER_FILTER in values:
+            q |= ~Exists(
+                ProductSupplier.objects.filter(product_id=OuterRef("pk"), is_active=True)
+            )
+        for v in values:
+            if v == NO_SUPPLIER_FILTER:
+                continue
+            q |= Q(suppliers__supplier_name__iexact=v, suppliers__is_active=True)
         return queryset.filter(q).distinct()
 
     def filter_in_stock(self, queryset, name, value: bool):

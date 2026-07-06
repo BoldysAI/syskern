@@ -154,7 +154,6 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
               onChange={(next) => onSetLevel(level.key, next)}
               searchable={optionList.length > 5}
               maxHeight="max-h-40"
-              sortSelectedFirst
               idPrefix={`hierarchy-${level.key}`}
             />
           )}

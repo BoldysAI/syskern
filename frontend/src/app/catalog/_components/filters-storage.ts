@@ -26,6 +26,7 @@ export function normalizeCatalogFilters(f: CatalogFilters): CatalogFilters {
     sub_range?: string | string[];
     brand?: string | string[];
     supplier?: string | string[];
+    active_supplier?: string | string[];
   };
   const next: CatalogFilters = {
     ...f,
@@ -35,6 +36,7 @@ export function normalizeCatalogFilters(f: CatalogFilters): CatalogFilters {
     sub_range: toStringArray(raw.sub_range),
     brand: toStringArray(raw.brand),
     supplier: toStringArray(raw.supplier),
+    active_supplier: toStringArray(raw.active_supplier),
   };
   if (raw.stock === "in") {
     next.stock_in = true;
@@ -89,6 +91,7 @@ export function isEmptyFilter(f: CatalogFilters): boolean {
     !f.sub_range?.length &&
     !f.brand?.length &&
     !f.supplier?.length &&
+    !f.active_supplier?.length &&
     !f.active_in &&
     !f.active_out &&
     !f.stock_in &&

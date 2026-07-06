@@ -1,4 +1,8 @@
-import type { CatalogFilters } from "@/lib/api";
+import {
+  CATALOG_NO_SUPPLIER_LABEL,
+  CATALOG_NO_SUPPLIER_VALUE,
+  type CatalogFilters,
+} from "@/lib/api";
 
 export interface FilterChip {
   /** Stable id for React keys and removal. */
@@ -17,6 +21,7 @@ export function countActiveFilters(f: CatalogFilters): number {
   n += f.sub_range?.length ?? 0;
   n += f.brand?.length ?? 0;
   n += f.supplier?.length ?? 0;
+  n += f.active_supplier?.length ?? 0;
   if (f.active_in) n++;
   if (f.active_out) n++;
   if (f.stock_in) n++;
@@ -45,6 +50,7 @@ const ARRAY_KEYS = [
   "sub_range",
   "brand",
   "supplier",
+  "active_supplier",
 ] as const;
 
 type ArrayFilterKey = (typeof ARRAY_KEYS)[number];
@@ -56,7 +62,12 @@ const ARRAY_LABELS: Record<ArrayFilterKey, string> = {
   sub_range: "Sous-gamme",
   brand: "Marque",
   supplier: "Fournisseur",
+  active_supplier: "Fournisseur actif",
 };
+
+function supplierFilterChipLabel(value: string): string {
+  return value === CATALOG_NO_SUPPLIER_VALUE ? CATALOG_NO_SUPPLIER_LABEL : value;
+}
 
 /** Build removable chips for the active filter bar. */
 export function buildFilterChips(
@@ -74,7 +85,11 @@ export function buildFilterChips(
     if (!values?.length) continue;
     const category = ARRAY_LABELS[key];
     for (const v of values) {
-      chips.push({ id: `${key}:${v}`, label: v, category });
+      chips.push({
+        id: `${key}:${v}`,
+        label: key === "supplier" || key === "active_supplier" ? supplierFilterChipLabel(v) : v,
+        category,
+      });
     }
   }
 

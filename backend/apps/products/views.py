@@ -32,6 +32,7 @@ from .serializers import (
     ProductSupplierSerializer,
     ProductWriteSerializer,
 )
+from .services.catalog_pv import build_catalog_pv_map, catalog_pv_payload
 from .services.sku_parser import parse_sku
 from .tasks import (
     EXPORT_DIR,
@@ -134,6 +135,23 @@ class ProductViewSet(viewsets.ModelViewSet):
             ctx["attr_columns"] = self._parse_attr_columns()
         return ctx
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        items = page if page is not None else list(queryset)
+        product_ids = [str(p.id) for p in items]
+        simulation_id = (request.query_params.get("simulation_id") or "").strip() or None
+        pv_map = build_catalog_pv_map(product_ids, simulation_id=simulation_id)
+
+        serializer = self.get_serializer(
+            items,
+            many=True,
+            context={**self.get_serializer_context(), "catalog_pv_map": pv_map},
+        )
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
     def perform_destroy(self, instance: Product) -> None:
         """Soft-delete (CDC §4.6) — keeps historical simulations valid."""
         instance.is_active = False
@@ -216,8 +234,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             .order_by("simulation__last_calculated_at")
         )
 
-        points = [
-            {
+        points = []
+        for line in lines:
+            if line.simulation.last_calculated_at is None:
+                continue
+            point = {
                 "date": line.simulation.last_calculated_at,
                 "pa_eur": line.pa_net_eur,
                 "pr_eur": line.pr_eur,
@@ -225,9 +246,15 @@ class ProductViewSet(viewsets.ModelViewSet):
                 "simulation_id": str(line.simulation_id),
                 "simulation_label": line.simulation.label,
             }
-            for line in lines
-            if line.simulation.last_calculated_at is not None
-        ]
+            if line.pv_eur is not None:
+                point.update(
+                    catalog_pv_payload(
+                        line.pv_eur,
+                        simulation_id=line.simulation_id,
+                        market_params=line.simulation.market_params or {},
+                    )
+                )
+            points.append(point)
         return Response({"period": period, "points": points})
 
     # ── /api/products/{id}/refresh-pamp ──────────────────────────────────────
@@ -603,7 +630,7 @@ class CatalogFilterBoundsView(APIView):
 class DistinctBrandsView(APIView):
     def get(self, request):
         values = (
-            Product.objects.filter(is_active=True)
+            Product.objects.all()
             .exclude(brand="")
             .exclude(brand__iexact="unnikern")  # legacy typo
             .order_by("brand")

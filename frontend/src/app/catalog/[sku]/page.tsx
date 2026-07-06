@@ -51,6 +51,12 @@ import { MarketingTab } from "./_tabs/MarketingTab";
 import { LogisticsTab } from "./_tabs/LogisticsTab";
 import { CommercialTab } from "./_tabs/CommercialTab";
 import { collapsePriceHistoryByDay } from "./_tabs/price-history-chart";
+import {
+  CatalogPvDisplay,
+  CatalogPvSimulationSource,
+  latestPvSourceFromHistory,
+  type CatalogPvSource,
+} from "@/app/catalog/_components/catalog-pv-display";
 import { MediaTab } from "./_tabs/MediaTab";
 
 const ODOO_BASE_URL = process.env.NEXT_PUBLIC_ODOO_BASE_URL ?? "";
@@ -97,7 +103,13 @@ function InfoLine({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: number }) {
+function KeyInfoCard({
+  product,
+  latestPvSource,
+}: {
+  product: ProductDetail;
+  latestPvSource: CatalogPvSource | null;
+}) {
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
   const hierarchy = [product.universe, product.family, product.range, product.sub_range]
@@ -145,15 +157,19 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
                 : "—"
             }
           />
-          <KpiCard
-            label="Prix de vente actuel"
-            accent="green"
-            value={
-              latestPv > 0
-                ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                : "—"
-            }
-          />
+          <div>
+            <KpiCard
+              label="Prix de vente actuel"
+              accent="green"
+              value={<CatalogPvDisplay pv={latestPvSource?.pv ?? null} layout="stack" size="md" />}
+            />
+            <CatalogPvSimulationSource
+              source={latestPvSource}
+              productSku={product.sku_code}
+              productLabel={product.name}
+              className="rounded-t-none border-t-0"
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -252,10 +268,10 @@ function ProductPageContent() {
   const { data: history6m } = useSWR(decodedSku ? ["price-history", decodedSku, "6m"] : null, () =>
     getPriceHistory(decodedSku, "6m"),
   );
-  const latestPv = useMemo(() => {
-    const points = collapsePriceHistoryByDay(history6m?.points ?? []);
-    return points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
-  }, [history6m?.points]);
+  const latestPvSource = useMemo(
+    () => latestPvSourceFromHistory(collapsePriceHistoryByDay(history6m?.points ?? [])),
+    [history6m?.points],
+  );
 
   const wantEdit = searchParams.get("edit") === "1" || searchParams.get("edit") === "true";
   const tabParam = searchParams.get("tab");
@@ -527,7 +543,7 @@ function ProductPageContent() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(280px,1fr)_2fr]">
             {/* Left — sticky identity card */}
             <aside>
-              <KeyInfoCard product={product} latestPv={latestPv} />
+              <KeyInfoCard product={product} latestPvSource={latestPvSource} />
             </aside>
 
             {/* Right — actions + tabs */}

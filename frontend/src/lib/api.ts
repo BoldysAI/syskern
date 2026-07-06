@@ -80,6 +80,10 @@ export function getTaskStatus<T>(taskId: string): Promise<TaskStatus<T>> {
   return apiFetch<TaskStatus<T>>(`/api/tasks/${encodeURIComponent(taskId)}/`);
 }
 
+/** Sentinel value for « Pas de fournisseur » in catalog supplier filters (must match backend). */
+export const CATALOG_NO_SUPPLIER_VALUE = "__none__";
+export const CATALOG_NO_SUPPLIER_LABEL = "Pas de fournisseur";
+
 /** Catalog sidebar filter state (multi-select, persisted in localStorage). */
 export interface CatalogFilters {
   /** Full-text search (Postgres tsvector, FR + simple). */
@@ -89,7 +93,10 @@ export interface CatalogFilters {
   range?: string[];
   sub_range?: string[];
   brand?: string[];
+  /** Any linked supplier (active or inactive). */
   supplier?: string[];
+  /** Active supplier only (matches the « Fournisseur actif » table column). */
+  active_supplier?: string[];
   /** Produit actif. Exclusif avec active_out. */
   active_in?: boolean;
   /** Produit inactif (soft-delete). Exclusif avec active_in. */
@@ -121,6 +128,8 @@ export interface ProductListParams extends CatalogFilters {
   ordering?: string;
   page?: number;
   limit?: number;
+  /** Scope PV enrichment to a specific simulation (draft or finalized). */
+  simulation_id?: string;
 }
 
 /** Build the shared query string for `GET /api/products` and the export task. */
@@ -134,6 +143,7 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
     "sub_range",
     "brand",
     "supplier",
+    "active_supplier",
   ];
   for (const k of csvKeys) {
     const v = filters[k];
@@ -204,6 +214,14 @@ export interface ProductSupplierInput {
   is_active?: boolean;
 }
 
+/** PV from a simulation line — EUR pivot + USD/RMB via that simulation's FX. */
+export interface CatalogPv {
+  pv_eur: string;
+  pv_usd: string | null;
+  pv_rmb: string | null;
+  simulation_id: string;
+}
+
 /** Compact shape returned by the list endpoint */
 export interface Product {
   id: string;
@@ -227,6 +245,8 @@ export interface Product {
   i18n_coverage?: I18nCoverage;
   /** Dynamic attribute values keyed by attribute code (when requested via attr_columns). */
   attribute_values?: Record<string, unknown>;
+  /** Present when a simulation line with PV exists (see `simulation_id` query param). */
+  catalog_pv?: CatalogPv | null;
   updated_at?: string;
 }
 
@@ -686,6 +706,7 @@ export function getProducts(params?: ProductListParams): Promise<PaginatedProduc
   const page = params?.page ?? 1;
   const offset = (page - 1) * limit;
   if (params?.ordering) q.set("ordering", params.ordering);
+  if (params?.simulation_id) q.set("simulation_id", params.simulation_id);
   q.set("limit", String(limit));
   q.set("offset", String(offset));
   return apiFetch<PaginatedProducts>(`/api/products/?${q.toString()}`);
@@ -768,6 +789,8 @@ export interface PriceHistoryPoint {
   pa_eur: string | null;
   pr_eur: string | null;
   pv_eur: string | null;
+  pv_usd?: string | null;
+  pv_rmb?: string | null;
   simulation_id: string;
   simulation_label: string;
 }
