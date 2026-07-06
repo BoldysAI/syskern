@@ -238,6 +238,9 @@ class OfferViewSet(viewsets.ModelViewSet):
 
         offer = self.get_object()
         docs = resolve_attached_documents(offer.attached_document_ids, offer.language)
+        # `?inline=1` → render the PDF in the browser instead of forcing a download.
+        inline = str(request.query_params.get("inline", "")).lower() in {"1", "true", "yes"}
+        disposition = "inline" if inline else "attachment"
 
         if offer.offer_type == OfferType.TARIFF:
             path = offer_export_path(offer.id)
@@ -268,7 +271,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         if docs:
             pdf = merge_pdfs(pdf, docs)
         resp = HttpResponse(pdf, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="devis_{offer.id}.pdf"'
+        resp["Content-Disposition"] = f'{disposition}; filename="devis_{offer.id}.pdf"'
         return resp
 
     # ─── /generate (stub) ────────────────────────────────────────────

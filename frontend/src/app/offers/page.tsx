@@ -151,16 +151,17 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
     );
   }
   if (offer.generation_status === "ready" && offer.generated_file_url) {
+    // View the merged PDF (Gamma quote + attached annexes) inline in the browser.
     return (
       <a
-        href={offer.generated_file_url}
+        href={`/api/offers/${offer.id}/download/?inline=1`}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/10"
         onClick={(e) => e.stopPropagation()}
       >
         <ArrowSquareOut size={14} weight="duotone" />
-        Gamma
+        PDF
       </a>
     );
   }

@@ -147,4 +147,12 @@ def test_download_project_merges_pdf(monkeypatch):
     resp = APIClient().get(f"/api/offers/{offer.id}/download/")
     assert resp.status_code == 200
     assert resp["Content-Type"] == "application/pdf"
+    assert resp["Content-Disposition"].startswith("attachment")  # default = download
     assert len(PdfReader(io.BytesIO(resp.content)).pages) == 3  # quote (1) + annex (2)
+
+    # ?inline=1 → viewable in the browser (still the merged PDF).
+    inline = APIClient().get(f"/api/offers/{offer.id}/download/?inline=1")
+    assert inline.status_code == 200
+    assert inline["Content-Type"] == "application/pdf"
+    assert inline["Content-Disposition"].startswith("inline")
+    assert len(PdfReader(io.BytesIO(inline.content)).pages) == 3

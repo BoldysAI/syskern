@@ -333,15 +333,33 @@ export default function OfferDetailPage() {
         <h2 className="mb-3 text-sm font-semibold text-foreground">Document</h2>
         {isProject ? (
           offer.generation_status === "ready" && offer.generated_file_url ? (
-            <a
-              href={offer.generated_file_url}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants(), "inline-flex gap-2")}
-            >
-              Ouvrir le devis Gamma
-              <ArrowSquareOut size={14} weight="duotone" />
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Merged PDF (devis Gamma + annexes jointes), viewable in-browser. */}
+              <a
+                href={`/api/offers/${id}/download/?inline=1`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(buttonVariants(), "inline-flex gap-2")}
+              >
+                <ArrowSquareOut size={14} weight="duotone" />
+                Voir le PDF
+              </a>
+              <a
+                href={`/api/offers/${id}/download/`}
+                className={cn(buttonVariants({ variant: "outline" }), "inline-flex gap-2")}
+              >
+                <DownloadSimple size={14} weight="duotone" />
+                Télécharger
+              </a>
+              <a
+                href={offer.generated_file_url}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(buttonVariants({ variant: "ghost" }), "inline-flex gap-2")}
+              >
+                Ouvrir dans Gamma
+              </a>
+            </div>
           ) : offer.generation_status === "error" ? (
             <span className="text-sm text-destructive">
               Génération en erreur : {offer.generation_error}
