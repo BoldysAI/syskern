@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Widths = Record<string, number>;
 
@@ -28,12 +28,32 @@ export function useColumnWidths(defaults: Widths, storageKey: string) {
   const [widths, setWidths] = useState<Widths>(() => loadWidths(storageKey, defaults));
   const [resizingKey, setResizingKey] = useState<string | null>(null);
 
+  // Assign default widths when new columns appear (e.g. dynamic attribute columns).
+  useEffect(() => {
+    setWidths((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [key, width] of Object.entries(defaults)) {
+        if (next[key] === undefined) {
+          next[key] = width;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [defaults]);
+
+  const resolveWidth = useCallback(
+    (key: string, fallback = 120) => widths[key] ?? defaults[key] ?? fallback,
+    [widths, defaults],
+  );
+
   const startResize = useCallback(
     (key: string, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       const startX = e.clientX;
-      const startW = widths[key] ?? defaults[key] ?? 120;
+      const startW = resolveWidth(key);
       let latest = startW;
 
       setResizingKey(key);
@@ -60,8 +80,8 @@ export function useColumnWidths(defaults: Widths, storageKey: string) {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [widths, defaults, storageKey]
+    [resolveWidth, storageKey],
   );
 
-  return { widths, startResize, resizingKey };
+  return { widths, resolveWidth, startResize, resizingKey };
 }

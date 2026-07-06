@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import django_filters as filters
 from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F, Q
+from django.db.models import F, FloatField, Q
+from django.db.models.expressions import RawSQL
 
 from apps.attributes.models import AttributeRegistry
 
@@ -207,7 +208,7 @@ class ProductFilter(filters.FilterSet):
         """Filter on a single dynamic attribute value (CDC §4.1.1).
 
         Encoding follows `ProductAttributeValue.value` per data_type:
-        booleans → true/false, numbers → numeric exact, multiselect →
+        booleans → true/false, numbers → minimum (>=), multiselect →
         contains (any of comma-separated values), others → string exact.
         """
         base = Q(attribute_values__attribute=attribute)
@@ -220,7 +221,17 @@ class ProductFilter(filters.FilterSet):
                 num = float(raw)
             except (TypeError, ValueError):
                 return queryset
-            return queryset.filter(base & Q(attribute_values__value=num))
+            return (
+                queryset.filter(base)
+                .annotate(
+                    _attr_num=RawSQL(
+                        "(product_attribute_values.value #>> '{}')::double precision",
+                        [],
+                        output_field=FloatField(),
+                    )
+                )
+                .filter(_attr_num__gte=num)
+            )
 
         wanted = [v.strip() for v in str(raw).split(",") if v.strip()]
         if not wanted:

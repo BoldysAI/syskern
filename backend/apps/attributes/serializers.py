@@ -26,34 +26,66 @@ def _allowed_option_values(options: list | None) -> set[str]:
     return allowed
 
 
-def _validate_attribute_value(data_type: str, options: list | None, value: object) -> None:
+def is_attribute_value_empty(value: object) -> bool:
+    """True when an attribute value is unset (distinct from boolean false / number 0)."""
+    if value is None:
+        return True
+    if value == "":
+        return True
+    return isinstance(value, list) and len(value) == 0
+
+
+def _normalize_attribute_value(data_type: str, value: object) -> object:
+    """Coerce values to canonical JSON shapes (numbers as JSON numbers, not strings)."""
+    if value is None:
+        return None
+    if data_type == AttributeDataType.NUMBER:
+        dec = Decimal(str(value))
+        f = float(dec)
+        if dec == dec.to_integral_value():
+            return int(f)
+        return f
+    return value
+
+
+def _validate_attribute_value(
+    data_type: str,
+    options: list | None,
+    value: object,
+    *,
+    field: str = "value",
+) -> None:
     """Raise ValidationError if *value* does not match *data_type* (CDC §4.5)."""
     if value is None:
         return
 
     if data_type == AttributeDataType.TEXT:
         if not isinstance(value, str):
-            raise serializers.ValidationError({"value": "Expected a string for data_type 'text'."})
+            raise serializers.ValidationError(
+                {field: "Expected a string for data_type 'text'."}
+            )
 
     elif data_type == AttributeDataType.NUMBER:
         try:
             Decimal(str(value))
         except (InvalidOperation, TypeError) as exc:
             raise serializers.ValidationError(
-                {"value": f"Expected a numeric value for data_type 'number', got {value!r}."}
+                {field: f"Expected a numeric value for data_type 'number', got {value!r}."}
             ) from exc
 
     elif data_type == AttributeDataType.BOOLEAN:
         if not isinstance(value, bool):
             raise serializers.ValidationError(
-                {"value": f"Expected true or false for data_type 'boolean', got {value!r}."}
+                {field: f"Expected true or false for data_type 'boolean', got {value!r}."}
             )
 
     elif data_type == AttributeDataType.DATE:
         if not isinstance(value, str) or not _ISO_DATE_RE.match(value):
             raise serializers.ValidationError(
                 {
-                    "value": f"Expected ISO 8601 date (YYYY-MM-DD) for data_type 'date', got {value!r}."
+                    field: (
+                        f"Expected ISO 8601 date (YYYY-MM-DD) for data_type 'date', got {value!r}."
+                    )
                 }
             )
 
@@ -61,20 +93,22 @@ def _validate_attribute_value(data_type: str, options: list | None, value: objec
         allowed = _allowed_option_values(options)
         if not isinstance(value, str) or value not in allowed:
             raise serializers.ValidationError(
-                {"value": f"Invalid value for data_type 'select': {value!r} is not in options."}
+                {field: f"Invalid value for data_type 'select': {value!r} is not in options."}
             )
 
     elif data_type == AttributeDataType.MULTISELECT:
         allowed = _allowed_option_values(options)
         if not isinstance(value, list):
             raise serializers.ValidationError(
-                {"value": "Expected a list of values for data_type 'multiselect'."}
+                {field: "Expected a list of values for data_type 'multiselect'."}
             )
         invalid = [v for v in value if str(v) not in allowed]
         if invalid:
             raise serializers.ValidationError(
                 {
-                    "value": f"Invalid values for data_type 'multiselect': {invalid!r} are not in options."
+                    field: (
+                        f"Invalid values for data_type 'multiselect': {invalid!r} are not in options."
+                    )
                 }
             )
 
@@ -111,6 +145,23 @@ class AttributeRegistrySerializer(serializers.ModelSerializer):
                     {"options": "At least one option required for select/multiselect."}
                 )
             _allowed_option_values(options)
+
+        default_value = attrs.get(
+            "default_value", getattr(self.instance, "default_value", None)
+        )
+        is_required = attrs.get("is_required", getattr(self.instance, "is_required", False))
+        if is_required and is_attribute_value_empty(default_value):
+            raise serializers.ValidationError(
+                {
+                    "default_value": (
+                        "Une valeur par défaut est requise pour un attribut obligatoire."
+                    )
+                }
+            )
+        if default_value is not None and data_type is not None:
+            _validate_attribute_value(data_type, options, default_value, field="default_value")
+            attrs["default_value"] = _normalize_attribute_value(data_type, default_value)
+
         return attrs
 
 
@@ -139,6 +190,10 @@ class ProductAttributeValueSerializer(serializers.ModelSerializer):
 
         if attribute is not None:
             _validate_attribute_value(attribute.data_type, attribute.options, value)
+            if "value" in attrs:
+                attrs["value"] = _normalize_attribute_value(attribute.data_type, attrs["value"])
+            elif value is not None:
+                attrs["value"] = _normalize_attribute_value(attribute.data_type, value)
 
         return attrs
 

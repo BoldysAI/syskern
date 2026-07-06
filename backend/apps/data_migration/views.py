@@ -6,6 +6,7 @@ from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.attributes.services.backfill import apply_registry_defaults_to_product
 from apps.products.models import Product
 from apps.products.services.sku_parser import parse_sku
 
@@ -73,13 +74,15 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"product": f"Le SKU {sku} existe déjà."})
         parsed = parse_sku(sku)
         description = product_data.get("description_marketing_fr") or ""
-        return Product.objects.create(
+        product = Product.objects.create(
             sku_code=sku,
             name=product_data.get("name") or sku,
             description_marketing={"fr": description} if description else {},
             factory_code=parsed.get("factory_code") or "",
             parent_reference=parsed.get("parent_reference") or "",
         )
+        apply_registry_defaults_to_product(product)
+        return product
 
     @action(detail=False, methods=["get"])
     def facets(self, request):

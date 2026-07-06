@@ -70,6 +70,7 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     active_supplier = serializers.SerializerMethodField()
     i18n_coverage = serializers.SerializerMethodField()
+    attribute_values = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -88,6 +89,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "is_active",
             "active_supplier",
             "i18n_coverage",
+            "attribute_values",
             "updated_at",
         )
 
@@ -100,6 +102,18 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def get_i18n_coverage(self, obj: Product) -> dict:
         return obj.i18n_coverage
+
+    def get_attribute_values(self, obj: Product) -> dict[str, object]:
+        codes: list[str] = self.context.get("attr_columns") or []
+        if not codes:
+            return {}
+        code_set = set(codes)
+        result: dict[str, object] = {}
+        for pav in obj.attribute_values.all():
+            code = pav.attribute.code
+            if code in code_set:
+                result[code] = pav.value
+        return result
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):

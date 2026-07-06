@@ -680,3 +680,22 @@ Décision : `DeepLClient` envoie `Authorization: DeepL-Auth-Key …` ; hôte ré
 `api-free.deepl.com/v2`, sinon `api.deepl.com/v2`, surcharge `DEEPL_API_URL`). Écart mineur CDC §10.4.1 :
 `formality=more` n'est envoyé que pour les langues cibles qui le supportent (ES oui, EN non) — évite
 un 400 DeepL tout en conservant le ton formel pour FR→ES. Clé manquante → message FR + HTTP 503.
+
+## 2026-07-06 · [P] PIM — `default_value` attributs + backfill + colonnes catalogue
+- **`AttributeRegistry.default_value`** (JSONB nullable, migration `attributes/0005`) : validé comme une valeur PAV selon `data_type`.
+  Obligatoire si `is_required=True` à la création.
+- **Backfill à la création uniquement** : `perform_create` du registre déclenche
+  `backfill_attribute_defaults` (sync si ≤100 produits, sinon tâche Celery
+  `attributes.backfill_attribute_defaults_task`). Crée des lignes `product_attribute_values` pour
+  tous les produits (actifs + inactifs) **sans écraser** une valeur existante. Modifier
+  `default_value` en édition **ne relance pas** le backfill.
+- **Admin attributs** : interrupteur « Valeur par défaut » ; champ typé visible seulement si activé ;
+  « Obligatoire » force l'activation de la valeur par défaut.
+- **Catalogue** : `GET /api/products/?attr_columns=code1,code2` (max 10) expose
+  `attribute_values` sur `ProductListSerializer`. UI : modale `CatalogColumnsDialog` (colonnes produit
+  **et** attributs dynamiques, libellé FR seul, SKU verrouillé, bouton Réinitialiser). Persistance
+  `syskern:catalog-visible-columns:v2` (migre `syskern:catalog-attr-columns:v1`). Export Excel =
+  choix séparé (`ExportButton`). Tri serveur sur colonnes attributs = hors scope v1.
+- **Wizard** : toutes les catégories d'attributs par étape (cf. `pim.md` § wizard) ; pré-remplissage
+  depuis `default_value` ; validation `is_required` via `isAttributeValueEmpty`.
+- **Tests** : `apps/attributes/tests/test_backfill.py`, `apps/products/tests/test_attr_columns.py`.

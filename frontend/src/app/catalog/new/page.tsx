@@ -20,6 +20,7 @@ import {
   getHierarchyLevel,
   parseSku,
   setProductAttribute,
+  type AttributeCategory,
   type AttributeRegistry,
   type ProductDetail,
   type ProductSupplier,
@@ -27,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
-import { AttributeRenderer, validateAttributeValue } from "@/components/AttributeRenderer";
+import { AttributeRenderer, isAttributeValueEmpty, validateAttributeValue } from "@/components/AttributeRenderer";
 import { FormField } from "@/components/FormField";
 import { SupplierManager } from "@/components/SupplierManager";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,19 @@ const SUPPLY_POLICY_OPTIONS = [
   { value: "dropship", label: "Dropship" },
   { value: "mixed", label: "Mixte" },
 ];
+
+const WIZARD_ATTR_CATEGORIES: Record<string, AttributeCategory[]> = {
+  identification: ["structural", "marketing"],
+  technical: ["technical"],
+  logistics: ["logistic"],
+  suppliers: ["commercial"],
+};
+
+function sortAttrs(attrs: AttributeRegistry[]): AttributeRegistry[] {
+  return attrs
+    .slice()
+    .sort((a, b) => a.display_order - b.display_order || a.code.localeCompare(b.code));
+}
 
 function emptyDraft(): WizardDraft {
   return {
@@ -288,8 +302,14 @@ export default function NewProductPage() {
   // Track whether the user manually edited the auto-derived fields.
   const touchedRef = useRef<{ parent: boolean; factory: boolean }>({ parent: false, factory: false });
 
-  const { data: technicalAttrs } = useSWR<AttributeRegistry[]>("attr-registry-technical", () =>
-    getAttributeRegistry("technical"),
+  const { data: allAttrs } = useSWR<AttributeRegistry[]>("attr-registry-all", () =>
+    getAttributeRegistry(),
+  );
+
+  const attrValue = useCallback(
+    (attr: AttributeRegistry) =>
+      attr.id in attrs ? attrs[attr.id] : (attr.default_value ?? undefined),
+    [attrs],
   );
 
   // Persist field values only — not the wizard step (reopen always on Identification).
@@ -362,26 +382,50 @@ export default function NewProductPage() {
       if (!core.copper_weight_kg_per_unit || !Number.isFinite(w) || w <= 0)
         e.copper_weight_kg_per_unit = "Poids cuivre requis et > 0 si indexé cuivre.";
     }
-    for (const a of technicalAttrs ?? []) {
+    for (const a of allAttrs ?? []) {
       if (attrValidity[a.id] === false) e[`attr:${a.id}`] = "Valeur invalide.";
+      if (a.is_required && isAttributeValueEmpty(attrValue(a))) {
+        e[`attr:${a.id}`] = "Ce champ est obligatoire.";
+      }
     }
     return e;
-  }, [str, desc, core, technicalAttrs, attrValidity]);
+  }, [str, desc, core, allAttrs, attrValidity, attrValue]);
+
+  const attrIdsForStep = useCallback(
+    (stepId: string) =>
+      new Set(
+        (allAttrs ?? [])
+          .filter((a) => (WIZARD_ATTR_CATEGORIES[stepId] ?? []).includes(a.category))
+          .map((a) => a.id),
+      ),
+    [allAttrs],
+  );
+
+  const stepHasAttrError = useCallback(
+    (stepId: string) =>
+      Object.keys(errors).some((k) => {
+        if (!k.startsWith("attr:")) return false;
+        return attrIdsForStep(stepId).has(k.slice(5));
+      }),
+    [errors, attrIdsForStep],
+  );
 
   const stepHasError = useCallback(
     (idx: number) => {
       switch (STEPS[idx].id) {
         case "identification":
-          return !!(errors.sku_code || errors.name || errors.description_fr);
+          return !!(errors.sku_code || errors.name || errors.description_fr) || stepHasAttrError("identification");
         case "technical":
-          return Object.keys(errors).some((k) => k.startsWith("attr:"));
+          return stepHasAttrError("technical");
         case "logistics":
-          return !!errors.copper_weight_kg_per_unit;
+          return !!errors.copper_weight_kg_per_unit || stepHasAttrError("logistics");
+        case "suppliers":
+          return stepHasAttrError("suppliers");
         default:
           return false;
       }
     },
-    [errors],
+    [errors, stepHasAttrError],
   );
 
   const canSubmit = Object.keys(errors).length === 0;
@@ -501,7 +545,8 @@ export default function NewProductPage() {
   const handleSubmit = async () => {
     if (!canSubmit) {
       setShowErrors(true);
-      setStep(stepHasError(0) ? 0 : stepHasError(1) ? 1 : 2);
+      const firstErrorStep = STEPS.findIndex((_, idx) => stepHasError(idx));
+      setStep(firstErrorStep >= 0 ? firstErrorStep : 0);
       return;
     }
     setSubmitting(true);
@@ -509,11 +554,9 @@ export default function NewProductPage() {
     try {
       const product = await createProduct(buildPayload());
 
-      for (const a of technicalAttrs ?? []) {
-        const value = attrs[a.id];
-        const empty =
-          value == null || value === "" || (Array.isArray(value) && value.length === 0);
-        if (!empty) await setProductAttribute(product.id, a.id, value);
+      for (const a of allAttrs ?? []) {
+        const value = attrValue(a);
+        if (!isAttributeValueEmpty(value)) await setProductAttribute(product.id, a.id, value);
       }
 
       for (const s of suppliers) {
@@ -546,6 +589,38 @@ export default function NewProductPage() {
   };
 
   // ── Step renderers ─────────────────────────────────────────────────────────
+  const renderAttributeSection = (stepId: string, title: string, emptyLabel: string) => {
+    const cats = WIZARD_ATTR_CATEGORIES[stepId] ?? [];
+    const sectionAttrs = sortAttrs((allAttrs ?? []).filter((a) => cats.includes(a.category)));
+    if (sectionAttrs.length === 0) {
+      return (
+        <SectionCard title={title}>
+          <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+        </SectionCard>
+      );
+    }
+    return (
+      <SectionCard title={title}>
+        {sectionAttrs.map((a) => (
+          <div key={a.id}>
+            <AttributeRenderer
+              attribute={a}
+              value={attrValue(a)}
+              mode="edit"
+              onChange={(v) => {
+                setAttrs((d) => ({ ...d, [a.id]: v }));
+                setAttrValidity((d) => ({ ...d, [a.id]: validateAttributeValue(a, v) }));
+              }}
+            />
+            {showErrors && errors[`attr:${a.id}`] && (
+              <p className="text-xs text-red-500 -mt-1 mb-2">{errors[`attr:${a.id}`]}</p>
+            )}
+          </div>
+        ))}
+      </SectionCard>
+    );
+  };
+
   const renderIdentification = () => (
     <div className="flex flex-col gap-6">
       <SectionCard title="Identification">
@@ -649,32 +724,21 @@ export default function NewProductPage() {
           <TextField label="N° DOP" value={str("dop_number")} onChange={(v) => set("dop_number", v)} />
         </div>
       </SectionCard>
+
+      {renderAttributeSection(
+        "identification",
+        "Attributs (structure & marketing)",
+        "Aucun attribut structurel ou marketing défini dans le registre.",
+      )}
     </div>
   );
 
-  const renderTechnical = () => (
-    <SectionCard title="Caractéristiques techniques">
-      {(technicalAttrs ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun attribut technique défini dans le registre.</p>
-      ) : (
-        (technicalAttrs ?? [])
-          .slice()
-          .sort((a, b) => a.display_order - b.display_order || a.code.localeCompare(b.code))
-          .map((a) => (
-            <AttributeRenderer
-              key={a.id}
-              attribute={a}
-              value={attrs[a.id]}
-              mode="edit"
-              onChange={(v) => {
-                setAttrs((d) => ({ ...d, [a.id]: v }));
-                setAttrValidity((d) => ({ ...d, [a.id]: validateAttributeValue(a, v) }));
-              }}
-            />
-          ))
-      )}
-    </SectionCard>
-  );
+  const renderTechnical = () =>
+    renderAttributeSection(
+      "technical",
+      "Caractéristiques techniques",
+      "Aucun attribut technique défini dans le registre.",
+    );
 
   const renderLogistics = () => (
     <div className="flex flex-col gap-6">
@@ -709,11 +773,23 @@ export default function NewProductPage() {
           )}
         </div>
       </SectionCard>
+
+      {renderAttributeSection(
+        "logistics",
+        "Attributs logistiques",
+        "Aucun attribut logistique défini dans le registre.",
+      )}
     </div>
   );
 
   const renderSuppliers = () => (
-    <SectionCard title="Fournisseur(s)">
+    <div className="flex flex-col gap-6">
+      {renderAttributeSection(
+        "suppliers",
+        "Attributs commerciaux",
+        "Aucun attribut commercial défini dans le registre.",
+      )}
+      <SectionCard title="Fournisseur(s)">
       <p className="mb-4 text-sm text-muted-foreground">
         Ajoutez le premier fournisseur du produit. La source active fournit les paramètres de calcul
         lors des simulations.
@@ -725,11 +801,13 @@ export default function NewProductPage() {
         onDelete={supplierDelete}
         onActivate={supplierActivate}
       />
-    </SectionCard>
+      </SectionCard>
+    </div>
   );
 
   const renderReview = () => {
     const activeSupplier = suppliers.find((s) => s.is_active) ?? suppliers[0];
+    const filledAttrs = (allAttrs ?? []).filter((a) => !isAttributeValueEmpty(attrValue(a))).length;
     return (
       <SectionCard title="Récapitulatif">
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -742,7 +820,7 @@ export default function NewProductPage() {
             label="Hiérarchie"
             value={[str("universe"), str("family"), str("range"), str("sub_range")].filter(Boolean).join(" › ")}
           />
-          <Recap label="Attributs techniques renseignés" value={String(Object.values(attrs).filter((v) => v != null && v !== "").length)} />
+          <Recap label="Attributs renseignés" value={String(filledAttrs)} />
           <Recap label="Fournisseurs" value={String(suppliers.length)} />
           <Recap label="Fournisseur actif" value={activeSupplier?.supplier_name ?? "—"} />
         </dl>

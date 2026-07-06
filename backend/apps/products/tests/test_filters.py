@@ -122,3 +122,35 @@ class TestAttributeFilters:
         # The attr_ param is ignored → both products returned.
         resp = client.get("/api/products/", {"attr_not_filterable": "red"})
         assert _skus(resp) == {"NF-1", "NF-2"}
+
+    def test_number_attribute_minimum_filter_json_string(self, client):
+        """Number filters are minimum (>=) thresholds; JSON string storage is supported."""
+        attr = AttributeRegistry.objects.create(
+            code="unit_weight",
+            label={"fr": "Poids"},
+            category=AttributeCategory.LOGISTIC,
+            data_type=AttributeDataType.NUMBER,
+            unit="kg",
+            is_filterable=True,
+        )
+        p1 = _make("NUM-1")
+        p2 = _make("NUM-2")
+        ProductAttributeValue.objects.create(product=p1, attribute=attr, value="10")
+        ProductAttributeValue.objects.create(product=p2, attribute=attr, value=15)
+        resp = client.get("/api/products/", {"attr_unit_weight": "10"})
+        assert _skus(resp) == {"NUM-1", "NUM-2"}
+
+    def test_number_attribute_minimum_includes_higher_values(self, client):
+        attr = AttributeRegistry.objects.create(
+            code="filter_num_json",
+            label={"fr": "Palette"},
+            category=AttributeCategory.LOGISTIC,
+            data_type=AttributeDataType.NUMBER,
+            is_filterable=True,
+        )
+        p1 = _make("NUM-N1")
+        p2 = _make("NUM-N2")
+        ProductAttributeValue.objects.create(product=p1, attribute=attr, value=10)
+        ProductAttributeValue.objects.create(product=p2, attribute=attr, value=140)
+        resp = client.get("/api/products/", {"attr_filter_num_json": "78"})
+        assert _skus(resp) == {"NUM-N2"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { DataTablePagination } from "./DataTablePagination";
 import { DataTableSortIcon } from "./DataTableSortIcon";
@@ -47,8 +48,11 @@ export function DataTable<T>({
   density = "default",
   selectedRowKeys,
 }: DataTableProps<T>) {
-  const defaultWidths = Object.fromEntries(columns.map((c) => [c.key, c.width]));
-  const { widths, startResize, resizingKey } = useColumnWidths(defaultWidths, storageKey);
+  const defaultWidths = useMemo(
+    () => Object.fromEntries(columns.map((c) => [c.key, c.width])),
+    [columns],
+  );
+  const { resolveWidth, startResize, resizingKey } = useColumnWidths(defaultWidths, storageKey);
 
   const cellPy = density === "compact" ? "py-2" : "py-3";
   const headerPy = density === "compact" ? "py-2.5" : "py-3.5";
@@ -75,7 +79,7 @@ export function DataTable<T>({
           <colgroup>
             {hasLeading && <col style={{ width: leadingWidth }} />}
             {columns.map((c) => (
-              <col key={c.key} style={{ width: widths[c.key] }} />
+              <col key={c.key} style={{ width: resolveWidth(c.key, c.width) }} />
             ))}
             {hasTrailing && <col style={{ width: trailingWidth ?? 48 }} />}
           </colgroup>
@@ -100,7 +104,10 @@ export function DataTable<T>({
                   <th
                     key={col.key}
                     className={cn(TH_CLASS, alignClass(col.align), "group relative p-0")}
-                    style={{ width: widths[col.key], minWidth: widths[col.key] }}
+                    style={{
+                      width: resolveWidth(col.key, col.width),
+                      minWidth: resolveWidth(col.key, col.width),
+                    }}
                   >
                     <div className="flex h-full min-h-[44px] items-stretch">
                       {sortable ? (
@@ -176,7 +183,10 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className="overflow-hidden px-4 py-3"
-                      style={{ width: widths[col.key], maxWidth: widths[col.key] }}
+                      style={{
+                        width: resolveWidth(col.key, col.width),
+                        maxWidth: resolveWidth(col.key, col.width),
+                      }}
                     >
                       <TableSkeleton />
                     </td>
@@ -223,6 +233,7 @@ export function DataTable<T>({
                         typeof col.cellClassName === "function"
                           ? col.cellClassName(row)
                           : col.cellClassName;
+                      const colWidth = resolveWidth(col.key, col.width);
                       return (
                         <td
                           key={col.key}
@@ -232,7 +243,7 @@ export function DataTable<T>({
                             alignClass(col.align),
                             cellClass
                           )}
-                          style={{ width: widths[col.key], maxWidth: widths[col.key] }}
+                          style={{ width: colWidth, maxWidth: colWidth }}
                         >
                           {col.render(row)}
                         </td>

@@ -63,6 +63,7 @@ type ; la valeur est en JSONB.
 | `options` | pour `select`/`multiselect` : `[{"value": ..., "label": {...}}]` |
 | `unit` | unité affichée (ex. `mm`, `kg`) pour `number` |
 | `is_filterable` | expose l'attribut comme **filtre sidebar catalogue** (`attr_<code>=…`) |
+| `default_value` | valeur par défaut ; backfill sur tous les produits **à la création** de l'attribut |
 | `display_order` | ordre d'affichage (réordonnable via `/api/attributes/reorder/`) |
 
 **Encodage `ProductAttributeValue.value` selon `data_type`** (validé serveur ET client) :
@@ -77,8 +78,23 @@ type ; la valeur est en JSONB.
 | `multiselect` | array de strings, chacun ∈ `options[].value` |
 
 Validation backend : `apps/attributes/serializers.py::_validate_attribute_value`.
-Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
-(garder les deux alignés — le backend fait foi).
+Miroir frontend : `components/AttributeRenderer.tsx` (`validateAttributeValue`,
+`isAttributeValueEmpty`, `formatAttributeDisplayValue`, `localize`) — garder backend et front alignés.
+
+### Valeur par défaut + backfill (migration `attributes/0005`)
+
+- **`default_value`** optionnel sur le registre ; **obligatoire** si `is_required=True` (validation API).
+- **À la création** d'un attribut avec `default_value` renseigné : backfill des lignes
+  `product_attribute_values` pour **tous** les produits (actifs + inactifs) qui n'ont pas encore
+  de valeur pour cet attribut.
+- **Service** : `apps/attributes/services/backfill.py::backfill_attribute_defaults`.
+- **Async** : `attributes.backfill_attribute_defaults_task` (Celery) si catalogue **> 100** produits ;
+  sinon synchrone dans `AttributeRegistryViewSet.perform_create`.
+- **Édition** du registre : modifier `default_value` **ne relance pas** le backfill et n'écrase pas
+  les valeurs déjà saisies.
+- **UI admin** : interrupteur « Valeur par défaut » ; le champ typé (`AttributeRenderer`) n'apparaît
+  que si activé. Cocher « Obligatoire » active automatiquement la valeur par défaut.
+- **Tests** : `apps/attributes/tests/test_backfill.py`, `apps/products/tests/test_attr_columns.py`.
 
 ---
 
@@ -86,7 +102,7 @@ Miroir frontend : `components/AttributeRenderer.tsx::validateAttributeValue`
 
 | Méthode | Path | Note |
 |---|---|---|
-| `GET`/`POST` | `/api/products/` | liste (compact, filtrable+recherche+tri) / create. POST déclenche le push Odoo async (cf. `_push_to_odoo_async`). Tri via `ProductOrderingFilter` (`ordering.py`) |
+| `GET`/`POST` | `/api/products/` | liste compacte. Chaque ligne peut inclure `attribute_values` (dict `code → valeur`) si `?attr_columns=code1,code2` (max 10 codes, prefetch ciblé). POST déclenche push Odoo async |
 | `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
 | `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
 | `GET` | `/api/products/?is_active=true\|false` | filtre statut produit (soft-delete) ; omis = actifs + inactifs |
@@ -140,8 +156,12 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
 | `ActiveFilterBar.tsx` + `active-filters.ts` | Chips des critères actifs (retrait unitaire + tout effacer) |
 | `CatalogPagination.tsx` | Pagination style Google (100 lignes/page) |
 | `ProductDrawer.tsx` | Aperçu rapide au clic ligne |
-| `ExportButton.tsx` | Export async (split button + choix colonnes) |
-| `useColumnWidths.ts` | Colonnes redimensionnables (`localStorage`) |
+| `ExportButton.tsx` | Export async (split button + choix colonnes export — **indépendant** du choix colonnes tableau) |
+| `CatalogColumnsDialog.tsx` | Modale choix colonnes **visibles** (produit + attributs dynamiques) |
+| `catalog-column-registry.ts` | Métadonnées colonnes cœur + `DEFAULT_VISIBLE_CATALOG_COLUMNS` |
+| `catalog-column-storage.ts` | Persistance visibilité (`syskern:catalog-visible-columns:v2`, migre `v1`) |
+| `catalog-columns.tsx` | `useCatalogColumns({ visibleColumnKeys, attributeColumns })` |
+| `useColumnWidths.ts` | Largeurs redimensionnables (`syskern:catalog-col-widths:v1`) |
 | `filters-storage.ts` | Filtres favoris (`syskern:catalog-filters:v1`) |
 | `columns.ts` | Registre colonnes export (miroir `exports.py`) |
 
@@ -162,10 +182,18 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
 - **Sélection multiple** : `Set<string>` d'ids **persistée à travers les pages** → barre d'actions
   groupées (export sélection, `AddToSimulationDialog` `productIds[]`, **« Traduire »** →
   `BulkTranslateDialog` bulk DeepL avec progress — cf. `i18n.md`).
-- **Langues** (sidebar § « Langues ») : colonne « Langues » toujours visible sur la page
-  catalogue (`useCatalogColumns({ showLanguageColumn })`), filtre « Au moins une langue manquante »
-  (`i18n_incomplete`), et par langue (FR/EN/ES) toggles « Avec contenu » / « Sans contenu »
-  (`lang_*_{in,out}`). Jamais de libellé « i18n » côté UI. Détail → `i18n.md`.
+- **Colonnes visibles** : bouton « Colonnes » → modale `CatalogColumnsDialog` (page catalogue
+  uniquement ; pas en mode `embedded`). Deux sections à cases à cocher (libellé FR uniquement, pas
+  de code technique) :
+  - **Colonnes produit** : SKU (verrouillé), Désignation, Univers, Famille, Gamme, Sous-gamme,
+    Marque, Fournisseur actif, PAMP, Stock, Indexé cuivre, Actif, Langues.
+  - **Attributs dynamiques** : tout le registre (`listAttributes`).
+  Boutons **Réinitialiser** (défaut = SKU, Désignation, Univers, Famille, Fournisseur, PAMP, Stock,
+  Actif, Langues), **Annuler**, **Appliquer**. Persistance `localStorage`
+  (`syskern:catalog-visible-columns:v2`). Les attributs cochés déclenchent `?attr_columns=` côté API.
+  Pas de tri serveur sur colonnes attributs (v1).
+- **Langues** (sidebar § « Langues ») : colonne « Langues » activable via la modale colonnes (plus
+  « toujours visible »). Filtres `i18n_incomplete`, `lang_*_{in,out}` inchangés → `i18n.md`.
 - **Détail** : clic ligne → drawer ; cellule SKU = lien `/catalog/[sku]`.
 - **Export** : `exportProducts({filters, columns, ids})` → tâche Celery ; **redémarrer le worker**
   si la signature de `export_products_task` change.
@@ -204,8 +232,8 @@ Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections
 `data_type` (text→input/textarea, number→input+unité, boolean→toggle, date→picker
 DD/MM/YYYY, select→Radix Select, multiselect→tags). Props :
 `{ attribute, value, mode: "read"|"edit", lang, onChange(value, valid) }`.
-Conçu pour réemploi (fiche produit **et** futur wizard de création). Exporte
-`validateAttributeValue` et `localize`.
+Réutilisé : fiche produit, wizard création, modale admin (label + valeur par défaut).
+Exporte `validateAttributeValue`, `isAttributeValueEmpty`, `formatAttributeDisplayValue`, `localize`.
 
 ### API client (`lib/api.ts`)
 
@@ -233,7 +261,7 @@ Olivier d'ajouter / modifier / supprimer / réordonner les attributs **sans migr
 |---|---|
 | `SettingsNav.tsx` (`../_components/`) | Barre d'onglets de liens partagée par `/settings` (Marché/Transport/Odoo via `?tab=`) et `/settings/attributes` |
 | `rows.tsx` | `AttributeRow` (statique) + `SortableAttributeRow` (`useSortable`, drag handle `GripVertical`) |
-| `AttributeFormModal.tsx` | Création / édition : label via **`MultilingualField`** (FR* / EN / ES + « Traduire depuis FR »), catégorie, type, éditeur d'options, unité, toggles Obligatoire/Recherchable/**Filtrable** |
+| `AttributeFormModal.tsx` | Création / édition : label **`MultilingualField`**, catégorie, type, options, unité ; interrupteur **Valeur par défaut** + saisie typée (`AttributeRenderer`, visible si activé) ; toggles Obligatoire / Recherchable / Filtrable. « Obligatoire » force l'activation de la valeur par défaut |
 | `DeleteAttributeDialog.tsx` | Confirmation : affiche `value_count` + **saisie du code** pour activer la suppression |
 | `constants.ts` | `CATEGORIES`/`DATA_TYPES` (labels FR), `CODE_REGEX`, `slugifyCode()` |
 
@@ -248,6 +276,8 @@ Olivier d'ajouter / modifier / supprimer / réordonner les attributs **sans migr
   (`defaultCategory` ; onglet « Toutes » → défaut `technical`).
 - **Suppression en cascade** : `ProductAttributeValue.attribute` est `on_delete=CASCADE` ;
   la modale annonce le nombre de valeurs supprimées (`value_count`).
+- **Création avec défaut** : toast « Application de la valeur par défaut… » ; backfill async si
+  catalogue > 100 SKU (**worker Celery requis**).
 
 ---
 
@@ -277,8 +307,18 @@ Logistique, Fournisseur(s), Validation) + **toggle « Formulaire complet »**.
   si l'utilisateur les a édités).
 - Hiérarchie : dropdowns en cascade (univers → famille → gamme → sous-gamme) via
   `GET /api/hierarchy/distinct`.
-- Attributs `technical` via `AttributeRenderer` (draft local, persistés **après** création).
-- Création : `createProduct` → `setProductAttribute` (par attribut) → `createSupplier`
+- **Attributs dynamiques (toutes catégories)** via `getAttributeRegistry()` + `AttributeRenderer` ;
+  mapping étapes :
+  | Étape | Catégories |
+  |---|---|
+  | Identification | `structural`, `marketing` |
+  | Technique | `technical` |
+  | Logistique | `logistic` |
+  | Fournisseur(s) | `commercial` |
+  Pré-remplissage lecture depuis `default_value` du registre (`attrValue()`). Validation
+  `is_required` via `isAttributeValueEmpty`. Persistés **après** `createProduct` (`setProductAttribute`
+  pour chaque attribut non vide).
+- Création : `createProduct` → `setProductAttribute` (toutes catégories) → `createSupplier`
   (par fournisseur draft). Sync Odoo automatique côté serveur → création locale OK même si
   Odoo est down. Gardé par `canEdit(role)`.
 
@@ -314,8 +354,8 @@ commerciale figée au recalc, reprise par défaut à la création d'offre (`Offe
 - Couche modèle PIM déjà livrée (gap-only sur les tickets « migrations initiales »).
 - Incoterms : table `incoterms` + enum `Incoterm` coexistent (pas de FK en MVP1).
 - Seed référence : data migrations Django idempotentes (`seeds.py`).
-- Chevauchement assumé colonnes first-class ↔ attributs registre (`hs_code`, `gtin`,
-  `dop_number`, `unit_weight_kg`, `pallet_qty`) — pas de synchro auto.
+- Chevauchement assumé colonnes first-class ↔ attributs registre (`hs_code`, `gtin`, …) — pas de synchro auto.
+- `default_value` + backfill + colonnes catalogue configurables → `decisions.md` §2026-07-06.
 - Fiche produit : `NEXT_PUBLIC_ODOO_BASE_URL`, édition gardée par `canEdit`, placeholders
   MVP2 (Médias, Historique).
 
@@ -325,7 +365,10 @@ commerciale figée au recalc, reprise par défaut à la création d'offre (`Offe
 
 - [ ] Nouvelle ressource backend → `drf-resource.md` (modèle, 3 serializers, ViewSet, tests)
 - [ ] Attribut dynamique : `data_type` géré côté **backend** (`_validate_attribute_value`)
-      ET **frontend** (`AttributeRenderer` + `validateAttributeValue`)
+      ET **frontend** (`AttributeRenderer` + `validateAttributeValue` + `isAttributeValueEmpty`)
+- [ ] `default_value` : backfill à la création uniquement ; worker Celery si > 100 produits
+- [ ] Colonnes catalogue : registre `catalog-column-registry.ts` ; visibilité `catalog-column-storage.ts` ;
+      modale `CatalogColumnsDialog` ; export Excel reste séparé (`ExportButton` / `columns.ts`)
 - [ ] Soft-delete produit (`is_active=False`), jamais de hard-delete
 - [ ] Frontend : valeurs EAV chargées via `/attributes/`, fusionnées avec le registre
 - [ ] Decimal (`pamp_eur`, prix) traités comme `string` côté front (jamais de calcul)

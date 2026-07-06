@@ -179,8 +179,22 @@ par onglet (rempli/vide), bouton « Traduire depuis FR » (EN/ES) → `translate
 (`/api/translate`, synchrone + cache). Erreurs API (`503`, quota…) affichées sous le champ.
 `mode="read"|"edit"`, `requiredSource` marque FR d'un `*`.
 Props : `{ value, onChange, mode, kind, label, requiredSource, rows }`. Utilisé par
-`DescriptionsEditor` (fiche produit) et `AttributeFormModal` (label). Domaine i18n complet
+`DescriptionsEditor` (fiche produit) et `AttributeFormModal` (label + valeur par défaut). Domaine i18n complet
 (couverture catalogue, bulk translate, langue offre) → `docs/agent/i18n.md`.
+
+## `AttributeRenderer` (attributs dynamiques)
+
+Référence : `components/AttributeRenderer.tsx` — rendu typé selon `data_type` (text, number,
+boolean, date, select, multiselect). Props :
+`{ attribute, value, mode: "read"|"edit", lang, onChange(value, valid) }`.
+
+Exports utiles (garder alignés avec `apps/attributes/serializers.py::_validate_attribute_value`) :
+- `validateAttributeValue` — validation client avant submit ;
+- `isAttributeValueEmpty` — détection valeur vide (wizard `is_required`, admin) ;
+- `formatAttributeDisplayValue` — affichage lecture catalogue ;
+- `localize` — libellé FR depuis JSONB multilingue.
+
+Réutilisé : fiche produit, wizard `/catalog/new`, modale admin attributs.
 
 ## Catalogue : favoris, sélection multi-pages, colonnes, filtres actifs
 
@@ -208,6 +222,27 @@ Patterns réutilisables introduits par l'écran catalogue (`app/catalog/_compone
   `ProductDrawer.tsx`).
 - **`apiFetch` et DELETE** : réponses `204 No Content` → retourner `undefined` (soft-delete produit,
   fournisseurs, etc.).
+
+### Colonnes visibles catalogue (modale)
+
+Référence : `catalog/_components/CatalogColumnsDialog.tsx`, `catalog-column-registry.ts`,
+`catalog-column-storage.ts`, `catalog-columns.tsx`.
+
+- **Bouton « Colonnes »** (page `/catalog` uniquement, pas en `embedded`) → modale avec deux sections
+  à cases à cocher (libellé FR uniquement, jamais le code technique) :
+  - **Colonnes produit** : SKU (verrouillé), Désignation, Univers, Famille, Gamme, Sous-gamme,
+    Marque, Fournisseur actif, PAMP, Stock, Indexé cuivre, Actif, Langues.
+  - **Attributs dynamiques** : tout le registre (`listAttributes`).
+- **Actions** : Réinitialiser (défaut = `DEFAULT_VISIBLE_CATALOG_COLUMNS`), Annuler, Appliquer.
+- **Persistance** : `localStorage` clé `syskern:catalog-visible-columns:v2` ; migration automatique
+  depuis `syskern:catalog-attr-columns:v1`. `ensureLockedColumns` injecte le SKU puis trie via
+  `orderVisibleColumnKeys` (pas de récursion entre les deux helpers).
+- **Rendu** : `useCatalogColumns({ visibleColumnKeys, attributeColumns })` fusionne colonnes cœur +
+  dynamiques ; les clés `attr:*` déclenchent `?attr_columns=` dans `buildCatalogQuery`.
+- **Export Excel** : choix de colonnes **indépendant** (`ExportButton` / `columns.ts`) — ne pas
+  confondre avec la visibilité tableau.
+- **Piège évité** : `ensureLockedColumns` ne doit pas rappeler `orderVisibleColumnKeys` qui
+  rappellerait `ensureLockedColumns` (stack overflow).
 
 ### Panneaux de filtres — sections fermées par défaut (playbook UX)
 
@@ -285,8 +320,9 @@ const columns: DataTableColumnDef<Product>[] = [
   `renderTrailingCell` (menu kebab simulation), `rowClassName` (surlignage warning/error).
 
 Les consommateurs actuels : `CatalogBrowser` (`catalog/_components/`), `SimulationTable`.
-Le catalogue partagé expose `useCatalogColumns` (colonnes) + `CatalogBrowser` (filtres + tableau) ;
-réutilisé par `/catalog`, le wizard (`WizardCatalogPicker`) et `AddProductsModal`.
+Le catalogue partagé expose `useCatalogColumns` (colonnes) + `CatalogBrowser` (filtres + tableau) +
+`CatalogColumnsDialog` (visibilité colonnes) ; réutilisé par `/catalog`, le wizard
+(`WizardCatalogPicker`) et `AddProductsModal`.
 Les anciens `catalog/_components/useColumnWidths.ts` et `CatalogPagination.tsx` ré-exportent
 depuis `components/data-table/` (dépréciés — importer directement le module partagé).
 
@@ -656,6 +692,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Édition en place : `useAutosave` (debounce 2s par défaut ; **1s** sur la sidebar simulation, cf. CDC §6.9.3), update optimiste + rollback, validation avant submit
 - [ ] Nouvelle var d'env documentée (`.env.example` + `docker-compose.yml`) ; `NEXT_PUBLIC_*` = rebuild
 - [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`
+- [ ] Colonnes catalogue visibles → `CatalogColumnsDialog` + `catalog-column-storage.ts` (v2) ;
+      export Excel séparé ; `attr_columns` API dérivé des clés `attr:*`
 - [ ] Wizard / édition simulation → `validateTransportChains` + `buildSimulationPatch` ; vue 3 zones autosave sur `/simulator/[id]`
 - [ ] Mix stock/achat → `MixSlider` (alias `StockPurchaseMixSlider`)
 - [ ] Breakdown calcul → `CalculationBreakdownDrawer` + helpers `sim-format.ts` (pas de calcul prix front)

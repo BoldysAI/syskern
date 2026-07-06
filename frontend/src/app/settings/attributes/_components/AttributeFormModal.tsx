@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CircleNotch, Plus, Trash } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import {
   createAttribute,
   updateAttribute,
@@ -14,6 +15,10 @@ import { AppModal } from "@/components/AppModal";
 import { FormField } from "@/components/FormField";
 import { AppIcon } from "@/components/AppIcon";
 import { MultilingualField, type MultilingualValue } from "@/components/MultilingualField";
+import {
+  AttributeRenderer,
+  isAttributeValueEmpty,
+} from "@/components/AttributeRenderer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -67,11 +72,55 @@ export default function AttributeFormModal({
   const [isRequired, setIsRequired] = useState(attribute?.is_required ?? false);
   const [isSearchable, setIsSearchable] = useState(attribute?.is_searchable ?? true);
   const [isFilterable, setIsFilterable] = useState(attribute?.is_filterable ?? false);
+  const [useDefaultValue, setUseDefaultValue] = useState(
+    attribute?.default_value != null && !isAttributeValueEmpty(attribute.default_value),
+  );
+  const [defaultValue, setDefaultValue] = useState<unknown>(attribute?.default_value ?? null);
+  const [defaultValid, setDefaultValid] = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsOptions = dataType === "select" || dataType === "multiselect";
+
+  const draftAttribute = useMemo<AttributeRegistry>(
+    () => ({
+      id: attribute?.id ?? "draft",
+      code: code.trim() || "draft",
+      label: {
+        fr: (label.fr ?? "").trim(),
+        ...((label.en ?? "").trim() ? { en: (label.en ?? "").trim() } : {}),
+        ...((label.es ?? "").trim() ? { es: (label.es ?? "").trim() } : {}),
+      },
+      category,
+      data_type: dataType,
+      options: needsOptions
+        ? options.map((o) => ({
+            value: o.value.trim(),
+            label: { fr: (o.labelFr.trim() || o.value.trim()) },
+          }))
+        : null,
+      unit: dataType === "number" ? unit.trim() : "",
+      is_required: isRequired,
+      is_searchable: isSearchable,
+      is_filterable: isFilterable,
+      display_order: attribute?.display_order ?? 0,
+    }),
+    [
+      attribute?.id,
+      attribute?.display_order,
+      code,
+      label,
+      category,
+      dataType,
+      needsOptions,
+      options,
+      unit,
+      isRequired,
+      isSearchable,
+      isFilterable,
+    ],
+  );
 
   const handleLabelChange = (next: MultilingualValue) => {
     const nextFr = next.fr ?? "";
@@ -82,8 +131,16 @@ export default function AttributeFormModal({
   const codeValid = CODE_REGEX.test(code);
   const optionsValid =
     !needsOptions || (options.length > 0 && options.every((o) => o.value.trim() !== ""));
+  const defaultValueRequired = isRequired || useDefaultValue;
+  const defaultValueOk =
+    !defaultValueRequired ||
+    (!isAttributeValueEmpty(defaultValue) && defaultValid);
   const canSubmit =
-    (label.fr ?? "").trim() !== "" && (isEdit || codeValid) && optionsValid && !saving;
+    (label.fr ?? "").trim() !== "" &&
+    (isEdit || codeValid) &&
+    optionsValid &&
+    defaultValueOk &&
+    !saving;
 
   const helperCode = useMemo(() => {
     if (isEdit) return "Le code est immuable après création.";
@@ -117,6 +174,8 @@ export default function AttributeFormModal({
       is_required: isRequired,
       is_searchable: isSearchable,
       is_filterable: isFilterable,
+      default_value:
+        useDefaultValue && !isAttributeValueEmpty(defaultValue) ? defaultValue : null,
     };
 
     try {
@@ -124,6 +183,9 @@ export default function AttributeFormModal({
         await updateAttribute(attribute.id, payload);
       } else {
         await createAttribute({ ...payload, code: code.trim() });
+        if (useDefaultValue && !isAttributeValueEmpty(defaultValue)) {
+          toast.info("Application de la valeur par défaut aux produits existants…");
+        }
       }
       onSaved();
       onClose();
@@ -185,7 +247,13 @@ export default function AttributeFormModal({
           <FormField label="Type" required>
             <OptionSelect
               value={dataType}
-              onValueChange={(v) => setDataType(v as AttributeDataType)}
+              onValueChange={(v) => {
+                setDataType(v as AttributeDataType);
+                if (useDefaultValue) {
+                  setDefaultValue(null);
+                  setDefaultValid(true);
+                }
+              }}
               options={DATA_TYPES.map((d) => ({ value: d.id, label: d.label }))}
             />
           </FormField>
@@ -250,13 +318,67 @@ export default function AttributeFormModal({
           </FormField>
         )}
 
+        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label className="text-sm font-medium">Valeur par défaut</Label>
+              <p className="text-xs text-muted-foreground">
+                {isEdit
+                  ? "Modifiable sans réappliquer aux produits existants."
+                  : "Appliquée à tous les produits existants à la création de l'attribut."}
+              </p>
+            </div>
+            <Switch
+              checked={useDefaultValue}
+              onCheckedChange={(on) => {
+                setUseDefaultValue(on);
+                if (!on) {
+                  setDefaultValue(null);
+                  setDefaultValid(true);
+                }
+              }}
+            />
+          </div>
+          {useDefaultValue && (
+            <FormField
+              label="Valeur"
+              hint={`Type attendu : ${DATA_TYPES.find((d) => d.id === dataType)?.label ?? dataType}`}
+              error={
+                defaultValueRequired && isAttributeValueEmpty(defaultValue)
+                  ? isRequired
+                    ? "Requis pour un attribut obligatoire."
+                    : "Indiquez une valeur par défaut."
+                  : !defaultValid
+                    ? "Valeur invalide pour ce type."
+                    : undefined
+              }
+            >
+              <AttributeRenderer
+                attribute={draftAttribute}
+                value={defaultValue}
+                mode="edit"
+                onChange={(v, valid) => {
+                  setDefaultValue(v);
+                  setDefaultValid(valid);
+                }}
+              />
+            </FormField>
+          )}
+        </div>
+
         <div className="flex flex-col gap-3 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <Label className="text-sm font-medium">Obligatoire</Label>
               <p className="text-xs text-muted-foreground">Champ requis sur la fiche produit.</p>
             </div>
-            <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+            <Switch
+              checked={isRequired}
+              onCheckedChange={(on) => {
+                setIsRequired(on);
+                if (on) setUseDefaultValue(true);
+              }}
+            />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
