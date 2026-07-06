@@ -609,7 +609,7 @@ export default function MigrationQuarantinePage() {
                 Quarantaine de migration
               </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Lignes non matchables lors de l’import initial (CDC §8.7).
+                Lignes non matchables lors de l’import initial.
               </p>
             </div>
           </div>

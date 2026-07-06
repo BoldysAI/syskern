@@ -905,9 +905,9 @@ function TabAlerts() {
   return (
     <div className="max-w-2xl">
       <p className="mb-5 text-sm text-muted-foreground">
-        Destinataires de l&apos;alerte quotidienne « offres arrivant à expiration sous 7 jours »
-        (CDC §7.6). L&apos;envoi tourne chaque matin (08:00 UTC). Sans destinataire, aucune alerte
-        n&apos;est envoyée.
+        Destinataires de l&apos;alerte quotidienne « offres arrivant à expiration sous 7 jours ».
+        L&apos;envoi tourne chaque matin (08:00 UTC). Sans destinataire, aucune alerte n&apos;est
+        envoyée.
       </p>
 
       <Card className="p-5">
