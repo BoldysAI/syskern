@@ -139,7 +139,9 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "mediafiles"
+# Uploaded files (document library). Overridable via env so prod can point it at
+# a writable, persisted volume — the non-root `app` user cannot write under /app.
+MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", default=str(BASE_DIR / "mediafiles"))
 
 # ─── DRF ──────────────────────────────────────────────────────────────────────
 

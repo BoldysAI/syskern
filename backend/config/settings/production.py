@@ -9,6 +9,14 @@ DEBUG = False
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
 
+# ─── Media (document-library uploads) ──────────────────────────────────────────
+# The container runs as the non-root `app` user, which cannot write under /app
+# (the base default `/app/mediafiles`). Default to a writable path under /tmp,
+# mirroring the offers-export volume — mount a Coolify persistent volume there
+# (e.g. host `/data/syskern/media` → `/tmp/syskern_media`) so documents survive
+# redeploys. Override the path with `DJANGO_MEDIA_ROOT`.
+MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", default="/tmp/syskern_media")
+
 # ─── Security headers ─────────────────────────────────────────────────────────
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
