@@ -46,6 +46,13 @@ class OdooProduct:
     description_technical_fr: str = ""
     gtin: str = ""
     hs_code: str = ""
+    # Enrichment fields — Odoo carries these, previously dropped on the floor.
+    #   brand      ↔ Odoo `brand_id` (v19 only)
+    #   dop_number ↔ Odoo `x_studio_num_dop_china` / `_trkiye`
+    #   uom_name   ↔ Odoo `uom_id` label (mapped to BaseUnit by the runner)
+    brand: str = ""
+    dop_number: str = ""
+    uom_name: str = ""
     weight_kg: Decimal | None = None
     standard_price_eur: Decimal | None = None
     suppliers: list[OdooSupplierLink] = field(default_factory=list)

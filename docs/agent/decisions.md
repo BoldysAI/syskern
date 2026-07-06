@@ -714,3 +714,23 @@ valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
 - **Wizard** : toutes les catégories d'attributs par étape (cf. `pim.md` § wizard) ; pré-remplissage
   depuis `default_value` ; validation `is_required` via `isAttributeValueEmpty`.
 - **Tests** : `apps/attributes/tests/test_backfill.py`, `apps/products/tests/test_attr_columns.py`.
+
+## 2026-07-07 · [P] Sync Odoo — enrichissement produit (marque/DoP/UoM) + `uom` pleine fidélité
+- **Cause** : le schéma `OdooProduct` récupérait `brand_id` / `x_studio_num_dop_*` / `uom_id` d'Odoo
+  puis les **jetait** (jamais mappés). `base_unit` restait "unit" pour tout le catalogue.
+- **Correctif** : `apps/odoo_sync/schemas.py` (+ adapters `v16`/`v19` + `services/runner.py`) mappent
+  désormais **brand, dop_number, uom** de façon **additive** (ne remplit que si Odoo fournit une valeur,
+  ne **jamais** écraser une donnée semée par l'Excel — Odoo & Excel se complètent, CDC §2.1).
+- **Déviation assumée au CDC §3.2 sur l'unité** : le CDC fige `base_unit ∈ {unit, km, m}`. Or **chaque
+  article a sa vraie unité Odoo** (PC, KM, M, kg, rouleau, touret…). Décision (dev, 2026-07-07) :
+  **ajouter `Product.uom`** (CharField libre, migration `products/0005`) qui conserve l'unité Odoo
+  **verbatim** = fidélité totale ; `base_unit` reste l'unité **normalisée pour le moteur** (le moteur ne
+  convertit que unit/km/m), remplie via `_uom_to_base_unit` (units/pc→unit, km→km, m→m ; inconnu → on
+  garde la valeur existante). Front : `LogisticsTab` affiche « Unité réelle (Odoo) » en lecture seule.
+- **Non couvert encore** (prochaines étapes, même chantier fidélité) : packaging depuis Odoo
+  (`packaging_ids`, noté « issu d'Odoo » au CDC §3.2) + Excel `Individual Packing` ; attributs libres
+  (AWG, blindage, Euroclass, MOQ, lead time…) via EAV `attribute_registry` ; **activation du bon
+  fournisseur** (le moteur lit la source active — aujourd'hui ~97% ont Symea@0 actif alors que le vrai
+  prix est sur une source inactive → 3% seulement pricables). Cf. [[project_odoo_catalog_reality]].
+- **Tests** : `apps/odoo_sync/tests/test_product_enrichment.py` (mapping UoM, upsert additif non
+  destructif, `uom` verbatim même non mappé) + `test_adapters.py` étendus.

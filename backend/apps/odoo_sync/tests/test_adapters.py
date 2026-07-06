@@ -152,6 +152,10 @@ class TestV16ListProducts(TestCase):
         self.assertEqual(p.standard_price_eur, Decimal("8.5"))
         self.assertEqual(p.description_marketing_fr, "Cat6A câble blindé")
         self.assertTrue(p.is_active)
+        # Enrichment fields previously dropped on the floor.
+        self.assertEqual(p.dop_number, "DOP-CN-001")
+        self.assertEqual(p.uom_name, "Units")
+        self.assertEqual(p.brand, "")  # v16 has no brand_id field
 
     def test_supplier_linked(self):
         products = self._run(
@@ -345,6 +349,13 @@ class TestV19Parity(TestCase):
         self.assertEqual(p16.gtin, p19.gtin)  # v19 prefers gtin_code
         self.assertEqual(len(p16.suppliers), len(p19.suppliers))
         self.assertEqual(p16.suppliers[0].name, p19.suppliers[0].name)
+        # Enrichment: DoP + UoM on both; brand only on v19 (no brand_id in v16).
+        self.assertEqual(p16.dop_number, "DOP-CN-001")
+        self.assertEqual(p19.dop_number, "DOP-CN-001")
+        self.assertEqual(p16.uom_name, "Units")
+        self.assertEqual(p19.uom_name, "Units")
+        self.assertEqual(p16.brand, "")
+        self.assertEqual(p19.brand, "Boldys")
 
 
 class TestV19Payload(TestCase):

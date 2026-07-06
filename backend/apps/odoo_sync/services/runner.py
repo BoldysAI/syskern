@@ -36,6 +36,35 @@ _SKU_RE = re.compile(r"^[A-Z0-9\-]+$")
 _PAGE_SIZE = 200
 
 
+def _uom_to_base_unit(uom_name: str) -> str:
+    """Map an Odoo UoM label to our ``BaseUnit`` value, or ``""`` if unknown.
+
+    The client's Odoo uses "Units"/"KM"/"M", which line up with ``BaseUnit``.
+    Unknown units (kg, g, L, …) return ``""`` so the caller keeps the existing
+    value rather than forcing an out-of-enum string the pricing engine can't
+    read (base_unit feeds ``engine.context.ProductView``).
+    """
+    from apps.products.models import BaseUnit
+
+    key = (uom_name or "").strip().lower()
+    return {
+        "units": BaseUnit.UNIT,
+        "unit": BaseUnit.UNIT,
+        "unit(s)": BaseUnit.UNIT,
+        "pc": BaseUnit.UNIT,
+        "pcs": BaseUnit.UNIT,
+        "piece": BaseUnit.UNIT,
+        "pieces": BaseUnit.UNIT,
+        "piece(s)": BaseUnit.UNIT,
+        "km": BaseUnit.KM,
+        "kilometer": BaseUnit.KM,
+        "kilometre": BaseUnit.KM,
+        "m": BaseUnit.M,
+        "meter": BaseUnit.M,
+        "metre": BaseUnit.M,
+    }.get(key, "")
+
+
 def sync(
     *,
     scope: SyncScope,
@@ -165,7 +194,7 @@ def _upsert_product(
 
     try:
         now = timezone.now()
-        defaults = {
+        defaults: dict[str, object] = {
             "name": op.name,
             "universe": op.universe,
             "family": op.family,
@@ -197,6 +226,20 @@ def _upsert_product(
         if op.standard_price_eur is not None:
             defaults["pamp_eur"] = op.standard_price_eur
             defaults["pamp_synced_at"] = now
+
+        # Enrichment (CDC §2.1 — Odoo & Excel complement each other): only fill
+        # when Odoo actually provides a value, never wipe data seeded elsewhere.
+        if op.brand:
+            defaults["brand"] = op.brand
+        if op.dop_number:
+            defaults["dop_number"] = op.dop_number
+        if op.uom_name:
+            # Full fidelity: keep the real Odoo unit verbatim…
+            defaults["uom"] = op.uom_name
+            # …and normalise to the engine's base_unit when we recognise it.
+            base_unit = _uom_to_base_unit(op.uom_name)
+            if base_unit:
+                defaults["base_unit"] = base_unit
 
         product, created = Product.objects.update_or_create(
             sku_code=op.sku_code,

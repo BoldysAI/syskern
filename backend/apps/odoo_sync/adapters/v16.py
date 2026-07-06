@@ -180,6 +180,9 @@ def _normalize_product(
         description_technical_fr=raw.get("description") or "",
         gtin=raw.get("barcode") or "",
         hs_code=raw.get("hs_code") or "",
+        # v16 has no `brand_id` (v19-only); DoP + UoM are present.
+        dop_number=(raw.get("x_studio_num_dop_china") or raw.get("x_studio_num_dop_trkiye") or ""),
+        uom_name=_many2one_name(raw.get("uom_id")),
         weight_kg=_to_decimal(raw.get("weight")),
         standard_price_eur=_to_decimal(raw.get("standard_price")),
         suppliers=supplier_map.get(tmpl_id, []),

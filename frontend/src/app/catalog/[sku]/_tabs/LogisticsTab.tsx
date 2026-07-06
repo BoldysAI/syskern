@@ -32,6 +32,7 @@ export function LogisticsTab() {
               kind="select"
               options={BASE_UNIT_OPTIONS}
             />
+            <Field field="uom" label="Unité réelle (Odoo)" kind="text" readOnly />
             <Field
               field="supply_policy"
               label="Approvisionnement"

@@ -83,7 +83,13 @@ class Product(BaseModel):
         blank=True,
         validators=[MinValueValidator(0)],
     )
+    # `base_unit` is the engine-facing normalised unit (unit/km/m — the only
+    # values the pricing engine converts, CDC §3.2). `uom` keeps the *real*
+    # Odoo unit of measure verbatim (PC, KM, M, kg, Roll, Drum…) so every
+    # article carries its true unit — full-fidelity mapping, an assumed
+    # deviation from the CDC's 3-value set (see docs/agent/decisions.md).
     base_unit = models.CharField(max_length=8, choices=BaseUnit.choices, default=BaseUnit.UNIT)
+    uom = models.CharField(max_length=32, blank=True, default="")
 
     # ─── Packaging ────────────────────────────────────────────────────────
     primary_packaging_qty = models.IntegerField(null=True, blank=True)

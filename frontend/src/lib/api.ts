@@ -267,6 +267,7 @@ export interface ProductDetail extends Omit<Product, "active_supplier"> {
   dop_number?: string;
   copper_weight_kg_per_unit?: string;
   base_unit?: string;
+  uom?: string;
   primary_packaging_qty?: number;
   secondary_packaging_qty?: number;
   tertiary_packaging_qty?: number;
