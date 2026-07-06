@@ -22,6 +22,7 @@ from rest_framework import parsers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from .filters import DocumentLibraryFilter
 from .models import DocumentLibrary
 from .serializers import DocumentLibrarySerializer
 
@@ -40,7 +41,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
     """Document library. Metadata via PATCH; file fields are upload-only."""
 
     serializer_class = DocumentLibrarySerializer
-    filterset_fields = ("category", "language", "product", "is_active")
+    filterset_class = DocumentLibraryFilter
     ordering = ("category", "display_order")
     http_method_names = ["get", "post", "patch", "delete"]
 

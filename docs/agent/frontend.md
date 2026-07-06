@@ -225,10 +225,11 @@ sections dont il a besoin.
   entier, seules les **sections internes** restent fermées.
 
 Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFiltersSidebar`,
-`QuarantineFiltersSidebar`, `ComparisonFiltersSidebar`, + les `*FilterSheet` mobiles associés,
-`AddProductsModal`. Objectif : **tous** les modules de liste adoptent ce pattern (sidebar gauche
-repliable/redimensionnable + `FilterSection` + chips actifs + favoris `localStorage` + sheet
-mobile). Reste à aligner : `/library`.
+`QuarantineFiltersSidebar`, `ComparisonFiltersSidebar`, `LibraryFiltersSidebar`, + les
+`*FilterSheet` mobiles associés, `AddProductsModal`. **Tous** les modules de liste
+(catalogue, simulations, offres, comparaisons, bibliothèque, quarantaine) adoptent désormais ce
+pattern (sidebar gauche repliable/redimensionnable + `FilterSection` + chips actifs + favoris
+`localStorage` + sheet mobile). Nouveau module de liste → suivre ce même pattern.
 
 ### Liste offres (`/offers`)
 
@@ -263,6 +264,16 @@ enregistrés**), `ComparisonFilterSheet`, `ComparisonActiveFilterBar`, `comparis
 (`syskern:comparison-filters:v1`). Backend `SavedComparisonFilter` : `has_recalculations`
 (bool sur `recalculation_ids`) + `sim_type` (CSV → sous-requête `Simulation` puis
 `simulation_ids__overlap`). Sélection multiple + suppression en masse conservées.
+
+### Bibliothèque (`/library`)
+
+Aligné sur `/offers` (2026-07-06). `app/library/_components/` : `LibraryFiltersSidebar`
+(sections **Catégorie** [cgv/warranty/quality/project_reference/company/other] / **Langue**
+[fr/en/es] / **Filtres enregistrés**), `LibraryFilterSheet`, `LibraryActiveFilterBar`,
+`library-filters.ts` (`buildLibraryQuery`), `filters-storage.ts` (`syskern:library-filters:v1`).
+Multi-select CSV backend via `DocumentLibraryFilter` (`category`/`language` → `__in`,
+`product`/`is_active` exacts conservés), branché en `filterset_class`. Modales upload / aperçu /
+versions inchangées.
 
 ## Tableau de données partagé (`components/data-table/`)
 

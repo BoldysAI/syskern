@@ -170,3 +170,25 @@ def test_product_delete_sets_null(client_api, storage):
     assert DocumentLibrary.objects.get(id=doc_id).product_id == p.id
     p.delete()
     assert DocumentLibrary.objects.get(id=doc_id).product_id is None
+
+
+# ── List filters (sidebar multi-select, CDC §7.4) ─────────────────────────────
+
+
+def test_list_multi_select_category_and_language(client_api, storage):
+    _upload(client_api, name="a.pdf", category="cgv", language="fr")
+    _upload(client_api, name="b.pdf", category="warranty", language="en")
+    _upload(client_api, name="c.pdf", category="quality", language="es")
+
+    def count(qs: str) -> int:
+        return client_api.get(f"/api/document-library/?{qs}").json()["count"]
+
+    # CSV multi-select ORs the values.
+    assert count("category=cgv,warranty") == 2
+    assert count("category=quality") == 1
+    assert count("language=fr,es") == 2
+    # Combined category + language narrows.
+    assert count("category=cgv,warranty&language=fr") == 1
+    # Unknown / empty tokens are a no-op (never a 500).
+    assert count("category=bogus") == 3
+    assert count("category=") == 3

@@ -1,19 +1,22 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
   DownloadSimple,
   Eye,
+  Faders,
   FileText,
   ClockCounterClockwise,
   Plus,
+  SidebarSimple,
   Trash,
   UploadSimple,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { PageHeader } from "@/components/PageHeader";
+import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
+import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterSelect } from "@/components/FilterSelect";
 import { FormField } from "@/components/FormField";
@@ -21,8 +24,21 @@ import { DataTable } from "@/components/data-table";
 import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
 import { cycleSortField } from "@/components/data-table/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LibraryFiltersSidebar } from "./_components/LibraryFiltersSidebar";
+import { LibraryActiveFilterBar } from "./_components/LibraryActiveFilterBar";
+import { LibraryFilterSheet, LibraryFilterTrigger } from "./_components/LibraryFilterSheet";
+import {
+  buildLibraryQuery,
+  countActiveLibraryFilters,
+  normalizeLibraryFilters,
+  type LibraryFilters,
+} from "./_components/library-filters";
+import {
+  loadSavedLibraryFilters,
+  persistSavedLibraryFilters,
+  type SavedLibraryFilter,
+} from "./_components/filters-storage";
 import {
   Dialog,
   DialogContent,
@@ -30,12 +46,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -346,7 +357,11 @@ function PreviewSheet({ doc, onClose }: { doc: Doc; onClose: () => void }) {
             <img src={src} alt={docLabel(doc)} className="max-h-full max-w-full object-contain" />
           ) : (
             <div className="text-center text-sm text-muted-foreground">
-              <FileText size={40} weight="duotone" className="mx-auto mb-2 text-muted-foreground/50" />
+              <FileText
+                size={40}
+                weight="duotone"
+                className="mx-auto mb-2 text-muted-foreground/50"
+              />
               Aperçu indisponible pour ce format.
               <a href={doc.download_url} className="mt-2 block font-medium text-warm">
                 Télécharger
@@ -399,26 +414,63 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 
 export default function LibraryPage() {
   const confirm = useConfirm();
-  const [category, setCategory] = useState("");
-  const [language, setLanguage] = useState("");
+  const [filters, setFilters] = useState<LibraryFilters>({});
   const [showUpload, setShowUpload] = useState(false);
   const [preview, setPreview] = useState<Doc | null>(null);
   const [versions, setVersions] = useState<Doc | null>(null);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  const query = useMemo(() => {
-    const p = new URLSearchParams({ limit: "200" });
-    if (category) p.set("category", category);
-    if (language) p.set("language", language);
-    return p.toString();
-  }, [category, language]);
+  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
+    "syskern:library-filters-collapsed",
+    false,
+  );
+  const {
+    width: filterSidebarWidth,
+    startResize: startFilterResize,
+    isResizing: isFilterResizing,
+  } = useResizableWidth(300, {
+    min: 240,
+    max: 420,
+    storageKey: "syskern:library-filters-width",
+  });
+
+  const [savedFilters, setSavedFilters] = useState<SavedLibraryFilter[]>(loadSavedLibraryFilters);
+  useEffect(() => {
+    persistSavedLibraryFilters(savedFilters);
+  }, [savedFilters]);
+
+  const query = useMemo(() => buildLibraryQuery(filters, { limit: 200 }), [filters]);
 
   const { data, isLoading, error } = useSWR<Paginated<Doc>>(`library:${query}`, () =>
     getJson<Paginated<Doc>>(`/api/document-library/?${query}`),
   );
-  const sortedDocs = useMemo(
-    () => sortDocs(data?.results ?? [], sort),
-    [data?.results, sort],
+  const sortedDocs = useMemo(() => sortDocs(data?.results ?? [], sort), [data?.results, sort]);
+  const total = data?.count ?? 0;
+  const activeFilterCount = countActiveLibraryFilters(filters);
+
+  const applyFilters = useCallback((next: LibraryFilters) => setFilters(next), []);
+  const resetFilters = () => setFilters({});
+
+  const onSaveFilter = (name: string) => {
+    const id = typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now());
+    setSavedFilters((prev) => [...prev, { id, name, filters }]);
+  };
+  const onApplyFilter = (sf: SavedLibraryFilter) => setFilters(normalizeLibraryFilters(sf.filters));
+  const onDeleteFilter = useCallback(
+    async (id: string) => {
+      const sf = savedFilters.find((f) => f.id === id);
+      if (!sf) return;
+      const ok = await confirm({
+        title: "Supprimer le filtre favori",
+        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
+        confirmLabel: "Supprimer",
+        destructive: true,
+      });
+      if (!ok) return;
+      setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+    },
+    [confirm, savedFilters],
   );
 
   const remove = async (d: Doc) => {
@@ -495,34 +547,125 @@ export default function LibraryPage() {
   );
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Bibliothèque de documents"
-        description="Pièces jointes réutilisables pour les offres projet (CDC §7.4)"
-        actions={
+    <div className="flex h-full bg-background">
+      {filtersCollapsed ? (
+        <div className="relative hidden w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3 shadow-[var(--shadow-soft)] lg:flex">
+          <button
+            type="button"
+            onClick={() => setFiltersCollapsed(false)}
+            className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Afficher les filtres"
+            title="Filtres"
+          >
+            <Faders size={18} weight="duotone" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+      ) : (
+        <aside
+          className="relative hidden shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)] lg:flex"
+          style={{ width: filterSidebarWidth }}
+        >
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
+            <div className="min-w-0">
+              <span className="text-sm font-bold text-foreground">Filtres</span>
+              {activeFilterCount > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
+                  Tout effacer
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setFiltersCollapsed(true)}
+                aria-label="Masquer les filtres"
+                title="Masquer les filtres"
+              >
+                <SidebarSimple size={18} />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <LibraryFiltersSidebar
+              filters={filters}
+              onChange={applyFilters}
+              savedFilters={savedFilters}
+              onSaveFilter={onSaveFilter}
+              onApplyFilter={onApplyFilter}
+              onDeleteFilter={onDeleteFilter}
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau des filtres"
+            onMouseDown={startFilterResize}
+            className={cn(
+              "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
+              "hover:bg-primary/20",
+              isFilterResizing && "bg-primary/30",
+            )}
+          >
+            <span className="h-10 w-0.5 rounded-full bg-border" />
+          </div>
+        </aside>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-4 shadow-[var(--shadow-soft)] sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <LibraryFilterTrigger
+              activeCount={activeFilterCount}
+              onClick={() => setMobileFiltersOpen(true)}
+            />
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                <FileText size={22} weight="duotone" className="shrink-0 text-primary" />
+                Bibliothèque de documents
+              </h1>
+              {!isLoading && (
+                <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
+                  {total.toLocaleString("fr-FR")} document{total !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+          </div>
           <Button onClick={() => setShowUpload(true)}>
             <Plus size={16} weight="bold" />
-            Ajouter
+            <span className="hidden sm:inline">Ajouter</span>
           </Button>
-        }
-      />
+        </div>
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <FilterSelect
-          value={category}
-          onChange={setCategory}
-          placeholder="Toutes catégories"
-          options={CATEGORIES.map((c) => ({ value: c.code, label: c.label }))}
+        <LibraryFilterSheet
+          open={mobileFiltersOpen}
+          onOpenChange={setMobileFiltersOpen}
+          filters={filters}
+          onChange={applyFilters}
+          onReset={resetFilters}
+          savedFilters={savedFilters}
+          onSaveFilter={onSaveFilter}
+          onApplyFilter={onApplyFilter}
+          onDeleteFilter={onDeleteFilter}
         />
-        <FilterSelect
-          value={language}
-          onChange={setLanguage}
-          placeholder="Toutes langues"
-          options={LANGS.filter((l) => l.code).map((l) => ({ value: l.code, label: l.label }))}
-        />
-      </div>
 
-      <Card className="overflow-hidden py-0">
+        <LibraryActiveFilterBar
+          filters={filters}
+          onChange={applyFilters}
+          onClearAll={resetFilters}
+        />
+
         <DataTable
           columns={columns}
           rows={sortedDocs}
@@ -567,17 +710,27 @@ export default function LibraryPage() {
             <EmptyState
               icon={<FileText size={24} weight="duotone" />}
               title="Aucun document"
-              description='Cliquez « Ajouter » pour en uploader un.'
+              description={
+                activeFilterCount > 0
+                  ? "Essayez d’élargir vos filtres."
+                  : "Cliquez « Ajouter » pour en uploader un."
+              }
               action={
-                <Button onClick={() => setShowUpload(true)}>
-                  <Plus size={16} weight="bold" />
-                  Ajouter
-                </Button>
+                activeFilterCount > 0 ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    Réinitialiser les filtres
+                  </Button>
+                ) : (
+                  <Button onClick={() => setShowUpload(true)}>
+                    <Plus size={16} weight="bold" />
+                    Ajouter
+                  </Button>
+                )
               }
             />
           }
         />
-      </Card>
+      </div>
 
       <UploadDialog open={showUpload} onClose={() => setShowUpload(false)} />
       {preview && <PreviewSheet doc={preview} onClose={() => setPreview(null)} />}
@@ -607,7 +760,9 @@ function IconBtn({
       }}
       className={cn(
         "rounded-lg p-1.5 text-muted-foreground transition-colors",
-        danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-accent/50 hover:text-warm",
+        danger
+          ? "hover:bg-destructive/10 hover:text-destructive"
+          : "hover:bg-accent/50 hover:text-warm",
       )}
     >
       {children}
