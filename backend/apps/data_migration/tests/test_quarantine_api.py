@@ -62,6 +62,18 @@ def test_filter_by_source_file(client, rows):
     assert resp.json()["count"] == 2
 
 
+def test_filter_multi_select_reason_ors_values(client, rows):
+    # CSV multi-select (sidebar checkboxes) ORs the reasons.
+    resp = client.get("/api/migration/unmatched/?reason=no_match,no_sku")
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 2  # a (no_match) + c (no_sku), not b (duplicate)
+
+
+def test_filter_multi_select_source_file_ors_values(client, rows):
+    resp = client.get("/api/migration/unmatched/?source_file=PO_Symea.xlsx,technique.xlsx")
+    assert resp.json()["count"] == 3
+
+
 def test_filter_by_resolved_status(client, rows):
     a, _b, _c = rows
     client.post(
