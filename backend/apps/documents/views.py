@@ -18,6 +18,7 @@ from django.core.files.storage import default_storage
 from django.db.models import Max
 from django.http import FileResponse, Http404
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from rest_framework import parsers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -131,11 +132,17 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
 
     # ─── /{id}/download ───────────────────────────────────────────────
     @action(detail=True, methods=["get"])
+    @xframe_options_sameorigin
     def download(self, request, pk=None):
         """Stream the stored file (local). Prod: return a Supabase signed URL.
 
         ``?inline=1`` serves the file inline (for PDF / image preview) instead
         of forcing a download.
+
+        ``@xframe_options_sameorigin`` overrides the site-wide
+        ``X-Frame-Options: DENY`` for this response only, so the same-origin
+        PDF/image preview can render inside an ``<iframe>`` (otherwise prod
+        blocks the embed with ``ERR_BLOCKED_BY_RESPONSE``).
         """
         doc = self.get_object()
         if not doc.file_url or not default_storage.exists(doc.file_url):

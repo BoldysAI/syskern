@@ -46,7 +46,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -310,20 +309,20 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-// ── Preview sheet ─────────────────────────────────────────────────────────────
+// ── Preview modal ─────────────────────────────────────────────────────────────
 
-function PreviewSheet({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+function PreviewDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   const isImage = doc.mime_type.startsWith("image/");
   const isPdf = doc.mime_type === "application/pdf";
   const src = `${doc.download_url}?inline=1`;
 
   return (
-    <Sheet open onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-4xl">
-        <SheetHeader>
-          <SheetTitle className="truncate">{docLabel(doc)}</SheetTitle>
-        </SheetHeader>
-        <div className="flex flex-1 items-center justify-center overflow-auto bg-muted/30 p-4">
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="flex h-[90vh] w-[92vw] max-w-6xl flex-col gap-3 p-4">
+        <DialogHeader>
+          <DialogTitle className="truncate pr-8">{docLabel(doc)}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-1 items-center justify-center overflow-auto rounded-lg bg-muted/30">
           {isPdf ? (
             <iframe src={src} title={docLabel(doc)} className="h-full w-full rounded-lg border-0" />
           ) : isImage ? (
@@ -343,8 +342,8 @@ function PreviewSheet({ doc, onClose }: { doc: Doc; onClose: () => void }) {
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -737,7 +736,7 @@ export default function LibraryPage() {
       </div>
 
       <UploadDialog open={showUpload} onClose={() => setShowUpload(false)} />
-      {preview && <PreviewSheet doc={preview} onClose={() => setPreview(null)} />}
+      {preview && <PreviewDialog doc={preview} onClose={() => setPreview(null)} />}
       {versions && <VersionsDialog doc={versions} onClose={() => setVersions(null)} />}
     </div>
   );

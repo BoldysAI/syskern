@@ -118,6 +118,17 @@ def test_download_streams_file(client_api, storage):
     assert b"".join(resp.streaming_content) == _PDF
 
 
+def test_inline_download_allows_same_origin_framing(client_api, storage):
+    """Inline preview is embedded in an <iframe>; the site-wide DENY must be
+    relaxed to SAMEORIGIN for this response, else prod blocks it with
+    ERR_BLOCKED_BY_RESPONSE."""
+    doc_id = _upload(client_api).json()["id"]
+    resp = client_api.get(f"/api/document-library/{doc_id}/download/?inline=1")
+    assert resp.status_code == 200
+    assert resp.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert "attachment" not in resp.headers.get("Content-Disposition", "")
+
+
 # ── Soft delete + recovery + purge ────────────────────────────────────────────
 
 
