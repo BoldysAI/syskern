@@ -6,7 +6,7 @@ import uuid as _uuid_module
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -69,12 +69,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         "name",
         "universe",
         "family",
+        "range",
+        "sub_range",
         "brand",
+        "active_supplier",
         "pamp_eur",
         "stock_quantity",
+        "is_copper_indexed",
+        "is_active",
         "updated_at",
     )
     ordering = ("sku_code",)
+
+    _MAX_ATTR_COLUMNS = 10
 
     # ── 1.A — Lookup by UUID or SKU (CDC §4.4) ───────────────────────────────
 
@@ -99,6 +106,34 @@ class ProductViewSet(viewsets.ModelViewSet):
             return ProductWriteSerializer
         return ProductDetailSerializer
 
+    def _parse_attr_columns(self) -> list[str]:
+        raw = self.request.query_params.get("attr_columns", "")
+        if not raw:
+            return []
+        codes = [c.strip() for c in raw.split(",") if c.strip()]
+        return codes[: self._MAX_ATTR_COLUMNS]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action == "list":
+            attr_columns = self._parse_attr_columns()
+            if attr_columns:
+                qs = qs.prefetch_related(
+                    Prefetch(
+                        "attribute_values",
+                        queryset=ProductAttributeValue.objects.filter(
+                            attribute__code__in=attr_columns
+                        ).select_related("attribute"),
+                    )
+                )
+        return qs
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        if self.action == "list":
+            ctx["attr_columns"] = self._parse_attr_columns()
+        return ctx
+
     def perform_destroy(self, instance: Product) -> None:
         """Soft-delete (CDC §4.6) — keeps historical simulations valid."""
         instance.is_active = False
@@ -107,6 +142,9 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer) -> None:
         instance = serializer.save()
+        from apps.attributes.services.backfill import apply_registry_defaults_to_product
+
+        apply_registry_defaults_to_product(instance)
         self._push_to_odoo_async(instance)
 
     def perform_update(self, serializer) -> None:
@@ -512,7 +550,11 @@ class CatalogFilterBoundsView(APIView):
     def get(self, request):
         from django.db.models import Max, Min
 
-        data = {k: v for k, v in request.query_params.items() if k not in self._IGNORED_PARAMS}
+        data = {
+            k: v
+            for k, v in request.query_params.items()
+            if k not in self._IGNORED_PARAMS and not k.startswith("attr_")
+        }
         qs = ProductFilter(data=data, queryset=Product.objects.all()).qs
 
         aggs = qs.aggregate(

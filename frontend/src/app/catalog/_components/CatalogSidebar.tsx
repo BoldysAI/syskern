@@ -67,14 +67,20 @@ export function CatalogSidebar({
   className,
 }: CatalogSidebarProps) {
   const boundsFilters = useMemo(() => {
-    const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, ...rest } = filters;
+    const {
+      pamp_min: _pm,
+      pamp_max: _px,
+      stock_min: _sm,
+      attrs: _attrs,
+      ...rest
+    } = filters;
     return rest;
   }, [filters]);
 
   const { data: bounds } = useSWR(
     ["catalog-filter-bounds", catalogFiltersToParams(boundsFilters)],
     () => getCatalogFilterBounds(boundsFilters),
-    { revalidateOnFocus: false, dedupingInterval: 30_000 },
+    { revalidateOnFocus: false, dedupingInterval: 30_000, keepPreviousData: true },
   );
 
   const pampSlider = useMemo(() => boundsToSliderConfig(bounds?.pamp_eur, 500), [bounds?.pamp_eur]);

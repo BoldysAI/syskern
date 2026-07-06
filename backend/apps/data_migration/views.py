@@ -6,6 +6,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.attributes.services.backfill import apply_registry_defaults_to_product
 from apps.products.models import Product
 from apps.products.services.sku_parser import parse_sku
 
@@ -87,6 +88,7 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
             factory_code=parsed.get("factory_code") or "",
             parent_reference=parsed.get("parent_reference") or "",
         )
+        apply_registry_defaults_to_product(product)
         return product, True
 
     @action(detail=False, methods=["get"])

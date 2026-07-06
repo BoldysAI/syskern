@@ -695,3 +695,22 @@ valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
   RecalcHistoryDrawer, etc.), warnings des wizards, KPI « À traiter » quarantaine, `AppIcon tone="warm"`.
 - **Règle** : décoratif = vert ; attention/avertissement/cuivre/recalcul = ambre ; jamais d'orange vif.
   `--color-brand-orange` reste défini (palette) mais **n'est plus utilisé**.
+
+## 2026-07-06 · [P] PIM — `default_value` attributs + backfill + colonnes catalogue
+- **`AttributeRegistry.default_value`** (JSONB nullable, migration `attributes/0005`) : validé comme une valeur PAV selon `data_type`.
+  Obligatoire si `is_required=True` à la création.
+- **Backfill à la création uniquement** : `perform_create` du registre déclenche
+  `backfill_attribute_defaults` (sync si ≤100 produits, sinon tâche Celery
+  `attributes.backfill_attribute_defaults_task`). Crée des lignes `product_attribute_values` pour
+  tous les produits (actifs + inactifs) **sans écraser** une valeur existante. Modifier
+  `default_value` en édition **ne relance pas** le backfill.
+- **Admin attributs** : interrupteur « Valeur par défaut » ; champ typé visible seulement si activé ;
+  « Obligatoire » force l'activation de la valeur par défaut.
+- **Catalogue** : `GET /api/products/?attr_columns=code1,code2` (max 10) expose
+  `attribute_values` sur `ProductListSerializer`. UI : modale `CatalogColumnsDialog` (colonnes produit
+  **et** attributs dynamiques, libellé FR seul, SKU verrouillé, bouton Réinitialiser). Persistance
+  `syskern:catalog-visible-columns:v2` (migre `syskern:catalog-attr-columns:v1`). Export Excel =
+  choix séparé (`ExportButton`). Tri serveur sur colonnes attributs = hors scope v1.
+- **Wizard** : toutes les catégories d'attributs par étape (cf. `pim.md` § wizard) ; pré-remplissage
+  depuis `default_value` ; validation `is_required` via `isAttributeValueEmpty`.
+- **Tests** : `apps/attributes/tests/test_backfill.py`, `apps/products/tests/test_attr_columns.py`.

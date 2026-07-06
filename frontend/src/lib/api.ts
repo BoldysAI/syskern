@@ -113,6 +113,8 @@ export interface CatalogFilters {
   lang_es_out?: boolean;
   /** Dynamic attribute filters, keyed by attribute code (value or values). */
   attrs?: Record<string, string | string[] | undefined>;
+  /** Attribute codes to include as columns in the catalog list response. */
+  attr_columns?: string[];
 }
 
 export interface ProductListParams extends CatalogFilters {
@@ -163,6 +165,9 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
     if (raw == null) continue;
     const v = Array.isArray(raw) ? raw.join(",") : String(raw);
     if (v) params[`attr_${code}`] = v;
+  }
+  if (filters.attr_columns?.length) {
+    params.attr_columns = filters.attr_columns.join(",");
   }
   return params;
 }
@@ -220,6 +225,8 @@ export interface Product {
   active_supplier?: string;
   /** Multilingual coverage of the product content (CDC §10.7.3). */
   i18n_coverage?: I18nCoverage;
+  /** Dynamic attribute values keyed by attribute code (when requested via attr_columns). */
+  attribute_values?: Record<string, unknown>;
   updated_at?: string;
 }
 
@@ -284,6 +291,8 @@ export interface AttributeRegistry {
   is_searchable: boolean;
   /** Exposed as a catalog sidebar filter (CDC §4.1.1). */
   is_filterable?: boolean;
+  /** Default value applied to all existing products on attribute creation. */
+  default_value?: unknown;
   display_order: number;
   /** Count of product values using this attribute (for cascade-delete warning). */
   value_count?: number;
@@ -702,7 +711,7 @@ export interface CatalogFilterBounds {
 
 /** Min/max for numeric filters, scoped to current facet context (excludes range sliders). */
 export function getCatalogFilterBounds(filters: CatalogFilters = {}): Promise<CatalogFilterBounds> {
-  const { pamp_min: _a, pamp_max: _b, stock_min: _c, ...facet } = filters;
+  const { pamp_min: _a, pamp_max: _b, stock_min: _c, attrs: _attrs, ...facet } = filters;
   const q = new URLSearchParams(buildCatalogQuery(facet));
   return apiFetch<CatalogFilterBounds>(`/api/products/filter-bounds?${q.toString()}`);
 }

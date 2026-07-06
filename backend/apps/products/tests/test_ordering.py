@@ -58,3 +58,55 @@ class TestPampOrdering:
         resp = client.get("/api/products/", {"pamp_min": "10"})
         assert resp.status_code == 200
         assert _sku_order(resp) == ["P-OK"]
+
+
+class TestAttributeOrdering:
+    def test_order_by_dynamic_number_attribute(self, client):
+        from apps.attributes.models import (
+            AttributeCategory,
+            AttributeDataType,
+            AttributeRegistry,
+            ProductAttributeValue,
+        )
+
+        attr = AttributeRegistry.objects.create(
+            code="sort_weight",
+            label={"fr": "Poids"},
+            category=AttributeCategory.LOGISTIC,
+            data_type=AttributeDataType.NUMBER,
+        )
+        p_low = _make("SORT-LOW")
+        p_high = _make("SORT-HIGH")
+        p_none = _make("SORT-NONE")
+        ProductAttributeValue.objects.create(product=p_low, attribute=attr, value=5)
+        ProductAttributeValue.objects.create(product=p_high, attribute=attr, value=50)
+
+        resp = client.get("/api/products/", {"ordering": "attr_sort_weight"})
+        assert resp.status_code == 200
+        order = _sku_order(resp)
+        assert order.index("SORT-LOW") < order.index("SORT-HIGH")
+        assert order.index("SORT-NONE") > order.index("SORT-HIGH")
+
+    def test_order_by_dynamic_text_attribute_desc(self, client):
+        from apps.attributes.models import (
+            AttributeCategory,
+            AttributeDataType,
+            AttributeRegistry,
+            ProductAttributeValue,
+        )
+
+        attr = AttributeRegistry.objects.create(
+            code="sort_label",
+            label={"fr": "Libellé"},
+            category=AttributeCategory.TECHNICAL,
+            data_type=AttributeDataType.TEXT,
+        )
+        p_a = _make("SORT-A")
+        p_z = _make("SORT-Z")
+        ProductAttributeValue.objects.create(product=p_a, attribute=attr, value="Alpha")
+        ProductAttributeValue.objects.create(product=p_z, attribute=attr, value="Zulu")
+
+        resp = client.get("/api/products/", {"ordering": "-attr_sort_label"})
+        assert resp.status_code == 200
+        order = _sku_order(resp)
+        assert order.index("SORT-Z") < order.index("SORT-A")

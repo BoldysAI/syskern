@@ -117,7 +117,8 @@ export function CatalogAttributeFilter({
 
   if (attribute.data_type === "number") {
     const num = value != null && value !== "" ? Number(value) : null;
-    const slider = boundsToSliderConfig(numberBounds ?? null, 100);
+    const fallbackMax = Math.max(100, numberBounds?.max ?? 0, num ?? 0);
+    const slider = boundsToSliderConfig(numberBounds ?? null, fallbackMax);
     return (
       <div className="rounded-xl border border-border bg-card/40 p-3">
         <RangeFilterSlider
@@ -131,15 +132,6 @@ export function CatalogAttributeFilter({
           onChange={(v) => onChange(v != null ? String(v) : "")}
           unit={attribute.unit}
         />
-        <div className="mt-2">
-          <Input
-            type="number"
-            value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Valeur exacte"
-            className="h-8 text-xs"
-          />
-        </div>
       </div>
     );
   }

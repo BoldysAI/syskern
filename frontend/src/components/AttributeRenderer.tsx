@@ -21,6 +21,12 @@ interface AttributeRendererProps {
 const inputCls =
   "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-muted disabled:text-muted-foreground";
 
+/** True when an attribute value is unset (distinct from boolean false / number 0). */
+export function isAttributeValueEmpty(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") return true;
+  return Array.isArray(value) && value.length === 0;
+}
+
 /** Pick the best localized string from a multilingual map. */
 export function localize(map: Record<string, string> | undefined | null, lang = "fr"): string {
   if (!map) return "";
@@ -38,7 +44,9 @@ export function validateAttributeValue(attribute: AttributeRegistry, value: unkn
     case "text":
       return typeof value === "string";
     case "number":
-      return Number.isFinite(Number(value));
+      return (
+        typeof value === "number" || (typeof value === "string" && Number.isFinite(Number(value)))
+      );
     case "boolean":
       return typeof value === "boolean";
     case "date":
@@ -61,6 +69,43 @@ function formatDateFr(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
+/** Format an attribute value for compact display (catalog columns, recap). */
+export function formatAttributeDisplayValue(
+  attribute: AttributeRegistry,
+  value: unknown,
+  lang = "fr",
+): string {
+  if (isAttributeValueEmpty(value)) return "—";
+
+  switch (attribute.data_type) {
+    case "number": {
+      const n = Number(value);
+      const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
+      return attribute.unit ? `${formatted} ${attribute.unit}` : formatted;
+    }
+    case "boolean":
+      return value ? "Oui" : "Non";
+    case "date":
+      return formatDateFr(String(value));
+    case "select": {
+      const opt = (attribute.options ?? []).find((o) => o.value === value);
+      return opt ? localize(opt.label, lang) : String(value);
+    }
+    case "multiselect": {
+      const arr = Array.isArray(value) ? value : [];
+      if (arr.length === 0) return "—";
+      return arr
+        .map((v) => {
+          const opt = (attribute.options ?? []).find((o) => o.value === String(v));
+          return opt ? localize(opt.label, lang) : String(v);
+        })
+        .join(", ");
+    }
+    default:
+      return String(value);
+  }
+}
+
 // ─── Read-mode rendering ────────────────────────────────────────────────────
 
 function ReadValue({
@@ -72,8 +117,7 @@ function ReadValue({
   value: unknown;
   lang: string;
 }) {
-  const empty = value === null || value === undefined || value === "";
-  if (empty) return <span className="text-muted-foreground/50">—</span>;
+  if (isAttributeValueEmpty(value)) return <span className="text-muted-foreground/50">—</span>;
 
   switch (attribute.data_type) {
     case "number": {
@@ -172,7 +216,14 @@ function EditWidget({
             type="number"
             inputMode="decimal"
             value={str}
-            onChange={(e) => emit(e.target.value === "" ? null : e.target.value)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") emit(null);
+              else {
+                const n = Number(raw);
+                emit(Number.isFinite(n) ? n : raw);
+              }
+            }}
             className={cn(
               inputCls,
               attribute.unit && "pr-12",

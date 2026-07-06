@@ -12,6 +12,7 @@ import {
 import {
   getCatalogProducts,
   getFilterableAttributes,
+  listAttributes,
   type CatalogFilters,
   type PaginatedProducts,
   type Product,
@@ -28,8 +29,13 @@ import { CatalogSidebar } from "./CatalogSidebar";
 import { ActiveFilterBar } from "./ActiveFilterBar";
 import { CatalogFilterSheet, CatalogFilterTrigger } from "./CatalogFilterSheet";
 import { countActiveFilters } from "./active-filters";
-import { useCatalogColumns } from "./catalog-columns";
+import { useCatalogColumns, visibleAttrCodes } from "./catalog-columns";
 import { CATALOG_COLUMN_WIDTHS_KEY } from "./useColumnWidths";
+import { CatalogColumnsDialog } from "./CatalogColumnsDialog";
+import {
+  loadVisibleCatalogColumns,
+  saveVisibleCatalogColumns,
+} from "./catalog-column-storage";
 import {
   loadSavedFilters,
   normalizeCatalogFilters,
@@ -119,6 +125,9 @@ export function CatalogBrowser({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(filtersCollapsedStorageKey, false);
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() =>
+    variant === "page" ? loadVisibleCatalogColumns() : [],
+  );
   const {
     width: filterSidebarWidth,
     startResize: startFilterResize,
@@ -135,6 +144,10 @@ export function CatalogBrowser({
   }, [enableSavedFilters, savedFilters]);
 
   const { data: filterableAttrs } = useSWR("filterable-attrs", getFilterableAttributes);
+  const { data: allAttributes } = useSWR(
+    variant === "page" ? "attributes-registry-catalog" : null,
+    listAttributes,
+  );
   const attrLabels = useMemo(() => {
     const m: Record<string, string> = {};
     for (const a of filterableAttrs ?? []) {
@@ -165,9 +178,21 @@ export function CatalogBrowser({
 
   const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
   const filtersKey = JSON.stringify(filters);
+  const attrCodesForApi = useMemo(
+    () => (variant === "page" ? visibleAttrCodes(visibleColumnKeys) : []),
+    [variant, visibleColumnKeys],
+  );
+  const listFilters = useMemo(
+    () => ({
+      ...filters,
+      ...(attrCodesForApi.length ? { attr_columns: attrCodesForApi } : {}),
+    }),
+    [filters, attrCodesForApi],
+  );
+  const visibleColumnsKey = visibleColumnKeys.join(",");
   const { data, isLoading, error } = useSWR<PaginatedProducts>(
-    enabled ? [swrKey, filtersKey, ordering, page] : null,
-    () => getCatalogProducts({ ...filters, ordering, page, limit: pageSize }),
+    enabled ? [swrKey, filtersKey, visibleColumnsKey, ordering, page] : null,
+    () => getCatalogProducts({ ...listFilters, ordering, page, limit: pageSize }),
     { keepPreviousData: true },
   );
 
@@ -240,11 +265,23 @@ export function CatalogBrowser({
   const emptySavedFilters = useMemo<SavedFilter[]>(() => [], []);
   const noop = useCallback(() => {}, []);
 
+  const visibleAttrDefs = useMemo(
+    () => (allAttributes ?? []).filter((a) => visibleColumnKeys.includes(`attr:${a.code}`)),
+    [allAttributes, visibleColumnKeys],
+  );
+
   const columns = useCatalogColumns({
     skuAsLink,
     extraColumns,
-    showLanguageColumn: variant === "page",
+    visibleColumnKeys: variant === "page" ? visibleColumnKeys : undefined,
+    attributeColumns: variant === "page" ? visibleAttrDefs : [],
   });
+
+  const handleVisibleColumnsApply = useCallback((keys: string[]) => {
+    setVisibleColumnKeys(keys);
+    saveVisibleCatalogColumns(keys);
+    setPage(1);
+  }, []);
 
   const handleRowClick = (product: Product) => {
     if (disabled.has(product.id)) return;
@@ -404,6 +441,14 @@ export function CatalogBrowser({
             />
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {variant === "page" && (
+              <CatalogColumnsDialog
+                attributes={allAttributes ?? []}
+                visibleKeys={visibleColumnKeys}
+                onApply={handleVisibleColumnsApply}
+                disabled={isLoading}
+              />
+            )}
             {toolbarNode}
           </div>
         </div>

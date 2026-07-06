@@ -58,6 +58,8 @@ class AttributeRegistry(BaseModel):
     # Exposed as a sidebar filter on the catalog (CDC §4.1.1). Only attributes
     # flagged here are honored by the `attr_<code>` query params.
     is_filterable = models.BooleanField(default=False)
+    # Applied to all existing products on attribute creation (backfill).
+    default_value = models.JSONField(blank=True, null=True)
     display_order = models.IntegerField(default=0)
 
     class Meta:

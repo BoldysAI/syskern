@@ -189,6 +189,37 @@ def test_resolve_create_makes_product(client, rows):
     assert "KCFF6A4PZHDBL5-21" in a.resolution_notes
 
 
+def test_resolve_create_applies_attribute_defaults(client, rows):
+    from apps.attributes.models import (
+        AttributeCategory,
+        AttributeDataType,
+        AttributeRegistry,
+        ProductAttributeValue,
+    )
+
+    attr = AttributeRegistry.objects.create(
+        code="quarantine_default",
+        label={"fr": "Défaut quarantaine"},
+        category=AttributeCategory.TECHNICAL,
+        data_type=AttributeDataType.NUMBER,
+        default_value=10,
+        is_filterable=True,
+    )
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {
+            "action": "create",
+            "product": {"sku_code": "Q-DEFAULT-1", "name": "Produit quarantaine"},
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    product = Product.objects.get(sku_code="Q-DEFAULT-1")
+    pav = ProductAttributeValue.objects.get(product=product, attribute=attr)
+    assert pav.value == 10
+
+
 def test_resolve_create_requires_product(client, rows):
     a, _b, _c = rows
     resp = client.post(
