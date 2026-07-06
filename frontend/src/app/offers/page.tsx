@@ -99,33 +99,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
 const COLUMN_WIDTHS_KEY = "offers-list";
-
-function sortOffers(rows: OfferRow[], sort: DataTableSortState): OfferRow[] {
-  const out = [...rows];
-  out.sort((a, b) => {
-    let av: string | number = "";
-    let bv: string | number = "";
-    switch (sort.field) {
-      case "label":
-        av = a.label;
-        bv = b.label;
-        break;
-      case "valid_to":
-        av = a.valid_to ? new Date(a.valid_to).getTime() : 0;
-        bv = b.valid_to ? new Date(b.valid_to).getTime() : 0;
-        break;
-      case "created_at":
-        av = new Date(a.created_at).getTime();
-        bv = new Date(b.created_at).getTime();
-        break;
-      default:
-        return 0;
-    }
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-    return sort.dir === "asc" ? cmp : -cmp;
-  });
-  return out;
-}
+const PAGE_SIZE = 50;
 
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
@@ -272,6 +246,7 @@ export default function OffersPage() {
   const [filters, setFilters] = useState<OfferFilters>({});
   const [searchInput, setSearchInput] = useState("");
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
+  const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
@@ -300,12 +275,14 @@ export default function OffersPage() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setFilters((f) => ({ ...f, q: v || undefined }));
+      setPage(1);
     }, 300);
   };
 
+  const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
   const query = useMemo(
-    () => buildOfferQuery(filters, { ordering: "-created_at", limit: 100 }),
-    [filters],
+    () => buildOfferQuery(filters, { ordering, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    [filters, ordering, page],
   );
 
   const { data, isLoading, error } = useSWR<Paginated<OfferRow>>(
@@ -340,14 +317,19 @@ export default function OffersPage() {
     [query],
   );
 
-  const sortedOffers = useMemo(() => sortOffers(data?.results ?? [], sort), [data?.results, sort]);
+  const offers = data?.results ?? [];
   const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilterCount = countActiveOfferFilters(filters);
 
-  const applyFilters = useCallback((next: OfferFilters) => setFilters(next), []);
+  const applyFilters = useCallback((next: OfferFilters) => {
+    setFilters(next);
+    setPage(1);
+  }, []);
   const resetFilters = () => {
     setFilters({});
     setSearchInput("");
+    setPage(1);
   };
 
   const onSaveFilter = (name: string) => {
@@ -606,12 +588,15 @@ export default function OffersPage() {
 
         <DataTable
           columns={columns}
-          rows={sortedOffers}
+          rows={offers}
           rowKey={(o) => o.id}
           storageKey={COLUMN_WIDTHS_KEY}
           sort={sort}
           defaultSort={DEFAULT_SORT}
-          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          onSort={(field) => {
+            setPage(1);
+            setSort((s) => cycleSortField(field, s, DEFAULT_SORT));
+          }}
           isLoading={isLoading}
           onRowClick={(o) => router.push(`/offers/${o.id}`)}
           errorState={
@@ -646,6 +631,20 @@ export default function OffersPage() {
                 )
               }
             />
+          }
+          pagination={
+            total > PAGE_SIZE
+              ? {
+                  page,
+                  totalPages,
+                  totalCount: total,
+                  pageSize: PAGE_SIZE,
+                  onPageChange: setPage,
+                  itemLabel: "offre",
+                  jumpInputId: "offers-page-jump",
+                  ariaLabel: "Pagination des offres",
+                }
+              : undefined
           }
         />
       </div>

@@ -114,34 +114,8 @@ function docLabel(d: Doc): string {
   return d.name?.fr || d.name?.en || d.file_name || "—";
 }
 
-const DEFAULT_SORT: DataTableSortState = { field: "name", dir: "asc" };
-
-function sortDocs(rows: Doc[], sort: DataTableSortState): Doc[] {
-  const out = [...rows];
-  out.sort((a, b) => {
-    let av: string | number = "";
-    let bv: string | number = "";
-    switch (sort.field) {
-      case "name":
-        av = docLabel(a);
-        bv = docLabel(b);
-        break;
-      case "version":
-        av = a.version;
-        bv = b.version;
-        break;
-      case "size":
-        av = a.file_size_bytes ?? 0;
-        bv = b.file_size_bytes ?? 0;
-        break;
-      default:
-        return 0;
-    }
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-    return sort.dir === "asc" ? cmp : -cmp;
-  });
-  return out;
-}
+const DEFAULT_SORT: DataTableSortState = { field: "file_name", dir: "asc" };
+const PAGE_SIZE = 50;
 
 // ── Upload dialog ─────────────────────────────────────────────────────────────
 
@@ -419,6 +393,7 @@ export default function LibraryPage() {
   const [preview, setPreview] = useState<Doc | null>(null);
   const [versions, setVersions] = useState<Doc | null>(null);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
+  const [page, setPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
@@ -440,17 +415,29 @@ export default function LibraryPage() {
     persistSavedLibraryFilters(savedFilters);
   }, [savedFilters]);
 
-  const query = useMemo(() => buildLibraryQuery(filters, { limit: 200 }), [filters]);
+  const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
+  const query = useMemo(
+    () =>
+      buildLibraryQuery(filters, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, ordering }),
+    [filters, ordering, page],
+  );
 
   const { data, isLoading, error } = useSWR<Paginated<Doc>>(`library:${query}`, () =>
     getJson<Paginated<Doc>>(`/api/document-library/?${query}`),
   );
-  const sortedDocs = useMemo(() => sortDocs(data?.results ?? [], sort), [data?.results, sort]);
+  const docs = data?.results ?? [];
   const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilterCount = countActiveLibraryFilters(filters);
 
-  const applyFilters = useCallback((next: LibraryFilters) => setFilters(next), []);
-  const resetFilters = () => setFilters({});
+  const applyFilters = useCallback((next: LibraryFilters) => {
+    setFilters(next);
+    setPage(1);
+  }, []);
+  const resetFilters = () => {
+    setFilters({});
+    setPage(1);
+  };
 
   const onSaveFilter = (name: string) => {
     const id = typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now());
@@ -495,7 +482,7 @@ export default function LibraryPage() {
         key: "name",
         label: "Document",
         width: 240,
-        sortField: "name",
+        sortField: "file_name",
         render: (d) => (
           <div>
             <div className="text-sm font-medium text-foreground">{docLabel(d)}</div>
@@ -538,7 +525,7 @@ export default function LibraryPage() {
         label: "Taille",
         width: 80,
         align: "right",
-        sortField: "size",
+        sortField: "file_size_bytes",
         cellClassName: "text-sm text-muted-foreground font-data",
         render: (d) => humanSize(d.file_size_bytes),
       },
@@ -668,12 +655,15 @@ export default function LibraryPage() {
 
         <DataTable
           columns={columns}
-          rows={sortedDocs}
+          rows={docs}
           rowKey={(d) => d.id}
           storageKey="library-list"
           sort={sort}
           defaultSort={DEFAULT_SORT}
-          onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
+          onSort={(field) => {
+            setPage(1);
+            setSort((s) => cycleSortField(field, s, DEFAULT_SORT));
+          }}
           isLoading={isLoading}
           trailingWidth={140}
           renderTrailingCell={(d) => (
@@ -728,6 +718,20 @@ export default function LibraryPage() {
                 )
               }
             />
+          }
+          pagination={
+            total > PAGE_SIZE
+              ? {
+                  page,
+                  totalPages,
+                  totalCount: total,
+                  pageSize: PAGE_SIZE,
+                  onPageChange: setPage,
+                  itemLabel: "document",
+                  jumpInputId: "library-page-jump",
+                  ariaLabel: "Pagination des documents",
+                }
+              : undefined
           }
         />
       </div>

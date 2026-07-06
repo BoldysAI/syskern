@@ -50,6 +50,7 @@ class OfferViewSet(viewsets.ModelViewSet):
     queryset = Offer.objects.all().prefetch_related("lines")
     filterset_class = OfferFilter
     search_fields = ("label", "project_name")
+    ordering_fields = ("label", "status", "valid_to", "created_at", "updated_at")
     ordering = ("-created_at",)
 
     def get_serializer_class(self):

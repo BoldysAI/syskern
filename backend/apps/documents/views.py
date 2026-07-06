@@ -42,6 +42,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
 
     serializer_class = DocumentLibrarySerializer
     filterset_class = DocumentLibraryFilter
+    ordering_fields = ("file_name", "version", "file_size_bytes", "category", "created_at")
     ordering = ("category", "display_order")
     http_method_names = ["get", "post", "patch", "delete"]
 

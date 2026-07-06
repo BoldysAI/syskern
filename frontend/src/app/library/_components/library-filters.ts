@@ -35,9 +35,14 @@ export function isEmptyLibraryFilter(filters: LibraryFilters): boolean {
 }
 
 /** Serialize into the `/api/document-library/` query string. */
-export function buildLibraryQuery(filters: LibraryFilters, extra: { limit?: number } = {}): string {
+export function buildLibraryQuery(
+  filters: LibraryFilters,
+  extra: { limit?: number; offset?: number; ordering?: string } = {},
+): string {
   const p = new URLSearchParams();
   if (extra.limit != null) p.set("limit", String(extra.limit));
+  if (extra.offset != null) p.set("offset", String(extra.offset));
+  if (extra.ordering) p.set("ordering", extra.ordering);
   if (filters.category?.length) p.set("category", filters.category.join(","));
   if (filters.language?.length) p.set("language", filters.language.join(","));
   return p.toString();

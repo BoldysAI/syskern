@@ -240,7 +240,10 @@ Aligné sur `/simulator` (2026-07-06). `app/offers/_components/` : `OffersFilter
 (`syskern:offer-filters:v1`). Largeur (`syskern:offer-filters-width`) + repli
 (`syskern:offer-filters-collapsed`) persistés. Multi-select CSV côté backend via
 `apps.offers.filters.OfferFilter` (`?status=draft,sent` → `__in`), branché en `filterset_class`.
-Les KPI (dashboard offres) restent en bandeau au-dessus du tableau.
+Les KPI (dashboard offres) restent en bandeau au-dessus du tableau. **Pagination serveur**
+(2026-07-06, comme le catalogue) : `page`/`offset` + `ordering` serveur (PAGE_SIZE 50), tri
+serveur (plus de tri client), prop `pagination` du `DataTable`. `OfferViewSet.ordering_fields`
+whiteliste `label/status/valid_to/created_at/updated_at`.
 
 ### Quarantaine migration (`/admin/migration-quarantine`)
 
@@ -273,7 +276,9 @@ Aligné sur `/offers` (2026-07-06). `app/library/_components/` : `LibraryFilters
 `library-filters.ts` (`buildLibraryQuery`), `filters-storage.ts` (`syskern:library-filters:v1`).
 Multi-select CSV backend via `DocumentLibraryFilter` (`category`/`language` → `__in`,
 `product`/`is_active` exacts conservés), branché en `filterset_class`. Modales upload / aperçu /
-versions inchangées.
+versions inchangées. **Pagination serveur** (2026-07-06) : `offset`/`ordering` (PAGE_SIZE 50) ;
+le tri « Document » ordonne par `file_name` (le `name` JSONB n'est pas triable), taille par
+`file_size_bytes` — `DocumentLibraryViewSet.ordering_fields` les whiteliste.
 
 ## Tableau de données partagé (`components/data-table/`)
 

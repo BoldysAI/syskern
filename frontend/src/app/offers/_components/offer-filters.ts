@@ -47,11 +47,12 @@ export function isEmptyOfferFilter(filters: OfferFilters): boolean {
 /** Serialize the active filters into the `/api/offers/` query string. */
 export function buildOfferQuery(
   filters: OfferFilters,
-  extra: { ordering?: string; limit?: number } = {},
+  extra: { ordering?: string; limit?: number; offset?: number } = {},
 ): string {
   const p = new URLSearchParams();
   if (extra.ordering) p.set("ordering", extra.ordering);
   if (extra.limit != null) p.set("limit", String(extra.limit));
+  if (extra.offset != null) p.set("offset", String(extra.offset));
   if (filters.q?.trim()) p.set("q", filters.q.trim());
   if (filters.offer_type?.length) p.set("offer_type", filters.offer_type.join(","));
   if (filters.status?.length) p.set("status", filters.status.join(","));
