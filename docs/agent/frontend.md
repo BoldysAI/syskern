@@ -225,11 +225,10 @@ sections dont il a besoin.
   entier, seules les **sections internes** restent fermées.
 
 Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFiltersSidebar`,
-`QuarantineFiltersSidebar`, `CatalogFilterSheet` / `SimulationFilterSheet` / `OffersFilterSheet` /
-`QuarantineFilterSheet` (réutilisent les sidebars ci-dessus), `AddProductsModal`. Objectif :
-**tous** les modules de liste adoptent ce pattern (sidebar gauche repliable/redimensionnable +
-`FilterSection` + chips actifs + favoris `localStorage` + sheet mobile). Reste à aligner :
-`/comparator`, `/library`.
+`QuarantineFiltersSidebar`, `ComparisonFiltersSidebar`, + les `*FilterSheet` mobiles associés,
+`AddProductsModal`. Objectif : **tous** les modules de liste adoptent ce pattern (sidebar gauche
+repliable/redimensionnable + `FilterSection` + chips actifs + favoris `localStorage` + sheet
+mobile). Reste à aligner : `/library`.
 
 ### Liste offres (`/offers`)
 
@@ -253,6 +252,17 @@ cochée gagne] / **Filtres enregistrés**), `QuarantineFilterSheet`, `Quarantine
 (`source_file`/`reason` → `__in`, rétro-compatible mono-valeur ; `resolved` booléen). Pagination
 serveur (offset/limit) + KPI facets (Total / À traiter / Résolues) conservés. Modale de résolution
 (3 actions ignore/create/delete) inchangée. Page **admin-only** (`useRequireAdmin`).
+
+### Comparaisons (`/comparator`)
+
+Aligné sur `/simulator` (2026-07-06). `app/comparator/_components/` : `ComparisonFiltersSidebar`
+(sections **Type de comparaison** [`has_recalculations`, single-select via checkbox : avec recalculs /
+simulations seules] / **Simulations comparées** [`sim_type` tarif/projet, multi] / **Filtres
+enregistrés**), `ComparisonFilterSheet`, `ComparisonActiveFilterBar`, `comparison-filters.ts`
+(`toComparisonParams` → params `getComparisonsList`), `filters-storage.ts`
+(`syskern:comparison-filters:v1`). Backend `SavedComparisonFilter` : `has_recalculations`
+(bool sur `recalculation_ids`) + `sim_type` (CSV → sous-requête `Simulation` puis
+`simulation_ids__overlap`). Sélection multiple + suppression en masse conservées.
 
 ## Tableau de données partagé (`components/data-table/`)
 

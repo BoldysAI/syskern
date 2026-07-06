@@ -1110,6 +1110,10 @@ export interface ComparisonListParams {
   ordering?: string;
   page?: number;
   limit?: number;
+  /** true → only comparisons with recalculation columns; false → sim-only. */
+  has_recalculations?: boolean;
+  /** Keep comparisons referencing at least one sim of these types. */
+  sim_type?: ("tariff" | "project")[];
 }
 
 export type PaginatedComparisons = PaginatedResponse<SavedComparison>;
@@ -1126,6 +1130,9 @@ export function getComparisonsList(
   });
   if (params.q?.trim()) q.set("q", params.q.trim());
   if (params.ordering) q.set("ordering", params.ordering);
+  if (params.has_recalculations != null)
+    q.set("has_recalculations", String(params.has_recalculations));
+  if (params.sim_type?.length) q.set("sim_type", params.sim_type.join(","));
   return apiFetch<PaginatedComparisons>(`/api/saved-comparisons/?${q.toString()}`);
 }
 

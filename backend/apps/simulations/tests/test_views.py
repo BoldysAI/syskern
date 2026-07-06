@@ -1111,3 +1111,39 @@ class TestSimulationExport:
         )
         wb = openpyxl.load_workbook(io.BytesIO(build_simulation_xlsx(sim)))
         assert wb.sheetnames == ["Synthèse", "Résultats", "Breakdown détaillé"]
+
+
+class TestSavedComparisonFilters:
+    """Sidebar filters: has_recalculations + sim_type multi-select (CDC §6.9.8)."""
+
+    def test_has_recalculations_and_sim_type(self, client: APIClient) -> None:
+        tariff = Simulation.objects.create(label="T", simulation_type=SimulationType.TARIFF)
+        project = Simulation.objects.create(label="P", simulation_type=SimulationType.PROJECT)
+        with_recalc = SavedComparison.objects.create(
+            label="Avec recalc",
+            simulation_ids=[tariff.pk],
+            recalculation_ids=[uuid.uuid4()],
+        )
+        sim_only = SavedComparison.objects.create(
+            label="Sim seules",
+            simulation_ids=[project.pk],
+            recalculation_ids=[],
+        )
+
+        def ids(resp):
+            return {r["id"] for r in resp.json()["results"]}
+
+        # Structure filter.
+        assert ids(client.get("/api/saved-comparisons/?has_recalculations=true")) == {
+            str(with_recalc.id)
+        }
+        assert ids(client.get("/api/saved-comparisons/?has_recalculations=false")) == {
+            str(sim_only.id)
+        }
+        # sim_type: comparison containing a project sim.
+        assert ids(client.get("/api/saved-comparisons/?sim_type=project")) == {str(sim_only.id)}
+        # Multi-select ORs both types → both comparisons.
+        assert ids(client.get("/api/saved-comparisons/?sim_type=tariff,project")) == {
+            str(with_recalc.id),
+            str(sim_only.id),
+        }
