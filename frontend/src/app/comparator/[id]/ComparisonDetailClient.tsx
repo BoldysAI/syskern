@@ -5,16 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import { ArrowLeft, PencilSimple, Trash } from "@phosphor-icons/react";
-import {
-  deleteSavedComparison,
-  getSavedComparison,
-  type SavedComparison,
-} from "@/lib/api";
+import { deleteSavedComparison, getSavedComparison, type SavedComparison } from "@/lib/api";
 import { useConfirm } from "@/components/ConfirmProvider";
-import {
-  useBreadcrumbOverride,
-  type BreadcrumbCrumb,
-} from "@/components/layout/BreadcrumbContext";
+import { useBreadcrumbOverride, type BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
 import { persistLastVisited } from "@/lib/last-visited";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -30,9 +23,8 @@ export function ComparisonDetailPage({ id }: Props) {
   const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
 
-  const { data, isLoading, error, mutate } = useSWR<SavedComparison>(
-    ["saved-comparison", id],
-    () => getSavedComparison(id),
+  const { data, isLoading, error, mutate } = useSWR<SavedComparison>(["saved-comparison", id], () =>
+    getSavedComparison(id),
   );
 
   const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
@@ -92,7 +84,7 @@ export function ComparisonDetailPage({ id }: Props) {
       <div className="border-b border-border bg-card px-6 py-4">
         <Link
           href="/comparator"
-          className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-warm"
+          className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-brand-green"
         >
           <ArrowLeft size={14} />
           Retour aux comparaisons

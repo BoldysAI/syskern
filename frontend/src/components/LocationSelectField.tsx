@@ -76,13 +76,13 @@ export function LocationSelectField({
           aria-label={`${ariaLabel} : ${locationLabel}`}
           className={cn(
             triggerCls,
-            "flex items-center justify-between gap-2 text-left disabled:opacity-50"
+            "flex items-center justify-between gap-2 text-left disabled:opacity-50",
           )}
         >
           <span
             className={cn(
               "flex-1 truncate",
-              locationSelect === SALE_INCOTERM_LOCATION_NONE && "text-muted-foreground"
+              locationSelect === SALE_INCOTERM_LOCATION_NONE && "text-muted-foreground",
             )}
           >
             {locationLabel}
@@ -101,21 +101,21 @@ export function LocationSelectField({
               <Select.Item value={SALE_INCOTERM_LOCATION_NONE} className={selectItemCls}>
                 <Select.ItemText>— Non renseigné —</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-warm" />
+                  <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
               </Select.Item>
               {SALE_INCOTERM_LOCATIONS.map((place) => (
                 <Select.Item key={place} value={place} className={selectItemCls}>
                   <Select.ItemText>{place}</Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-warm" />
+                    <Check size={14} className="text-brand-green" />
                   </Select.ItemIndicator>
                 </Select.Item>
               ))}
               <Select.Item value={SALE_INCOTERM_LOCATION_OTHER} className={selectItemCls}>
                 <Select.ItemText>Autre…</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-warm" />
+                  <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
               </Select.Item>
             </Select.Viewport>

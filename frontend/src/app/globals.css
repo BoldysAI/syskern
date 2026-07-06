@@ -21,12 +21,12 @@
   --color-navy-500: #1e3d6b;
   --color-navy-900: #162f56;
 
-  --color-orange: #f78f26;
+  --color-orange: #d97a15;
   --color-orange-50: #fff4e8;
-  --color-orange-500: #f78f26;
+  --color-orange-500: #d97a15;
   --color-orange-600: #d97a15;
 
-  --color-warm: #f78f26;
+  --color-warm: #d97a15;
   --color-surface: #f8fafc;
 
   --shadow-soft: 0 1px 2px rgb(22 47 86 / 0.04), 0 2px 8px rgb(22 47 86 / 0.06);
@@ -126,14 +126,14 @@ body {
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #649e5f;
-  --warm: #f78f26;
+  --warm: #d97a15;
   --surface-elevated: #ffffff;
   --surface-inset: #f1f5f9;
   --data-positive: #4a7d46;
   --data-negative: #c92359;
   --data-dirty: #d97a15;
   --chart-1: #649e5f;
-  --chart-2: #f78f26;
+  --chart-2: #d97a15;
   --chart-3: #09b0e6;
   --chart-4: #162f56;
   --chart-5: #c92359;

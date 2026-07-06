@@ -294,7 +294,10 @@ export default function OfferDetailPage() {
       {/* Info cards */}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Info label="Simulation source">
-          <Link href={`/simulator/${offer.simulation}`} className="text-warm hover:underline">
+          <Link
+            href={`/simulator/${offer.simulation}`}
+            className="text-brand-green hover:underline"
+          >
             Ouvrir
           </Link>
         </Info>

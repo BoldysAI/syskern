@@ -65,7 +65,7 @@ function MarketParamRow({ param }: { param: MarketParameter }) {
   return (
     <div className="flex items-start gap-3 rounded-lg bg-muted/40 px-3 py-2.5">
       {isCopper ? (
-        <ChartLine size={18} className="mt-0.5 shrink-0 text-warm" weight="duotone" />
+        <ChartLine size={18} className="mt-0.5 shrink-0 text-brand-green" weight="duotone" />
       ) : (
         <CurrencyCircleDollar size={18} className="mt-0.5 shrink-0 text-primary" weight="duotone" />
       )}
@@ -106,7 +106,12 @@ export function DashboardMarketCard() {
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">Paramètres marché</h2>
-        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/settings?tab=marche" />}>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/settings?tab=marche" />}
+        >
           Gérer
         </Button>
       </div>

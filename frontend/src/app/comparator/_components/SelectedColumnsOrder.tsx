@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  Star,
-  X,
-} from "@phosphor-icons/react";
+import { ArrowDown, ArrowUp, Star, X } from "@phosphor-icons/react";
 import type { Simulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,8 +48,8 @@ export function SelectedColumnsOrder({
             Ordre des colonnes
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            La colonne <span className="font-semibold text-warm">A · Référence</span> sert de base
-            pour les écarts (PV, paramètres, etc.).
+            La colonne <span className="font-semibold text-brand-green">A · Référence</span> sert de
+            base pour les écarts (PV, paramètres, etc.).
           </p>
         </div>
         {!readOnly && simulationIds.length > 1 && (
@@ -77,7 +72,7 @@ export function SelectedColumnsOrder({
               className={cn(
                 "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
                 isRef
-                  ? "border-warm/40 bg-gradient-to-r from-warm/10 to-white ring-1 ring-warm/25"
+                  ? "border-brand-green/40 bg-gradient-to-r from-brand-green/10 to-white ring-1 ring-brand-green/25"
                   : "border-border bg-card",
               )}
             >
@@ -94,20 +89,19 @@ export function SelectedColumnsOrder({
                     {sim?.label ?? "Simulation"}
                   </span>
                   {isRef && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-green px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                       <Star size={10} weight="fill" />
                       Référence
                     </span>
                   )}
                   {!isRef && (
-                    <span className="text-[10px] font-medium text-muted-foreground">
-                      vs réf.
-                    </span>
+                    <span className="text-[10px] font-medium text-muted-foreground">vs réf.</span>
                   )}
                 </div>
                 {sim && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {sim.simulation_type === "tariff" ? "Tarif" : "Projet"} · {sim.line_count} lignes
+                    {sim.simulation_type === "tariff" ? "Tarif" : "Projet"} · {sim.line_count}{" "}
+                    lignes
                   </p>
                 )}
               </div>

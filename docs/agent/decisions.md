@@ -680,3 +680,18 @@ Décision : `DeepLClient` envoie `Authorization: DeepL-Auth-Key …` ; hôte ré
 `api-free.deepl.com/v2`, sinon `api.deepl.com/v2`, surcharge `DEEPL_API_URL`). Écart mineur CDC §10.4.1 :
 `formality=more` n'est envoyé que pour les langues cibles qui le supportent (ES oui, EN non) — évite
 un 400 DeepL tout en conservant le ton formel pour FR→ES. Clé manquante → message FR + HTTP 503.
+
+## 2026-07-06 · [P] Design — bannissement de l'orange vif, accents en vert de marque
+Demande utilisateur : « utiliser les couleurs de Syskern, plus d'orange ». Le token `warm`/`orange`
+valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
+- **Tokens** (`globals.css`) : `--color-warm` / `--warm` / `--color-orange` / `--color-orange-500` /
+  `--chart-2` repointés `#f78f26` → **ambre `#d97a15`**. Plus aucun orange vif dans l'app.
+- **Accents décoratifs** (CTA de téléchargement, accents de cartes KPI, marqueurs « colonne de
+  référence », spinners, coches, liens retour, icônes de titre) → **vert de marque `#649e5f`**
+  (`text-brand-green` / `accent="green"`). ~48 usages convertis (offres, comparaisons, bibliothèque,
+  catalogue, `SupplierManager`, `LocationSelectField`, `AttributeRenderer`, `DashboardMarketCard`).
+- **Sémantique conservée en ambre** (`warm` = `#d97a15`) : `StatusBadge` variants *warning* + *copper*,
+  `--data-dirty` (recalcul nécessaire), diffs/recalc du simulateur & comparateur (CompareOverview,
+  RecalcHistoryDrawer, etc.), warnings des wizards, KPI « À traiter » quarantaine, `AppIcon tone="warm"`.
+- **Règle** : décoratif = vert ; attention/avertissement/cuivre/recalcul = ambre ; jamais d'orange vif.
+  `--color-brand-orange` reste défini (palette) mais **n'est plus utilisé**.

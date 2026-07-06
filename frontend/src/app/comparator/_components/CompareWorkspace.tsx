@@ -2,11 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import {
-  ChartBar,
-  Gear,
-  Stack,
-} from "@phosphor-icons/react";
+import { ChartBar, Gear, Stack } from "@phosphor-icons/react";
 import {
   compareSimulations,
   getSimulations,
@@ -32,17 +28,13 @@ export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
 
   const columnCount = simulationIds.length + recalculationIds.length;
   const compareKey =
-    columnCount >= 2
-      ? ["compare", simulationIds.join(","), recalculationIds.join(",")]
-      : null;
+    columnCount >= 2 ? ["compare", simulationIds.join(","), recalculationIds.join(",")] : null;
 
-  const { data, isLoading, error } = useSWR<CompareResponse>(
-    compareKey,
-    () =>
-      compareSimulations({
-        simulation_ids: simulationIds,
-        recalculation_ids: recalculationIds,
-      }),
+  const { data, isLoading, error } = useSWR<CompareResponse>(compareKey, () =>
+    compareSimulations({
+      simulation_ids: simulationIds,
+      recalculation_ids: recalculationIds,
+    }),
   );
 
   const { data: simulations } = useSWR<Simulation[]>("simulations", () => getSimulations());
@@ -88,7 +80,7 @@ export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
             key={`${simulationIds[i]}-${i}`}
             className={cn(
               "rounded-full px-3 py-1 text-xs font-medium",
-              i === 0 ? "bg-orange-100 text-orange-800" : "bg-muted text-muted-foreground",
+              i === 0 ? "bg-brand-green/10 text-brand-green" : "bg-muted text-muted-foreground",
             )}
           >
             {i === 0 ? "Réf. · " : ""}
@@ -155,7 +147,7 @@ function TabButton({
       className={cn(
         "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-accent text-accent-foreground ring-1 ring-warm/30"
+          ? "bg-accent text-accent-foreground ring-1 ring-brand-green/30"
           : "text-muted-foreground hover:bg-muted",
       )}
     >

@@ -223,9 +223,7 @@ function SelectField({
         disabled={disabled}
       >
         <SelectTrigger className="w-full bg-background">
-          <SelectValue placeholder={placeholder ?? "Sélectionner…"}>
-            {selectedLabel}
-          </SelectValue>
+          <SelectValue placeholder={placeholder ?? "Sélectionner…"}>{selectedLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (
@@ -286,7 +284,10 @@ export default function NewProductPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Track whether the user manually edited the auto-derived fields.
-  const touchedRef = useRef<{ parent: boolean; factory: boolean }>({ parent: false, factory: false });
+  const touchedRef = useRef<{ parent: boolean; factory: boolean }>({
+    parent: false,
+    factory: false,
+  });
 
   const { data: technicalAttrs } = useSWR<AttributeRegistry[]>("attr-registry-technical", () =>
     getAttributeRegistry("technical"),
@@ -315,9 +316,8 @@ export default function NewProductPage() {
   const { data: universeOptions } = useSWR("hierarchy-universe", () =>
     getHierarchyLevel("universe"),
   );
-  const { data: familyOptions } = useSWR(
-    universe ? ["hierarchy-family", universe] : null,
-    () => getHierarchyLevel("family", { universe }),
+  const { data: familyOptions } = useSWR(universe ? ["hierarchy-family", universe] : null, () =>
+    getHierarchyLevel("family", { universe }),
   );
   const { data: rangeOptions } = useSWR(
     universe && family ? ["hierarchy-range", universe, family] : null,
@@ -328,8 +328,7 @@ export default function NewProductPage() {
     () => getHierarchyLevel("sub_range", { universe, family, range: rangeVal }),
   );
 
-  const toHierarchyOptions = (vals?: string[]) =>
-    (vals ?? []).map((v) => ({ value: v, label: v }));
+  const toHierarchyOptions = (vals?: string[]) => (vals ?? []).map((v) => ({ value: v, label: v }));
 
   const desc = useCallback(
     (lang: string) => {
@@ -338,16 +337,13 @@ export default function NewProductPage() {
     },
     [core],
   );
-  const setDesc = useCallback(
-    (lang: string, value: string) => {
-      setCoreState((c) => {
-        const m = { ...((c.description_marketing as Record<string, string>) ?? {}) };
-        m[lang] = value;
-        return { ...c, description_marketing: m };
-      });
-    },
-    [],
-  );
+  const setDesc = useCallback((lang: string, value: string) => {
+    setCoreState((c) => {
+      const m = { ...((c.description_marketing as Record<string, string>) ?? {}) };
+      m[lang] = value;
+      return { ...c, description_marketing: m };
+    });
+  }, []);
 
   // ── Validation ───────────────────────────────────────────────────────────
   const errors = useMemo(() => {
@@ -439,12 +435,9 @@ export default function NewProductPage() {
       return [...cleared, row];
     });
   }, []);
-  const supplierUpdate = useCallback(
-    (id: string, data: Parameters<typeof createSupplier>[1]) => {
-      setSuppliers((list) => list.map((s) => (s.id === id ? { ...s, ...data } : s)));
-    },
-    [],
-  );
+  const supplierUpdate = useCallback((id: string, data: Parameters<typeof createSupplier>[1]) => {
+    setSuppliers((list) => list.map((s) => (s.id === id ? { ...s, ...data } : s)));
+  }, []);
   const supplierDelete = useCallback((id: string) => {
     setSuppliers((list) => list.filter((s) => s.id !== id));
   }, []);
@@ -511,8 +504,7 @@ export default function NewProductPage() {
 
       for (const a of technicalAttrs ?? []) {
         const value = attrs[a.id];
-        const empty =
-          value == null || value === "" || (Array.isArray(value) && value.length === 0);
+        const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
         if (!empty) await setProductAttribute(product.id, a.id, value);
       }
 
@@ -586,7 +578,11 @@ export default function NewProductPage() {
             }}
           />
           <TextField label="Marque" value={str("brand")} onChange={(v) => set("brand", v)} />
-          <TextField label="Code article" value={str("item_code")} onChange={(v) => set("item_code", v)} />
+          <TextField
+            label="Code article"
+            value={str("item_code")}
+            onChange={(v) => set("item_code", v)}
+          />
         </div>
       </SectionCard>
 
@@ -637,8 +633,16 @@ export default function NewProductPage() {
             invalid={showErrors && !!errors.description_fr}
             error={errors.description_fr}
           />
-          <AreaField label="Description marketing (EN)" value={desc("en")} onChange={(v) => setDesc("en", v)} />
-          <AreaField label="Description marketing (ES)" value={desc("es")} onChange={(v) => setDesc("es", v)} />
+          <AreaField
+            label="Description marketing (EN)"
+            value={desc("en")}
+            onChange={(v) => setDesc("en", v)}
+          />
+          <AreaField
+            label="Description marketing (ES)"
+            value={desc("es")}
+            onChange={(v) => setDesc("es", v)}
+          />
         </div>
       </SectionCard>
 
@@ -646,7 +650,11 @@ export default function NewProductPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField label="GTIN" value={str("gtin")} onChange={(v) => set("gtin", v)} />
           <TextField label="Code HS" value={str("hs_code")} onChange={(v) => set("hs_code", v)} />
-          <TextField label="N° DOP" value={str("dop_number")} onChange={(v) => set("dop_number", v)} />
+          <TextField
+            label="N° DOP"
+            value={str("dop_number")}
+            onChange={(v) => set("dop_number", v)}
+          />
         </div>
       </SectionCard>
     </div>
@@ -655,7 +663,9 @@ export default function NewProductPage() {
   const renderTechnical = () => (
     <SectionCard title="Caractéristiques techniques">
       {(technicalAttrs ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun attribut technique défini dans le registre.</p>
+        <p className="text-sm text-muted-foreground">
+          Aucun attribut technique défini dans le registre.
+        </p>
       ) : (
         (technicalAttrs ?? [])
           .slice()
@@ -680,28 +690,76 @@ export default function NewProductPage() {
     <div className="flex flex-col gap-6">
       <SectionCard title="Poids & unité">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField label="Poids unitaire" value={str("unit_weight_kg")} onChange={(v) => set("unit_weight_kg", v)} unit="kg" />
-          <SelectField label="Unité de base" value={str("base_unit")} options={BASE_UNIT_OPTIONS} onChange={(v) => set("base_unit", v)} />
-          <SelectField label="Approvisionnement" value={str("supply_policy")} options={SUPPLY_POLICY_OPTIONS} onChange={(v) => set("supply_policy", v)} />
-          <ToggleField label="Stockable" value={core.is_stockable === true} onChange={(v) => set("is_stockable", v)} />
+          <NumberField
+            label="Poids unitaire"
+            value={str("unit_weight_kg")}
+            onChange={(v) => set("unit_weight_kg", v)}
+            unit="kg"
+          />
+          <SelectField
+            label="Unité de base"
+            value={str("base_unit")}
+            options={BASE_UNIT_OPTIONS}
+            onChange={(v) => set("base_unit", v)}
+          />
+          <SelectField
+            label="Approvisionnement"
+            value={str("supply_policy")}
+            options={SUPPLY_POLICY_OPTIONS}
+            onChange={(v) => set("supply_policy", v)}
+          />
+          <ToggleField
+            label="Stockable"
+            value={core.is_stockable === true}
+            onChange={(v) => set("is_stockable", v)}
+          />
         </div>
       </SectionCard>
 
       <SectionCard title="Conditionnement">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField label="Qté colisage primaire" value={str("primary_packaging_qty")} onChange={(v) => set("primary_packaging_qty", v)} integer />
-          <NumberField label="Qté colisage secondaire" value={str("secondary_packaging_qty")} onChange={(v) => set("secondary_packaging_qty", v)} integer />
-          <NumberField label="Qté colisage tertiaire" value={str("tertiary_packaging_qty")} onChange={(v) => set("tertiary_packaging_qty", v)} integer />
-          <NumberField label="Qté palette" value={str("pallet_qty")} onChange={(v) => set("pallet_qty", v)} integer />
+          <NumberField
+            label="Qté colisage primaire"
+            value={str("primary_packaging_qty")}
+            onChange={(v) => set("primary_packaging_qty", v)}
+            integer
+          />
+          <NumberField
+            label="Qté colisage secondaire"
+            value={str("secondary_packaging_qty")}
+            onChange={(v) => set("secondary_packaging_qty", v)}
+            integer
+          />
+          <NumberField
+            label="Qté colisage tertiaire"
+            value={str("tertiary_packaging_qty")}
+            onChange={(v) => set("tertiary_packaging_qty", v)}
+            integer
+          />
+          <NumberField
+            label="Qté palette"
+            value={str("pallet_qty")}
+            onChange={(v) => set("pallet_qty", v)}
+            integer
+          />
         </div>
       </SectionCard>
 
       <SectionCard title="Indexation cuivre">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-          <ToggleField label="Indexé cuivre" value={core.is_copper_indexed === true} onChange={(v) => set("is_copper_indexed", v)} />
+          <ToggleField
+            label="Indexé cuivre"
+            value={core.is_copper_indexed === true}
+            onChange={(v) => set("is_copper_indexed", v)}
+          />
           {core.is_copper_indexed === true && (
             <div>
-              <NumberField label="Poids cuivre / unité" value={str("copper_weight_kg_per_unit")} onChange={(v) => set("copper_weight_kg_per_unit", v)} unit="kg" />
+              <NumberField
+                label="Poids cuivre / unité"
+                value={str("copper_weight_kg_per_unit")}
+                onChange={(v) => set("copper_weight_kg_per_unit", v)}
+                unit="kg"
+              />
               {showErrors && errors.copper_weight_kg_per_unit && (
                 <p className="text-xs text-red-500 mt-1">{errors.copper_weight_kg_per_unit}</p>
               )}
@@ -740,15 +798,20 @@ export default function NewProductPage() {
           <Recap label="Marque" value={str("brand")} />
           <Recap
             label="Hiérarchie"
-            value={[str("universe"), str("family"), str("range"), str("sub_range")].filter(Boolean).join(" › ")}
+            value={[str("universe"), str("family"), str("range"), str("sub_range")]
+              .filter(Boolean)
+              .join(" › ")}
           />
-          <Recap label="Attributs techniques renseignés" value={String(Object.values(attrs).filter((v) => v != null && v !== "").length)} />
+          <Recap
+            label="Attributs techniques renseignés"
+            value={String(Object.values(attrs).filter((v) => v != null && v !== "").length)}
+          />
           <Recap label="Fournisseurs" value={String(suppliers.length)} />
           <Recap label="Fournisseur actif" value={activeSupplier?.supplier_name ?? "—"} />
         </dl>
         <p className="mt-4 text-xs text-muted-foreground">
-          La synchronisation vers Odoo est déclenchée automatiquement après la création et n&apos;empêche
-          pas la création locale en cas d&apos;indisponibilité.
+          La synchronisation vers Odoo est déclenchée automatiquement après la création et
+          n&apos;empêche pas la création locale en cas d&apos;indisponibilité.
         </p>
       </SectionCard>
     );
@@ -777,8 +840,13 @@ export default function NewProductPage() {
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
         <WarningCircle size={40} weight="duotone" className="text-warm" />
         <p className="font-medium text-foreground">Accès restreint</p>
-        <p className="text-sm">La création de produit est réservée aux rôles admin et commercial.</p>
-        <Link href="/catalog" className="text-sm font-medium text-warm hover:text-accent-foreground">
+        <p className="text-sm">
+          La création de produit est réservée aux rôles admin et commercial.
+        </p>
+        <Link
+          href="/catalog"
+          className="text-sm font-medium text-brand-green hover:text-accent-foreground"
+        >
           Retour au catalogue
         </Link>
       </div>
@@ -798,7 +866,7 @@ export default function NewProductPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Package size={20} weight="duotone" className="text-warm" />
+          <Package size={20} weight="duotone" className="text-brand-green" />
           <h1 className="text-xl font-semibold text-foreground">Créer un produit</h1>
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
@@ -843,7 +911,9 @@ export default function NewProductPage() {
                   </span>
                   {s.label}
                 </button>
-                {idx < STEPS.length - 1 && <CaretRight size={14} className="text-muted-foreground/40" />}
+                {idx < STEPS.length - 1 && (
+                  <CaretRight size={14} className="text-muted-foreground/40" />
+                )}
               </li>
             );
           })}

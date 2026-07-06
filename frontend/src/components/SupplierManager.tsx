@@ -79,7 +79,8 @@ function toInput(s: ProductSupplier): ProductSupplierInput {
 }
 
 function sanitize(data: ProductSupplierInput): ProductSupplierInput {
-  const trimPrice = (v?: string | null) => (v == null || String(v).trim() === "" ? null : String(v));
+  const trimPrice = (v?: string | null) =>
+    v == null || String(v).trim() === "" ? null : String(v);
   return {
     ...data,
     supplier_name: data.supplier_name.trim(),
@@ -171,7 +172,7 @@ function SupplierFields({
                       >
                         <Select.ItemText>{name}</Select.ItemText>
                         <Select.ItemIndicator>
-                          <Check size={14} className="text-warm" />
+                          <Check size={14} className="text-brand-green" />
                         </Select.ItemIndicator>
                       </Select.Item>
                     ))}
@@ -211,7 +212,9 @@ function SupplierFields({
           inputMode="decimal"
           value={value.po_base_price ?? ""}
           disabled={disabled}
-          onChange={(e) => onChange({ po_base_price: e.target.value === "" ? null : e.target.value })}
+          onChange={(e) =>
+            onChange({ po_base_price: e.target.value === "" ? null : e.target.value })
+          }
           className={inputCls}
           placeholder="ex. 2350"
         />
@@ -309,7 +312,12 @@ function CurrencySelect({
 }) {
   return (
     <Select.Root value={value} onValueChange={(v) => onChange(v as Currency)} disabled={disabled}>
-      <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left disabled:opacity-50")}>
+      <Select.Trigger
+        className={cn(
+          inputCls,
+          "flex items-center justify-between gap-2 text-left disabled:opacity-50",
+        )}
+      >
         <Select.Value />
         <Select.Icon>
           <ChevronDown size={15} className="text-muted-foreground" />
@@ -330,7 +338,7 @@ function CurrencySelect({
               >
                 <Select.ItemText>{c}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-warm" />
+                  <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -355,7 +363,12 @@ function IncotermSelect({
 
   return (
     <Select.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
-      <Select.Trigger className={cn(inputCls, "flex items-center justify-between gap-2 text-left disabled:opacity-50")}>
+      <Select.Trigger
+        className={cn(
+          inputCls,
+          "flex items-center justify-between gap-2 text-left disabled:opacity-50",
+        )}
+      >
         <Select.Value placeholder="—" />
         <Select.Icon>
           <ChevronDown size={15} className="text-muted-foreground" />
@@ -381,7 +394,7 @@ function IncotermSelect({
                     {code} — {label}
                   </Select.ItemText>
                   <Select.ItemIndicator>
-                    <Check size={14} className="text-warm" />
+                    <Check size={14} className="text-brand-green" />
                   </Select.ItemIndicator>
                 </Select.Item>
               );
@@ -432,10 +445,12 @@ function SupplierCard({
         <span
           className={cn(
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold",
-            supplier.is_active ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground",
+            supplier.is_active
+              ? "bg-accent text-accent-foreground"
+              : "bg-muted text-muted-foreground",
           )}
         >
-          {supplier.is_active && <Star size={12} className="fill-warm text-warm" />}
+          {supplier.is_active && <Star size={12} className="fill-brand-green text-brand-green" />}
           {supplier.is_active ? "Source active" : "Inactive"}
         </span>
         {!readOnly && (
@@ -445,7 +460,7 @@ function SupplierCard({
                 type="button"
                 disabled={busy}
                 onClick={() => run(() => onActivate(supplier.id))}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-warm border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-brand-green border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
               >
                 <Star size={13} />
                 Définir comme active
@@ -460,7 +475,11 @@ function SupplierCard({
         )}
       </div>
 
-      <SupplierFields value={draft} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} disabled={readOnly} />
+      <SupplierFields
+        value={draft}
+        onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
+        disabled={readOnly}
+      />
 
       {!readOnly && dirty && (
         <div className="flex justify-end gap-2 mt-3">
@@ -553,7 +572,9 @@ export function SupplierManager({
   maxSuppliers,
 }: SupplierManagerProps) {
   const [adding, setAdding] = useState(false);
-  const [newSupplier, setNewSupplier] = useState<ProductSupplierInput>(() => emptySupplier(suppliers.length === 0));
+  const [newSupplier, setNewSupplier] = useState<ProductSupplierInput>(() =>
+    emptySupplier(suppliers.length === 0),
+  );
   const [busy, setBusy] = useState(false);
   const [linkMode, setLinkMode] = useState<"existing" | "new">("existing");
   const [loadingTemplate, setLoadingTemplate] = useState(false);
@@ -679,7 +700,7 @@ export function SupplierManager({
         <button
           type="button"
           onClick={openAddForm}
-          className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50"
+          className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm font-medium text-brand-green border border-dashed border-primary/40 rounded-lg hover:bg-accent/50"
         >
           <Plus size={15} />
           Ajouter un fournisseur

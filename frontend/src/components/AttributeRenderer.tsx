@@ -272,7 +272,7 @@ function SelectWidget({
               >
                 <Select.ItemText>{localize(opt.label, lang)}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check size={14} className="text-warm" />
+                  <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -319,7 +319,7 @@ function MultiSelectWidget({
                 type="button"
                 onClick={() => remove(v)}
                 aria-label={`Retirer ${v}`}
-                className="hover:text-warm"
+                className="hover:text-brand-green"
               >
                 <X size={12} />
               </button>
@@ -329,7 +329,7 @@ function MultiSelectWidget({
       </div>
       {remaining.length > 0 && (
         <Select.Root value="" onValueChange={(v) => v && add(v)}>
-          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-warm border border-dashed border-primary/40 rounded-lg hover:bg-accent/50">
+          <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-brand-green border border-dashed border-primary/40 rounded-lg hover:bg-accent/50">
             <Plus size={13} />
             Ajouter
           </Select.Trigger>

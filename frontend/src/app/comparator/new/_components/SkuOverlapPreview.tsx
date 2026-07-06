@@ -15,10 +15,7 @@ interface Props {
   className?: string;
 }
 
-async function loadOverlapStats(
-  simulationIds: string[],
-  simulations: Simulation[],
-) {
+async function loadOverlapStats(simulationIds: string[], simulations: Simulation[]) {
   const simMap = new Map(simulations.map((s) => [s.id, s]));
   const data = await Promise.all(
     simulationIds.map(async (id) => {
@@ -35,14 +32,13 @@ async function loadOverlapStats(
 
 export function SkuOverlapPreview({ simulationIds, simulations, className }: Props) {
   const swrKey =
-    simulationIds.length > 0
-      ? ["sku-overlap", simulationIds.join(","), simulations.length]
-      : null;
+    simulationIds.length > 0 ? ["sku-overlap", simulationIds.join(","), simulations.length] : null;
 
-  const { data: stats, isLoading, error } = useSWR(
-    swrKey,
-    () => loadOverlapStats(simulationIds, simulations),
-  );
+  const {
+    data: stats,
+    isLoading,
+    error,
+  } = useSWR(swrKey, () => loadOverlapStats(simulationIds, simulations));
 
   if (simulationIds.length === 0) {
     return (
@@ -98,7 +94,7 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
           value={stats.perSimulation.map((s) => `${s.label}: ${s.skuCount}`).join(" · ")}
         />
         <StatCard
-          icon={<Intersect size={18} className="text-warm" />}
+          icon={<Intersect size={18} className="text-brand-green" />}
           label="SKU en commun"
           value={`${stats.commonCount} SKU`}
           highlight={simulationIds.length >= 2}
@@ -126,7 +122,10 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
           </div>
           <ul className="max-h-48 divide-y divide-border overflow-y-auto">
             {stats.commonSkus.slice(0, 20).map((sku) => (
-              <li key={sku.productId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+              <li
+                key={sku.productId}
+                className="flex items-center justify-between gap-3 px-4 py-2 text-sm"
+              >
                 <span className="font-data font-medium text-foreground">{sku.sku}</span>
                 <span className="min-w-0 truncate text-muted-foreground">{sku.name}</span>
               </li>
@@ -158,7 +157,7 @@ function StatCard({
     <div
       className={cn(
         "rounded-xl border border-border bg-card px-4 py-3",
-        highlight && "ring-1 ring-warm/30",
+        highlight && "ring-1 ring-brand-green/30",
       )}
     >
       <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

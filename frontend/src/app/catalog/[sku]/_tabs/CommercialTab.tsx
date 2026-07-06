@@ -107,10 +107,7 @@ export function CommercialTab() {
     getPriceHistory(product.sku_code, period),
   );
 
-  const points = useMemo(
-    () => collapsePriceHistoryByDay(history?.points ?? []),
-    [history?.points],
-  );
+  const points = useMemo(() => collapsePriceHistoryByDay(history?.points ?? []), [history?.points]);
   const latestPv = points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
   const chartData = useMemo(
     (): ChartRow[] =>
@@ -153,7 +150,7 @@ export function CommercialTab() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <Card className="border-2 border-primary">
           <CardContent className="pt-5">
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-warm">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-green">
               PAMP actuel
             </div>
             <div className="mt-2 text-2xl font-bold font-data text-foreground">
@@ -190,7 +187,9 @@ export function CommercialTab() {
             </div>
             <div className="mt-2 text-2xl font-bold font-data text-foreground">
               {Math.round(stock)}
-              <span className="ml-1 text-base font-normal font-sans text-muted-foreground">unités</span>
+              <span className="ml-1 text-base font-normal font-sans text-muted-foreground">
+                unités
+              </span>
             </div>
             <StatusBadge variant={stock > 0 ? "success" : "draft"} className="mt-2 gap-1">
               <span
@@ -209,7 +208,7 @@ export function CommercialTab() {
         <CardHeader className="border-none pb-0">
           <div>
             <div className="flex items-center gap-2">
-              <TrendUp size={15} weight="duotone" className="text-warm" />
+              <TrendUp size={15} weight="duotone" className="text-brand-green" />
               <CardTitle className="text-sm font-semibold">Historique PA / PR / PV</CardTitle>
             </div>
             {chartData.length > 0 && (
@@ -232,7 +231,7 @@ export function CommercialTab() {
                   className={cn(
                     "rounded px-2.5 py-0.5 text-xs font-medium leading-5 transition-colors",
                     period === p.id
-                      ? "bg-background text-warm shadow-sm"
+                      ? "bg-background text-brand-green shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -379,7 +378,9 @@ export function CommercialTab() {
                         })
                       : "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{s.po_currency || "—"}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    {s.po_currency || "—"}
+                  </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {s.incoterm
                       ? `${s.incoterm}${s.incoterm_location ? ` (${s.incoterm_location})` : ""}`

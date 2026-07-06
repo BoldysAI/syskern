@@ -212,7 +212,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
     return (
       <a
         href={`/api/offers/${offer.id}/download/`}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/10"
         onClick={(e) => e.stopPropagation()}
       >
         <DownloadSimple size={14} weight="duotone" />
@@ -252,7 +252,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         href={offer.generated_file_url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-warm hover:bg-warm/10"
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/10"
         onClick={(e) => e.stopPropagation()}
       >
         <ArrowSquareOut size={14} weight="duotone" />
@@ -578,7 +578,7 @@ export default function OffersPage() {
               <>
                 <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
                 <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
-                <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="warm" />
+                <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="green" />
                 <KpiCard
                   label="Conversion projets"
                   accent="green"
@@ -590,7 +590,7 @@ export default function OffersPage() {
                 />
                 <KpiCard
                   label="CA gagné (€)"
-                  accent="warm"
+                  accent="green"
                   value={
                     dash.won_total != null
                       ? Number(dash.won_total).toLocaleString("fr-FR", {

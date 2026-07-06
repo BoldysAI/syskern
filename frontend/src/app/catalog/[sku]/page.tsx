@@ -42,10 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
-import {
-  useBreadcrumbOverride,
-  type BreadcrumbCrumb,
-} from "@/components/layout/BreadcrumbContext";
+import { useBreadcrumbOverride, type BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { EditContext, type EditContextValue, type DescriptionKind } from "./_tabs/edit-context";
 import { GeneralTab } from "./_tabs/GeneralTab";
@@ -110,48 +107,54 @@ function KeyInfoCard({ product, latestPv }: { product: ProductDetail; latestPv: 
   return (
     <Card className="lg:sticky lg:top-6 shadow-sm">
       <CardContent className="p-5">
-      <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-lg bg-muted">
-        <Package size={48} weight="duotone" className="text-muted-foreground/40" />
-      </div>
-
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <h1 className="font-mono text-lg font-bold text-primary">{product.sku_code}</h1>
-        <StatusBadge variant={product.is_active ? "success" : "draft"}>
-          {product.is_active ? "Actif" : "Inactif"}
-        </StatusBadge>
-      </div>
-      <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
-
-      {product.brand?.toLowerCase() === "unikkern" && (
-        <div className="mb-4 flex justify-center p-3">
-          <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
+        <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-lg bg-muted">
+          <Package size={48} weight="duotone" className="text-muted-foreground/40" />
         </div>
-      )}
 
-      <InfoLine label="Hiérarchie" value={hierarchy || <span className="text-muted-foreground/50">—</span>} />
-      <InfoLine label="Marque" value={product.brand || <span className="text-muted-foreground/50">—</span>} />
-      <InfoLine label="Stock" value={`${Math.round(stock)} u`} />
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h1 className="font-mono text-lg font-bold text-primary">{product.sku_code}</h1>
+          <StatusBadge variant={product.is_active ? "success" : "draft"}>
+            {product.is_active ? "Actif" : "Inactif"}
+          </StatusBadge>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
 
-      <div className="mt-4 grid grid-cols-1 gap-2">
-        <KpiCard
-          label="PAMP"
-          accent="green"
-          value={
-            pamp > 0
-              ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-              : "—"
-          }
+        {product.brand?.toLowerCase() === "unikkern" && (
+          <div className="mb-4 flex justify-center p-3">
+            <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
+          </div>
+        )}
+
+        <InfoLine
+          label="Hiérarchie"
+          value={hierarchy || <span className="text-muted-foreground/50">—</span>}
         />
-        <KpiCard
-          label="Prix de vente actuel"
-          accent="green"
-          value={
-            latestPv > 0
-              ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-              : "—"
-          }
+        <InfoLine
+          label="Marque"
+          value={product.brand || <span className="text-muted-foreground/50">—</span>}
         />
-      </div>
+        <InfoLine label="Stock" value={`${Math.round(stock)} u`} />
+
+        <div className="mt-4 grid grid-cols-1 gap-2">
+          <KpiCard
+            label="PAMP"
+            accent="green"
+            value={
+              pamp > 0
+                ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                : "—"
+            }
+          />
+          <KpiCard
+            label="Prix de vente actuel"
+            accent="green"
+            value={
+              latestPv > 0
+                ? `${latestPv.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                : "—"
+            }
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -179,7 +182,7 @@ function SaveIndicator({
   }
   if (status === "saving") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warm">
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-green">
         <ArrowsClockwise size={15} className="animate-spin" />
         Modifications en cours…
       </span>
@@ -254,8 +257,7 @@ function ProductPageContent() {
     return points.length ? parseDec(points[points.length - 1].pv_eur) : 0;
   }, [history6m?.points]);
 
-  const wantEdit =
-    searchParams.get("edit") === "1" || searchParams.get("edit") === "true";
+  const wantEdit = searchParams.get("edit") === "1" || searchParams.get("edit") === "true";
   const tabParam = searchParams.get("tab");
   const initialTab = TABS.some((tab) => tab.id === tabParam) ? tabParam! : "general";
 
@@ -499,7 +501,10 @@ function ProductPageContent() {
             <ArrowsClockwise size={14} />
             Réessayer
           </Button>
-          <Link href="/catalog" className="text-sm font-medium text-warm hover:text-accent-foreground">
+          <Link
+            href="/catalog"
+            className="text-sm font-medium text-brand-green hover:text-accent-foreground"
+          >
             Retour au catalogue
           </Link>
         </div>
@@ -608,7 +613,12 @@ function ProductPageContent() {
               {/* Footer actions (CDC §4.3) */}
               <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
                 {odooUrl ? (
-                  <Button variant="outline" size="sm" nativeButton={false} render={<a href={odooUrl} target="_blank" rel="noopener noreferrer" />}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<a href={odooUrl} target="_blank" rel="noopener noreferrer" />}
+                  >
                     <ArrowSquareOut size={14} />
                     Voir dans Odoo
                   </Button>
@@ -635,12 +645,7 @@ function ProductPageContent() {
                   </Button>
                 </AddToSimulationDialog>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  title="Disponible en MVP2"
-                >
+                <Button variant="outline" size="sm" disabled title="Disponible en MVP2">
                   <ClockCounterClockwise size={14} />
                   Historique des modifications
                   <StatusBadge variant="warning" className="ml-1 px-1.5 py-0 text-[10px]">

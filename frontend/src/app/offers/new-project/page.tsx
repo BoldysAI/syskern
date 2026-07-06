@@ -183,7 +183,7 @@ function ProjectWizard() {
   if (submitting) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
-        <CircleNotch className="mb-4 animate-spin text-warm" size={40} />
+        <CircleNotch className="mb-4 animate-spin text-brand-green" size={40} />
         <p className="font-medium text-foreground">Génération du devis Gamma…</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Argumentaires IA puis mise en page — 1 à 3 min.

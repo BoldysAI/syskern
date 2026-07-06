@@ -267,7 +267,7 @@ function TariffWizard() {
       <div className="flex flex-col items-center justify-center py-32 text-center">
         {genCount === null ? (
           <>
-            <CircleNotch className="mb-4 animate-spin text-warm" size={40} />
+            <CircleNotch className="mb-4 animate-spin text-brand-green" size={40} />
             <p className="font-medium text-foreground">
               Génération de {selectedClientIds.length} offre
               {selectedClientIds.length > 1 ? "s" : ""}…

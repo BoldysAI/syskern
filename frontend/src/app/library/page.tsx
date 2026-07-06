@@ -363,7 +363,7 @@ function PreviewSheet({ doc, onClose }: { doc: Doc; onClose: () => void }) {
                 className="mx-auto mb-2 text-muted-foreground/50"
               />
               Aperçu indisponible pour ce format.
-              <a href={doc.download_url} className="mt-2 block font-medium text-warm">
+              <a href={doc.download_url} className="mt-2 block font-medium text-brand-green">
                 Télécharger
               </a>
             </div>
@@ -399,7 +399,7 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
                   · {new Date(v.created_at).toLocaleDateString("fr-FR")}
                 </span>
               </span>
-              <a href={v.download_url} className="text-xs font-medium text-warm">
+              <a href={v.download_url} className="text-xs font-medium text-brand-green">
                 Télécharger
               </a>
             </div>
@@ -684,7 +684,7 @@ export default function LibraryPage() {
               <a
                 href={d.download_url}
                 title="Télécharger"
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-warm"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-brand-green"
                 onClick={(e) => e.stopPropagation()}
               >
                 <DownloadSimple size={15} />
@@ -762,7 +762,7 @@ function IconBtn({
         "rounded-lg p-1.5 text-muted-foreground transition-colors",
         danger
           ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:bg-accent/50 hover:text-warm",
+          : "hover:bg-accent/50 hover:text-brand-green",
       )}
     >
       {children}

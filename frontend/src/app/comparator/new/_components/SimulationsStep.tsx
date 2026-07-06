@@ -50,7 +50,8 @@ export function SimulationsStep({ draft, onChange }: Props) {
           <h2 className="text-lg font-semibold text-foreground">Simulations à comparer</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Sélectionnez entre 2 et {MAX_COMPARE_COLUMNS} colonnes. La première colonne (lettre{" "}
-            <span className="font-semibold text-warm">A</span>) est la référence pour tous les écarts.
+            <span className="font-semibold text-brand-green">A</span>) est la référence pour tous
+            les écarts.
           </p>
           <div className="mt-3 flex items-center justify-between gap-3">
             <SearchInput
@@ -97,7 +98,9 @@ export function SimulationsStep({ draft, onChange }: Props) {
           {isLoading ? (
             <li className="p-6 text-center text-sm text-muted-foreground">Chargement…</li>
           ) : filtered.length === 0 ? (
-            <li className="p-6 text-center text-sm text-muted-foreground">Aucune simulation trouvée.</li>
+            <li className="p-6 text-center text-sm text-muted-foreground">
+              Aucune simulation trouvée.
+            </li>
           ) : (
             filtered.map((sim) => {
               const checked = draft.simulationIds.includes(sim.id);
@@ -113,7 +116,7 @@ export function SimulationsStep({ draft, onChange }: Props) {
                     className={cn(
                       "flex cursor-pointer items-start gap-3 border-l-4 px-4 py-3 transition-colors hover:bg-muted/40",
                       isRef
-                        ? "border-warm bg-warm/5"
+                        ? "border-brand-green bg-brand-green/5"
                         : checked
                           ? "border-transparent bg-primary/5"
                           : "border-transparent",
@@ -167,7 +170,7 @@ export function SimulationsStep({ draft, onChange }: Props) {
                           {letter}
                         </span>
                         {isRef ? (
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-warm">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">
                             Référence
                           </span>
                         ) : (
@@ -189,10 +192,7 @@ export function SimulationsStep({ draft, onChange }: Props) {
             <MagnifyingGlass size={16} />
             Aperçu SKU
           </h3>
-          <SkuOverlapPreview
-            simulationIds={draft.simulationIds}
-            simulations={simulations ?? []}
-          />
+          <SkuOverlapPreview simulationIds={draft.simulationIds} simulations={simulations ?? []} />
         </div>
       </div>
     </div>
