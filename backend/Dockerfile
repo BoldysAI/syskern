@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         libpq-dev \
         curl \
+        gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -58,8 +59,11 @@ FROM deps AS prod
 # App code + static collection. STATIC_ROOT must be configured in settings.
 COPY --chown=app:app . .
 RUN python manage.py collectstatic --noinput || true
+RUN chmod +x /app/docker-entrypoint.sh
 
-USER app
+# NOTE: no `USER app` here on purpose — the container starts as root so the
+# entrypoint can chown the (root-owned) bind-mounted media/export volumes, then
+# drops to the non-root `app` user via gosu before running gunicorn.
 EXPOSE 8000
 
 ENV GUNICORN_WORKERS=3 \
@@ -67,6 +71,8 @@ ENV GUNICORN_WORKERS=3 \
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # migrate → one-shot idempotent catalog bootstrap (no-op if already loaded, or if
 # the client Excel are absent from MIGRATION_SOURCES_DIR) → serve.
