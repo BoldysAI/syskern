@@ -73,11 +73,64 @@ interface UnmatchedRow {
   created_at: string;
 }
 
-/** Best-effort prefill: the raw row's most SKU-looking value + longest label. */
+// Prefill the create form from the raw row. The SKU must come from the SKU
+// column (`sku_code`, `item_code`, …), NEVER from the GTIN/EAN column — the row
+// carries both and the GTIN is a plain number that would otherwise be mistaken
+// for a code.
+const SKU_KEY_RE =
+  /^(sku_?code|sku|internal_?code|default_?code|code_?interne|reference|référence|item_?code)$/i;
+const GTIN_KEY_RE = /gtin|ean|barcode|code.?barre|upc/i;
+const NAME_KEY_RE =
+  /^(description_fr|description_en|description|name|désignation|designation|libell.*|label|catalogue)$/i;
+const META_KEY_RE = /^__.*__$/;
+
 function guessProduct(raw: Record<string, unknown>): { sku: string; name: string } {
-  const values = Object.values(raw).map((v) => (v == null ? "" : String(v)).trim());
-  const sku = values.find((v) => /^[A-Z0-9][A-Z0-9-]{3,}$/.test(v)) ?? "";
-  const name = values.filter((v) => v && v !== sku).sort((a, b) => b.length - a.length)[0] ?? "";
+  const str = (v: unknown) => (v == null ? "" : String(v)).trim();
+  const entries = Object.entries(raw).filter(([k]) => !META_KEY_RE.test(k));
+
+  // 1. SKU from an explicit SKU column (never a GTIN/EAN column).
+  let sku = "";
+  for (const [k, v] of entries) {
+    if (SKU_KEY_RE.test(k) && !GTIN_KEY_RE.test(k)) {
+      const s = str(v);
+      if (s) {
+        sku = s;
+        break;
+      }
+    }
+  }
+  // 2. Fallback: a value that looks like a code AND contains a letter (so a
+  //    numeric GTIN or price is never picked), skipping GTIN columns.
+  if (!sku) {
+    for (const [k, v] of entries) {
+      if (GTIN_KEY_RE.test(k)) continue;
+      const s = str(v);
+      if (/^[A-Za-z0-9][A-Za-z0-9-]{3,}$/.test(s) && /[A-Za-z]/.test(s)) {
+        sku = s;
+        break;
+      }
+    }
+  }
+
+  // Name: prefer a description/name column; else the longest non-numeric,
+  // non-SKU value.
+  let name = "";
+  for (const [k, v] of entries) {
+    if (NAME_KEY_RE.test(k)) {
+      const s = str(v);
+      if (s && s !== sku) {
+        name = s;
+        break;
+      }
+    }
+  }
+  if (!name) {
+    name =
+      entries
+        .map(([, v]) => str(v))
+        .filter((v) => v && v !== sku && !/^\d[\d.,\s]*$/.test(v))
+        .sort((a, b) => b.length - a.length)[0] ?? "";
+  }
   return { sku, name };
 }
 
