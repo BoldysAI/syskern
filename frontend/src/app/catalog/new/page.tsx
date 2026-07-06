@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CaretRight,
-  Check,
   CircleNotch,
   Package,
   WarningCircle,
@@ -30,6 +29,7 @@ import { canEdit } from "@/lib/auth";
 import { AttributeRenderer, validateAttributeValue } from "@/components/AttributeRenderer";
 import { FormField } from "@/components/FormField";
 import { SupplierManager } from "@/components/SupplierManager";
+import { WizardStepper } from "@/components/WizardStepper";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -877,47 +877,14 @@ export default function NewProductPage() {
 
       {/* Progress indicator (wizard mode only) */}
       {!fullForm && (
-        <ol className="mb-6 flex items-center gap-2 overflow-x-auto">
-          {STEPS.map((s, idx) => {
-            const active = idx === step;
-            const done = idx < step;
-            const err = showErrors && stepHasError(idx);
-            return (
-              <li key={s.id} className="flex flex-shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(idx)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : done
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full text-xs",
-                      active
-                        ? "bg-primary-foreground/20"
-                        : done
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground",
-                      err && "bg-destructive text-destructive-foreground",
-                    )}
-                  >
-                    {done ? <Check size={12} weight="bold" /> : idx + 1}
-                  </span>
-                  {s.label}
-                </button>
-                {idx < STEPS.length - 1 && (
-                  <CaretRight size={14} className="text-muted-foreground/40" />
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <WizardStepper
+          steps={STEPS.map((s, idx) => ({
+            label: s.label,
+            hasError: showErrors && stepHasError(idx),
+          }))}
+          current={step}
+          onStepClick={setStep}
+        />
       )}
 
       {/* Body */}

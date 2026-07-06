@@ -231,6 +231,22 @@ Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFil
 pattern (sidebar gauche repliable/redimensionnable + `FilterSection` + chips actifs + favoris
 `localStorage` + sheet mobile). Nouveau module de liste → suivre ce même pattern.
 
+### Wizards (produit + offres) — stepper partagé
+
+`components/WizardStepper.tsx` (2026-07-06) : barre d'étapes commune (étapes cliquables,
+badge numéro/coche, états actif/fait/erreur, séparateurs `CaretRight`). Utilisée par le wizard
+produit (`catalog/new`) et les wizards d'offre (`offers/new-project`, `offers/new-tariff`) → même
+look & effet. Props : `steps: {label, hasError?}[]`, `current`, `onStepClick?`.
+
+### Sélecteur de simulation « Nouvelle offre »
+
+`offers/_components/SimulationPickerModal.tsx` (2026-07-06) — miroir du flux d'ajout produit
+(`AddProductsModal` ↔ `CatalogBrowser`) : modale large avec **sidebar filtres** (réutilise
+`SimulationFiltersSidebar` avec `hideStatus`/`hideDirty`/`hideSaved` → section **Type** seule),
+**recherche** (debounce → `q`) et **tableau paginé** des simulations **finalisées** (statut forcé).
+Clic sur une ligne → wizard `new-project`/`new-tariff`. `SimulationFiltersSidebar` a gagné des props
+optionnelles `hideStatus`/`hideDirty`/`hideSaved` + handlers de favoris optionnels (rétro-compatible).
+
 ### Liste offres (`/offers`)
 
 Aligné sur `/simulator` (2026-07-06). `app/offers/_components/` : `OffersFiltersSidebar`

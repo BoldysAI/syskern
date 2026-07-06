@@ -7,6 +7,7 @@ import { Warning, Check, ArrowSquareOut, CircleNotch } from "@phosphor-icons/rea
 import { cn } from "@/lib/utils";
 import { FormField } from "@/components/FormField";
 import { FilterSelect } from "@/components/FilterSelect";
+import { WizardStepper } from "@/components/WizardStepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -247,7 +248,11 @@ function ProjectWizard() {
       <h1 className="text-xl font-semibold text-foreground">Nouvelle offre projet (devis Gamma)</h1>
       <p className="mb-6 mt-0.5 text-sm text-muted-foreground">Depuis « {sim?.label ?? "…"} ».</p>
 
-      <Stepper step={step} />
+      <WizardStepper
+        steps={STEPS.map((label) => ({ label }))}
+        current={step}
+        onStepClick={setStep}
+      />
 
       {error && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -407,38 +412,6 @@ function ProjectWizard() {
           </Button>
         )}
       </div>
-    </div>
-  );
-}
-
-function Stepper({ step }: { step: number }) {
-  return (
-    <div className="mb-5 flex flex-wrap items-center gap-2">
-      {STEPS.map((s, i) => (
-        <div key={s} className="flex items-center gap-2">
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
-              i < step
-                ? "bg-brand-green text-white"
-                : i === step
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground",
-            )}
-          >
-            {i < step ? <Check size={14} weight="bold" /> : i + 1}
-          </div>
-          <span
-            className={cn(
-              "text-xs",
-              i === step ? "font-medium text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {s}
-          </span>
-          {i < STEPS.length - 1 && <div className="h-px w-5 bg-border" />}
-        </div>
-      ))}
     </div>
   );
 }

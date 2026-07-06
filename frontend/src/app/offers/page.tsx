@@ -28,13 +28,7 @@ import type { DataTableColumnDef, DataTableSortState } from "@/components/data-t
 import { cycleSortField } from "@/components/data-table/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { SimulationPickerModal } from "./_components/SimulationPickerModal";
 import { OffersFiltersSidebar } from "./_components/OffersFiltersSidebar";
 import { OffersActiveFilterBar } from "./_components/OffersActiveFilterBar";
 import { OffersFilterSheet, OffersFilterTrigger } from "./_components/OffersFilterSheet";
@@ -76,12 +70,6 @@ interface ClientLite {
   id: string;
   name: string;
 }
-interface SimLite {
-  id: string;
-  label: string;
-  simulation_type: "tariff" | "project";
-  status: string;
-}
 interface Dashboard {
   status_counts: Record<string, number>;
   project_conversion_pct: number | null;
@@ -119,64 +107,6 @@ async function postJson(url: string) {
   });
   if (!res.ok) throw new Error("Erreur serveur");
   return res.json();
-}
-
-// ── New-offer modal: pick a finalized simulation ──────────────────────────────
-
-function NewOfferModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const { data, isLoading } = useSWR(open ? "finalized-sims" : null, () =>
-    getJson<Paginated<SimLite> | SimLite[]>("/api/simulations/?status=finalized&limit=1000"),
-  );
-  const sims = Array.isArray(data) ? data : (data?.results ?? []);
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nouvelle offre</DialogTitle>
-          <DialogDescription>
-            Choisissez une simulation finalisée. Son type (tarif / projet) détermine le format.
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            <CircleNotch size={16} className="animate-spin" />
-            Chargement…
-          </div>
-        ) : sims.length === 0 ? (
-          <EmptyState
-            className="border-none bg-transparent py-8 shadow-none"
-            icon={<FileText size={28} weight="duotone" />}
-            title="Aucune simulation finalisée"
-            description="Finalisez une simulation avant de générer une offre."
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {sims.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push(
-                    `/offers/new-${s.simulation_type === "project" ? "project" : "tariff"}?simulation_id=${s.id}`,
-                  );
-                }}
-                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left text-sm transition-colors hover:bg-muted/50"
-              >
-                <span className="font-medium text-foreground">{s.label}</span>
-                <StatusBadge variant={s.simulation_type === "project" ? "info" : "running"}>
-                  {s.simulation_type === "project" ? "Projet" : "Tarif"}
-                </StatusBadge>
-              </button>
-            ))}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ── Document cell / row action ────────────────────────────────────────────────
@@ -649,7 +579,7 @@ export default function OffersPage() {
         />
       </div>
 
-      <NewOfferModal open={showNew} onClose={() => setShowNew(false)} />
+      <SimulationPickerModal open={showNew} onClose={() => setShowNew(false)} />
     </div>
   );
 }
