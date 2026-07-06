@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from apps.simulations.models import Simulation, SimulationStatus
 
 from .dashboard_metrics import build_offer_dashboard_metrics
+from .filters import OfferFilter
 from .models import (
     GenerationStatus,
     Offer,
@@ -47,7 +48,7 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 
 class OfferViewSet(viewsets.ModelViewSet):
     queryset = Offer.objects.all().prefetch_related("lines")
-    filterset_fields = ("offer_type", "status", "currency", "language", "export_format")
+    filterset_class = OfferFilter
     search_fields = ("label", "project_name")
     ordering = ("-created_at",)
 

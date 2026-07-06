@@ -224,8 +224,22 @@ sections dont il a besoin.
 - **Exceptions** : aucune pour l’instant ; le panneau filtres latéral peut rester visible/ouvert en
   entier, seules les **sections internes** restent fermées.
 
-Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `CatalogFilterSheet` /
-`SimulationFilterSheet` (réutilisent les sidebars ci-dessus), `AddProductsModal`.
+Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFiltersSidebar`,
+`CatalogFilterSheet` / `SimulationFilterSheet` / `OffersFilterSheet` (réutilisent les sidebars
+ci-dessus), `AddProductsModal`. Objectif : **tous** les modules de liste adoptent ce pattern
+(sidebar gauche repliable/redimensionnable + `FilterSection` + chips actifs + favoris `localStorage`
++ sheet mobile). Reste à aligner : `/comparator`, `/library`, `/admin/migration-quarantine`.
+
+### Liste offres (`/offers`)
+
+Aligné sur `/simulator` (2026-07-06). `app/offers/_components/` : `OffersFiltersSidebar`
+(sections **Type** / **Statut** / **Document** [= `generation_status`] / **Filtres enregistrés**),
+`OffersFilterSheet` (+ `OffersFilterTrigger`), `OffersActiveFilterBar`, `offer-filters.ts`
+(type `OfferFilters`, options, `buildOfferQuery`, chips, `normalize`), `filters-storage.ts`
+(`syskern:offer-filters:v1`). Largeur (`syskern:offer-filters-width`) + repli
+(`syskern:offer-filters-collapsed`) persistés. Multi-select CSV côté backend via
+`apps.offers.filters.OfferFilter` (`?status=draft,sent` → `__in`), branché en `filterset_class`.
+Les KPI (dashboard offres) restent en bandeau au-dessus du tableau.
 
 ## Tableau de données partagé (`components/data-table/`)
 

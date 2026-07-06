@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
@@ -12,17 +12,21 @@ import {
   ArrowSquareOut,
   Plus,
   ArrowsClockwise,
+  Faders,
+  SidebarSimple,
 } from "@phosphor-icons/react";
-import { PageHeader } from "@/components/PageHeader";
+import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
+import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { KpiCard } from "@/components/KpiCard";
 import { EmptyState } from "@/components/EmptyState";
-import { FilterSelect } from "@/components/FilterSelect";
+import { SearchInput } from "@/components/SearchInput";
 import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
 import { DataTable } from "@/components/data-table";
 import type { DataTableColumnDef, DataTableSortState } from "@/components/data-table/types";
 import { cycleSortField } from "@/components/data-table/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -31,6 +35,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { OffersFiltersSidebar } from "./_components/OffersFiltersSidebar";
+import { OffersActiveFilterBar } from "./_components/OffersActiveFilterBar";
+import { OffersFilterSheet, OffersFilterTrigger } from "./_components/OffersFilterSheet";
+import {
+  buildOfferQuery,
+  countActiveOfferFilters,
+  normalizeOfferFilters,
+  type OfferFilters,
+} from "./_components/offer-filters";
+import {
+  loadSavedOfferFilters,
+  persistSavedOfferFilters,
+  type SavedOfferFilter,
+} from "./_components/filters-storage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +98,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
+const COLUMN_WIDTHS_KEY = "offers-list";
 
 function sortOffers(rows: OfferRow[], sort: DataTableSortState): OfferRow[] {
   const out = [...rows];
@@ -248,25 +267,52 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
 
 export default function OffersPage() {
   const router = useRouter();
-  const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [showNew, setShowNew] = useState(false);
-  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
+  const confirm = useConfirm();
 
-  const query = useMemo(() => {
-    const p = new URLSearchParams({ ordering: "-created_at", limit: "100" });
-    if (typeFilter) p.set("offer_type", typeFilter);
-    if (statusFilter) p.set("status", statusFilter);
-    return p.toString();
-  }, [typeFilter, statusFilter]);
+  const [filters, setFilters] = useState<OfferFilters>({});
+  const [searchInput, setSearchInput] = useState("");
+  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
+  const [showNew, setShowNew] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
+    "syskern:offer-filters-collapsed",
+    false,
+  );
+  const {
+    width: filterSidebarWidth,
+    startResize: startFilterResize,
+    isResizing: isFilterResizing,
+  } = useResizableWidth(300, {
+    min: 240,
+    max: 420,
+    storageKey: "syskern:offer-filters-width",
+  });
+
+  const [savedFilters, setSavedFilters] = useState<SavedOfferFilter[]>(loadSavedOfferFilters);
+  useEffect(() => {
+    persistSavedOfferFilters(savedFilters);
+  }, [savedFilters]);
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onSearchChange = (v: string) => {
+    setSearchInput(v);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setFilters((f) => ({ ...f, q: v || undefined }));
+    }, 300);
+  };
+
+  const query = useMemo(
+    () => buildOfferQuery(filters, { ordering: "-created_at", limit: 100 }),
+    [filters],
+  );
 
   const { data, isLoading, error } = useSWR<Paginated<OfferRow>>(
     `offers:${query}`,
     () => getJson(`/api/offers/?${query}`),
     {
-      // Poll only while a generation is actually running. `pending` is transient
-      // (tariff offers finish READY; project offers move to generating in-task),
-      // so polling on it would refresh the list forever (B1 fix).
+      // Poll only while a generation is actually running (B1 fix).
       refreshInterval: (d) =>
         d?.results?.some((o) => o.generation_status === "generating") ? 5000 : 0,
     },
@@ -295,6 +341,39 @@ export default function OffersPage() {
   );
 
   const sortedOffers = useMemo(() => sortOffers(data?.results ?? [], sort), [data?.results, sort]);
+  const total = data?.count ?? 0;
+  const activeFilterCount = countActiveOfferFilters(filters);
+
+  const applyFilters = useCallback((next: OfferFilters) => setFilters(next), []);
+  const resetFilters = () => {
+    setFilters({});
+    setSearchInput("");
+  };
+
+  const onSaveFilter = (name: string) => {
+    const id = typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now());
+    setSavedFilters((prev) => [...prev, { id, name, filters }]);
+  };
+  const onApplyFilter = (sf: SavedOfferFilter) => {
+    const next = normalizeOfferFilters(sf.filters);
+    setFilters(next);
+    setSearchInput(next.q ?? "");
+  };
+  const onDeleteFilter = useCallback(
+    async (id: string) => {
+      const sf = savedFilters.find((f) => f.id === id);
+      if (!sf) return;
+      const ok = await confirm({
+        title: "Supprimer le filtre favori",
+        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
+        confirmLabel: "Supprimer",
+        destructive: true,
+      });
+      if (!ok) return;
+      setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+    },
+    [confirm, savedFilters],
+  );
 
   const columns = useMemo<DataTableColumnDef<OfferRow>[]>(
     () => [
@@ -358,76 +437,178 @@ export default function OffersPage() {
   );
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Offres"
-        description="Gestion des offres commerciales"
-        actions={
-          <Button onClick={() => setShowNew(true)}>
-            <Plus size={16} weight="bold" />
-            Nouvelle offre
-          </Button>
-        }
-      />
-
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {dashLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-[88px] rounded-xl" />
-          ))
-        ) : dash ? (
-          <>
-            <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
-            <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
-            <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="warm" />
-            <KpiCard
-              label="Conversion projets"
-              accent="green"
-              value={
-                dash.project_conversion_pct != null
-                  ? `${dash.project_conversion_pct.toFixed(0)}%`
-                  : "—"
-              }
+    <div className="flex h-full bg-background">
+      {filtersCollapsed ? (
+        <div className="relative hidden w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3 shadow-[var(--shadow-soft)] lg:flex">
+          <button
+            type="button"
+            onClick={() => setFiltersCollapsed(false)}
+            className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Afficher les filtres"
+            title="Filtres"
+          >
+            <Faders size={18} weight="duotone" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+      ) : (
+        <aside
+          className="relative hidden shrink-0 flex-col border-r border-border bg-card shadow-[var(--shadow-soft)] lg:flex"
+          style={{ width: filterSidebarWidth }}
+        >
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
+            <div className="min-w-0">
+              <span className="text-sm font-bold text-foreground">Filtres</span>
+              {activeFilterCount > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
+                  Tout effacer
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setFiltersCollapsed(true)}
+                aria-label="Masquer les filtres"
+                title="Masquer les filtres"
+              >
+                <SidebarSimple size={18} />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <OffersFiltersSidebar
+              filters={filters}
+              onChange={applyFilters}
+              savedFilters={savedFilters}
+              onSaveFilter={onSaveFilter}
+              onApplyFilter={onApplyFilter}
+              onDeleteFilter={onDeleteFilter}
             />
-            <KpiCard
-              label="CA gagné (€)"
-              accent="warm"
-              value={
-                dash.won_total != null
-                  ? Number(dash.won_total).toLocaleString("fr-FR", { maximumFractionDigits: 0 })
-                  : "—"
-              }
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau des filtres"
+            onMouseDown={startFilterResize}
+            className={cn(
+              "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
+              "hover:bg-primary/20",
+              isFilterResizing && "bg-primary/30",
+            )}
+          >
+            <span className="h-10 w-0.5 rounded-full bg-border" />
+          </div>
+        </aside>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-4 shadow-[var(--shadow-soft)] sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <OffersFilterTrigger
+              activeCount={activeFilterCount}
+              onClick={() => setMobileFiltersOpen(true)}
             />
-          </>
-        ) : null}
-      </div>
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                <FileText size={22} weight="duotone" className="shrink-0 text-primary" />
+                Offres
+              </h1>
+              {!isLoading && (
+                <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
+                  {total.toLocaleString("fr-FR")} offre{total !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+            <SearchInput
+              className="ml-2 hidden w-72 lg:block lg:w-80"
+              value={searchInput}
+              onChange={onSearchChange}
+              placeholder="Recherche offre, projet…"
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button onClick={() => setShowNew(true)}>
+              <Plus size={16} weight="bold" />
+              <span className="hidden sm:inline">Nouvelle offre</span>
+            </Button>
+          </div>
+        </div>
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <FilterSelect
-          value={typeFilter}
-          onChange={setTypeFilter}
-          placeholder="Tous les types"
-          options={[
-            { value: "tariff", label: "Tarif" },
-            { value: "project", label: "Projet" },
-          ]}
-          className="w-44"
+        <OffersFilterSheet
+          open={mobileFiltersOpen}
+          onOpenChange={setMobileFiltersOpen}
+          filters={filters}
+          onChange={applyFilters}
+          onReset={resetFilters}
+          savedFilters={savedFilters}
+          onSaveFilter={onSaveFilter}
+          onApplyFilter={onApplyFilter}
+          onDeleteFilter={onDeleteFilter}
         />
-        <FilterSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
-          placeholder="Tous les statuts"
-          options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-          className="w-44"
-        />
-      </div>
 
-      <Card className="overflow-hidden py-0">
+        <OffersActiveFilterBar
+          filters={filters}
+          onChange={applyFilters}
+          onClearAll={resetFilters}
+        />
+
+        <div className="border-b border-border bg-card px-4 py-3 md:hidden">
+          <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
+        </div>
+
+        <div className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {dashLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-[88px] rounded-xl" />
+              ))
+            ) : dash ? (
+              <>
+                <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
+                <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
+                <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="warm" />
+                <KpiCard
+                  label="Conversion projets"
+                  accent="green"
+                  value={
+                    dash.project_conversion_pct != null
+                      ? `${dash.project_conversion_pct.toFixed(0)}%`
+                      : "—"
+                  }
+                />
+                <KpiCard
+                  label="CA gagné (€)"
+                  accent="warm"
+                  value={
+                    dash.won_total != null
+                      ? Number(dash.won_total).toLocaleString("fr-FR", {
+                          maximumFractionDigits: 0,
+                        })
+                      : "—"
+                  }
+                />
+              </>
+            ) : null}
+          </div>
+        </div>
+
         <DataTable
           columns={columns}
           rows={sortedOffers}
           rowKey={(o) => o.id}
-          storageKey="offers-list"
+          storageKey={COLUMN_WIDTHS_KEY}
           sort={sort}
           defaultSort={DEFAULT_SORT}
           onSort={(field) => setSort((s) => cycleSortField(field, s, DEFAULT_SORT))}
@@ -447,17 +628,27 @@ export default function OffersPage() {
               className="border-none bg-transparent py-16 shadow-none"
               icon={<FilePlus size={28} weight="duotone" />}
               title="Aucune offre"
-              description="Cliquez « Nouvelle offre » pour en générer une."
+              description={
+                activeFilterCount > 0
+                  ? "Essayez d'élargir vos filtres ou de modifier la recherche."
+                  : "Cliquez « Nouvelle offre » pour en générer une."
+              }
               action={
-                <Button onClick={() => setShowNew(true)}>
-                  <Plus size={16} weight="bold" />
-                  Nouvelle offre
-                </Button>
+                activeFilterCount > 0 ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    Réinitialiser les filtres
+                  </Button>
+                ) : (
+                  <Button onClick={() => setShowNew(true)}>
+                    <Plus size={16} weight="bold" />
+                    Nouvelle offre
+                  </Button>
+                )
               }
             />
           }
         />
-      </Card>
+      </div>
 
       <NewOfferModal open={showNew} onClose={() => setShowNew(false)} />
     </div>
