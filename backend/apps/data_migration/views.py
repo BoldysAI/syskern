@@ -43,8 +43,16 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
 
         if action_type == ResolutionAction.CREATE:
             product, created = self._create_or_get_product_from_row(data["product"])
+            if created:
+                # Close the loop (CDC §8.3 "Créer et synchroniser vers Odoo"):
+                # a product created from the quarantine is pushed to Odoo, exactly
+                # like the catalog wizard. Only on real creation — an existing SKU
+                # is already in Odoo (or already pending).
+                from apps.odoo_sync.services.push import push_product_async
+
+                push_product_async(product)
             note_line = (
-                f"Produit créé : {product.sku_code}"
+                f"Produit créé et poussé vers Odoo : {product.sku_code}"
                 if created
                 else f"Produit déjà présent au catalogue : {product.sku_code}"
             )

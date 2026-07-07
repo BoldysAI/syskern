@@ -256,3 +256,47 @@ def test_resolve_defaults_resolved_by_when_absent(client, rows):
     assert resp.status_code == 200
     a.refresh_from_db()
     assert a.resolved_by  # falls back (logged-in email or "système"), never blank-required
+
+
+# ── Quarantine "create" closes the loop to Odoo (CDC §8.3) ──────────────────────
+
+
+def test_resolve_create_pushes_new_product_to_odoo(client, rows, monkeypatch):
+    from apps.odoo_sync import tasks as odoo_tasks
+    from apps.products.models import Product
+
+    calls: list = []
+    monkeypatch.setattr(odoo_tasks.push_product_task, "delay", lambda *a, **k: calls.append((a, k)))
+
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {
+            "action": "create",
+            "product": {"sku_code": "NEWQ1", "name": "Produit quarantaine"},
+            "resolved_by": "olivier@syskern.com",
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    p = Product.objects.get(sku_code="NEWQ1")
+    assert p.odoo_sync_status == "pending_odoo_sync"  # loop opened
+    assert len(calls) == 1 and calls[0][0][0] == str(p.pk)  # push dispatched
+
+
+def test_resolve_create_existing_sku_does_not_push(client, rows, monkeypatch):
+    from apps.odoo_sync import tasks as odoo_tasks
+    from apps.products.models import Product
+
+    Product.objects.create(sku_code="EXISTQ1", name="Déjà là")
+    calls: list = []
+    monkeypatch.setattr(odoo_tasks.push_product_task, "delay", lambda *a, **k: calls.append(1))
+
+    a, _b, _c = rows
+    resp = client.post(
+        f"/api/migration/unmatched/{a.id}/resolve/",
+        {"action": "create", "product": {"sku_code": "EXISTQ1"}, "resolved_by": "o@syskern.com"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert calls == []  # existing product already in Odoo → no re-push
