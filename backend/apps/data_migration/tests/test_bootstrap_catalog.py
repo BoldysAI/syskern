@@ -40,6 +40,9 @@ def test_empty_db_missing_sources_is_noop(tmp_path):
     with override_settings(
         MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
         BASE_DIR=tmp_path,
+        # Odoo-first bootstrap now syncs before loading — keep the unit test
+        # offline so it stays a pure no-op.
+        ODOO={"SYNC_ENABLED": False},
     ):
         output = _run()
     assert "nothing to load" in output.lower()
