@@ -33,8 +33,15 @@ CMD ["npm", "run", "dev"]
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Disable telemetry during build, and let Next compile a production bundle.
-ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* are inlined into the client bundle at BUILD time, so they must
+# be present during `next build` — Coolify must expose them as *build* variables
+# (build args), not just runtime env. Without this, "Voir dans Odoo" is disabled
+# in prod because ODOO_BASE_URL compiles to "".
+ARG NEXT_PUBLIC_ODOO_BASE_URL=""
+ARG NEXT_PUBLIC_API_URL=""
+ENV NEXT_PUBLIC_ODOO_BASE_URL=$NEXT_PUBLIC_ODOO_BASE_URL \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ─── prod ─────────────────────────────────────────────────────────────────
