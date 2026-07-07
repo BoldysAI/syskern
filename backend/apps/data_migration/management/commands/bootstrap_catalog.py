@@ -74,6 +74,12 @@ class Command(BaseCommand):
             self.stdout.write("Catalog already populated — bootstrap skipped (nothing to do).")
             return
 
+        # CDC §8.4 Étape 1 — Odoo is the source of truth: sync it FIRST so the
+        # Excel step *enriches* (and quarantines unmatched SKUs) instead of
+        # creating every product. Only when Odoo is unavailable do we fall back
+        # to bootstrapping the catalog from the Excel (create_missing).
+        odoo_synced = self._sync_odoo_first()
+
         sources_dir = self._resolve_sources_dir()
         if not sources_dir:
             self.stdout.write(
@@ -89,8 +95,10 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f"Source absent: {src['glob']} — skipped."))
                 continue
             file_path = matches[0]
+            # Odoo-first: enrich only (unmatched → quarantine). No Odoo → bootstrap.
+            create_missing = src["create_missing"] and not odoo_synced
             try:
-                report = self._load(file_path, src)
+                report = self._load(file_path, src, create_missing)
                 loaded += 1
                 self.stdout.write(self.style.SUCCESS(f"Loaded {Path(file_path).name}:\n{report}"))
             except Exception as exc:  # noqa: BLE001 — a bad source must not fail the deploy
@@ -101,6 +109,24 @@ class Command(BaseCommand):
             call_command("seed_client_market_params")
         except Exception as exc:  # noqa: BLE001
             self.stdout.write(self.style.ERROR(f"Market params seeding failed: {exc}"))
+
+        # Pricing readiness — the Excel step added the real factory prices AFTER
+        # the sync's activation ran, so re-assert the priced-supplier activation
+        # now (CDC §3.2). Without this the engine can't price most SKUs.
+        try:
+            from apps.products.management.commands.fix_active_supplier import (
+                activate_priced_suppliers,
+            )
+
+            r = activate_priced_suppliers()
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Supplier activation: {r['fixed_single'] + r['fixed_multi']} products fixed "
+                    f"({r['already_ok']} already priced, {r['no_price']} without price)"
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.stdout.write(self.style.ERROR(f"Supplier activation failed: {exc}"))
 
         self.stdout.write(self.style.SUCCESS(f"Bootstrap done ({loaded} source file(s) loaded)."))
 
@@ -123,7 +149,38 @@ class Command(BaseCommand):
                 return candidate
         return ""
 
-    def _load(self, file_path: str, src: _Source):
+    def _sync_odoo_first(self) -> bool:
+        """CDC §8.4 Étape 1 — pull products from Odoo before the Excel step.
+
+        Returns ``True`` when Odoo produced products (so the Excel loaders should
+        enrich only). Disabled/failed/empty Odoo → ``False`` (Excel bootstraps).
+        Never fails the deploy.
+        """
+        if not settings.ODOO.get("SYNC_ENABLED"):
+            self.stdout.write("Odoo sync disabled — Excel will bootstrap the catalog.")
+            return False
+        try:
+            from apps.odoo_sync.models import SyncScope, SyncType
+            from apps.odoo_sync.services.runner import sync
+
+            log = sync(
+                scope=SyncScope.PRODUCTS, sync_type=SyncType.MANUAL, triggered_by="bootstrap"
+            )
+            has_odoo_products = Product.objects.filter(odoo_id__isnull=False).exists()
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Odoo sync ({log.odoo_api_version}): {log.status} "
+                    f"created={log.items_created} updated={log.items_updated}"
+                )
+            )
+            return has_odoo_products
+        except Exception as exc:  # noqa: BLE001 — Odoo issues must not fail the deploy
+            self.stdout.write(
+                self.style.WARNING(f"Odoo sync failed ({exc}) — Excel will bootstrap the catalog.")
+            )
+            return False
+
+    def _load(self, file_path: str, src: _Source, create_missing: bool):
         loader = LOADER_REGISTRY[src["loader"]]()
         sheet: str | int | None = None
         prefix = src["sheet_prefix"]
@@ -133,7 +190,7 @@ class Command(BaseCommand):
             file_path=file_path,
             sheet_name=sheet,
             header_row=src["header_row"],
-            create_missing=src["create_missing"],
+            create_missing=create_missing,
         )
         return loader.run(config)
 

@@ -800,3 +800,15 @@ pas seulement des champs répétés sur chaque produit. Épic FEEDBACK 1 (spike 
   téléchargeable `GET /api/suppliers/imports/{task_id}/report`.
 - **Suppression fournisseur** = **soft-delete** (`is_active=False`) ; **409** si des SKU restent liés
   (message FR). Pas de hard-delete (cohérent avec les snapshots simulations qui peuvent dépendre du lien).
+## 2026-07-07 · [P] Migration Odoo-first + boucle quarantaine → Odoo (CDC §8.4)
+- **`bootstrap_catalog` est désormais Odoo-first** : sync Odoo AVANT l'Excel (Étape 1) ; l'Excel
+  enrichit en `create_missing=False` (Étape 2) → les SKU Excel absents d'Odoo tombent en
+  **quarantaine** au lieu d'être créés. Repli Excel-bootstrap (`create_missing` par source) uniquement
+  si Odoo est indisponible/vide. Réactivation fournisseur (`activate_priced_suppliers`) en fin de
+  bootstrap (les prix Excel arrivent après l'activation du sync).
+- **Boucle bouclée** : résolution quarantaine « create » → `apps/odoo_sync/services/push.push_product_async`
+  (service partagé avec le wizard `ProductViewSet.perform_create/update`) → `pending_odoo_sync` +
+  `push_product_task` → produit créé dans Odoo → la sync suivante le relie par `odoo_id`. Avant, la
+  quarantaine « create » faisait un `Product.objects.create()` nu, sans push.
+- **Démo locale (2026-07-07)** : purge complète → bootstrap Odoo-first → **700 produits Odoo** +
+  **304 en quarantaine** (SKU Excel hors Odoo) + **74% pricables** après activation.
