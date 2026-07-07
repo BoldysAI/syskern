@@ -95,6 +95,14 @@ def sync(
 
         if scope in {SyncScope.ALL, SyncScope.PRODUCTS}:
             _sync_products(adapter, log, version, modified_since=last_run_at)
+            # _sync_suppliers activates Odoo's first supplier, which can revert
+            # the pricing-ready activation (fix_active_supplier). Re-assert it so
+            # a daily sync never leaves the engine unable to price (CDC §3.2).
+            from apps.products.management.commands.fix_active_supplier import (
+                activate_priced_suppliers,
+            )
+
+            activate_priced_suppliers()
         if scope in {SyncScope.ALL, SyncScope.STOCK}:
             _sync_stock(adapter, log, version)
         if scope in {SyncScope.ALL, SyncScope.CLIENTS}:
