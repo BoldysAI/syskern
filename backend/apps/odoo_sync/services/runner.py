@@ -248,6 +248,17 @@ def _upsert_product(
             base_unit = _uom_to_base_unit(op.uom_name)
             if base_unit:
                 defaults["base_unit"] = base_unit
+        # Packaging is authoritative in Odoo (CDC §3.2) — fill each level when
+        # Odoo provides it (PRIMARY/SECONDARY/TERTIARY/LOGISTIC → our qty fields).
+        for pkg_field in (
+            "primary_packaging_qty",
+            "secondary_packaging_qty",
+            "tertiary_packaging_qty",
+            "pallet_qty",
+        ):
+            pkg_val = getattr(op, pkg_field)
+            if pkg_val is not None:
+                defaults[pkg_field] = pkg_val
 
         product, created = Product.objects.update_or_create(
             sku_code=op.sku_code,

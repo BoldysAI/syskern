@@ -41,8 +41,10 @@ def eur_fx_rates() -> dict[str, Decimal]:
     return rates
 
 
-def to_eur(price: Decimal, currency: str, fx: dict[str, Decimal]) -> Decimal | None:
+def to_eur(price: Decimal | None, currency: str, fx: dict[str, Decimal]) -> Decimal | None:
     """Convert ``price`` in ``currency`` to EUR, or ``None`` if unconvertible."""
+    if price is None:
+        return None
     ccy = (currency or "EUR").upper()
     if ccy == "EUR":
         return price

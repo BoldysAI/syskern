@@ -34,6 +34,8 @@ from .v16 import (
     _resolve_variant_to_tmpl,
     _split_category,
     _to_decimal,
+    apply_packaging,
+    fetch_packaging_map,
 )
 
 logger = logging.getLogger(__name__)
@@ -185,7 +187,11 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
             return []
         tmpl_ids = [r["id"] for r in raws]
         supplier_map = self._fetch_supplier_map(tmpl_ids)
-        return [_normalize_product_v19(r, supplier_map) for r in raws]
+        pkg_map = fetch_packaging_map(self._kw, tmpl_ids)
+        products = [_normalize_product_v19(r, supplier_map) for r in raws]
+        for op, r in zip(products, raws, strict=True):
+            apply_packaging(op, pkg_map.get(r["id"], {}))
+        return products
 
     def get_product(self, odoo_id: int) -> OdooProduct:
         raws = self._kw(
@@ -197,7 +203,9 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
         if not raws:
             raise ValueError(f"product.template id={odoo_id} not found")
         supplier_map = self._fetch_supplier_map([odoo_id])
-        return _normalize_product_v19(raws[0], supplier_map)
+        op = _normalize_product_v19(raws[0], supplier_map)
+        apply_packaging(op, fetch_packaging_map(self._kw, [odoo_id]).get(odoo_id, {}))
+        return op
 
     def payload_from_product(self, product: OdooProduct) -> dict:
         """Same as v16 but also writes `gtin_code` (v19's canonical field)

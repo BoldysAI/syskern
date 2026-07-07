@@ -53,6 +53,12 @@ class OdooProduct:
     brand: str = ""
     dop_number: str = ""
     uom_name: str = ""
+    # Packaging levels from Odoo `product.packaging` (CDC §3.2 — "issu d'Odoo").
+    # Named PRIMARY / SECONDARY / TERTIARY / LOGISTIC on the client instance.
+    primary_packaging_qty: int | None = None
+    secondary_packaging_qty: int | None = None
+    tertiary_packaging_qty: int | None = None
+    pallet_qty: int | None = None
     weight_kg: Decimal | None = None
     standard_price_eur: Decimal | None = None
     suppliers: list[OdooSupplierLink] = field(default_factory=list)

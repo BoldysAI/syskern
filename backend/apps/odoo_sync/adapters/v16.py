@@ -238,6 +238,47 @@ def _resolve_variant_to_tmpl(
     return result
 
 
+def fetch_packaging_map(kw_fn, tmpl_ids: list[int]) -> dict[int, dict[str, int]]:
+    """tmpl_id → {LEVEL_NAME: qty} from ``product.packaging`` (linked via variant).
+
+    The client instance names its levels PRIMARY / SECONDARY / TERTIARY /
+    LOGISTIC. ``kw_fn`` is the adapter's ``_kw`` (passed to avoid circular refs).
+    """
+    if not tmpl_ids:
+        return {}
+    variants = kw_fn(
+        "product.product",
+        "search_read",
+        [[["product_tmpl_id", "in", tmpl_ids]]],
+        {"fields": ["id", "product_tmpl_id"]},
+    )
+    v2t = {v["id"]: _many2one_id(v.get("product_tmpl_id")) for v in variants}
+    if not v2t:
+        return {}
+    rows = kw_fn(
+        "product.packaging",
+        "search_read",
+        [[["product_id", "in", list(v2t)]]],
+        {"fields": ["name", "qty", "product_id"]},
+    )
+    result: dict[int, dict[str, int]] = {}
+    for r in rows:
+        tmpl = v2t.get(_many2one_id(r.get("product_id")))
+        qty = r.get("qty")
+        if tmpl is None or not qty:
+            continue
+        result.setdefault(tmpl, {})[str(r.get("name") or "").strip().upper()] = int(qty)
+    return result
+
+
+def apply_packaging(op: OdooProduct, levels: dict[str, int]) -> None:
+    """Map named Odoo packaging levels onto the product's qty fields."""
+    op.primary_packaging_qty = levels.get("PRIMARY")
+    op.secondary_packaging_qty = levels.get("SECONDARY")
+    op.tertiary_packaging_qty = levels.get("TERTIARY")
+    op.pallet_qty = levels.get("LOGISTIC") or levels.get("PALLET")
+
+
 # ── Adapter ───────────────────────────────────────────────────────────────────
 
 
@@ -312,7 +353,11 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
             return []
         tmpl_ids = [r["id"] for r in raws]
         supplier_map = self._fetch_supplier_map(tmpl_ids)
-        return [_normalize_product(r, supplier_map) for r in raws]
+        pkg_map = fetch_packaging_map(self._kw, tmpl_ids)
+        products = [_normalize_product(r, supplier_map) for r in raws]
+        for op, r in zip(products, raws, strict=True):
+            apply_packaging(op, pkg_map.get(r["id"], {}))
+        return products
 
     def get_product(self, odoo_id: int) -> OdooProduct:
         raws = self._kw(
@@ -324,7 +369,9 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         if not raws:
             raise ValueError(f"product.template id={odoo_id} not found")
         supplier_map = self._fetch_supplier_map([odoo_id])
-        return _normalize_product(raws[0], supplier_map)
+        op = _normalize_product(raws[0], supplier_map)
+        apply_packaging(op, fetch_packaging_map(self._kw, [odoo_id]).get(odoo_id, {}))
+        return op
 
     def payload_from_product(self, product: OdooProduct) -> dict:
         """Translate the platform's OdooProduct DTO → Odoo v16 write/create dict.

@@ -70,6 +70,35 @@ def test_upsert_fills_brand_dop_uom() -> None:
     assert p.uom == "KM"  # real Odoo unit kept verbatim
 
 
+def test_apply_packaging_maps_named_levels() -> None:
+    from apps.odoo_sync.adapters.v16 import apply_packaging
+
+    op = OdooProduct(odoo_id=1, sku_code="X", name="X")
+    apply_packaging(op, {"PRIMARY": 1, "SECONDARY": 30, "TERTIARY": 60, "LOGISTIC": 720})
+    assert op.primary_packaging_qty == 1
+    assert op.secondary_packaging_qty == 30
+    assert op.tertiary_packaging_qty == 60
+    assert op.pallet_qty == 720
+
+
+def test_upsert_writes_odoo_packaging() -> None:
+    op = OdooProduct(
+        odoo_id=601,
+        sku_code="PKG-1",
+        name="Câble conditionné",
+        primary_packaging_qty=1,
+        secondary_packaging_qty=30,
+        tertiary_packaging_qty=60,
+        pallet_qty=720,
+    )
+    _upsert_product(op, _log(), "v19", Product, ProductSupplier)
+    p = Product.objects.get(sku_code="PKG-1")
+    assert p.primary_packaging_qty == 1
+    assert p.secondary_packaging_qty == 30
+    assert p.tertiary_packaging_qty == 60
+    assert p.pallet_qty == 720
+
+
 def test_upsert_keeps_real_uom_even_when_unmapped() -> None:
     # A UoM the engine can't normalise (e.g. kg) must still be stored verbatim
     # on `uom` — full fidelity — while base_unit stays at its default.
