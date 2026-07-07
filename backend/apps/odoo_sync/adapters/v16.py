@@ -39,6 +39,10 @@ _PRODUCT_FIELDS = [
     "default_code",
     "categ_id",
     "barcode",
+    # The client's instance carries brand_id + gtin_code (normally v19 fields);
+    # fetch them so the v16 path keeps full fidelity on this deployment.
+    "brand_id",
+    "gtin_code",
     "weight",
     "hs_code",
     "type",
@@ -178,9 +182,9 @@ def _normalize_product(
         sub_range=sub_range,
         description_marketing_fr=raw.get("description_sale") or "",
         description_technical_fr=raw.get("description") or "",
-        gtin=raw.get("barcode") or "",
+        gtin=str(raw.get("gtin_code") or raw.get("barcode") or ""),
         hs_code=raw.get("hs_code") or "",
-        # v16 has no `brand_id` (v19-only); DoP + UoM are present.
+        brand=_many2one_name(raw.get("brand_id")),
         dop_number=(raw.get("x_studio_num_dop_china") or raw.get("x_studio_num_dop_trkiye") or ""),
         uom_name=_many2one_name(raw.get("uom_id")),
         weight_kg=_to_decimal(raw.get("weight")),
