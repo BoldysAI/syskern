@@ -44,6 +44,7 @@ supplier manually after migration (or the derivation step does it).
 from __future__ import annotations
 
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 
 import openpyxl
@@ -78,6 +79,15 @@ def _clean(value: object) -> str | None:
     if s is None or s in _EXCEL_ERRORS:
         return None
     return s
+
+
+def _leading_int(value: object) -> int | None:
+    """Leading integer of a packing label — "500m drum" → 500, "305M BOX" → 305."""
+    s = _clean(value)
+    if not s:
+        return None
+    m = re.match(r"\s*(\d+)", s)
+    return int(m.group(1)) if m else None
 
 
 class POFournisseursLoader(BaseExcelLoader):
@@ -166,6 +176,7 @@ class POFournisseursLoader(BaseExcelLoader):
             "Tag": "cpr_tag",
             "Origin": "origin",
             "Cu (kg/km)": "copper_weight",
+            "Individual Packing": "individual_packing",
             "QTY/Pallet": "pallet_qty",
             "Global Trade Item Number (GTIN)": "gtin",
             "HS Code": "hs_code",
@@ -223,6 +234,7 @@ class POFournisseursLoader(BaseExcelLoader):
             "gtin": _clean(raw.get("gtin")),
             "hs_code": _clean(raw.get("hs_code")),
             "copper_weight": copper,
+            "primary_packaging_qty": _leading_int(raw.get("individual_packing")),
             "pallet_qty": pallet,
             "fob_price_usd": Decimal(fob_str) if fob_str else None,
             "supplier_code": _clean(raw.get("supplier_code")),
@@ -312,6 +324,7 @@ class POFournisseursLoader(BaseExcelLoader):
                 product.is_copper_indexed = new_indexed
                 changed = True
 
+        _set("primary_packaging_qty", d.get("primary_packaging_qty"))
         _set("pallet_qty", d.get("pallet_qty"))
 
         # GTIN & HS code: only set if valid (non-null, non-error)

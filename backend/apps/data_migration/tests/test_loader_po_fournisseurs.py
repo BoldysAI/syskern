@@ -605,3 +605,23 @@ class TestPOMissingFactorySuffixSuppliers:
         assert ProductSupplier.objects.get(product=p, factory_code="?ZD").po_base_price == Decimal(
             "200"
         )
+
+
+# ── Individual Packing → primary_packaging_qty (packaging enrichment) ────────────
+
+
+def test_leading_int_parses_packing_label():
+    from apps.data_migration.loaders.loader_po_fournisseurs import _leading_int
+
+    assert _leading_int("500m drum") == 500
+    assert _leading_int("305M REELEX BOX") == 305
+    assert _leading_int("1000") == 1000
+    assert _leading_int("drum only") is None
+    assert _leading_int("") is None
+    assert _leading_int(None) is None
+
+
+def test_normalize_row_maps_individual_packing_to_primary_packaging():
+    row = pd.Series({"sku_code": "KX1", "fob_price_usd": "10", "individual_packing": "500m drum"})
+    out = POFournisseursLoader().normalize_row(row)
+    assert out.data["primary_packaging_qty"] == 500
