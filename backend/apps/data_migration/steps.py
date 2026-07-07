@@ -192,14 +192,38 @@ def step_validate_and_derive(ctx: MigrationContext) -> StepReport:
     )
 
 
+def step_supplier_activation(ctx: MigrationContext) -> StepReport:
+    """Activate the priced ProductSupplier per product so pricing can run (CDC §3.2).
+
+    The loaders leave the distributor (Symea, price 0) active while the real
+    factory price sits on an inactive source; the engine reads the *active*
+    source's ``po_base_price``, so ~97% of products would be un-priceable
+    without this repair.
+    """
+    from apps.products.management.commands.fix_active_supplier import (
+        activate_priced_suppliers,
+    )
+
+    r = activate_priced_suppliers(dry_run=ctx.dry_run)
+    fixed = r["fixed_single"] + r["fixed_multi"]
+    detail = (
+        f"activated={fixed} (single={r['fixed_single']} multi={r['fixed_multi']}) "
+        f"already_priced={r['already_ok']} no_price={r['no_price']}"
+    )
+    return StepReport(updated=fixed, detail=detail + (" [dry-run]" if ctx.dry_run else ""))
+
+
 # ── Step assembly ───────────────────────────────────────────────────────────
 
 
 def build_default_steps() -> list[MigrationStep]:
-    """The canonical 4-step pipeline (CDC §8.4), in order."""
+    """The canonical pipeline (CDC §8.4) + supplier-activation repair, in order."""
     return [
         MigrationStep(1, "odoo_sync", "Sync Odoo initiale", step_odoo_sync),
         MigrationStep(2, "excel_enrichment", "Enrichissement Excel", step_excel_enrichment),
         MigrationStep(3, "create_non_odoo", "Création produits hors-Odoo", step_create_non_odoo),
         MigrationStep(4, "validate_derive", "Validation et dérivations", step_validate_and_derive),
+        MigrationStep(
+            5, "supplier_activation", "Activation fournisseur pricable", step_supplier_activation
+        ),
     ]
