@@ -751,3 +751,15 @@ valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
 - **Packaging Odoo** (`packaging_ids`) reste à câbler (vide sur l'instance actuelle) ; Excel
   `Individual Packing` → `primary_packaging_qty` fait (commit précédent). Cf. [[project_odoo_catalog_reality]].
 - **Tests** : `test_loader_po_fournisseurs.py` (EAV écrits + dry-run n'écrit rien) ; helper couvert.
+
+## 2026-07-07 · [P] Odoo bi-sync v16/v19 — sélection de champs défensive
+- **Rappel CDC** (§5, ligne 1029 « Intégration Odoo (dual v16/v19) ») : la plateforme supporte **les
+  deux versions** via `adapters/factory.get_odoo_adapter()` piloté par `ODOO_API_VERSION` (v16|v19).
+  Donner l'instance v16 au dev ne signifie pas « v16 uniquement » — les deux adapters coexistent.
+- **Instance client** : l'Odoo « 16 » fourni (`…34192539`) porte des champs custom `brand_id`,
+  `gtin_code` (habituellement v19) + `x_studio_num_dop_*`. Pour garder la pleine fidélité sans casser
+  un Odoo 16 standard, l'adapter v16 récupère les champs custom **seulement s'ils existent** :
+  `OdooAdapterV16._product_fields()` intersecte `_PRODUCT_FIELDS` avec un `fields_get` (caché), avec
+  repli sur la liste complète si l'appel est stubbé/échoue. → v16 marche sur toute instance.
+- Local : `.env` basculé sur `ODOO_API_VERSION=v16` + creds `…34192539` ; sync v16 → brand 99%,
+  uom 80%, packaging niveaux, pricable 82% (auto-maintenu). v19 reste opérationnel (bascule par env).

@@ -311,8 +311,24 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         self._verify_tls = verify_tls
         self._uid: int | None = None
         self._client = None
+        self._product_fields_cache: list[str] | None = None
 
     # ── Products ──────────────────────────────────────────────────────────
+
+    def _product_fields(self) -> list[str]:
+        """`_PRODUCT_FIELDS` intersected with the fields the instance actually
+        exposes — so custom fields (brand_id, gtin_code, x_studio_*) are fetched
+        when present but never break a standard Odoo 16 that lacks them (CDC
+        dual-version robustness). Cached after the first `fields_get`."""
+        if self._product_fields_cache is None:
+            meta = self._kw("product.template", "fields_get", [], {"attributes": ["type"]})
+            # fields_get returns a {field_name: {...}} dict on a real instance.
+            # Anything else (stub/error) → fall back to the full list.
+            existing = set(meta) if isinstance(meta, dict) else set()
+            self._product_fields_cache = (
+                [f for f in _PRODUCT_FIELDS if f in existing] if existing else list(_PRODUCT_FIELDS)
+            )
+        return self._product_fields_cache
 
     def _fetch_supplier_map(self, tmpl_ids: list[int]) -> dict[int, list[OdooSupplierLink]]:
         if not tmpl_ids:
@@ -351,7 +367,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
             "product.template",
             "search_read",
             [domain],
-            {"fields": _PRODUCT_FIELDS, "limit": limit, "offset": offset},
+            {"fields": self._product_fields(), "limit": limit, "offset": offset},
         )
         if not raws:
             return []
@@ -368,7 +384,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
             "product.template",
             "read",
             [[odoo_id]],
-            {"fields": _PRODUCT_FIELDS},
+            {"fields": self._product_fields()},
         )
         if not raws:
             raise ValueError(f"product.template id={odoo_id} not found")
