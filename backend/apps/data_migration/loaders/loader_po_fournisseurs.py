@@ -50,13 +50,46 @@ from decimal import Decimal, InvalidOperation
 import openpyxl
 import pandas as pd
 
+from apps.attributes.models import AttributeCategory, AttributeDataType, AttributeRegistry
 from apps.core.models import Currency
 from apps.products.models import Incoterm, MigrationSource, Product, ProductSupplier
 
 from .base import BaseExcelLoader
+from .eav import EAVDef, ensure_attributes, set_value
 from .exceptions import InvalidRowError, MissingRequiredFieldError
 from .io import coerce_decimal, coerce_int, coerce_str, row_to_raw
 from .types import LoaderConfig, MatchHint, NormalizedRow, RowOutcome
+
+# Full-fidelity EAV attributes carried by the UKN PO file (CDC §3.2). Codes
+# reuse the technique loader's where they overlap (cpr_level). get_or_create is
+# idempotent, so declaring them here is safe even if another loader owns them.
+_UKN_EAV_ATTRS: list[EAVDef] = [
+    EAVDef(
+        "shielding_type",
+        "Type de blindage",
+        "Shielding type",
+        AttributeDataType.TEXT,
+        AttributeCategory.TECHNICAL,
+    ),
+    EAVDef("awg", "Calibre AWG", "AWG / size", AttributeDataType.TEXT, AttributeCategory.TECHNICAL),
+    EAVDef(
+        "cpr_level", "Niveau CPR", "CPR level", AttributeDataType.TEXT, AttributeCategory.TECHNICAL
+    ),
+    EAVDef(
+        "moq",
+        "Quantité minimale",
+        "Minimum order qty",
+        AttributeDataType.TEXT,
+        AttributeCategory.COMMERCIAL,
+    ),
+    EAVDef(
+        "lead_time",
+        "Délai de livraison",
+        "Lead time",
+        AttributeDataType.TEXT,
+        AttributeCategory.LOGISTIC,
+    ),
+]
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +136,9 @@ class POFournisseursLoader(BaseExcelLoader):
         self._copper_base_price: Decimal | None = None
         # factory_code (str) → supplier short name (str), e.g. {"17": "ZD", "21": "HT"}
         self._factory_to_name: dict[str, str] = {}
+        # code → AttributeRegistry, populated by pre_run(); dry-run gate for EAV.
+        self._eav: dict[str, AttributeRegistry] = {}
+        self._dry_run: bool = False
 
     # ── pre_run hook ──────────────────────────────────────────────────────────
 
@@ -111,10 +147,13 @@ class POFournisseursLoader(BaseExcelLoader):
         wb = openpyxl.load_workbook(config.file_path, data_only=True, read_only=True)
         self._read_copper_base(wb)
         self._read_supplier_codes(wb)
+        self._dry_run = config.dry_run
+        self._eav = ensure_attributes(_UKN_EAV_ATTRS)
         logger.info(
-            "Metadata: copper_base=%s, suppliers=%s",
+            "Metadata: copper_base=%s, suppliers=%s, eav=%s",
             self._copper_base_price,
             self._factory_to_name,
+            sorted(self._eav),
         )
 
     def _read_copper_base(self, wb: openpyxl.Workbook) -> None:
@@ -180,9 +219,11 @@ class POFournisseursLoader(BaseExcelLoader):
             "QTY/Pallet": "pallet_qty",
             "Global Trade Item Number (GTIN)": "gtin",
             "HS Code": "hs_code",
-            "MOQ ": "moq",
+            # Headers are whitespace-stripped on read (io.read_sheet), so the
+            # mapping keys must not carry trailing spaces or they never match.
+            "MOQ": "moq",
             "Supplier Payment term": "payment_term",
-            "Lead time ": "lead_time",
+            "Lead time": "lead_time",
             "Distributor SC FOB Price (Usd/km)": "fob_price_usd",
             "MB% FOB Symea": "symea_margin_rate",
             "Supplier": "supplier_code",
@@ -242,6 +283,11 @@ class POFournisseursLoader(BaseExcelLoader):
             "payment_term": _clean(raw.get("payment_term")),
             "moq": _clean(raw.get("moq")),
             "symea_margin_rate": Decimal(margin_str) if margin_str else None,
+            # EAV (full fidelity) — mapped to attribute_registry, not columns.
+            "shielding_type": _clean(raw.get("cable_type")),
+            "awg": _clean(raw.get("awg")),
+            "cpr_level": _clean(raw.get("cpr_tag")),
+            "lead_time": _clean(raw.get("lead_time")),
         }
 
         return NormalizedRow(data=data, raw=row_to_raw(raw))
@@ -326,6 +372,12 @@ class POFournisseursLoader(BaseExcelLoader):
 
         _set("primary_packaging_qty", d.get("primary_packaging_qty"))
         _set("pallet_qty", d.get("pallet_qty"))
+
+        # Full-fidelity EAV: attributes with no dedicated column (CDC §3.2).
+        # Guarded by dry-run; set_value skips unsaved products + empty values.
+        if not self._dry_run:
+            for code in ("shielding_type", "awg", "cpr_level", "moq", "lead_time"):
+                set_value(product, self._eav.get(code), d.get(code))
 
         # GTIN & HS code: only set if valid (non-null, non-error)
         _set("gtin", d.get("gtin"))

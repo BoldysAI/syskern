@@ -290,6 +290,27 @@ class TestPOLoaderReport:
         # tolerated → supplier created without a price). Row 3: NO_SKU, Row 4: NO_MATCH.
         assert report.rows_matched == 3
 
+    def test_eav_attributes_written(self) -> None:
+        from apps.attributes.models import ProductAttributeValue
+
+        POFournisseursLoader().run(default_config())
+        p = Product.objects.get(sku_code="KCFU64PZHDGR5")
+        vals = {
+            pav.attribute.code: pav.value
+            for pav in ProductAttributeValue.objects.filter(product=p).select_related("attribute")
+        }
+        # Full fidelity: Type/AWG/Tag/MOQ columns → EAV attributes.
+        assert vals.get("shielding_type") == "F/UTP"
+        assert vals.get("awg") == "23"
+        assert vals.get("cpr_level") == "Dca"
+        assert vals.get("moq") == "30 km"
+
+    def test_eav_not_written_on_dry_run(self) -> None:
+        from apps.attributes.models import ProductAttributeValue
+
+        POFournisseursLoader().run(default_config(dry_run=True))
+        assert ProductAttributeValue.objects.count() == 0
+
     def test_quarantine_no_sku(self) -> None:
         report = POFournisseursLoader().run(default_config())
         assert report.rows_unmatched.get(UnmatchedReason.NO_SKU, 0) >= 1

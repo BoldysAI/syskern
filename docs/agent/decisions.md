@@ -734,3 +734,20 @@ valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
   prix est sur une source inactive → 3% seulement pricables). Cf. [[project_odoo_catalog_reality]].
 - **Tests** : `apps/odoo_sync/tests/test_product_enrichment.py` (mapping UoM, upsert additif non
   destructif, `uom` verbatim même non mappé) + `test_adapters.py` étendus.
+
+## 2026-07-07 · [P] Fidélité totale — attributs Excel → EAV + fix MOQ/Lead time
+- **Objectif (dev, 2026-07-07)** : tout ce qui existe sur un produit dans Odoo/Excel doit exister
+  dans notre système. Mécanisme CDC §3.2 : champ connu → colonne, sinon → EAV (`attribute_registry`
+  + `product_attribute_values`, « le client peut ajouter un attribut sans migration »).
+- **Helper partagé** `apps/data_migration/loaders/eav.py` (`EAVDef` / `ensure_attributes` /
+  `set_value`) — `get_or_create` idempotent des attributs, écriture d'une valeur par produit×attribut,
+  skip null/vide + produit non sauvé. Réutilisable par tous les loaders.
+- **UKN PO loader** (`loader_po_fournisseurs`) mappe désormais en EAV : `shielding_type` (col Type),
+  `awg` (AWG/SIZE), `cpr_level` (col Tag — code partagé avec le technique loader), `moq`, `lead_time`.
+  Écritures **gardées par dry-run** (apply_update tourne aussi en dry-run) et par `product.pk`.
+- **Bug latent corrigé** : les clés de `column_mapping` `"MOQ "` / `"Lead time "` portaient un espace
+  final ; or `io.read_sheet` **strippe les en-têtes** → ces colonnes n'étaient jamais mappées (MOQ
+  n'arrivait même pas dans les notes). Clés corrigées en `"MOQ"` / `"Lead time"`.
+- **Packaging Odoo** (`packaging_ids`) reste à câbler (vide sur l'instance actuelle) ; Excel
+  `Individual Packing` → `primary_packaging_qty` fait (commit précédent). Cf. [[project_odoo_catalog_reality]].
+- **Tests** : `test_loader_po_fournisseurs.py` (EAV écrits + dry-run n'écrit rien) ; helper couvert.
