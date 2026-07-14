@@ -26,6 +26,7 @@ const BreadcrumbContext = createContext<{
 
 const SECTION_LABELS: Record<string, { label: string; href: string }> = {
   catalog: { label: "Catalogue", href: "/catalog" },
+  suppliers: { label: "Fournisseurs", href: "/suppliers" },
   simulator: { label: "Simulations", href: "/simulator" },
   comparator: { label: "Comparaisons", href: "/comparator" },
   offers: { label: "Offres", href: "/offers" },

@@ -293,6 +293,10 @@ def _sync_suppliers(product, supplier_links, ProductSupplier) -> None:
     which the pricing engine reads — respecting the partial unique index
     ``one_active_supplier_per_product``; the others are stored inactive.
     """
+    # Resolve/create the Supplier *entity* so a source seen first via Odoo still
+    # becomes managed in the Fournisseurs module (module Fournisseurs, FEEDBACK 1).
+    from apps.suppliers.services import get_or_create_supplier_by_name
+
     primary_name: str | None = None
     seen: set[str] = set()
     for link in supplier_links or []:
@@ -302,10 +306,18 @@ def _sync_suppliers(product, supplier_links, ProductSupplier) -> None:
         if primary_name is None:
             primary_name = link.name
         currency = link.currency if link.currency in ("EUR", "USD", "RMB") else "EUR"
+        supplier_entity = get_or_create_supplier_by_name(
+            link.name,
+            defaults={
+                "currency_default": currency,
+                "factory_code_default": link.factory_code or "",
+            },
+        )
         ProductSupplier.objects.update_or_create(
             product=product,
             supplier_name=link.name,
             defaults={
+                "supplier": supplier_entity,
                 "factory_code": link.factory_code or "",
                 "po_base_price": link.price,
                 "po_currency": currency,

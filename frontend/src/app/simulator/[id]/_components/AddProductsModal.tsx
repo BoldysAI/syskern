@@ -87,6 +87,21 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
     });
   };
 
+  const toggleFilteredProducts = (products: Product[], select: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const product of products) {
+        if (existing.has(product.id)) continue;
+        if (select) {
+          next.set(product.id, { id: product.id, sku_code: product.sku_code, name: product.name });
+        } else {
+          next.delete(product.id);
+        }
+      }
+      return next;
+    });
+  };
+
   const handleOpenChange = (next: boolean) => {
     if (!next && !submitting) {
       setSelected(new Map());
@@ -131,7 +146,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex max-h-[92vh] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl"
+        className="flex h-[92vh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]"
         showCloseButton={!submitting}
       >
         <DialogHeader className="border-b border-border px-5 py-4">
@@ -161,6 +176,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
             selectedIds={selectedIds}
             onToggleProduct={toggleRow}
             onTogglePageProducts={togglePageProducts}
+            onToggleFilteredProducts={toggleFilteredProducts}
             disabledRowIds={existing}
             extraColumns={extraColumns}
           />

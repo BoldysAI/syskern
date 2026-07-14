@@ -336,6 +336,40 @@ versions inchangées. **Pagination serveur** (2026-07-06) : `offset`/`ordering` 
 le tri « Document » ordonne par `file_name` (le `name` JSONB n'est pas triable), taille par
 `file_size_bytes` — `DocumentLibraryViewSet.ordering_fields` les whiteliste.
 
+## Filtres de liste — style unique (OBLIGATOIRE)
+
+**Tous les filtres de liste utilisent le même style que le catalogue** — jamais de barre de
+`FilterSelect`/dropdowns ni de `<select>` custom pour les facettes. Le standard, décliné dans **chaque**
+domaine (`catalog`, `offers`, `library`, `comparator`, `simulator`, `suppliers`) :
+
+- **Sidebar de filtres** = sections repliables `components/FilterSection` (titre + icône Phosphor
+  `duotone` + badge `activeCount`, **fermées par défaut**) contenant `components/FilterCheckboxGroup`
+  (multi-checkbox, `searchable` si > 4 options). Une par domaine : `XFiltersSidebar.tsx`.
+- **Recherche plein-texte** = `components/SearchInput` dans la barre d'outils (debounce ~250 ms → `q`).
+- **Chips de filtres actifs** = barre `XActiveFilterBar` au-dessus du tableau (catégorie + label + `X`
+  pour retirer, bouton « Tout effacer »). Compteur `countActiveXFilters`.
+- **Layout** = shell pleine hauteur `flex h-full` : `aside` sidebar gauche (repliable via
+  `usePersistedBoolean`, largeur `useResizableWidth` si besoin) + colonne principale (toolbar recherche +
+  active bar + `DataTable`).
+- **Modèle de filtres** = un module `x-filters.ts` : type `XFilters` (arrays `string[]`), `applyXFilters`
+  (client) ou `buildXQuery` (serveur), `countActive`, `buildChips`/`removeChip`.
+- `FilterSelect` (dropdown) est réservé aux **formulaires** (ligne de transport, modale) — **pas** aux
+  filtres de liste. Réf. : `suppliers/_components/{SuppliersFiltersSidebar,SuppliersActiveFilterBar,supplier-filters}`.
+- **Sélection de produits/SKU** (picker, wizard, panneau embarqué) = **réutiliser `CatalogBrowser`**
+  (`variant="embedded"`, `selectedIds`/`onToggleProduct`, `disabledRowIds`, `extraColumns`,
+  `initialFilters` pour scoper) — le vrai tableau catalogue avec tous ses filtres. Ne jamais recréer un
+  mini-tableau de sélection. Réfs : `simulator/[id]/_components/AddProductsModal`,
+  `suppliers/_components/{AddSkusDialog,BatchPriceWizard}`, fiche `/suppliers/[id]` (SKU liés).
+  **Sélection en masse** : en-tête de colonne = case à cocher + chevron, **un seul bouton** ;
+  chaque clic ouvre un menu (« Toute la page », « Tous les résultats filtrés », désélection).
+  `fetchAllCatalogProducts` pour la portée filtrée. Implémenter
+  `onTogglePageProducts` + `onToggleFilteredProducts` côté parent.
+- **Taille des wizards/modales embarquant `CatalogBrowser` = quasi plein écran** (le catalogue a besoin
+  de place) : `AppModal size="full"` (→ `h-[92vh] w-[95vw]`) **ou** `DialogContent` en
+  `h-[92vh] w-[95vw] max-w-[95vw]`. Le `CatalogBrowser` doit **remplir** la hauteur (`flex min-h-0 flex-1`),
+  pas de hauteur fixe en `px`. Fiche fournisseur : layout `flex h-full` — le bloc SKU liés prend
+  l'espace restant sous l'en-tête / paramètres par défaut.
+
 ## Tableau de données partagé (`components/data-table/`)
 
 **Source unique** pour le shell UI des grands tableaux (catalogue produits, lignes simulation).
@@ -678,6 +712,20 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 
 `StockPurchaseMixSlider` (`simulator/_components/`) = alias rétro-compat vers `MixSlider`.
 
+**Fournisseurs** (`/suppliers`, `/suppliers/[id]`) — module Fournisseurs (Épic FEEDBACK 1). Entrée
+**Fournisseurs** dans `NAV_ITEMS` (`AppShell`, icône `Truck`), section breadcrumb `suppliers`. **Tous
+les tableaux (liste, SKU liés, historique, sélection wizard) utilisent `DataTable`** (règle : pas de
+`<table>` custom) et **tous les filtres suivent le style unique** (`FilterSection` multi-checkbox +
+chips `ActiveFilterBar`, cf. section « Filtres de liste »). Liste = shell `aside` (`SuppliersFiltersSidebar`)
++ toolbar `SearchInput` + `SuppliersActiveFilterBar` + `DataTable` + CRUD `AppModal` (`SupplierModal`) +
+import PO (`PoImportDialog`) + **wizard prix en batch** (`BatchPriceWizard`). **Toute sélection de SKU
+réutilise `CatalogBrowser`** (embedded) : SKU liés de la fiche (`CatalogBrowser` scopé au fournisseur +
+`extraColumns` PO/Retirer), ajout de SKU (`AddSkusDialog`, multi-select), sélection du wizard (product_ids).
+Historique = side panel `Sheet`. Édition gardée par `canEdit`. API `lib/api.ts` (`listSuppliers`,
+`getSupplier`, `createSupplierEntity`, `updateSupplier`, `deleteSupplier`, `getSupplierSkus`,
+`addSupplierSku`, `removeSupplierSku`, `bulkLinkSkus`, `startPoImport`, `getSupplierPriceHistory`,
+`bulkUpdatePo`). Détail → `suppliers.md`.
+
 **Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
 
 - **Données** : un seul `useSWR("dashboard-summary", getDashboardSummary)` → `GET /api/dashboard/summary` (agrégats catalogue, simulations, offres, comparaisons, bibliothèque, marché, `todo`, `recent`). Admin : `getSyncStatus` séparé dans `DashboardAdminLinks`.
@@ -759,6 +807,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Data fetching via SWR, cache key en tableau
 - [ ] Decimal API fields traités comme `string`, jamais de calcul front
 - [ ] Nouveau tableau paginé : réutiliser `components/data-table/DataTable` (pas de `<table>` custom)
+- [ ] Filtres de liste : style unique (`FilterSection` + `FilterCheckboxGroup` + chips `ActiveFilterBar`,
+      cf. § « Filtres de liste ») — jamais de barre de `FilterSelect`/dropdowns
 - [ ] Tailwind 4 : vérifier syntaxe via Context7 si doute
 - [ ] `cn()` pour toutes les classes conditionnelles
 - [ ] `canEdit(role)` / `isAdmin(role)` pour les guards de permission

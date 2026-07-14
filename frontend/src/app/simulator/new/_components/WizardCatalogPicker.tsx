@@ -48,6 +48,21 @@ export function WizardCatalogPicker({
     [onAdd, onRemoveMany, selectedIds],
   );
 
+  const onToggleFilteredProducts = useCallback(
+    (products: Product[], select: boolean) => {
+      if (select) {
+        onAdd(
+          products
+            .filter((p) => !selectedIds.has(p.id))
+            .map((p) => ({ id: p.id, sku_code: p.sku_code, name: p.name })),
+        );
+      } else {
+        onRemoveMany(products.map((p) => p.id));
+      }
+    },
+    [onAdd, onRemoveMany, selectedIds],
+  );
+
   return (
     <CatalogBrowser
       className={className}
@@ -64,6 +79,7 @@ export function WizardCatalogPicker({
       selectedIds={selectedIds}
       onToggleProduct={onToggleProduct}
       onTogglePageProducts={onTogglePageProducts}
+      onToggleFilteredProducts={onToggleFilteredProducts}
     />
   );
 }

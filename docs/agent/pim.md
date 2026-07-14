@@ -21,7 +21,11 @@ pour ajouter une ressource DRF générique, suis `drf-resource.md`.
   `sku_code` (souvent `name` = SKU en base migrée). Exposée sur les lignes simulation
   (`product_designation`) et les exports pricing.
 - **`products.ProductSupplier`** — sources d'achat. Contrainte : **un seul fournisseur
-  actif par produit** (partial unique index `one_active_supplier_per_product`).
+  actif par produit** (partial unique index `one_active_supplier_per_product`). Porte désormais
+  une **FK `supplier` → `suppliers.Supplier`** (entité, module Fournisseurs → `suppliers.md`) ;
+  `supplier_name` **conservé dénormalisé** (compat Odoo sync / filtres / exports). Reste la source
+  de vérité pour le pricing (prix/devise/incoterm par lien). Changements de PO tracés dans
+  `products.SupplierPriceHistory`.
 - **`attributes.AttributeRegistry`** — définitions d'attributs dynamiques (EAV).
 - **`attributes.ProductAttributeValue`** — valeurs par produit, `UNIQUE(product, attribute)`.
 

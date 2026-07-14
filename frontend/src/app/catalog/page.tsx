@@ -42,6 +42,17 @@ export default function CatalogPage() {
     });
   }, []);
 
+  const onToggleFilteredProducts = useCallback((products: Product[], select: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const product of products) {
+        if (select) next.add(product.id);
+        else next.delete(product.id);
+      }
+      return next;
+    });
+  }, []);
+
   const selectionBar = useCallback(
     ({ selectedIds: ids, filters }: { selectedIds: string[]; filters: CatalogFilters }) => (
       <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-2.5 sm:px-6">
@@ -95,6 +106,7 @@ export default function CatalogPage() {
         selectedIds={selected}
         onToggleProduct={onToggleProduct}
         onTogglePageProducts={onTogglePageProducts}
+        onToggleFilteredProducts={onToggleFilteredProducts}
         onRowClick={(product) => setDrawerSku(product.sku_code)}
         toolbarActions={({ filters, total }) => (
           <>

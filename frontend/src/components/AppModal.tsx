@@ -18,7 +18,7 @@ interface AppModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
-  size?: "sm" | "md" | "lg" | "xl" | "2xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
 }
 
 const sizeClass = {
@@ -27,6 +27,8 @@ const sizeClass = {
   lg: "max-w-lg",
   xl: "max-w-2xl",
   "2xl": "max-w-5xl",
+  // Near full-screen — mandatory for wizards embedding CatalogBrowser (§ frontend.md).
+  full: "h-[92vh] w-[95vw] max-w-[95vw]",
 } as const;
 
 /** Standard dialog wrapper — replaces custom fixed overlay modals. */

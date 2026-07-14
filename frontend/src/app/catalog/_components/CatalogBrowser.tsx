@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import useSWR from "swr";
 import {
+  CaretDown,
+  CircleNotch,
   Faders,
   Package,
   SidebarSimple,
   Sparkle,
   SquaresFour,
 } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import {
+  fetchAllCatalogProducts,
   getCatalogProducts,
   getFilterableAttributes,
   listAttributes,
@@ -25,6 +29,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { SearchInput } from "@/components/SearchInput";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CatalogSidebar } from "./CatalogSidebar";
 import { ActiveFilterBar } from "./ActiveFilterBar";
 import { CatalogFilterSheet, CatalogFilterTrigger } from "./CatalogFilterSheet";
@@ -70,6 +81,8 @@ export interface CatalogBrowserProps {
   paginationJumpInputId?: string;
   enableSavedFilters?: boolean;
   enabled?: boolean;
+  /** Seed the initial filter state (e.g. scope an embedded picker to a supplier). */
+  initialFilters?: CatalogFilters;
 
   /** Titre affiché dans la barre d'outils (variant embedded) */
   title?: string;
@@ -84,6 +97,8 @@ export interface CatalogBrowserProps {
   onToggleProduct?: (product: Product) => void;
   /** Sélection / désélection en masse de la page courante (évite les mises à jour d'état périmées). */
   onTogglePageProducts?: (products: Product[], select: boolean) => void;
+  /** Sélection / désélection en masse de tous les produits correspondant aux filtres actifs. */
+  onToggleFilteredProducts?: (products: Product[], select: boolean) => void;
   disabledRowIds?: Set<string>;
   onRowClick?: (product: Product) => void;
 }
@@ -107,23 +122,26 @@ export function CatalogBrowser({
   paginationJumpInputId = "catalog-page-jump",
   enableSavedFilters = true,
   enabled = true,
+  initialFilters,
   title,
   toolbarActions,
   selectionBar,
   selectedIds,
   onToggleProduct,
   onTogglePageProducts,
+  onToggleFilteredProducts,
   disabledRowIds,
   onRowClick,
 }: CatalogBrowserProps) {
   const confirm = useConfirm();
   const selectionEnabled = Boolean(selectedIds && onToggleProduct);
 
-  const [filters, setFilters] = useState<CatalogFilters>({});
-  const [searchInput, setSearchInput] = useState("");
+  const [filters, setFilters] = useState<CatalogFilters>(initialFilters ?? {});
+  const [searchInput, setSearchInput] = useState(initialFilters?.q ?? "");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [selectingFiltered, setSelectingFiltered] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -183,8 +201,8 @@ export function CatalogBrowser({
   }, []);
 
   const resetFilters = () => {
-    setFilters({});
-    setSearchInput("");
+    setFilters(initialFilters ?? {});
+    setSearchInput(initialFilters?.q ?? "");
     setPage(1);
   };
 
@@ -221,20 +239,50 @@ export function CatalogBrowser({
     selectableProducts.length > 0 &&
     selectableProducts.every((p) => selectedIds!.has(p.id));
 
-  const toggleSelectPage = () => {
-    if (!selectionEnabled) return;
-    const pageProducts = products.filter((p) => !disabled.has(p.id));
-    if (pageProducts.length === 0) return;
+  const somePageSelected =
+    selectionEnabled &&
+    selectableProducts.some((p) => selectedIds!.has(p.id)) &&
+    !allPageSelected;
 
-    if (onTogglePageProducts) {
-      onTogglePageProducts(pageProducts, !allPageSelected);
-      return;
-    }
+  const applyBulkSelection = useCallback(
+    (bulkProducts: Product[], select: boolean, scope: "page" | "filtered") => {
+      if (!selectionEnabled || bulkProducts.length === 0) return;
 
-    for (const product of pageProducts) {
-      const isSelected = selectedIds!.has(product.id);
-      if (allPageSelected && isSelected) onToggleProduct!(product);
-      if (!allPageSelected && !isSelected) onToggleProduct!(product);
+      if (scope === "page" && onTogglePageProducts) {
+        onTogglePageProducts(bulkProducts, select);
+        return;
+      }
+      if (scope === "filtered" && onToggleFilteredProducts) {
+        onToggleFilteredProducts(bulkProducts, select);
+        return;
+      }
+      if (onTogglePageProducts) {
+        onTogglePageProducts(bulkProducts, select);
+        return;
+      }
+
+      for (const product of bulkProducts) {
+        const isSelected = selectedIds!.has(product.id);
+        if (select && !isSelected) onToggleProduct!(product);
+        if (!select && isSelected) onToggleProduct!(product);
+      }
+    },
+    [onToggleFilteredProducts, onTogglePageProducts, onToggleProduct, selectedIds, selectionEnabled],
+  );
+
+  const selectFilteredProducts = async (select: boolean) => {
+    if (!selectionEnabled || selectingFiltered || total === 0) return;
+    setSelectingFiltered(true);
+    try {
+      const all = await fetchAllCatalogProducts({ ...listFilters, ordering });
+      const selectable = all.filter((p) => !disabled.has(p.id));
+      applyBulkSelection(selectable, select, "filtered");
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Impossible de charger tous les produits filtrés.",
+      );
+    } finally {
+      setSelectingFiltered(false);
     }
   };
 
@@ -548,12 +596,79 @@ export function CatalogBrowser({
           renderLeadingHeader={
             selectionEnabled
               ? () => (
-                  <Checkbox
-                    checked={allPageSelected}
-                    onCheckedChange={() => toggleSelectPage()}
-                    aria-label="Tout sélectionner"
-                    disabled={selectableProducts.length === 0}
-                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          disabled={selectableProducts.length === 0 && total === 0}
+                          className="inline-flex items-center gap-0.5 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                          aria-label="Choisir une sélection en masse"
+                        />
+                      }
+                    >
+                      <Checkbox
+                        checked={allPageSelected || somePageSelected}
+                        className="pointer-events-none"
+                        aria-hidden
+                        tabIndex={-1}
+                      />
+                      {selectingFiltered ? (
+                        <CircleNotch size={12} className="animate-spin" />
+                      ) : (
+                        <CaretDown size={12} weight="bold" />
+                      )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-56">
+                      <DropdownMenuItem
+                        onClick={() =>
+                          applyBulkSelection(
+                            products.filter((p) => !disabled.has(p.id)),
+                            true,
+                            "page",
+                          )
+                        }
+                        disabled={selectableProducts.length === 0}
+                      >
+                        Toute la page
+                        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                          {selectableProducts.length}
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => void selectFilteredProducts(true)}
+                        disabled={selectingFiltered || total === 0}
+                      >
+                        Tous les résultats filtrés
+                        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                          {total.toLocaleString("fr-FR")}
+                        </span>
+                      </DropdownMenuItem>
+                      {(somePageSelected || allPageSelected || (selectedIds && selectedIds.size > 0)) && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {(somePageSelected || allPageSelected) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                applyBulkSelection(
+                                  products.filter((p) => !disabled.has(p.id)),
+                                  false,
+                                  "page",
+                                )
+                              }
+                            >
+                              Désélectionner la page
+                            </DropdownMenuItem>
+                          )}
+                          {selectedIds && selectedIds.size > 0 && (
+                            <DropdownMenuItem onClick={() => void selectFilteredProducts(false)}>
+                              Désélectionner tous les résultats
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )
               : undefined
           }
