@@ -1,12 +1,13 @@
 from django.contrib import admin
 
-from .models import Product, ProductSupplier
+from .models import Product, ProductSupplier, SupplierPriceHistory
 
 
 class ProductSupplierInline(admin.TabularInline):
     model = ProductSupplier
     extra = 0
     fields = (
+        "supplier",
         "supplier_name",
         "factory_code",
         "is_active",
@@ -14,6 +15,7 @@ class ProductSupplierInline(admin.TabularInline):
         "po_currency",
         "incoterm",
     )
+    autocomplete_fields = ("supplier",)
 
 
 @admin.register(Product)
@@ -54,4 +56,21 @@ class ProductSupplierAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active", "po_currency", "incoterm", "is_copper_indexed")
     search_fields = ("supplier_name", "product__sku_code")
-    list_select_related = ("product",)
+    list_select_related = ("product", "supplier")
+    autocomplete_fields = ("supplier",)
+
+
+@admin.register(SupplierPriceHistory)
+class SupplierPriceHistoryAdmin(admin.ModelAdmin):
+    list_display = (
+        "product_supplier",
+        "old_po_base_price",
+        "new_po_base_price",
+        "po_currency",
+        "source",
+        "created_at",
+    )
+    list_filter = ("source", "po_currency")
+    search_fields = ("product_supplier__supplier_name", "product_supplier__product__sku_code")
+    list_select_related = ("product_supplier", "product_supplier__product")
+    readonly_fields = ("created_at", "updated_at")

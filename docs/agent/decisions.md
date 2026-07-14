@@ -761,5 +761,42 @@ valait l'**orange vif `#f78f26`** (marqué legacy). Décision :
   un Odoo 16 standard, l'adapter v16 récupère les champs custom **seulement s'ils existent** :
   `OdooAdapterV16._product_fields()` intersecte `_PRODUCT_FIELDS` avec un `fields_get` (caché), avec
   repli sur la liste complète si l'appel est stubbé/échoue. → v16 marche sur toute instance.
-- Local : `.env` basculé sur `ODOO_API_VERSION=v16` + creds `…34192539` ; sync v16 → brand 99%,
+-   Local : `.env` basculé sur `ODOO_API_VERSION=v16` + creds `…34192539` ; sync v16 → brand 99%,
   uom 80%, packaging niveaux, pricable 82% (auto-maintenu). v19 reste opérationnel (bascule par env).
+
+## 2026-07-13 · [P] Module Fournisseurs — entité `suppliers`, import batch PO, historique (écart CDC §11.3 assumé)
+**Contexte** : retour client démo MVP1 (Olivier) — gérer les fournisseurs comme une vraie entité,
+pas seulement des champs répétés sur chaque produit. Épic FEEDBACK 1 (spike + CRUD + import).
+
+- **Spike (résultat)** : avant ce module, « fournisseur » n'était **pas** une entité. `ProductSupplier`
+  (`apps/products/models.py`) portait `supplier_name` (CharField libre) + `factory_code`, `po_currency`,
+  `incoterm`, `incoterm_location`, `po_base_price`… rattachés à un `Product` (FK CASCADE). Aucune table
+  `suppliers`, aucun historique des prix, aucun chemin d'import Excel en API/Celery (seulement l'export
+  + les loaders one-shot `data_migration`). → **Cas « restructuration »** : extraction d'une table propre.
+- **Écart CDC §11.3 (Annexe Technique) assumé** : le CDC exclut explicitement du MVP1 tout « outil
+  d'import Excel réutilisable » après livraison. Yassine a validé de le livrer quand même, **comme geste
+  commercial** en vue d'un upsell (filiale chinoise / Symea). Déviation documentée = décision assumée.
+  Action commerciale hors code : mail court à Olivier signalant que ce module sort du périmètre contractuel MVP1.
+- **Entité = valeurs par défaut, pas déplacement** : nouvelle app `apps.suppliers` + modèle `Supplier`
+  (`suppliers`, `BaseModel`) : `name`, `code` (unique), `factory_code_default`, `currency_default`,
+  `incoterm_default`, `location`, `notes`, `is_active`. Ces champs **pré-remplissent** un nouveau lien SKU ;
+  `product_suppliers` **garde ses propres** `po_base_price`/`po_currency`/`incoterm`/`factory_code` qui
+  **restent la source de vérité pour le pricing** (le moteur lit le lien actif, pas l'entité).
+- **FK + dénormalisation conservée** : `ProductSupplier.supplier` = FK nullable `on_delete=PROTECT` vers
+  `suppliers.Supplier`. **`supplier_name` conservé** (dénormalisé) pour ne pas casser Odoo sync
+  (`update_or_create` sur le nom), filtres catalogue `?supplier=`, exports et `/api/supplier-names`.
+  Maintenu en phase avec la FK à chaque écriture (CRUD, import, Odoo sync `get_or_create` le `Supplier`).
+- **Backfill** : data migration `RunPython` — pour chaque `supplier_name` distinct non vide,
+  `get_or_create` un `Supplier` (défauts dérivés de la dernière ligne) puis pose `ProductSupplier.supplier_id`.
+- **`SupplierPriceHistory`** (dans `apps/products` pour éviter la circularité de migrations `suppliers↔products`)
+  : FK `product_supplier` (CASCADE), `old_po_base_price`/`new_po_base_price`, `po_currency`, `source`
+  (`import`/`manual`/`odoo`), `BaseModel`. Alimenté à chaque changement de PO (import + édition CRUD du lien).
+- **Import batch PO** = Celery async (AGENTS §4, comme l'export). `POST /api/suppliers/import-po/`
+  (multipart, `MultiPartParser`) sauve le `.xlsx` (`IMPORT_DIR` calqué sur `EXPORT_DIR`) → `202 + task_id`.
+  Tâche `suppliers.import_po_task` : colonnes **SKU / fournisseur / PO** (par ligne). Matching par SKU
+  existant **uniquement** (jamais de création de produit). SKU **ou** fournisseur introuvable → **rejet de
+  la ligne + rapport** (pas de blocage du reste). SKU+fournisseur existants mais **non liés** → **création
+  du lien** (pré-rempli des défauts). Chaque PO écrit alimente `SupplierPriceHistory`. Rapport d'erreurs
+  téléchargeable `GET /api/suppliers/imports/{task_id}/report`.
+- **Suppression fournisseur** = **soft-delete** (`is_active=False`) ; **409** si des SKU restent liés
+  (message FR). Pas de hard-delete (cohérent avec les snapshots simulations qui peuvent dépendre du lien).

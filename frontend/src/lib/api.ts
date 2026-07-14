@@ -214,6 +214,80 @@ export interface ProductSupplierInput {
   is_active?: boolean;
 }
 
+// ── Supplier entity (module Fournisseurs — Épic FEEDBACK 1) ───────────────
+/** A supplier managed as a standalone entity (`/api/suppliers/`). */
+export interface Supplier {
+  id: string;
+  name: string;
+  code: string;
+  factory_code_default?: string;
+  currency_default: Currency;
+  incoterm_default?: string;
+  location?: string;
+  notes?: string;
+  is_active: boolean;
+  linked_skus_count?: number;
+  updated_at?: string;
+}
+
+export interface SupplierInput {
+  name: string;
+  code: string;
+  factory_code_default?: string;
+  currency_default?: Currency;
+  incoterm_default?: string;
+  location?: string;
+  notes?: string;
+  is_active?: boolean;
+}
+
+/** A product-supplier link seen from the supplier side (SKU-centric). */
+export interface SupplierProductLink {
+  id: string;
+  product: string;
+  product_sku: string;
+  product_name: string;
+  product_designation: string;
+  supplier: string | null;
+  supplier_name: string;
+  factory_code?: string;
+  is_active: boolean;
+  po_base_price?: string | null;
+  po_currency?: Currency;
+  incoterm?: string;
+  incoterm_location?: string;
+  updated_at?: string;
+}
+
+export interface SupplierPriceHistoryEntry {
+  id: string;
+  product_supplier: string;
+  product_sku: string;
+  supplier_name: string;
+  old_po_base_price: string | null;
+  new_po_base_price: string | null;
+  po_currency: Currency;
+  source: "import" | "manual" | "odoo";
+  created_at: string;
+}
+
+export interface PoImportRejectedRow {
+  row: number;
+  sku: string;
+  supplier: string;
+  po: unknown;
+  reason: string;
+}
+
+export interface PoImportResult {
+  total: number;
+  updated: number;
+  created: number;
+  rejected: number;
+  rejected_rows: PoImportRejectedRow[];
+  report_url: string | null;
+}
+
 /** PV from a simulation line — EUR pivot + USD/RMB via that simulation's FX. */
 export interface CatalogPv {
   pv_eur: string;
@@ -718,6 +792,25 @@ export type CatalogListParams = ProductListParams;
 /** Paginated catalog list with full sidebar filter support. */
 export function getCatalogProducts(params: CatalogListParams): Promise<PaginatedProducts> {
   return getProducts(params);
+}
+
+const CATALOG_BULK_FETCH_LIMIT = 500;
+
+/** Fetch every product matching the given filters (paginates at API max limit). */
+export async function fetchAllCatalogProducts(
+  params: Omit<CatalogListParams, "page" | "limit">,
+): Promise<Product[]> {
+  const all: Product[] = [];
+  let page = 1;
+  let total = Infinity;
+  while (all.length < total) {
+    const res = await getCatalogProducts({ ...params, page, limit: CATALOG_BULK_FETCH_LIMIT });
+    total = res.count;
+    all.push(...res.results);
+    if (res.results.length === 0) break;
+    page += 1;
+  }
+  return all;
 }
 
 /** @deprecated Alias — prefer `buildCatalogQuery`. */
@@ -1472,6 +1565,133 @@ export function getSupplierNames(): Promise<string[]> {
 /** Defaults for an existing supplier name (latest row), to pre-fill the form. */
 export function getSupplierTemplate(name: string): Promise<ProductSupplier> {
   return apiFetch<ProductSupplier>(`/api/supplier-names/template?name=${encodeURIComponent(name)}`);
+}
+
+// ── Supplier entity CRUD + SKU links + batch PO import (module Fournisseurs) ──
+
+/** List suppliers (entity). Reads the paginated results with a high cap. */
+export function listSuppliers(opts?: {
+  q?: string;
+  is_active?: boolean;
+  has_skus?: boolean;
+}): Promise<Supplier[]> {
+  const q = new URLSearchParams({ limit: "500", ordering: "name" });
+  if (opts?.q) q.set("search", opts.q);
+  if (opts?.is_active !== undefined) q.set("is_active", String(opts.is_active));
+  if (opts?.has_skus !== undefined) q.set("has_skus", String(opts.has_skus));
+  return apiFetch<{ results: Supplier[] }>(`/api/suppliers/?${q.toString()}`).then(
+    (r) => r.results ?? [],
+  );
+}
+
+export function getSupplier(id: string): Promise<Supplier> {
+  return apiFetch<Supplier>(`/api/suppliers/${encodeURIComponent(id)}/`);
+}
+
+export function createSupplierEntity(input: SupplierInput): Promise<Supplier> {
+  return apiFetch<Supplier>("/api/suppliers/", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateSupplier(id: string, input: Partial<SupplierInput>): Promise<Supplier> {
+  return apiFetch<Supplier>(`/api/suppliers/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Soft-delete a supplier. Rejects (409) with the FR detail when SKUs remain linked. */
+export async function deleteSupplier(id: string): Promise<void> {
+  const res = await fetch(`/api/suppliers/${encodeURIComponent(id)}/`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "X-CSRFToken": getCsrfToken() },
+  });
+  if (res.status === 204) return;
+  const data = await res.json().catch(() => ({}));
+  throw new Error(data?.detail ?? `Erreur ${res.status}`);
+}
+
+export function getSupplierSkus(id: string): Promise<SupplierProductLink[]> {
+  return apiFetch<SupplierProductLink[]>(`/api/suppliers/${encodeURIComponent(id)}/skus/`);
+}
+
+export async function addSupplierSku(
+  id: string,
+  body: { sku?: string; product_id?: string },
+): Promise<SupplierProductLink> {
+  const res = await fetch(`/api/suppliers/${encodeURIComponent(id)}/skus/`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.detail ?? `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+export function removeSupplierSku(id: string, linkId: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/suppliers/${encodeURIComponent(id)}/skus/${encodeURIComponent(linkId)}/`,
+    { method: "DELETE" },
+  );
+}
+
+export function getSupplierPriceHistory(id: string): Promise<SupplierPriceHistoryEntry[]> {
+  return apiFetch<SupplierPriceHistoryEntry[]>(
+    `/api/suppliers/${encodeURIComponent(id)}/price-history/`,
+  );
+}
+
+export type BulkPoMode = "set" | "pct" | "abs";
+
+export interface BulkPoResult {
+  updated: number;
+  skipped: number;
+}
+
+/** Batch-update PO base prices on a supplier's links (by link ids or product ids). */
+export function bulkUpdatePo(
+  supplierId: string,
+  body: { link_ids?: string[]; product_ids?: string[]; mode: BulkPoMode; value: string },
+): Promise<BulkPoResult> {
+  return apiFetch<BulkPoResult>(
+    `/api/suppliers/${encodeURIComponent(supplierId)}/skus/bulk-po/`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+/** Link several existing products (SKUs) to a supplier at once (catalog picker). */
+export function bulkLinkSkus(
+  supplierId: string,
+  productIds: string[],
+): Promise<{ created: number; skipped: number }> {
+  return apiFetch<{ created: number; skipped: number }>(
+    `/api/suppliers/${encodeURIComponent(supplierId)}/skus/bulk-link/`,
+    { method: "POST", body: JSON.stringify({ product_ids: productIds }) },
+  );
+}
+
+/** Upload an Excel (SKU / fournisseur / PO) and dispatch the batch import task. */
+export async function startPoImport(file: File): Promise<{ task_id: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/suppliers/import-po/", {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRFToken": getCsrfToken() },
+    body: fd,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.detail ?? `Erreur ${res.status}`);
+  }
+  return res.json();
 }
 
 // ── Attribute registry admin (CDC §4.1.4) ─────────────────────────────────

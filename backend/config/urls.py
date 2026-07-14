@@ -15,6 +15,8 @@ api_patterns = [
     # PIM (Brique 1).
     path("", include("apps.products.urls")),
     path("", include("apps.attributes.urls")),
+    # Suppliers (module Fournisseurs — Épic FEEDBACK 1).
+    path("", include("apps.suppliers.urls")),
     # Clients.
     path("", include("apps.clients.urls")),
     # Market reference data + incoterms / FX / copper.

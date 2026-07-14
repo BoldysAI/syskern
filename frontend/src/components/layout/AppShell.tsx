@@ -16,6 +16,7 @@ import {
   SidebarSimple,
   SignOut,
   SquaresFour,
+  Truck,
   Users,
   Warning,
 } from "@phosphor-icons/react";
@@ -48,6 +49,7 @@ const HOME_ITEM = {
 
 const NAV_ITEMS = [
   { label: "Catalogue", href: "/catalog", icon: SquaresFour },
+  { label: "Fournisseurs", href: "/suppliers", icon: Truck },
   { label: "Simulations", href: "/simulator", icon: ChartLineUp },
   { label: "Comparaisons", href: "/comparator", icon: GitDiff },
   { label: "Offres", href: "/offers", icon: Files },

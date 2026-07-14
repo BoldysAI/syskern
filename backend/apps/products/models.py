@@ -219,6 +219,17 @@ class ProductSupplier(BaseModel):
         on_delete=models.CASCADE,
         related_name="suppliers",
     )
+    # Supplier entity (module Fournisseurs). Nullable + PROTECT: a supplier that
+    # still has linked SKUs cannot be hard-deleted (soft-delete only). The free
+    # `supplier_name` below is kept denormalised (Odoo sync, `?supplier=` filter,
+    # exports, /api/supplier-names) and maintained in sync with this FK on write.
+    supplier = models.ForeignKey(
+        "suppliers.Supplier",
+        on_delete=models.PROTECT,
+        related_name="product_links",
+        null=True,
+        blank=True,
+    )
     supplier_name = models.CharField(max_length=255)
     factory_code = models.CharField(max_length=16, blank=True, default="")
     is_active = models.BooleanField(default=False)
@@ -238,6 +249,7 @@ class ProductSupplier(BaseModel):
         ordering = ["product_id", "-is_active", "supplier_name"]
         indexes = [
             models.Index(fields=["product"], name="idx_prod_suppliers_product"),
+            models.Index(fields=["supplier"], name="idx_prod_suppliers_supplier"),
         ]
         constraints = [
             # CDC §3.2: at most one active source per product.  Implemented as
@@ -251,3 +263,45 @@ class ProductSupplier(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.supplier_name} ({self.product_id})"
+
+
+class PriceChangeSource(models.TextChoices):
+    """Origin of a supplier PO price change (module Fournisseurs)."""
+
+    IMPORT = "import", "Import Excel batch"
+    MANUAL = "manual", "Édition manuelle"
+    ODOO = "odoo", "Sync Odoo"
+
+
+class SupplierPriceHistory(BaseModel):
+    """Trail of purchase-order (PO base) price changes on a product-supplier link.
+
+    Written whenever a link's ``po_base_price`` changes — batch Excel import and
+    manual CRUD edits (module Fournisseurs, Épic FEEDBACK 1). Lives in ``products``
+    to keep the migration graph acyclic (``suppliers`` depends on ``products``).
+    """
+
+    product_supplier = models.ForeignKey(
+        ProductSupplier,
+        on_delete=models.CASCADE,
+        related_name="price_history",
+    )
+    old_po_base_price = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    new_po_base_price = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    po_currency = models.CharField(max_length=3, choices=Currency.choices, default=Currency.RMB)
+    source = models.CharField(
+        max_length=16, choices=PriceChangeSource.choices, default=PriceChangeSource.MANUAL
+    )
+
+    class Meta:
+        db_table = "supplier_price_history"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["product_supplier", "-created_at"],
+                name="idx_price_hist_link_date",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.product_supplier_id}: {self.old_po_base_price} → {self.new_po_base_price}"

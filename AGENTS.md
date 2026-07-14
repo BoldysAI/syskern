@@ -79,7 +79,8 @@ syskern/
 │   ├── config/                # settings/{base,local,production}, celery, urls
 │   └── apps/
 │       ├── core/              # BaseModel (UUID+timestamps), enums Currency/Language, pagination, auth
-│       ├── products/          # PIM : Product, ProductSupplier
+│       ├── products/          # PIM : Product, ProductSupplier, SupplierPriceHistory
+│       ├── suppliers/         # module Fournisseurs : entité Supplier, CRUD, SKU liés, import batch PO
 │       ├── attributes/        # registre EAV + valeurs JSONB
 │       ├── clients/           # Client (Odoo + prospects locaux)
 │       ├── market/            # Incoterm, TransportMode, MarketParameter (cuivre/FX) ; seeds dans seeds.py
@@ -206,6 +207,7 @@ Avant de considérer une tâche **terminée**, parcours cette checklist et mets 
 - frontend → `docs/agent/frontend.md`
 - dev local sans Docker → `docs/agent/local-dev.md`
 - PIM (catalogue, attributs, seeds référence) → `pim.md`
+- fournisseurs (entité Supplier, CRUD, SKU liés, import batch PO, historique prix) → `suppliers.md`
 - migration initiale one-shot (orchestrateur, loaders, reset, dérivations) → `migration.md`
 - offres (génération tarif/projet, Excel/Gamma, suivi) → `offers.md`
 - multilingue / traduction (DeepL, cache, couverture, langue offre) → `i18n.md`

@@ -76,7 +76,27 @@ class ProductSupplierSerializer(serializers.ModelSerializer):
                 instance.is_active = True
                 instance.save(update_fields=["is_active", "updated_at"])
 
+    @staticmethod
+    def _resolve_supplier_entity(validated_data: dict) -> None:
+        """Attach the `Supplier` entity by name when one already exists.
+
+        Keeps the FK populated for links created/edited from the product side
+        (module Fournisseurs). Never *creates* an entity here — the canonical
+        CRUD is `/api/suppliers/` — so free-text typos don't spawn duplicates.
+        """
+        if validated_data.get("supplier"):
+            return
+        name = (validated_data.get("supplier_name") or "").strip()
+        if not name:
+            return
+        from apps.suppliers.models import Supplier
+
+        match = Supplier.objects.filter(name__iexact=name).first()
+        if match is not None:
+            validated_data["supplier"] = match
+
     def create(self, validated_data: dict) -> ProductSupplier:
+        self._resolve_supplier_entity(validated_data)
         if validated_data.get("is_active"):
             with transaction.atomic():
                 ProductSupplier.objects.filter(product=validated_data["product"]).update(
@@ -87,6 +107,8 @@ class ProductSupplierSerializer(serializers.ModelSerializer):
 
     def update(self, instance: ProductSupplier, validated_data: dict) -> ProductSupplier:
         wants_active = validated_data.pop("is_active", None)
+        old_po = instance.po_base_price
+        self._resolve_supplier_entity(validated_data)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -98,6 +120,19 @@ class ProductSupplierSerializer(serializers.ModelSerializer):
             instance.save()
         else:
             instance.save()
+
+        # Trail manual PO base price edits (module Fournisseurs, source=manual).
+        if "po_base_price" in validated_data and instance.po_base_price != old_po:
+            from apps.suppliers.services import record_po_change
+
+            from .models import PriceChangeSource
+
+            record_po_change(
+                instance,
+                old_price=old_po,
+                new_price=instance.po_base_price,
+                source=PriceChangeSource.MANUAL,
+            )
 
         return instance
 
