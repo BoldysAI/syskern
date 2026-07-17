@@ -22,10 +22,9 @@ export function LogisticsTab() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="border-none pb-0">
-            <CardTitle className="text-sm font-semibold">Poids & unité</CardTitle>
+            <CardTitle className="text-sm font-semibold">Unité & approvisionnement</CardTitle>
           </CardHeader>
           <CardContent className="pt-3">
-            <Field field="unit_weight_kg" label="Poids unitaire" kind="number" unit="kg" />
             <Field
               field="base_unit"
               label="Unité de base"
@@ -52,21 +51,6 @@ export function LogisticsTab() {
             <Field field="secondary_packaging_qty" label="Qté colisage secondaire" kind="int" />
             <Field field="tertiary_packaging_qty" label="Qté colisage tertiaire" kind="int" />
             <Field field="pallet_qty" label="Qté palette" kind="int" />
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader className="border-none pb-0">
-            <CardTitle className="text-sm font-semibold">Indexation cuivre</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-3">
-            <Field field="is_copper_indexed" label="Indexé cuivre" kind="toggle" />
-            <Field
-              field="copper_weight_kg_per_unit"
-              label="Poids cuivre / unité"
-              kind="number"
-              unit="kg"
-            />
           </CardContent>
         </Card>
       </div>

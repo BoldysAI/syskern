@@ -912,3 +912,11 @@ d'équivalent UI** — ne pas réintroduire `WhatIfMarketPanel` sans revue produ
 - **Règle** : toute nouvelle surface d'édition des paramètres de calcul doit réutiliser ce composant
   (sidebar détail, comparaison, wizard) — pas de layout ad hoc.
 - **Modales comparaison** : `ComparisonEditDialog` + `CompareSimulationParamsSheet` → `AppModal size="full"`.
+## 2026-07-17 · [P] Fiche produit — poids unitaire + indexation cuivre déplacés vers l'onglet Technique (FEEDBACK 1)
+- **Dérive CDC §4.1.2 assumée** (demande client en démo, tranchée par Yassine) : le CDC place « poids,
+  conditionnements, données palette » dans l'onglet **Logistique** ; les champs core `unit_weight_kg`
+  (Poids unitaire), `is_copper_indexed` (Indexé cuivre) et `copper_weight_kg_per_unit` (Poids cuivre /
+  unité) sont désormais rendus dans l'onglet **Technique** (`catalog/[sku]/_tabs/TechnicalTab.tsx`,
+  carte « Poids & indexation cuivre »). Retirés des cartes core de `LogisticsTab.tsx` (carte « Poids &
+  unité » renommée « Unité & approvisionnement » ; carte « Indexation cuivre » supprimée). Le
+  conditionnement (colisage/palette) reste en Logistique. Aucun changement backend/modèle — pur ré-agencement UI.
