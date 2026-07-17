@@ -62,3 +62,27 @@ def test_falls_back_to_baked_in_sources_dir(tmp_path):
         BASE_DIR=tmp_path,
     ):
         assert Command()._resolve_sources_dir() == str(baked)
+
+
+def test_purge_wipes_migrated_data_then_reruns(tmp_path):
+    # --purge wipes the catalog first, then re-bootstraps (here offline + no
+    # sources → ends empty). Proves the one-command reset path.
+    Product.objects.create(sku_code="OLD1", name="old", migration_source=MigrationSource.MANUAL)
+    out = StringIO()
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
+        BASE_DIR=tmp_path,
+        ODOO={"SYNC_ENABLED": False},
+    ):
+        call_command("bootstrap_catalog", "--purge", stdout=out)
+    assert "purge done" in out.getvalue().lower()
+    assert Product.objects.count() == 0
+
+
+@override_settings(MIGRATION={"LOCKED": True, "SOURCES_DIR": "/nope"})
+def test_purge_blocked_when_locked():
+    Product.objects.create(sku_code="KEEP", name="k", migration_source=MigrationSource.MANUAL)
+    out = StringIO()
+    call_command("bootstrap_catalog", "--purge", stdout=out)
+    assert "locked" in out.getvalue().lower()
+    assert Product.objects.count() == 1  # purge never ran

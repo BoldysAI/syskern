@@ -65,12 +65,32 @@ class Command(BaseCommand):
             default=False,
             help="Run even if the catalog is already populated (still respects MIGRATION_LOCKED).",
         )
+        parser.add_argument(
+            "--purge",
+            action="store_true",
+            default=False,
+            help=(
+                "DESTRUCTIVE — wipe the migrated data first (CDC §8.9: products, suppliers, "
+                "attribute values, clients, quarantine), then re-bootstrap Odoo-first. Fails "
+                "loudly if a simulation references a product (pricing history present)."
+            ),
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         if settings.MIGRATION.get("LOCKED", False):
             self.stdout.write("Migration locked — bootstrap skipped.")
             return
-        if not opts["force"] and Product.objects.exists():
+
+        if opts["purge"]:
+            from apps.data_migration.reset import count_migration_data, reset_migration_data
+
+            self.stdout.write(
+                self.style.WARNING(f"--purge: wiping migrated data {count_migration_data()}")
+            )
+            deleted = reset_migration_data()
+            self.stdout.write(self.style.SUCCESS(f"Purge done — deleted {deleted}"))
+
+        if not opts["force"] and not opts["purge"] and Product.objects.exists():
             self.stdout.write("Catalog already populated — bootstrap skipped (nothing to do).")
             return
 
@@ -160,9 +180,12 @@ class Command(BaseCommand):
             self.stdout.write("Odoo sync disabled — Excel will bootstrap the catalog.")
             return False
         try:
-            from apps.odoo_sync.models import SyncScope, SyncType
+            from apps.odoo_sync.models import SyncLog, SyncScope, SyncType
             from apps.odoo_sync.services.runner import sync
 
+            # Bootstrap is a full load: drop prior sync watermarks so the sync
+            # pulls the whole catalog (not just modified-since-last-run).
+            SyncLog.objects.filter(scope__in=[SyncScope.PRODUCTS, SyncScope.ALL]).delete()
             log = sync(
                 scope=SyncScope.PRODUCTS, sync_type=SyncType.MANUAL, triggered_by="bootstrap"
             )
