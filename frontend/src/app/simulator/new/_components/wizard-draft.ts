@@ -1,4 +1,4 @@
-import type { SimulationType } from "@/lib/api";
+import { getProducts, type SimulationType } from "@/lib/api";
 import {
   copperDraftPriceToRmb,
   copperRmbToDraft,
@@ -11,9 +11,35 @@ export interface SelectedSku {
   id: string;
   sku_code: string;
   name: string;
+  /** Project quantity (integer units). */
+  quantity?: string;
 }
 
-/** A single transport leg in a calculation chain (CDC §6.2). */
+export function withSelectedSkuDefaults(sku: SelectedSku): SelectedSku {
+  return {
+    ...sku,
+    quantity: sku.quantity ?? "",
+  };
+}
+
+/** Integer quantity for API (no decimals). */
+export function normalizeIntegerQuantity(raw: string | undefined): string | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const n = parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return String(n);
+}
+
+export function normalizePaCoefficient(raw: string | undefined): string | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const n = parseFloat(trimmed.replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n.toFixed(4);
+}
+
+export type TransportPricingMode = "detailed" | "coefficient";
 export interface TransportDraft {
   /** Local-only id, used as the drag-and-drop key. */
   uid: string;
@@ -40,6 +66,9 @@ export interface CustomsDraft {
 export interface ChainDraft {
   copper_variation: boolean;
   currency_conversion: boolean;
+  /** Detailed transport legs vs a single multiplicative coefficient. */
+  transportPricingMode: TransportPricingMode;
+  transportCoefficient: string;
   transports: TransportDraft[];
   customs: CustomsDraft;
 }
@@ -79,11 +108,122 @@ export interface WizardDraft {
 }
 
 export const DRAFT_KEY = "syskern:new-simulation-draft:v1";
+export const CATALOG_SEED_KEY = "syskern:wizard-catalog-seed:v1";
+
+const CATALOG_SEED_FETCH_LIMIT = 500;
+
+function normalizeProductId(id: string): string {
+  return id.trim().toLowerCase();
+}
+
+export interface WizardCatalogSeed {
+  productIds: string[];
+  /** Optional rows already known at navigation time (catalog product page). */
+  selectedSkus?: SelectedSku[];
+}
+
+/** One-shot seed written by the catalog before navigating to the wizard. */
+export function writeCatalogSeed(
+  productIds: string[],
+  selectedSkus?: SelectedSku[],
+): void {
+  if (typeof window === "undefined" || productIds.length === 0) return;
+  const unique = [...new Set(productIds)];
+  const payload: WizardCatalogSeed = { productIds: unique };
+  if (selectedSkus?.length) {
+    const byId = new Map(selectedSkus.map((s) => [normalizeProductId(s.id), s]));
+    payload.selectedSkus = unique
+      .map((id) => byId.get(normalizeProductId(id)))
+      .filter((sku): sku is SelectedSku => sku != null);
+  }
+  try {
+    window.sessionStorage.setItem(CATALOG_SEED_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore private-mode / quota errors.
+  }
+}
+
+/** Read seed without removing it (safe for React Strict Mode double effects). */
+export function peekCatalogSeed(): WizardCatalogSeed | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(CATALOG_SEED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<WizardCatalogSeed>;
+    const productIds = [...new Set((parsed.productIds ?? []).filter(Boolean))];
+    if (productIds.length === 0) return null;
+    const selectedSkus = (parsed.selectedSkus ?? []).filter(
+      (sku): sku is SelectedSku =>
+        Boolean(sku?.id && sku?.sku_code && sku?.name),
+    );
+    return { productIds, selectedSkus: selectedSkus.length ? selectedSkus : undefined };
+  } catch {
+    return null;
+  }
+}
+
+export function clearCatalogSeed(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(CATALOG_SEED_KEY);
+  } catch {
+    // Ignore.
+  }
+}
+
+/** @deprecated Prefer peekCatalogSeed + clearCatalogSeed after apply. */
+export function readAndClearCatalogSeed(): WizardCatalogSeed | null {
+  const seed = peekCatalogSeed();
+  if (seed) clearCatalogSeed();
+  return seed;
+}
+
+export function mergeSelectedSkus(
+  existing: SelectedSku[],
+  incoming: SelectedSku[],
+): SelectedSku[] {
+  const byId = new Map(existing.map((s) => [s.id, s]));
+  for (const sku of incoming) byId.set(sku.id, sku);
+  return [...byId.values()];
+}
+
+/** Resolve catalog product ids to wizard SKU rows (preserves input order). */
+export async function resolveSelectedSkusByProductIds(
+  productIds: string[],
+  prefilled: SelectedSku[] = [],
+): Promise<SelectedSku[]> {
+  const unique = [...new Set(productIds.filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const byId = new Map<string, SelectedSku>();
+  for (const sku of prefilled) {
+    byId.set(normalizeProductId(sku.id), sku);
+  }
+
+  const missing = unique.filter((id) => !byId.has(normalizeProductId(id)));
+  for (let i = 0; i < missing.length; i += CATALOG_SEED_FETCH_LIMIT) {
+    const chunk = missing.slice(i, i + CATALOG_SEED_FETCH_LIMIT);
+    const { results } = await getProducts({ ids: chunk, limit: chunk.length, page: 1 });
+    for (const product of results) {
+      byId.set(normalizeProductId(product.id), withSelectedSkuDefaults({
+        id: product.id,
+        sku_code: product.sku_code,
+        name: product.name,
+      }));
+    }
+  }
+
+  return unique
+    .map((id) => byId.get(normalizeProductId(id)))
+    .filter((sku): sku is SelectedSku => sku != null);
+}
 
 export function emptyChain(withPurchaseModules: boolean): ChainDraft {
   return {
     copper_variation: withPurchaseModules,
     currency_conversion: withPurchaseModules,
+    transportPricingMode: "detailed",
+    transportCoefficient: "",
     transports: [],
     customs: { enabled: false, rate_pct: "" },
   };
@@ -114,6 +254,11 @@ export function emptyDraft(): WizardDraft {
     saleIncoterm: "EXW",
     saleIncotermLocation: "",
   };
+}
+
+/** Fresh wizard state seeded from the catalog (does not touch the saved draft). */
+export function catalogDraft(selectedSkus: SelectedSku[]): WizardDraft {
+  return { ...emptyDraft(), selectedSkus };
 }
 
 /** Restore a persisted draft (lazy initializer). Never throws (SSR / quota). */
@@ -205,13 +350,48 @@ function parseTransportDraft(t: Record<string, unknown>): TransportDraft {
 }
 
 function parseChainDraft(chain: Record<string, unknown>, isPurchase: boolean): ChainDraft {
-  const transports = ((chain.transports as Record<string, unknown>[]) ?? []).map(
+  const rawTransports = ((chain.transports as Record<string, unknown>[]) ?? []).map(
     parseTransportDraft,
   );
+  const persistedMode = chain.transport_pricing as TransportPricingMode | undefined;
+  const persistedCoef =
+    chain.transport_coefficient != null ? String(chain.transport_coefficient) : "";
+
+  let transportPricingMode: TransportPricingMode = persistedMode ?? "detailed";
+  let transportCoefficient = persistedCoef;
+  let transports = rawTransports;
+
+  if (!persistedMode) {
+    const rawChainTransports = (chain.transports as Record<string, unknown>[] | undefined) ?? [];
+    const coefLeg = rawTransports.find(
+      (t) =>
+        t.transport_mode_code === "COEF" ||
+        (rawTransports.length === 1 &&
+          !t.global_cost &&
+          !t.pallet_count &&
+          rawChainTransports[0]?.override_coefficient != null),
+    );
+    if (coefLeg || persistedCoef) {
+      transportPricingMode = "coefficient";
+      transportCoefficient =
+        persistedCoef ||
+        String(
+          (chain.transports as Record<string, unknown>[] | undefined)?.find(
+            (t) => t.override_coefficient != null,
+          )?.override_coefficient ?? "",
+        );
+      transports = [];
+    }
+  } else if (transportPricingMode === "coefficient") {
+    transports = [];
+  }
+
   const customs = chain.customs as Record<string, unknown> | null | undefined;
   return {
     copper_variation: isPurchase && chain.copper_variation != null,
     currency_conversion: isPurchase && chain.currency_conversion != null,
+    transportPricingMode,
+    transportCoefficient,
     transports,
     customs: {
       enabled: customs != null,
@@ -345,6 +525,44 @@ function buildTransports(transports: TransportDraft[]): Record<string, unknown>[
   }));
 }
 
+function buildChainTransports(
+  chain: ChainDraft,
+  defaultCurrency: string,
+): Record<string, unknown>[] {
+  if (chain.transportPricingMode === "coefficient") {
+    const coef = normalizePaCoefficient(chain.transportCoefficient);
+    if (!coef) return [];
+    return [
+      {
+        order: 1,
+        transport_mode_code: "COEF",
+        category: "",
+        global_cost: "0",
+        currency: defaultCurrency,
+        pallet_count: 0,
+        from_location: "",
+        to_location: "",
+        override_coefficient: coef,
+      },
+    ];
+  }
+  return buildTransports(chain.transports);
+}
+
+function appendChainTransportMeta(
+  payload: Record<string, unknown>,
+  chain: ChainDraft,
+): Record<string, unknown> {
+  if (chain.transportPricingMode === "coefficient") {
+    const coef = normalizePaCoefficient(chain.transportCoefficient);
+    payload.transport_pricing = "coefficient";
+    if (coef) payload.transport_coefficient = coef;
+  } else {
+    payload.transport_pricing = "detailed";
+  }
+  return payload;
+}
+
 function buildCustoms(customs: CustomsDraft): Record<string, unknown> | null {
   if (!customs.enabled) return null;
   if (customs.rate_pct.trim()) {
@@ -368,24 +586,30 @@ function buildCustoms(customs: CustomsDraft): Record<string, unknown> | null {
 export function buildCalculationChain(draft: WizardDraft): Record<string, unknown> {
   const { purchaseChain, saleChain } = draft;
 
-  const purchase: Record<string, unknown> = {
-    transports: buildTransports(purchaseChain.transports),
-    customs: buildCustoms(purchaseChain.customs),
-    symea_margin: {
-      rate: pctToDecimal(draft.symeaPct),
-      position: draft.symeaPosition,
+  const purchase: Record<string, unknown> = appendChainTransportMeta(
+    {
+      transports: buildChainTransports(purchaseChain, "EUR"),
+      customs: buildCustoms(purchaseChain.customs),
+      symea_margin: {
+        rate: pctToDecimal(draft.symeaPct),
+        position: draft.symeaPosition,
+      },
     },
-  };
+    purchaseChain,
+  );
   if (purchaseChain.copper_variation) purchase.copper_variation = {};
   if (purchaseChain.currency_conversion) {
     purchase.currency_conversion = { to_currency: "EUR" };
   }
 
-  const sale: Record<string, unknown> = {
-    transports: buildTransports(saleChain.transports),
-    customs: buildCustoms(saleChain.customs),
-    syskern_margin: { rate: pctToDecimal(draft.syskernPct) },
-  };
+  const sale: Record<string, unknown> = appendChainTransportMeta(
+    {
+      transports: buildChainTransports(saleChain, "EUR"),
+      customs: buildCustoms(saleChain.customs),
+      syskern_margin: { rate: pctToDecimal(draft.syskernPct) },
+    },
+    saleChain,
+  );
 
   return { purchase_chain: purchase, sale_chain: sale };
 }
@@ -435,14 +659,29 @@ function collectRequiredFxKeys(draft: WizardDraft): string[] {
   for (const transport of draft.purchaseChain.transports) {
     addCurrency(transport.currency);
   }
+  if (draft.purchaseChain.transportPricingMode === "coefficient") {
+    addCurrency("EUR");
+  }
   for (const transport of draft.saleChain.transports) {
     addCurrency(transport.currency);
+  }
+  if (draft.saleChain.transportPricingMode === "coefficient") {
+    addCurrency("EUR");
   }
 
   return [...keys].sort();
 }
 
 function collectTransportIssues(chainLabel: string, chain: ChainDraft): string[] {
+  if (chain.transportPricingMode === "coefficient") {
+    if (!normalizePaCoefficient(chain.transportCoefficient)) {
+      return [
+        `${chainLabel} — renseignez un coefficient transport supérieur à 0 (ex. 1,05).`,
+      ];
+    }
+    return [];
+  }
+
   const issues: string[] = [];
   chain.transports.forEach((transport, index) => {
     const leg = index + 1;
@@ -553,6 +792,7 @@ export function applyImportChinePreset(): { purchase: ChainDraft; sale: ChainDra
   });
   return {
     purchase: {
+      ...emptyChain(true),
       copper_variation: true,
       currency_conversion: true,
       transports: [leg("maritime", "USD"), leg("road", "EUR")],

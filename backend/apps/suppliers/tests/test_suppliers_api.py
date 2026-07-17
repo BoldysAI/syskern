@@ -262,6 +262,28 @@ class TestBulkPoUpdate:
         )
         assert resp.status_code == 400
 
+    def test_preview_lists_per_sku_outcomes(self, client, supplier):
+        a = self._link(supplier, "PREV-A", "10.0000")
+        b = self._link(supplier, "PREV-B", None)
+        c = self._link(supplier, "PREV-C", "10.0000")
+        resp = client.post(
+            f"/api/suppliers/{supplier.id}/skus/bulk-po/preview/",
+            {
+                "link_ids": [str(a.id), str(b.id), str(c.id)],
+                "mode": "pct",
+                "value": "10",
+            },
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.data["summary"]["will_update"] == 2
+        assert resp.data["summary"]["skip_no_po"] == 1
+        assert len(resp.data["lines"]) == 3
+        by_sku = {row["product_sku"]: row for row in resp.data["lines"]}
+        assert by_sku["PREV-A"]["status"] == "will_update"
+        assert by_sku["PREV-A"]["new_po_base_price"] == "11.0000"
+        assert by_sku["PREV-B"]["status"] == "skip_no_po"
+
 
 class TestBulkLink:
     def test_bulk_link_creates_and_skips_existing(self, client, supplier):

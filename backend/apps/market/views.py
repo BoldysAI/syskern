@@ -4,14 +4,20 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from .models import Incoterm, MarketParameter, MarketParameterType, TransportMode
-from .serializers import MarketParameterSerializer, TransportModeSerializer
+from .models import Incoterm, MarketParameter, MarketParameterType, TransportMode, TransportPreset
+from .serializers import MarketParameterSerializer, TransportModeSerializer, TransportPresetSerializer
 
 
 class TransportModeViewSet(viewsets.ModelViewSet):
     queryset = TransportMode.objects.all()
     serializer_class = TransportModeSerializer
     filterset_fields = ("category", "is_active")
+
+
+class TransportPresetViewSet(viewsets.ModelViewSet):
+    queryset = TransportPreset.objects.all()
+    serializer_class = TransportPresetSerializer
+    filterset_fields = ("is_active",)
 
 
 class MarketParameterViewSet(viewsets.ModelViewSet):

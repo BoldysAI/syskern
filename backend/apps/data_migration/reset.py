@@ -7,7 +7,7 @@ guard-rail (CDC §8.9) blocks it — see :mod:`apps.data_migration.locking`.
 Scope (CDC §8.9):
   * Purged   : products, product_attribute_values, product_suppliers,
                clients, migration_unmatched.
-  * Preserved: attribute_registry, incoterms, transport_modes (reference data
+  * Preserved: attribute_registry, incoterms, transport_modes, transport_presets (reference data
                seeded by Django data migrations — re-seeding is not the
                migration's job).
 

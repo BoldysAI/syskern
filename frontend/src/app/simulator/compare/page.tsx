@@ -6,32 +6,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import {
   ArrowLeft,
-  ChartBar,
   Bookmark,
   GitDiff,
-  Stack,
   FloppyDisk,
   MagnifyingGlass,
-  Gear,
 } from "@phosphor-icons/react";
 import {
-  compareSimulations,
   getSimulations,
-  type CompareResponse,
   type SavedComparison,
   type Simulation,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
-import { CompareContextDiff } from "./_components/CompareContextDiff";
-import { CompareOverview } from "./_components/CompareOverview";
-import { CompareSkuTable } from "./_components/CompareSkuTable";
+import { CompareWorkspace } from "@/app/comparator/_components/CompareWorkspace";
 import { SaveComparisonModal } from "./_components/SaveComparisonModal";
 import { SavedComparisonsPanel } from "./_components/SavedComparisonsPanel";
 
 const MAX_COLUMNS = 4;
 
-type TabId = "overview" | "context" | "products";
 type AsideTab = "pick" | "saved";
 
 function CompareSimulationsPage() {
@@ -82,9 +74,6 @@ function CompareContent() {
 
   const [selected, setSelected] = useState<string[]>(initialSims);
   const [query, setQuery] = useState("");
-  const [sortByDelta, setSortByDelta] = useState(true);
-  const [commonOnly, setCommonOnly] = useState(true);
-  const [tab, setTab] = useState<TabId>("overview");
   const [asideTab, setAsideTab] = useState<AsideTab>(
     savedParam || asideParam === "saved" ? "saved" : "pick"
   );
@@ -100,15 +89,11 @@ function CompareContent() {
   const { data: simulations } = useSWR<Simulation[]>("simulations", () => getSimulations());
 
   const columnCount = selected.length + recalcIds.length;
-  const compareKey =
-    columnCount >= 2 ? ["compare", selected.join(","), recalcIds.join(",")] : null;
 
-  const { data, isLoading, error } = useSWR<CompareResponse>(compareKey, () =>
-    compareSimulations({
-      simulation_ids: selected,
-      recalculation_ids: recalcIds,
-    })
-  );
+  const compareReturnHref = buildCompareUrl({
+    simulation_ids: selected,
+    recalculation_ids: recalcIds,
+  });
 
   const toggle = (id: string) => {
     setActiveSavedId(null);
@@ -138,9 +123,12 @@ function CompareContent() {
   }, [simulations, query]);
 
   const defaultSaveLabel = useMemo(() => {
-    if (!data?.columns.length) return "";
-    return data.columns.map((c) => c.label).join(" vs ").slice(0, 120);
-  }, [data]);
+    const map = new Map((simulations ?? []).map((s) => [s.id, s.label]));
+    return selected
+      .map((id) => map.get(id) ?? id.slice(0, 8))
+      .join(" vs ")
+      .slice(0, 120);
+  }, [selected, simulations]);
 
   const canSave = columnCount >= 2;
 
@@ -265,7 +253,7 @@ function CompareContent() {
               Comparaison enregistrée chargée
             </div>
           )}
-          {!compareKey ? (
+          {columnCount < 2 ? (
             <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
               <GitDiff size={36} className="mb-3 text-muted-foreground/40" />
               <p className="text-sm">Sélectionnez au moins 2 colonnes à comparer.</p>
@@ -273,52 +261,20 @@ function CompareContent() {
                 Ou choisissez une comparaison dans l&apos;onglet « Enregistrées ».
               </p>
             </div>
-          ) : isLoading ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">Comparaison…</div>
-          ) : error ? (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-red-700">
-              {error instanceof Error ? error.message : "Comparaison échouée."}
-            </div>
-          ) : data ? (
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-                <TabButton
-                  active={tab === "overview"}
-                  onClick={() => setTab("overview")}
-                  icon={<ChartBar size={15} />}
-                  label="Synthèse"
-                />
-                <TabButton
-                  active={tab === "context"}
-                  onClick={() => setTab("context")}
-                  icon={<Gear size={15} />}
-                  label="Paramètres"
-                />
-                <TabButton
-                  active={tab === "products"}
-                  onClick={() => setTab("products")}
-                  icon={<Stack size={15} />}
-                  label="Lignes SKU"
-                  badge={data.products.length}
-                />
-              </div>
-
-              {tab === "overview" && (
-                <CompareOverview columns={data.columns} products={data.products} />
-              )}
-              {tab === "context" && <CompareContextDiff columns={data.columns} />}
-              {tab === "products" && (
-                <CompareSkuTable
-                  columns={data.columns}
-                  products={data.products}
-                  sortByDelta={sortByDelta}
-                  onToggleSort={() => setSortByDelta((v) => !v)}
-                  commonOnly={commonOnly}
-                  onToggleCommon={() => setCommonOnly((v) => !v)}
-                />
-              )}
-            </div>
-          ) : null}
+          ) : (
+            <CompareWorkspace
+              simulationIds={selected}
+              recalculationIds={recalcIds}
+              compareReturnHref={compareReturnHref}
+              compareReturnLabel="Comparaison"
+              onSimulationIdsChange={(ids) => {
+                setSelected(ids);
+                router.replace(
+                  buildCompareUrl({ simulation_ids: ids, recalculation_ids: recalcIds }),
+                );
+              }}
+            />
+          )}
         </main>
       </div>
 
@@ -361,46 +317,6 @@ function AsideTabBtn({
     >
       {icon}
       {label}
-    </button>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  badge?: number;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-        active
-          ? "bg-accent text-accent-foreground ring-1 ring-warm/30"
-          : "text-muted-foreground hover:bg-muted"
-      )}
-    >
-      {icon}
-      {label}
-      {badge != null && badge > 0 && (
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-bold",
-            active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-          )}
-        >
-          {badge}
-        </span>
-      )}
     </button>
   );
 }

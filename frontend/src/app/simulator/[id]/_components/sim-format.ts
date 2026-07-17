@@ -1,4 +1,5 @@
 import type { SimulationLine, SimulationLineStatus } from "@/lib/api";
+import { buildProductHref } from "@/lib/product-navigation";
 import { humanizeEngineMessage } from "@/lib/humanize-errors";
 import { transportModeLabel as defaultTransportModeLabel } from "@/lib/transport-modes";
 
@@ -48,21 +49,25 @@ export interface SimulationFromCatalog {
 export function productEditHref(
   sku: string,
   messages: string[] = [],
-  fromSimulation?: ProductEditFromSimulation
+  fromSimulation?: ProductEditFromSimulation,
 ): string {
-  const q = new URLSearchParams({ edit: "1" });
   const joined = messages.join(" ").toLowerCase();
+  let tab: string | undefined;
   if (joined.includes("pallet_qty") || joined.includes("palette")) {
-    q.set("tab", "logistics");
+    tab = "logistics";
   } else if (joined.includes("prix d'achat") || joined.includes("(po)")) {
-    q.set("tab", "commercial");
+    tab = "commercial";
   }
-  if (fromSimulation) {
-    q.set("from", "simulation");
-    q.set("simulation_id", fromSimulation.simulationId);
-    q.set("simulation_label", fromSimulation.simulationLabel);
-  }
-  return `/catalog/${encodeURIComponent(sku)}?${q.toString()}`;
+
+  const ctx = fromSimulation
+    ? {
+        kind: "simulation" as const,
+        simulationId: fromSimulation.simulationId,
+        simulationLabel: fromSimulation.simulationLabel,
+      }
+    : { kind: "catalog" as const };
+
+  return buildProductHref(sku, ctx, { edit: true, tab });
 }
 
 /** Deep-link to a simulation, preserving catalog breadcrumb context on return. */
@@ -297,12 +302,14 @@ export function formatBreakdownStepDetails(
       }
       break;
     }
-    case "margin": {
+    case "margin":
+    case "syskern_margin":
+    case "symea_margin": {
       const label =
-        meta.label === "symea"
-          ? "Marge Symea"
-          : meta.label === "syskern"
-            ? "Marge Syskern"
+        step.module === "syskern_margin" || meta.label === "syskern"
+          ? "Marge Syskern"
+          : step.module === "symea_margin" || meta.label === "symea"
+            ? "Marge Symea"
             : "Marge";
       const pct = decToPct(String(meta.rate));
       lines.push(`${label} : ${pct} % (sur le prix de vente).`);
@@ -370,7 +377,9 @@ export function formatBreakdownStepDetails(
   }
 
   const delta = fmtDelta(step.input_price, step.output_price);
-  if (delta && step.module !== "margin") lines.push(delta);
+  if (delta && !["margin", "syskern_margin", "symea_margin"].includes(step.module)) {
+    lines.push(delta);
+  }
 
   return lines;
 }
@@ -480,6 +489,18 @@ export function moduleLabel(module: string): string {
   return MODULE_LABELS[module] ?? module;
 }
 
+/** Step title in breakdown — distinguishes Syskern vs Symea margin modules. */
+export function stepModuleLabel(step: BreakdownStep): string {
+  if (step.module === "syskern_margin") return MODULE_LABELS.syskern_margin;
+  if (step.module === "symea_margin") return MODULE_LABELS.symea_margin;
+  if (step.module === "margin") {
+    const label = step.metadata?.label;
+    if (label === "syskern") return MODULE_LABELS.syskern_margin;
+    if (label === "symea") return MODULE_LABELS.symea_margin;
+  }
+  return moduleLabel(step.module);
+}
+
 /** Format a price from the breakdown (amount + currency). */
 export function fmtPrice(price?: BreakdownPrice | null): string {
   if (!price?.amount) return "—";
@@ -516,6 +537,20 @@ export const RECALC_TRIGGER: Record<string, { label: string; badge: string }> = 
 export function recalcTriggerLabel(triggerType: string | null | undefined): string {
   if (!triggerType) return "—";
   return RECALC_TRIGGER[triggerType]?.label ?? "Recalcul";
+}
+
+/** True when the persisted sale breakdown still applies Syskern margin after PV transports. */
+export function isStaleSaleMarginBreakdown(breakdown: LineBreakdown): boolean {
+  const steps = breakdown.sale?.steps ?? [];
+  if (steps.length < 2) return false;
+  const marginIdx = steps.findIndex(
+    (s) =>
+      s.module === "syskern_margin" ||
+      (s.module === "margin" && s.metadata?.label === "syskern"),
+  );
+  const transportIdx = steps.findIndex((s) => s.module === "transport");
+  if (marginIdx < 0 || transportIdx < 0) return false;
+  return marginIdx > transportIdx;
 }
 
 /** Keep long engine messages inside drawers and wizard panels (wrap + no horizontal spill). */

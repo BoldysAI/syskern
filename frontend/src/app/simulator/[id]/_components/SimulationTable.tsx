@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
@@ -15,18 +15,26 @@ import {
   Trash,
   X,
   Plus,
+  SidebarSimple,
+  Faders,
 } from "@phosphor-icons/react";
 import {
   bulkDeleteSimulationLines,
   bulkEditLines,
   deleteSimulationLine,
+  getFilterableAttributes,
   getSimulationLines,
   recalculateSimulationLine,
   updateSimulationLine,
+  type BulkEditFilter,
+  type CatalogFilters,
   type PaginatedResponse,
   type SimulationDetail,
   type SimulationLine,
 } from "@/lib/api";
+import { ActiveFilterBar } from "@/app/catalog/_components/ActiveFilterBar";
+import { CatalogFilterSheet, CatalogFilterTrigger } from "@/app/catalog/_components/CatalogFilterSheet";
+import { countActiveFilters } from "@/app/catalog/_components/active-filters";
 import {
   DataTable,
   cycleSortField,
@@ -36,9 +44,11 @@ import {
 import { cn } from "@/lib/utils";
 import { humanizeApiError } from "@/lib/humanize-errors";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
+import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { SearchInput } from "@/components/SearchInput";
 import { toast } from "sonner";
 import {
   decToPct,
@@ -50,14 +60,21 @@ import {
   productEditHref,
 } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
+import { normalizeIntegerQuantity } from "@/app/simulator/new/_components/wizard-draft";
 import { LineDiagnosticsDrawer } from "./LineDiagnosticsDrawer";
 import { CalculationBreakdownDrawer } from "./CalculationBreakdownDrawer";
+import {
+  SimulationLinesFilterSidebar,
+  SimulationLineStatusFilterSection,
+  type LineStatusFilterKey,
+} from "./SimulationLinesFilterSidebar";
+import { buildSimulationLineBulkFilter } from "./simulation-line-filters";
 
 interface Props {
   sim: SimulationDetail;
   readOnly: boolean;
   onRecalc: () => void;
-  onBulkEdit: (lineIds?: string[]) => void;
+  onBulkEdit: (opts?: { lineIds?: string[]; filter?: BulkEditFilter }) => void;
   onAddProducts: () => void;
   onExport: () => void;
   onHistory: () => void;
@@ -67,15 +84,11 @@ interface Props {
 const PAGE_SIZE = 200;
 const STORAGE_KEY = "syskern:simulation-col-widths:v1";
 const DEFAULT_SORT: DataTableSortState = { field: "product__sku_code", dir: "asc" };
-const STATUS_FILTER_KEYS = ["ok", "warning", "error"] as const;
-type StatusFilterKey = (typeof STATUS_FILTER_KEYS)[number];
+const DEFAULT_STATUS_IN: LineStatusFilterKey[] = ["ok", "warning", "error"];
 
-function buildStatusIn(filters: Record<StatusFilterKey, boolean>): string | undefined {
-  const active = STATUS_FILTER_KEYS.filter((key) => filters[key]);
-  if (active.length === 0 || active.length === STATUS_FILTER_KEYS.length) {
-    return undefined;
-  }
-  return active.join(",");
+function buildStatusInParam(statusIn: LineStatusFilterKey[]): string | undefined {
+  if (statusIn.length === 0 || statusIn.length === DEFAULT_STATUS_IN.length) return undefined;
+  return statusIn.join(",");
 }
 
 function mp(sim: SimulationDetail, key: string): string {
@@ -88,37 +101,108 @@ function OverrideCell({
   effective,
   suffix,
   disabled,
+  integerOnly = false,
   onCommit,
 }: {
   override: string;
   effective: string;
   suffix: string;
   disabled: boolean;
+  integerOnly?: boolean;
   onCommit: (raw: string) => void;
 }) {
   const [v, setV] = useState(override);
-  // Reset the editable value when the canonical override changes — render-time
-  // pattern (React docs) instead of a set-state-in-effect.
   const [prevOverride, setPrevOverride] = useState(override);
   if (prevOverride !== override) {
     setPrevOverride(override);
     setV(override);
   }
 
+  const inputCls =
+    "min-w-[3.5rem] rounded border border-border/70 bg-background px-1.5 py-1 text-right text-sm font-medium text-foreground font-data tabular-nums focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50";
+
   return (
     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
       <input
         value={v}
         disabled={disabled}
-        onChange={(e) => setV(e.target.value)}
+        inputMode={integerOnly ? "numeric" : "decimal"}
+        pattern={integerOnly ? "[0-9]*" : undefined}
+        onChange={(e) => {
+          const next = integerOnly ? e.target.value.replace(/[^\d]/g, "") : e.target.value;
+          setV(next);
+        }}
         onBlur={() => v !== override && onCommit(v)}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         placeholder={effective || "—"}
-        className="w-16 rounded border border-transparent px-1.5 py-1 text-right text-sm hover:border-border focus:border-primary focus:outline-none disabled:bg-transparent disabled:hover:border-transparent"
+        className={inputCls}
       />
-      <span className="text-xs text-muted-foreground">{suffix}</span>
+      {suffix ? <span className="text-sm text-foreground">{suffix}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * Mix cell — for project simulations the mix is quantity-driven (auto) unless
+ * the line forces the manual slider. Tariff simulations always edit manually.
+ */
+function MixCell({
+  line,
+  isProject,
+  disabled,
+  onCommitOverride,
+  onToggleManual,
+}: {
+  line: SimulationLine;
+  isProject: boolean;
+  disabled: boolean;
+  onCommitOverride: (raw: string) => void;
+  onToggleManual: (forceManual: boolean) => void;
+}) {
+  const autoMode = isProject && !line.force_manual_mix;
+  if (autoMode) {
+    return (
+      <div
+        className="flex items-center justify-end gap-1.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="font-data text-sm text-foreground tabular-nums">
+          {line.effective_mix_pct != null ? `${line.effective_mix_pct} %` : "—"}
+        </span>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onToggleManual(true)}
+          title="Mix calculé depuis la quantité — cliquer pour forcer le mix manuel"
+          className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground hover:bg-accent/80 disabled:opacity-40"
+        >
+          auto
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+      <OverrideCell
+        override={line.stock_purchase_mix_pct_override?.toString() ?? ""}
+        effective={line.effective_mix_pct?.toString() ?? ""}
+        suffix="%"
+        disabled={disabled}
+        onCommit={onCommitOverride}
+      />
+      {isProject && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onToggleManual(false)}
+          title="Repasser en mix automatique (piloté par la quantité)"
+          className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40"
+        >
+          manuel
+        </button>
+      )}
     </div>
   );
 }
@@ -216,10 +300,23 @@ export function SimulationTable({
   onChanged,
 }: Props) {
   const confirm = useConfirm();
-  const [statusFilters, setStatusFilters] = useState<Record<StatusFilterKey, boolean>>({
-    ok: true,
-    warning: true,
-    error: true,
+  const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>({});
+  const [searchInput, setSearchInput] = useState("");
+  const [statusIn, setStatusIn] = useState<LineStatusFilterKey[]>(DEFAULT_STATUS_IN);
+  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
+    "syskern:simulation-lines-filters-collapsed",
+    false,
+  );
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    width: filterSidebarWidth,
+    startResize: startFilterResize,
+    isResizing: isFilterResizing,
+  } = useResizableWidth(300, {
+    min: 240,
+    max: 420,
+    storageKey: "syskern:simulation-lines-filters-width",
   });
   const [diagnosticsLine, setDiagnosticsLine] = useState<SimulationLine | null>(null);
   const [breakdownLine, setBreakdownLine] = useState<SimulationLine | null>(null);
@@ -232,23 +329,64 @@ export function SimulationTable({
   const [resetting, setResetting] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
 
-  const statusIn = buildStatusIn(statusFilters);
+  const statusInParam = buildStatusInParam(statusIn);
   const fromSimulation = useMemo(
     () => ({ simulationId: sim.id, simulationLabel: sim.label }),
     [sim.id, sim.label],
   );
   const ordering = `${sort.dir === "desc" ? "-" : ""}${sort.field}`;
+  const catalogFiltersKey = JSON.stringify(catalogFilters);
+  const activeCatalogFilterCount = countActiveFilters(catalogFilters);
+  const activeFilterCount = activeCatalogFilterCount + (statusInParam ? statusIn.length : 0);
+
+  const { data: filterableAttrs } = useSWR("filterable-attrs", getFilterableAttributes);
+  const attrLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const attr of filterableAttrs ?? []) {
+      labels[attr.code] = attr.label.fr || attr.label.en || attr.code;
+    }
+    return labels;
+  }, [filterableAttrs]);
+
+  const onSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setCatalogFilters((current) => ({ ...current, q: value || undefined }));
+      setPage(1);
+    }, 300);
+  };
+
+  const applyCatalogFilters = useCallback((next: CatalogFilters) => {
+    setCatalogFilters(next);
+    setSearchInput(next.q ?? "");
+    setPage(1);
+  }, []);
+
+  const resetCatalogFilters = useCallback(() => {
+    setCatalogFilters({});
+    setSearchInput("");
+    setStatusIn(DEFAULT_STATUS_IN);
+    setPage(1);
+  }, []);
+
   const { data, isLoading, mutate } = useSWR<PaginatedResponse<SimulationLine>>(
-    ["sim-lines", sim.id, statusIn, ordering, page],
+    ["sim-lines", sim.id, statusInParam, ordering, page, catalogFiltersKey],
     () =>
       getSimulationLines({
         simulation: sim.id,
-        status_in: statusIn,
+        status_in: statusInParam,
         ordering,
         page,
         limit: PAGE_SIZE,
+        ...catalogFilters,
       }),
     { keepPreviousData: true },
+  );
+
+  const activeBulkFilter = useMemo<BulkEditFilter>(
+    () => buildSimulationLineBulkFilter(catalogFilters, { status_in: statusInParam }),
+    [catalogFilters, statusInParam],
   );
 
   const lines = data?.results ?? [];
@@ -380,7 +518,12 @@ export function SimulationTable({
   const patchLine = useCallback(
     async (
       lineId: string,
-      patch: { margin_override?: string | null; stock_purchase_mix_pct_override?: number | null },
+      patch: {
+        margin_override?: string | null;
+        stock_purchase_mix_pct_override?: number | null;
+        quantity?: string | null;
+        force_manual_mix?: boolean;
+      },
     ) => {
       setBusyLine(lineId);
       try {
@@ -418,6 +561,8 @@ export function SimulationTable({
     }
   };
 
+  const isProject = sim.simulation_type === "project";
+
   const columns = useMemo<DataTableColumnDef<SimulationLine>[]>(
     () => [
       {
@@ -427,7 +572,8 @@ export function SimulationTable({
         width: 160,
         render: (line) => {
           const overridden =
-            line.margin_override != null || line.stock_purchase_mix_pct_override != null;
+            line.margin_override != null ||
+            line.stock_purchase_mix_pct_override != null;
           return (
             <div className="flex items-center gap-1.5">
               <Link
@@ -490,20 +636,48 @@ export function SimulationTable({
         cellClassName: "text-sm text-foreground font-data",
         render: (line) => fmtEur(line.pamp_predictive_eur),
       },
+      ...(isProject
+        ? [
+            {
+              key: "quantity",
+              label: "Quantité",
+              width: 110,
+              align: "right" as const,
+              render: (line: SimulationLine) => (
+                <OverrideCell
+                  override={line.quantity?.split(".")[0] ?? ""}
+                  effective="1"
+                  suffix=""
+                  integerOnly
+                  disabled={readOnly || busyLine === line.id}
+                  onCommit={(raw) =>
+                    patchLine(line.id, { quantity: normalizeIntegerQuantity(raw) })
+                  }
+                />
+              ),
+            },
+          ]
+        : []),
       {
         key: "mix",
         label: "Mix eff.",
-        width: 100,
+        width: isProject ? 130 : 100,
         align: "right",
         render: (line) => (
-          <OverrideCell
-            override={line.stock_purchase_mix_pct_override?.toString() ?? ""}
-            effective={line.effective_mix_pct?.toString() ?? ""}
-            suffix="%"
+          <MixCell
+            line={line}
+            isProject={isProject}
             disabled={readOnly || busyLine === line.id}
-            onCommit={(raw) =>
+            onCommitOverride={(raw) =>
               patchLine(line.id, {
                 stock_purchase_mix_pct_override: raw.trim() === "" ? null : parseInt(raw, 10),
+              })
+            }
+            onToggleManual={(forceManual) =>
+              patchLine(line.id, {
+                force_manual_mix: forceManual,
+                // Clearing the override when going back to auto keeps the mix honest.
+                ...(forceManual ? {} : { stock_purchase_mix_pct_override: null }),
               })
             }
           />
@@ -555,6 +729,18 @@ export function SimulationTable({
         cellClassName: "text-sm font-semibold text-foreground font-data",
         render: (line) => fmtEur(line.pv_eur),
       },
+      ...(isProject
+        ? [
+            {
+              key: "pv_total_eur",
+              label: "Prix total",
+              width: 120,
+              align: "right" as const,
+              cellClassName: "text-sm font-semibold text-foreground font-data",
+              render: (line: SimulationLine) => fmtEur(line.pv_total_eur),
+            },
+          ]
+        : []),
       {
         key: "status",
         label: "Statut",
@@ -610,11 +796,87 @@ export function SimulationTable({
         },
       },
     ],
-    [readOnly, busyLine, patchLine, fromSimulation],
+    [readOnly, busyLine, patchLine, fromSimulation, isProject],
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      {filtersCollapsed ? (
+        <div className="relative hidden w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3 lg:flex">
+          <button
+            type="button"
+            onClick={() => setFiltersCollapsed(false)}
+            className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Afficher les filtres"
+            title="Filtres"
+          >
+            <Faders size={18} weight="duotone" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+      ) : (
+        <aside
+          className="relative hidden shrink-0 flex-col border-r border-border bg-card lg:flex"
+          style={{ width: filterSidebarWidth }}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <div className="min-w-0">
+              <span className="text-sm font-bold text-foreground">Filtres</span>
+              {activeFilterCount > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={resetCatalogFilters}>
+                  Effacer
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setFiltersCollapsed(true)}
+                aria-label="Masquer les filtres"
+                title="Masquer les filtres"
+              >
+                <SidebarSimple size={18} />
+              </Button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <SimulationLinesFilterSidebar
+              filters={catalogFilters}
+              onChange={applyCatalogFilters}
+              statusIn={statusIn}
+              onStatusInChange={(next) => {
+                setStatusIn(next);
+                setPage(1);
+              }}
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau des filtres"
+            onMouseDown={startFilterResize}
+            className={cn(
+              "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors hover:bg-primary/20",
+              isFilterResizing && "bg-primary/30",
+            )}
+          >
+            <span className="h-10 w-0.5 rounded-full bg-border" />
+          </div>
+        </aside>
+      )}
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="border-b border-border bg-muted/40 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
@@ -670,7 +932,12 @@ export function SimulationTable({
               <Plus size={15} weight="bold" />
               Ajouter des produits
             </Button>
-            <Button onClick={() => onBulkEdit()} disabled={readOnly} variant="outline" size="sm">
+            <Button
+              onClick={() => onBulkEdit({ filter: activeBulkFilter })}
+              disabled={readOnly}
+              variant="outline"
+              size="sm"
+            >
               Édition groupée
             </Button>
             <Button
@@ -692,37 +959,52 @@ export function SimulationTable({
             </Button>
           </div>
         </div>
+      </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-4">
-          {(
-            [
-              { key: "ok" as const, label: "OK" },
-              { key: "warning" as const, label: "Avertissements" },
-              { key: "error" as const, label: "Erreurs" },
-            ] as const
-          ).map(({ key, label }) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <Checkbox
-                id={`status-filter-${key}`}
-                checked={statusFilters[key]}
-                onCheckedChange={(checked) => {
-                  setStatusFilters((current) => ({ ...current, [key]: checked === true }));
-                  setPage(1);
-                }}
-              />
-              <Label
-                htmlFor={`status-filter-${key}`}
-                className="text-xs font-normal text-muted-foreground"
-              >
-                {label}
-              </Label>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3">
+          <CatalogFilterTrigger
+            activeCount={activeFilterCount}
+            onClick={() => setMobileFiltersOpen(true)}
+          />
+          <SearchInput
+            className="w-full min-w-[200px] flex-1 sm:max-w-sm"
+            value={searchInput}
+            onChange={onSearchChange}
+            placeholder="Recherche SKU, nom, description…"
+          />
           <span className="text-xs text-muted-foreground">
             {total} ligne{total !== 1 ? "s" : ""}
           </span>
         </div>
-      </div>
+
+        <CatalogFilterSheet
+          open={mobileFiltersOpen}
+          onOpenChange={setMobileFiltersOpen}
+          filters={catalogFilters}
+          onChange={applyCatalogFilters}
+          onReset={resetCatalogFilters}
+          savedFilters={[]}
+          onSaveFilter={() => {}}
+          onApplyFilter={() => {}}
+          onDeleteFilter={() => {}}
+          title="Filtres lignes"
+          prependContent={
+            <SimulationLineStatusFilterSection
+              statusIn={statusIn}
+              onStatusInChange={(next) => {
+                setStatusIn(next);
+                setPage(1);
+              }}
+            />
+          }
+        />
+
+        <ActiveFilterBar
+          filters={catalogFilters}
+          attrLabels={attrLabels}
+          onChange={applyCatalogFilters}
+          onClearAll={resetCatalogFilters}
+        />
 
       {selected.size > 0 && !readOnly && (
         <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-5 py-2.5">
@@ -734,7 +1016,7 @@ export function SimulationTable({
               size="sm"
               variant="outline"
               disabled={removing || resetting || recalculating}
-              onClick={() => onBulkEdit(selectedIds)}
+              onClick={() => onBulkEdit({ lineIds: selectedIds })}
             >
               Modifier la sélection
             </Button>
@@ -856,6 +1138,7 @@ export function SimulationTable({
               patchLine(line.id, {
                 margin_override: null,
                 stock_purchase_mix_pct_override: null,
+                force_manual_mix: false,
               })
             }
             onRemove={() =>
@@ -874,6 +1157,7 @@ export function SimulationTable({
           ariaLabel: "Pagination des lignes de simulation",
         }}
       />
+      </div>
     </div>
   );
 }

@@ -394,6 +394,12 @@ class MarginModule(CalculationModule):
     label: str = "syskern"
     type: str = ModuleType.MARGIN
 
+    def module_type_key(self) -> str:
+        """Persist a specific module id in breakdowns (syskern vs symea)."""
+        if self.label in ("syskern", "symea"):
+            return f"{self.label}_margin"
+        return self.type
+
     def apply(
         self, input_price: PriceWithCurrency, ctx: SimulationContext, *, order: int | None = None
     ) -> CalculationStep:
@@ -407,7 +413,7 @@ class MarginModule(CalculationModule):
         denominator = DEC_ONE - rate
         new_amount = quantize(input_price.amount / denominator)
         return CalculationStep(
-            module_type=self.type,
+            module_type=self.module_type_key(),
             input_price=input_price,
             output_price=input_price.with_amount(new_amount),
             metadata={

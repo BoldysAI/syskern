@@ -10,12 +10,13 @@ export function useRequireAdmin(redirectTo = "/") {
   const { role, isLoading } = useAuth();
   const router = useRouter();
   const allowed = isAdmin(role);
+  const denied = !isLoading && !allowed;
 
   useEffect(() => {
-    if (!isLoading && !allowed) {
+    if (denied) {
       router.replace(redirectTo);
     }
-  }, [isLoading, allowed, router, redirectTo]);
+  }, [denied, router, redirectTo]);
 
-  return { isLoading, allowed };
+  return { isLoading, allowed, denied };
 }

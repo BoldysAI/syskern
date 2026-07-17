@@ -190,8 +190,8 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
   `stock_quantity`) — cf. `ordering.py`.
 - **Pagination** : `limit=100` ; composant `CatalogPagination`.
 - **Sélection multiple** : `Set<string>` d'ids **persistée à travers les pages** → barre d'actions
-  groupées (export sélection, `AddToSimulationDialog` `productIds[]`, **« Traduire »** →
-  `BulkTranslateDialog` bulk DeepL avec progress — cf. `i18n.md`).
+  groupées (export sélection, **`AddToSimulationDialog`** `productIds[]` — cf. § catalogue → simulation,
+  **« Traduire »** → `BulkTranslateDialog` bulk DeepL avec progress — cf. `i18n.md`).
 - **Colonnes visibles** : bouton « Colonnes » → modale `CatalogColumnsDialog` (page catalogue
   uniquement ; pas en mode `embedded`). Deux sections à cases à cocher (libellé FR uniquement, pas
   de code technique) :
@@ -233,8 +233,9 @@ Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections
 - **Supprimer** (soft-delete) : bouton sur la fiche pour `canEdit` → `deleteProduct(idOrSku)`
   (`DELETE /api/products/{id|sku}/`) puis redirection `/catalog`.
 - Actions pied de page : **Voir dans Odoo** (`NEXT_PUBLIC_ODOO_BASE_URL`, désactivé si
-  `odoo_id` null), **Ajouter à une simulation** (`AddToSimulationDialog`), **Historique**
-  (placeholder MVP2).
+  `odoo_id` null), **Ajouter à une simulation** (`AddToSimulationDialog` — modale 2 onglets :
+  simulation brouillon existante `POST /lines` ou wizard `/simulator/new?from=catalog` ; cf.
+  `frontend.md` § Catalogue → simulation), **Historique** (placeholder MVP2).
 
 ### `AttributeRenderer` (réutilisable)
 

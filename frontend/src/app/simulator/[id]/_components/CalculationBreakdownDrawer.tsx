@@ -15,7 +15,7 @@ import type { SimulationLine } from "@/lib/api";
 import { listTransportModes } from "@/lib/api";
 import { transportModeLabelMap } from "@/lib/transport-modes";
 import { cn } from "@/lib/utils";
-import { decToPct, diagnosticTextClass, fmtEur, fmtPrice, formatBreakdownStepDetails, lineDiagnostics, moduleLabel, mpStr, parseLineBreakdown, prChainSteps, type BreakdownStep } from "./sim-format";
+import { decToPct, diagnosticTextClass, fmtEur, fmtPrice, formatBreakdownStepDetails, isStaleSaleMarginBreakdown, lineDiagnostics, mpStr, parseLineBreakdown, prChainSteps, stepModuleLabel, type BreakdownStep } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 interface Props {
@@ -93,7 +93,7 @@ function ChainSteps({
               {step.order ?? idx + 1}
             </span>
             <span className="text-sm font-semibold text-foreground">
-              {moduleLabel(step.module)}
+              {stepModuleLabel(step)}
             </span>
             <StepBadge applied={step.applied} />
           </div>
@@ -152,6 +152,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
   const mixPct = breakdown.mix_pct ?? line.effective_mix_pct ?? 0;
   const purchasePct = 100 - (mixPct ?? 0);
   const hasBreakdown = purchaseSteps.length > 0 || prSteps.length > 0 || saleSteps.length > 0;
+  const staleSaleMargin = isStaleSaleMarginBreakdown(breakdown);
   const mpSnap = breakdown.market_params_snapshot ?? {};
   const incSnap = breakdown.incoterm_context ?? {};
 
@@ -203,6 +204,16 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
+            {staleSaleMargin && (
+              <div className="mb-4 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
+                <p className={diagnosticTextClass}>
+                  Ce détail de calcul date d&apos;avant la correction « marge Syskern avant transport
+                  PV ». Les montants affichés peuvent être incorrects — recalculez la simulation
+                  (bouton Recalculer) pour mettre à jour le PV et la chaîne PV.
+                </p>
+              </div>
+            )}
+
             {errors.length > 0 && !hasBreakdown && (
               <div className="mb-4 max-h-[min(40vh,16rem)] space-y-2 overflow-y-auto overscroll-contain">
                 {errors.map((msg, i) => (
@@ -309,6 +320,33 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   </p>
                 </section>
 
+                {saleSteps.length > 0 && (
+                  <section className="rounded-lg border border-border bg-muted px-4 py-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Chaîne PV
+                    </h3>
+                    <p className="mt-2 text-sm text-foreground">
+                      Ordre d&apos;application :{" "}
+                      {saleSteps.map((s) => stepModuleLabel(s)).join(" → ")}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      La marge Syskern est appliquée sur le PR avant les transports et la douane
+                      (position fixe, non déplaçable).
+                    </p>
+                    <p className="mt-2 text-sm tabular-nums text-foreground">
+                      PR {fmtEur(line.pr_eur)}
+                      {saleSteps.map((s) => (
+                        <span key={`${s.module}-${s.order}`}>
+                          {" → "}
+                          {stepModuleLabel(s)} {fmtPrice(s.output_price)}
+                        </span>
+                      ))}
+                      {" → "}
+                      <span className="font-semibold">PV {fmtEur(line.pv_eur)}</span>
+                    </p>
+                  </section>
+                )}
+
                 {warnings.length > 0 && (
                   <section>
                     <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warm">
@@ -376,7 +414,8 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {currentStep === "sale" && (
               <div>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Chaîne de vente : du PR au PV final en EUR.
+                  Chaîne de vente : du PR au PV final en EUR. La marge Syskern est appliquée en
+                  premier sur le PR, puis les transports et la douane.
                   {breakdown.sale?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">
                       Résultat :{" "}

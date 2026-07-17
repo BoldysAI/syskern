@@ -31,7 +31,7 @@ from .serializers import (
     SupplierSkuLinkInputSerializer,
     SupplierWriteSerializer,
 )
-from .services import apply_bulk_po, bulk_link_skus
+from .services import apply_bulk_po, bulk_link_skus, preview_bulk_po
 from .tasks import IMPORT_DIR, import_po_task
 
 _ALLOWED_UPLOAD_SUFFIXES = (".xlsx", ".xlsm")
@@ -160,12 +160,44 @@ class SupplierViewSet(viewsets.ModelViewSet):
             links = list(
                 ProductSupplier.objects.filter(
                     supplier=supplier, product_id__in=data["product_ids"]
-                )
+                ).select_related("product")
             )
         else:
-            links = list(ProductSupplier.objects.filter(id__in=data["link_ids"], supplier=supplier))
+            links = list(
+                ProductSupplier.objects.filter(
+                    id__in=data["link_ids"], supplier=supplier
+                ).select_related("product")
+            )
         updated, skipped = apply_bulk_po(links, mode=data["mode"], value=data["value"])
         return Response({"updated": updated, "skipped": skipped})
+
+    @action(detail=True, methods=["post"], url_path="skus/bulk-po/preview")
+    def bulk_po_preview(self, request, pk=None):
+        """Dry-run for the batch PO wizard — returns per-SKU old/new prices."""
+        supplier = self.get_object()
+        ser = SupplierBulkPoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        not_linked = 0
+        if data.get("product_ids"):
+            product_ids = data["product_ids"]
+            links = list(
+                ProductSupplier.objects.filter(
+                    supplier=supplier, product_id__in=product_ids
+                ).select_related("product")
+            )
+            not_linked = len(product_ids) - len(links)
+        else:
+            links = list(
+                ProductSupplier.objects.filter(
+                    id__in=data["link_ids"], supplier=supplier
+                ).select_related("product")
+            )
+        payload = preview_bulk_po(
+            links, mode=data["mode"], value=data["value"], not_linked=not_linked
+        )
+        return Response(payload)
 
     @action(detail=True, methods=["post"], url_path="skus/bulk-link")
     def bulk_link(self, request, pk=None):

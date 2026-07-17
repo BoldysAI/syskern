@@ -1,19 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleNotch } from "@phosphor-icons/react";
-import {
-  bulkEditLines,
-  bulkEditPreview,
-  getBrands,
-  getHierarchyLevel,
-  type BulkEditFilter,
-} from "@/lib/api";
+import { bulkEditLines, bulkEditPreview, type BulkEditFilter } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { FilterSelect } from "@/components/FilterSelect";
 import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
+import { normalizeIntegerQuantity, normalizePaCoefficient } from "@/app/simulator/new/_components/wizard-draft";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -32,42 +25,51 @@ interface Props {
   onApplied: () => void;
   /** When set, applies only to these simulation line ids (skips filter UI). */
   lineIds?: string[] | null;
+  /** Project simulations expose quantity + auto/manual mix controls. */
+  isProject?: boolean;
+  /** Pre-fill the filter (table sidebar filters) — filter mode only. */
+  initialFilter?: BulkEditFilter;
 }
 
 type ActionType = "set_overrides" | "reset";
+type MixMode = "" | "auto" | "manual";
 
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 
-export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Props) {
+export function BulkEditModal({
+  simId,
+  open,
+  onClose,
+  onApplied,
+  lineIds,
+  isProject = false,
+  initialFilter,
+}: Props) {
   const confirm = useConfirm();
   const selectionMode = Boolean(lineIds && lineIds.length > 0);
-  const [filter, setFilter] = useState<BulkEditFilter>({});
   const [action, setAction] = useState<ActionType>("set_overrides");
   const [marginPct, setMarginPct] = useState("20");
+  const [applyMix, setApplyMix] = useState(true);
   const [mixPct, setMixPct] = useState(50);
+  const [qty, setQty] = useState("");
+  const [paCoef, setPaCoef] = useState("");
+  const [mixMode, setMixMode] = useState<MixMode>("");
   const [count, setCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: universes } = useSWR<string[]>("hierarchy-universe", () =>
-    getHierarchyLevel("universe")
+  const activeFilter = useMemo<BulkEditFilter>(
+    () => (selectionMode ? { line_ids: lineIds! } : (initialFilter ?? {})),
+    [selectionMode, lineIds, initialFilter],
   );
-  const { data: families } = useSWR<string[]>("hierarchy-family", () =>
-    getHierarchyLevel("family")
-  );
-  const { data: ranges } = useSWR<string[]>("hierarchy-range", () => getHierarchyLevel("range"));
-  const { data: brands } = useSWR<string[]>("brands", getBrands);
 
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const activeFilter: BulkEditFilter = selectionMode
-      ? { line_ids: lineIds! }
-      : filter;
     debounceRef.current = setTimeout(() => {
       setPreviewing(true);
       bulkEditPreview(simId, activeFilter)
@@ -78,16 +80,27 @@ export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Prop
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [simId, filter, open, selectionMode, lineIds]);
-
-  const setFlt = (patch: Partial<BulkEditFilter>) => setFilter((f) => ({ ...f, ...patch }));
+  }, [simId, activeFilter, open]);
 
   const handleApply = async () => {
     setError(null);
+    const marginSet = marginPct.trim() !== "";
+    const qtySet = isProject && qty.trim() !== "";
+    const paCoefSet = paCoef.trim() !== "";
     if (action === "set_overrides") {
-      const n = parseFloat(marginPct);
-      if (!Number.isFinite(n) || n < 0 || n >= 100) {
-        setError("Saisissez une marge valide (0–99 %).");
+      if (marginSet) {
+        const n = parseFloat(marginPct);
+        if (!Number.isFinite(n) || n < 0 || n >= 100) {
+          setError("Saisissez une marge valide (0–99 %).");
+          return;
+        }
+      }
+      if (paCoefSet && !normalizePaCoefficient(paCoef)) {
+        setError("Saisissez un coefficient PA valide (ex. 1,05).");
+        return;
+      }
+      if (!marginSet && !applyMix && !qtySet && !paCoefSet && !(isProject && mixMode)) {
+        setError("Renseignez au moins un champ à modifier.");
         return;
       }
     }
@@ -96,20 +109,20 @@ export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Prop
       description:
         action === "reset"
           ? `Réinitialiser les surcharges de ${count ?? 0} ligne(s) ?`
-          : `Appliquer marge et mix à ${count ?? 0} ligne(s) ?`,
+          : `Appliquer les modifications à ${count ?? 0} ligne(s) ?`,
       confirmLabel: "Appliquer",
     });
     if (!ok) return;
 
     setApplying(true);
     try {
-      const activeFilter: BulkEditFilter = selectionMode
-        ? { line_ids: lineIds! }
-        : filter;
       const body: Parameters<typeof bulkEditLines>[1] = { filter: activeFilter };
       if (action === "set_overrides") {
-        body.margin_override = (parseFloat(marginPct) / 100).toFixed(4);
-        body.stock_purchase_mix_pct_override = mixPct;
+        if (marginSet) body.margin_override = (parseFloat(marginPct) / 100).toFixed(4);
+        if (applyMix) body.stock_purchase_mix_pct_override = mixPct;
+        if (qtySet) body.quantity = normalizeIntegerQuantity(qty);
+        if (paCoefSet) body.pa_coefficient_override = normalizePaCoefficient(paCoef);
+        if (isProject && mixMode) body.force_manual_mix = mixMode === "manual";
       } else {
         body.reset = true;
       }
@@ -139,78 +152,11 @@ export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Prop
               tableau.
             </p>
           ) : (
-            <>
-          <h3 className="mb-3 text-sm font-bold text-foreground">Filtres cumulables</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Univers</label>
-              <FilterSelect
-                value={filter.universe ?? ""}
-                onChange={(v) => setFlt({ universe: v || undefined })}
-                placeholder="Tous"
-                options={(universes ?? []).map((u) => ({ value: u, label: u }))}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Famille</label>
-              <FilterSelect
-                value={filter.family ?? ""}
-                onChange={(v) => setFlt({ family: v || undefined })}
-                placeholder="Toutes"
-                options={(families ?? []).map((f) => ({ value: f, label: f }))}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Gamme</label>
-              <FilterSelect
-                value={filter.range ?? ""}
-                onChange={(v) => setFlt({ range: v || undefined })}
-                placeholder="Toutes"
-                options={(ranges ?? []).map((r) => ({ value: r, label: r }))}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Marque</label>
-              <FilterSelect
-                value={filter.brand ?? ""}
-                onChange={(v) => setFlt({ brand: v || undefined })}
-                placeholder="Toutes"
-                options={(brands ?? []).map((b) => ({ value: b, label: b }))}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Code usine</label>
-              <input
-                className={inputCls}
-                value={filter.factory_code ?? ""}
-                onChange={(e) => setFlt({ factory_code: e.target.value || undefined })}
-                placeholder="Tous"
-              />
-            </div>
-            <div className="flex items-end gap-4 pb-1">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="bulk-has-warning"
-                  checked={!!filter.has_warning}
-                  onCheckedChange={(v) => setFlt({ has_warning: v === true || undefined })}
-                />
-                <Label htmlFor="bulk-has-warning" className="text-sm font-normal">
-                  Avertissements
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="bulk-has-error"
-                  checked={!!filter.has_error}
-                  onCheckedChange={(v) => setFlt({ has_error: v === true || undefined })}
-                />
-                <Label htmlFor="bulk-has-error" className="text-sm font-normal">
-                  Erreurs
-                </Label>
-              </div>
-            </div>
-          </div>
-            </>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Les filtres actifs du tableau (sidebar « Filtres » à gauche des lignes) déterminent
+              quelles lignes seront modifiées. Ajustez-les avant d&apos;ouvrir cette modale si
+              besoin.
+            </p>
           )}
 
           <div className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -250,10 +196,10 @@ export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Prop
             ))}
           </div>
 
-          <div className="mt-4 flex flex-col gap-5">
-            {action === "set_overrides" && (
-              <>
-                <div className="max-w-[200px]">
+          {action === "set_overrides" && (
+            <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className={labelCls}>Marge Syskern effective (%)</label>
                   <input
                     type="number"
@@ -263,38 +209,102 @@ export function BulkEditModal({ simId, open, onClose, onApplied, lineIds }: Prop
                     value={marginPct}
                     onChange={(e) => setMarginPct(e.target.value)}
                     className={inputCls}
-                    placeholder="20"
+                    placeholder="Laisser vide = inchangé"
                   />
                 </div>
-                <StockPurchaseMixSlider value={mixPct} onChange={setMixPct} />
-              </>
-            )}
-            {action === "reset" && (
-              <p className="text-sm text-muted-foreground">
-                Réinitialise marge et mix surchargés sur les lignes filtrées.
-              </p>
-            )}
-          </div>
+                {isProject && (
+                  <div>
+                    <label className={labelCls}>Quantité</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                      className={inputCls}
+                      placeholder="Laisser vide = inchangé"
+                    />
+                  </div>
+                )}
+              </div>
 
-          {error && (
-            <div className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
+              <div>
+                <label className={labelCls}>Coefficient PA (×)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={paCoef}
+                  onChange={(e) => setPaCoef(e.target.value)}
+                  className={inputCls}
+                  placeholder="Laisser vide = inchangé (ex. 1,05)"
+                />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Alternative aux transports détaillés pour les lignes filtrées uniquement. Les lignes
+                  sans coefficient héritent la chaîne PA de la simulation.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bulk-apply-mix"
+                  checked={applyMix}
+                  onCheckedChange={(v) => setApplyMix(v === true)}
+                />
+                <Label htmlFor="bulk-apply-mix" className="text-sm font-normal">
+                  Modifier le mix stock/achat
+                </Label>
+              </div>
+              {applyMix && (
+                <StockPurchaseMixSlider value={mixPct} onChange={setMixPct} disabled={applying} />
+              )}
+
+              {isProject && (
+                <div>
+                  <label className={labelCls}>Mode de mix (projet)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["", "Inchangé"],
+                        ["auto", "Auto (quantité)"],
+                        ["manual", "Manuel (slider)"],
+                      ] as [MixMode, string][]
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode || "unchanged"}
+                        type="button"
+                        onClick={() => setMixMode(mode)}
+                        className={cn(
+                          "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                          mixMode === mode
+                            ? "border-primary bg-accent text-accent-foreground"
+                            : "border-border text-muted-foreground hover:bg-muted",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t border-border p-5">
           <Button type="button" variant="outline" onClick={onClose} disabled={applying}>
             Annuler
           </Button>
-          <Button
-            type="button"
-            onClick={handleApply}
-            disabled={applying || (count ?? 0) === 0}
-            className="gap-2"
-          >
-            {applying && <CircleNotch size={14} className="animate-spin" />}
-            Appliquer
+          <Button type="button" onClick={() => void handleApply()} disabled={applying || previewing}>
+            {applying ? (
+              <>
+                <CircleNotch size={14} className="animate-spin" />
+                Application…
+              </>
+            ) : (
+              "Appliquer"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

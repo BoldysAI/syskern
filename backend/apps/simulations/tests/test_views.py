@@ -251,6 +251,19 @@ class TestCreateValidations:
         )
         assert resp.status_code == 201
 
+    def test_project_name_defaults_from_label(self, client: APIClient) -> None:
+        resp = client.post(
+            "/api/simulations/",
+            self._base_payload(
+                label="Datacenter Lyon",
+                simulation_type=SimulationType.PROJECT,
+                client_ids=[str(uuid.uuid4())],
+            ),
+            format="json",
+        )
+        assert resp.status_code == 201
+        assert resp.json()["project_name"] == "Datacenter Lyon"
+
 
 # ─── Line status filters (CDC §6.9.9) ───────────────────────────────────────
 
@@ -293,6 +306,18 @@ class TestLineFilters:
         resp = client.get(f"/api/simulation-lines/?simulation={sim_with_lines.pk}&status_in=error")
         assert resp.status_code == 200
         assert {row["status"] for row in resp.json()["results"]} == {"error"}
+
+    def test_brand_filter_csv_multi(self, client: APIClient, draft: Simulation) -> None:
+        """CDC Feedback 1 — brand filter (CSV multi) on the simulation line list."""
+        p_a = Product.objects.create(sku_code="B-A", name="A", brand="Acme")
+        p_b = Product.objects.create(sku_code="B-B", name="B", brand="Globex")
+        p_c = Product.objects.create(sku_code="B-C", name="C", brand="Umbrella")
+        for p in (p_a, p_b, p_c):
+            SimulationLine.objects.create(simulation=draft, product=p, status="ok")
+
+        resp = client.get(f"/api/simulation-lines/?simulation={draft.pk}&brand=Acme,Globex")
+        assert resp.status_code == 200
+        assert {row["product_sku"] for row in resp.json()["results"]} == {"B-A", "B-B"}
 
 
 # ─── Per-line edit guard (CDC §6.9.10) ──────────────────────────────────────
@@ -679,6 +704,23 @@ class TestBulkEdit:
         sim.refresh_from_db()
         assert sim.is_dirty is True
 
+    def test_bulk_edit_pa_coefficient_by_filter(self, client: APIClient) -> None:
+        sim, lines = self._sim_with_lines()
+        resp = client.post(
+            f"/api/simulations/{sim.pk}/lines/bulk/",
+            {
+                "filter": {"brand": "ACME"},
+                "pa_coefficient_override": "1.0500",
+            },
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["updated"] == 2
+        for line in lines:
+            line.refresh_from_db()
+            assert str(line.pa_coefficient_override) == "1.0500"
+            assert line.status == "dirty"
+
     def test_bulk_edit_margin_and_mix_together(self, client: APIClient) -> None:
         sim, lines = self._sim_with_lines()
         resp = client.post(
@@ -862,6 +904,98 @@ class TestCompare:
         recalc_key = body["columns"][1]["key"]
         row = next(r for r in body["products"] if r["product_sku"] == "CMP-3")
         assert row["values"][recalc_key]["pv_eur"] == "120.0000"
+
+    def _copper_sim(self, label: str, sku: str) -> tuple[Simulation, Product]:
+        """A copper-indexed simulation whose PV reacts to the copper price."""
+        sim = Simulation.objects.create(
+            label=label,
+            simulation_type=SimulationType.TARIFF,
+            market_params={
+                "copper_base_price_rmb": "70000",
+                "copper_current_price_rmb": "70000",
+                "fx_eur_rmb": "7.95",
+            },
+            calculation_chain={
+                "purchase_chain": {
+                    "copper_variation": {},
+                    "currency_conversion": {"to_currency": "EUR"},
+                    "transports": [],
+                    "customs": None,
+                    "symea_margin": {"rate": "0.06", "position": "after_transports"},
+                },
+                "sale_chain": {
+                    "transports": [],
+                    "customs": None,
+                    "syskern_margin": {"rate": "0.20"},
+                },
+            },
+        )
+        product, _ = Product.objects.get_or_create(sku_code=sku, defaults={"name": sku})
+        SimulationLine.objects.create(
+            simulation=sim,
+            product=product,
+            status="ok",
+            product_snapshot={
+                "sku_code": sku,
+                "is_copper_indexed": True,
+                "copper_weight_kg_per_unit": "18",
+                "pallet_qty": 9,
+                "base_unit": "km",
+            },
+            supplier_snapshot={"po_base_price": "2350", "po_currency": "RMB"},
+            pa_net_eur=Decimal("300"),
+            pr_eur=Decimal("300"),
+            pv_eur=Decimal("375"),
+            effective_margin_rate=Decimal("0.2000"),
+            effective_mix_pct=0,
+        )
+        return sim, product
+
+    def test_what_if_recomputes_with_copper_override(self, client: APIClient) -> None:
+        """CDC Feedback 1 — normalising the copper base recomputes PV in memory."""
+        s1, p = self._copper_sim("A", "WI-1")
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        SimulationLine.objects.create(
+            simulation=s2, product=p, status="ok", pv_eur=Decimal("400"), effective_mix_pct=0
+        )
+
+        base = client.post(
+            "/api/simulations/compare/what-if",
+            {
+                "simulation_ids": [str(s1.pk), str(s2.pk)],
+                "market_params_override": {"copper_current_price_rmb": "70000"},
+            },
+            format="json",
+        )
+        higher = client.post(
+            "/api/simulations/compare/what-if",
+            {
+                "simulation_ids": [str(s1.pk), str(s2.pk)],
+                "market_params_override": {"copper_current_price_rmb": "97000"},
+            },
+            format="json",
+        )
+        assert base.status_code == 200 and higher.status_code == 200
+        key = f"simulation:{s1.pk}"
+        row_base = next(r for r in base.json()["products"] if r["product_sku"] == "WI-1")
+        row_high = next(r for r in higher.json()["products"] if r["product_sku"] == "WI-1")
+        # A higher copper price → higher PA → higher recomputed PV (source untouched).
+        assert Decimal(row_high["values"][key]["pv_eur"]) > Decimal(
+            row_base["values"][key]["pv_eur"]
+        )
+        # Source simulation stays immutable.
+        s1.refresh_from_db()
+        first_line = s1.lines.first()
+        assert first_line is not None and first_line.pv_eur == Decimal("375")
+
+    def test_what_if_requires_two_to_four(self, client: APIClient) -> None:
+        s1, _ = self._copper_sim("A", "WI-2")
+        resp = client.post(
+            "/api/simulations/compare/what-if",
+            {"simulation_ids": [str(s1.pk)], "market_params_override": {}},
+            format="json",
+        )
+        assert resp.status_code == 400
 
 
 # ─── Saved comparisons ───────────────────────────────────────────────────────

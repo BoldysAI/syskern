@@ -24,7 +24,8 @@ import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import SettingsNav from "../_components/SettingsNav";
+import { Suspense } from "react";
+import SettingsNav, { SettingsNavFallback } from "../_components/SettingsNav";
 import AttributeFormModal from "./_components/AttributeFormModal";
 import DeleteAttributeDialog from "./_components/DeleteAttributeDialog";
 import { CATEGORIES } from "./_components/constants";
@@ -36,7 +37,7 @@ const COLUMNS = ["", "Code", "Label FR", "Catégorie", "Type", "Obligatoire", "O
 type CategoryFilter = AttributeCategory | "all";
 
 export default function AttributesAdminPage() {
-  const { isLoading: authLoading, allowed } = useRequireAdmin();
+  const { isLoading: authLoading, allowed, denied } = useRequireAdmin();
 
   const { data, isLoading, error } = useSWR<AttributeRegistry[]>(SWR_KEY, listAttributes);
 
@@ -57,12 +58,26 @@ export default function AttributesAdminPage() {
 
   const dndEnabled = selectedCat !== "all";
 
-  if (authLoading || !allowed) {
+  if (authLoading) {
     return (
       <div className="p-6">
         <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
       </div>
     );
+  }
+
+  if (denied) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          Accès réservé aux administrateurs.
+        </div>
+      </div>
+    );
+  }
+
+  if (!allowed) {
+    return null;
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -104,7 +119,9 @@ export default function AttributesAdminPage() {
         </p>
       </div>
 
-      <SettingsNav />
+      <Suspense fallback={<SettingsNavFallback />}>
+        <SettingsNav />
+      </Suspense>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">

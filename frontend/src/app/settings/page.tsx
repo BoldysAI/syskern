@@ -19,7 +19,8 @@ import {
   Warning,
   XCircle,
 } from "@phosphor-icons/react";
-import SettingsNav from "./_components/SettingsNav";
+import SettingsNav, { SettingsNavFallback } from "./_components/SettingsNav";
+import TabTransportPresets from "./_components/TabTransportPresets";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
@@ -985,7 +986,9 @@ function SettingsContent() {
   return (
     <>
       <SettingsNav />
-      {tab === "transport" ? (
+      {tab === "transport-presets" ? (
+        <TabTransportPresets />
+      ) : tab === "transport" ? (
         <TabTransport />
       ) : tab === "odoo" ? (
         <TabOdoo />
@@ -999,14 +1002,28 @@ function SettingsContent() {
 }
 
 export default function SettingsPage() {
-  const { isLoading, allowed } = useRequireAdmin();
+  const { isLoading, allowed, denied } = useRequireAdmin();
 
-  if (isLoading || !allowed) {
+  if (isLoading) {
     return (
       <div className="p-6">
         <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
       </div>
     );
+  }
+
+  if (denied) {
+    return (
+      <div className="p-6">
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          Accès réservé aux administrateurs.
+        </div>
+      </div>
+    );
+  }
+
+  if (!allowed) {
+    return null;
   }
 
   return (
@@ -1020,7 +1037,10 @@ export default function SettingsPage() {
 
       <Suspense
         fallback={
-          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          <>
+            <SettingsNavFallback />
+            <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          </>
         }
       >
         <SettingsContent />

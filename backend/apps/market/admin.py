@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Incoterm, MarketParameter, TransportMode
+from .models import Incoterm, MarketParameter, TransportMode, TransportPreset
 
 
 @admin.register(TransportMode)
@@ -8,6 +8,19 @@ class TransportModeAdmin(admin.ModelAdmin):
     list_display = ("code", "category", "default_pallet_capacity", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code",)
+
+
+@admin.register(TransportPreset)
+class TransportPresetAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "transport_mode_code",
+        "currency",
+        "pallet_count",
+        "is_active",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("name", "transport_mode_code")
 
 
 @admin.register(Incoterm)

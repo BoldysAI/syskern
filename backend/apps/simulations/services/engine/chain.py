@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
 
 from apps.core.models import Currency
 
@@ -58,6 +59,62 @@ class ChainResult:
 
 
 # ─── PURCHASE CHAIN — produces PA net in EUR ─────────────────────────────
+
+
+def apply_line_pa_coefficient_override(
+    chain_config: dict[str, Any],
+    *,
+    coefficient: Decimal | None,
+) -> dict[str, Any]:
+    """Pin a per-line PA transport coefficient when set (CDC Feedback 1).
+
+    When ``coefficient`` is ``None``, the simulation chain config is returned
+    unchanged — lines without override keep the current behaviour (simulation-
+    wide detailed transports or chain coefficient).
+
+    When set, transport legs are replaced by a single COEF leg for this line
+    only, as an alternative to detailed transport or the global coefficient.
+    """
+    if coefficient is None:
+        return chain_config
+
+    coef = to_decimal(coefficient)
+    if coef <= Decimal("0"):
+        return chain_config
+
+    coef_s = str(coef)
+    return {
+        **chain_config,
+        "transport_pricing": "coefficient",
+        "transport_coefficient": coef_s,
+        "transports": [
+            {
+                "order": 1,
+                "transport_mode_code": "COEF",
+                "global_cost": "0",
+                "currency": Currency.EUR.value,
+                "pallet_count": 0,
+                "from_location": "",
+                "to_location": "",
+                "override_coefficient": coef_s,
+            }
+        ],
+    }
+
+
+def build_purchase_chain_config_for_line(
+    purchase_config: dict[str, Any],
+    *,
+    symea_margin_rate: Decimal,
+    pa_coefficient_override: Decimal | None = None,
+) -> dict[str, Any]:
+    """Merge simulation-wide PA config with optional per-line coefficient override."""
+    base = {
+        **purchase_config,
+        "symea_margin": purchase_config.get("symea_margin")
+        or {"rate": str(symea_margin_rate), "position": "after_transports"},
+    }
+    return apply_line_pa_coefficient_override(base, coefficient=pa_coefficient_override)
 
 
 def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
@@ -129,9 +186,7 @@ def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
                     else None
                 ),
                 rate_pct=(
-                    to_decimal(customs["rate_pct"])
-                    if customs.get("rate_pct") is not None
-                    else None
+                    to_decimal(customs["rate_pct"]) if customs.get("rate_pct") is not None else None
                 ),
                 override_coefficient=(
                     to_decimal(customs["override_coefficient"])
@@ -153,7 +208,7 @@ def build_purchase_modules(chain_config: dict) -> list[CalculationModule]:
 def build_sale_modules(
     chain_config: dict, *, syskern_margin_rate: Decimal
 ) -> list[CalculationModule]:
-    """Build the PV chain (CDC §6.8).
+    """Build the PV chain (CDC §6.8, revised per CDC Feedback 1).
 
     Expected shape:
         {
@@ -164,9 +219,21 @@ def build_sale_modules(
 
     `syskern_margin_rate` is the fallback when the chain config does not
     pin its own rate — usually `simulation.syskern_margin_rate`.
+
+    **Margin position (CDC Feedback 1):** the Syskern margin is applied on the
+    PR **before** the sale-side transports and customs. This is a fixed,
+    hard-coded position (not a drag-and-drop module, not user-configurable) —
+    deviation from the Annexe Technique which documented the margin last. See
+    `docs/agent/decisions.md`.
     """
     modules: list[CalculationModule] = []
 
+    # 1. Syskern margin — fixed position, applied on the PR first.
+    rate = chain_config.get("syskern_margin", {}).get("rate")
+    final_rate = to_decimal(rate) if rate is not None else to_decimal(syskern_margin_rate)
+    modules.append(MarginModule(rate=final_rate, label="syskern"))
+
+    # 2. Sale-side transports, then customs, on top of the margined price.
     transports = sorted(chain_config.get("transports", []), key=lambda t: t.get("order", 0))
     for t in transports:
         modules.append(
@@ -197,9 +264,7 @@ def build_sale_modules(
                     else None
                 ),
                 rate_pct=(
-                    to_decimal(customs["rate_pct"])
-                    if customs.get("rate_pct") is not None
-                    else None
+                    to_decimal(customs["rate_pct"]) if customs.get("rate_pct") is not None else None
                 ),
                 override_coefficient=(
                     to_decimal(customs["override_coefficient"])
@@ -209,9 +274,6 @@ def build_sale_modules(
             )
         )
 
-    rate = chain_config.get("syskern_margin", {}).get("rate")
-    final_rate = to_decimal(rate) if rate is not None else to_decimal(syskern_margin_rate)
-    modules.append(MarginModule(rate=final_rate, label="syskern"))
     return modules
 
 

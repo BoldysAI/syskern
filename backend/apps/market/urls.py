@@ -7,6 +7,7 @@ app_name = "market"
 
 router = DefaultRouter()
 router.register(r"transport-modes", views.TransportModeViewSet, basename="transport-mode")
+router.register(r"transport-presets", views.TransportPresetViewSet, basename="transport-preset")
 router.register(r"market-parameters", views.MarketParameterViewSet, basename="market-parameter")
 
 urlpatterns = [

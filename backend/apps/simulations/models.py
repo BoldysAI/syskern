@@ -172,6 +172,34 @@ class SimulationLine(BaseModel):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
 
+    # Project quantity per SKU (CDC Feedback 1 — project simulations only).
+    # Drives the automatic stock/purchase mix (part_stock = min(stock, qty) / qty)
+    # and is the source of truth for the offer quantities (offers no longer
+    # ask for quantities — they inherit them from the simulation line).
+    quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Project quantity per SKU; drives the auto stock/purchase mix.",
+    )
+    # Opt out of the quantity-driven auto-mix and go back to the manual slider
+    # (simulation-wide value or per-line override) as before.
+    force_manual_mix = models.BooleanField(
+        default=False,
+        help_text="Disable the quantity-driven auto-mix; use the manual mix instead.",
+    )
+    # Per-line PA transport coefficient (CDC Feedback 1). When set, replaces the
+    # simulation-wide transport legs for this line only; NULL = inherit the chain.
+    pa_coefficient_override = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.0001"))],
+        help_text="Per-line PA transport coefficient; NULL inherits the simulation chain.",
+    )
+
     # Calculated outputs (all 4-decimal Decimals; conversions to display
     # rounding happen at the serializer level).
     po_net_origin_currency = models.DecimalField(

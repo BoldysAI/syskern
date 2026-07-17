@@ -22,6 +22,7 @@ interface SimLine {
   id: string;
   product_sku: string;
   product_name: string;
+  quantity?: string | number | null;
 }
 interface SimulationDetail {
   id: string;
@@ -49,7 +50,13 @@ const LANGUAGES = [
   { code: "en", label: "English" },
   { code: "es", label: "Español" },
 ];
-const STEPS = ["Client & projet", "Quantités", "Langue & validité", "Sections", "Instructions IA"];
+const STEPS = [
+  "Client & projet",
+  "Quantités",
+  "Langue & validité",
+  "Sections",
+  "Instructions IA",
+];
 const SECTIONS: { key: string; label: string }[] = [
   { key: "cover", label: "1. Couverture" },
   { key: "presentation", label: "2. Présentation Syskern" },
@@ -117,7 +124,6 @@ function ProjectWizard() {
   const [step, setStep] = useState(0);
   const [clientOverride, setClientOverride] = useState<string | null>(null);
   const [nameOverride, setNameOverride] = useState<string | null>(null);
-  const [qtyOverride, setQtyOverride] = useState<Record<string, number>>({});
   const [sectionOverride, setSectionOverride] = useState<Record<string, boolean>>({});
   const [languageOverride, setLanguageOverride] = useState<string | null>(null);
   const [expiration, setExpiration] = useState("");
@@ -133,7 +139,11 @@ function ProjectWizard() {
   // Default to the client's preferred language until the user picks one (CDC §10.5).
   const language = languageOverride ?? selectedClient?.preferred_language ?? "fr";
   const projectName = nameOverride ?? (sim?.project_name || sim?.label || "");
-  const qty = (sku: string) => qtyOverride[sku] ?? 1;
+  // Quantities are inherited (read-only) from the source simulation (CDC Feedback 1).
+  const lineQty = (l: SimLine): number => {
+    const n = Number(l.quantity ?? 0);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  };
   const sectionOn = (key: string) => sectionOverride[key] ?? true;
 
   if (!simulationId) return <Notice text="Paramètre simulation_id manquant." />;
@@ -142,14 +152,12 @@ function ProjectWizard() {
     return <Notice text="La génération projet requiert une simulation finalisée de type projet." />;
   }
 
-  const quantities = Object.fromEntries(
-    (sim?.lines ?? []).map((l) => [l.product_sku, qty(l.product_sku)]),
-  );
+  const skuCount = (sim?.lines ?? []).length;
   const sectionsConfig = Object.fromEntries(SECTIONS.map((s) => [s.key, sectionOn(s.key)]));
 
   const canNext =
     (step === 0 && !!clientId && projectName.trim() !== "") ||
-    (step === 1 && Object.values(quantities).some((q) => q > 0)) ||
+    step === 1 ||
     (step === 2 && expiration !== "") ||
     step === 3 ||
     step === 4;
@@ -165,7 +173,6 @@ function ProjectWizard() {
             {
               client_id: clientId,
               project_name: projectName,
-              quantities,
               language,
               expiration_date: expiration,
               ai_instructions: aiInstructions,
@@ -280,7 +287,10 @@ function ProjectWizard() {
         )}
 
         {step === 1 && (
-          <Section title="Quantités par SKU" hint="Quantités prévues pour le projet.">
+          <Section
+            title="Quantités par SKU"
+            hint="Reprises depuis la simulation source (lecture seule). Pour les modifier, éditez les quantités dans la simulation."
+          >
             <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
@@ -295,19 +305,8 @@ function ProjectWizard() {
                     <tr key={l.id} className="hover:bg-muted/30">
                       <td className="px-3 py-2 font-medium text-foreground">{l.product_sku}</td>
                       <td className="px-3 py-2 text-muted-foreground">{l.product_name}</td>
-                      <td className="px-3 py-2 text-right">
-                        <Input
-                          type="number"
-                          min={0}
-                          value={qty(l.product_sku)}
-                          onChange={(e) =>
-                            setQtyOverride((q) => ({
-                              ...q,
-                              [l.product_sku]: Number(e.target.value),
-                            }))
-                          }
-                          className="ml-auto w-24 text-right font-data"
-                        />
+                      <td className="px-3 py-2 text-right font-data tabular-nums text-foreground">
+                        {lineQty(l).toLocaleString("fr-FR")}
                       </td>
                     </tr>
                   ))}
@@ -385,8 +384,8 @@ function ProjectWizard() {
               </FormField>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              {Object.values(quantities).filter((q) => q > 0).length} SKU · {language.toUpperCase()}{" "}
-              · {SECTIONS.filter((s) => sectionOn(s.key)).length} sections
+              {skuCount} SKU · {language.toUpperCase()} ·{" "}
+              {SECTIONS.filter((s) => sectionOn(s.key)).length} sections
               {attachedDocIds.length > 0 ? ` · ${attachedDocIds.length} doc(s)` : ""}
             </p>
           </Section>

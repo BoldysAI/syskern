@@ -17,4 +17,9 @@ urlpatterns = [
         views.CompareSimulationsView.as_view({"post": "create"}),
         name="simulations-compare",
     ),
+    path(
+        "simulations/compare/what-if",
+        views.CompareSimulationsView.as_view({"post": "what_if"}),
+        name="simulations-compare-whatif",
+    ),
 ]

@@ -221,6 +221,15 @@ class TestAttributeFilters:
         assert _skus(resp) == {"NUM-N2"}
 
 
+class TestProductIdsFilter:
+    def test_ids_csv_filter(self, client):
+        a = _make("ID-A")
+        _make("ID-B")
+        resp = client.get("/api/products/", {"ids": f"{a.id}"})
+        assert resp.status_code == 200
+        assert _skus(resp) == {"ID-A"}
+
+
 class TestDistinctBrandsEndpoint:
     def test_includes_brands_from_inactive_products(self, client):
         """Sidebar brand list must match the catalog list (all products by default)."""

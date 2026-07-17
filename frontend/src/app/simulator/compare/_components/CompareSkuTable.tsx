@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import type { CompareCell, CompareColumn, CompareProduct } from "@/lib/api";
 import { decToPct, fmtEur } from "@/app/simulator/[id]/_components/sim-format";
+import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
 import { columnVisuals, deltaBg, deltaColor } from "./compare-colors";
 import { pvNum } from "./compare-stats";
@@ -26,6 +27,7 @@ interface Props {
   onToggleSort: () => void;
   commonOnly: boolean;
   onToggleCommon: () => void;
+  simulationNavContext?: SimulationNavigationContext;
 }
 
 type ViewMode = "heatmap" | "chart" | "detail";
@@ -115,6 +117,7 @@ export function CompareSkuTable({
   onToggleSort,
   commonOnly,
   onToggleCommon,
+  simulationNavContext = { kind: "default" },
 }: Props) {
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
@@ -244,7 +247,7 @@ export function CompareSkuTable({
                         {String.fromCharCode(65 + i)}
                       </span>
                       <Link
-                        href={`/simulator/${columns[i].simulation_id}`}
+                        href={buildSimulationHref(columns[i].simulation_id, simulationNavContext)}
                         className="max-w-[120px] truncate text-[11px] font-semibold text-foreground hover:text-warm"
                         title={v.label}
                       >

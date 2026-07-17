@@ -122,6 +122,8 @@ export interface CatalogFilters {
   attrs?: Record<string, string | string[] | undefined>;
   /** Attribute codes to include as columns in the catalog list response. */
   attr_columns?: string[];
+  /** Explicit product UUIDs (comma-separated in query string). */
+  ids?: string[];
 }
 
 export interface ProductListParams extends CatalogFilters {
@@ -178,6 +180,9 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
   }
   if (filters.attr_columns?.length) {
     params.attr_columns = filters.attr_columns.join(",");
+  }
+  if (filters.ids?.length) {
+    params.ids = filters.ids.join(",");
   }
   return params;
 }
@@ -461,11 +466,15 @@ export interface SimulationLine {
   product_pamp_eur: string | null;
   margin_override: string | null;
   stock_purchase_mix_pct_override: number | null;
+  quantity: string | null;
+  force_manual_mix: boolean;
+  pa_coefficient_override: string | null;
   po_net_eur: string | null;
   pa_net_eur: string | null;
   pamp_predictive_eur: string | null;
   pr_eur: string | null;
   pv_eur: string | null;
+  pv_total_eur: string | null;
   effective_margin_rate: string | null;
   effective_mix_pct: number | null;
   calculation_breakdown?: Record<string, unknown>;
@@ -593,18 +602,15 @@ export interface SavedComparison {
   updated_at: string;
 }
 
-/** Cumulative filter for bulk-edit / preview (CDC §6.9.5). */
-export interface BulkEditFilter {
-  universe?: string;
-  family?: string;
-  range?: string;
-  brand?: string;
-  factory_code?: string;
+/** Cumulative filter for bulk-edit / preview (CDC §6.9.5) — same product dimensions as the catalogue. */
+export type BulkEditFilter = Partial<CatalogFilters> & {
   has_warning?: boolean;
   has_error?: boolean;
+  /** Comma-separated statuses: ok, warning, error, dirty, pending. */
+  status_in?: string;
   /** Scope bulk actions to explicit simulation line ids. */
   line_ids?: string[];
-}
+};
 
 /** Full shape from the detail endpoint (includes nested lines). */
 export interface SimulationDetail extends Simulation {
@@ -1084,10 +1090,22 @@ export function deleteSimulation(id: string): Promise<void> {
 }
 
 /** Attach products to a simulation (creates lines). */
-export function addSimulationLines(id: string, productIds: string[]): Promise<{ added: number }> {
+export interface AddSimulationLineItem {
+  product_id: string;
+  quantity?: string | null;
+}
+
+export function addSimulationLines(
+  id: string,
+  payload: string[] | AddSimulationLineItem[],
+): Promise<{ added: number }> {
+  const body =
+    payload.length > 0 && typeof payload[0] === "string"
+      ? { product_ids: payload as string[] }
+      : { items: payload as AddSimulationLineItem[] };
   return apiFetch<{ added: number }>(`/api/simulations/${encodeURIComponent(id)}/lines/`, {
     method: "POST",
-    body: JSON.stringify({ product_ids: productIds }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -1096,6 +1114,9 @@ export function updateSimulationLine(
   patch: {
     margin_override?: string | null;
     stock_purchase_mix_pct_override?: number | null;
+    quantity?: string | null;
+    force_manual_mix?: boolean;
+    pa_coefficient_override?: string | null;
   },
 ): Promise<SimulationLine> {
   return apiFetch<SimulationLine>(`/api/simulation-lines/${encodeURIComponent(lineId)}/`, {
@@ -1130,7 +1151,7 @@ export function recalculateSimulationLine(lineId: string): Promise<SimulationLin
   );
 }
 
-export interface SimulationLineQuery {
+export interface SimulationLineQuery extends CatalogFilters {
   simulation: string;
   /** @deprecated Prefer `status_in` — kept for backward compatibility. */
   has_warning?: boolean;
@@ -1149,15 +1170,20 @@ export function getSimulationLines(
 ): Promise<PaginatedResponse<SimulationLine>> {
   const limit = params.limit ?? 200;
   const page = params.page ?? 1;
+  const { simulation, status_in, has_warning, has_error, ordering, page: _p, limit: _l, ...catalogFilters } =
+    params;
   const q = new URLSearchParams({
-    simulation: params.simulation,
+    simulation,
     limit: String(limit),
     offset: String((page - 1) * limit),
   });
-  if (params.status_in) q.set("status_in", params.status_in);
-  if (params.has_warning) q.set("has_warning", "true");
-  if (params.has_error) q.set("has_error", "true");
-  if (params.ordering) q.set("ordering", params.ordering);
+  if (status_in) q.set("status_in", status_in);
+  if (has_warning) q.set("has_warning", "true");
+  if (has_error) q.set("has_error", "true");
+  for (const [key, value] of Object.entries(buildCatalogQuery(catalogFilters))) {
+    q.set(key, value);
+  }
+  if (ordering) q.set("ordering", ordering);
   return apiFetch<PaginatedResponse<SimulationLine>>(`/api/simulation-lines/?${q.toString()}`);
 }
 
@@ -1176,6 +1202,9 @@ export function bulkEditLines(
     filter: BulkEditFilter;
     margin_override?: string | null;
     stock_purchase_mix_pct_override?: number | null;
+    quantity?: string | null;
+    force_manual_mix?: boolean;
+    pa_coefficient_override?: string | null;
     reset?: boolean;
   },
 ): Promise<{ updated: number }> {
@@ -1222,6 +1251,23 @@ export function compareSimulations(body: {
   recalculation_ids?: string[];
 }): Promise<CompareResponse> {
   return apiFetch<CompareResponse>("/api/simulations/compare", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * What-if comparison (legacy API — no UI since 2026-07-15).
+ * Prefer editing market params from Compare → Paramètres → Modifier
+ * (`CompareSimulationParamsSheet` + params_only recalc; fork if finalized).
+ * See docs/agent/decisions.md § 2026-07-15 and pricing-chain.md § Compare.
+ */
+export function compareSimulationsWhatIf(body: {
+  simulation_ids?: string[];
+  recalculation_ids?: string[];
+  market_params_override: Record<string, string>;
+}): Promise<CompareResponse> {
+  return apiFetch<CompareResponse>("/api/simulations/compare/what-if", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -1426,6 +1472,53 @@ export function updateTransportMode(
 
 export function deleteTransportMode(id: string): Promise<void> {
   return apiFetch<void>(`/api/transport-modes/${id}/`, { method: "DELETE" });
+}
+
+// ── Transport presets ────────────────────────────────────────────────────
+export interface TransportPreset {
+  id: string;
+  name: string;
+  transport_mode_code: string;
+  category: TransportMode["category"];
+  global_cost: string;
+  currency: string;
+  pallet_count: string;
+  from_location: string;
+  to_location: string;
+  display_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export function listTransportPresets(opts?: { activeOnly?: boolean }): Promise<TransportPreset[]> {
+  const q = new URLSearchParams();
+  if (opts?.activeOnly) q.set("is_active", "true");
+  const qs = q.toString();
+  return apiFetch<{ count: number; results: TransportPreset[] }>(
+    `/api/transport-presets/${qs ? `?${qs}` : ""}`,
+  ).then((r) => r.results);
+}
+
+export function createTransportPreset(data: Partial<TransportPreset>): Promise<TransportPreset> {
+  return apiFetch<TransportPreset>("/api/transport-presets/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateTransportPreset(
+  id: string,
+  patch: Partial<TransportPreset>,
+): Promise<TransportPreset> {
+  return apiFetch<TransportPreset>(`/api/transport-presets/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteTransportPreset(id: string): Promise<void> {
+  return apiFetch<void>(`/api/transport-presets/${id}/`, { method: "DELETE" });
 }
 
 // ── Odoo sync (settings) ─────────────────────────────────────────────────
@@ -1653,6 +1746,41 @@ export type BulkPoMode = "set" | "pct" | "abs";
 export interface BulkPoResult {
   updated: number;
   skipped: number;
+}
+
+export type BulkPoPreviewStatus = "will_update" | "skip_no_po" | "skip_unchanged";
+
+export interface BulkPoPreviewLine {
+  link_id: string;
+  product_id: string;
+  product_sku: string;
+  product_name: string;
+  po_currency: string;
+  old_po_base_price: string | null;
+  new_po_base_price: string | null;
+  status: BulkPoPreviewStatus;
+}
+
+export interface BulkPoPreview {
+  summary: {
+    will_update: number;
+    skip_no_po: number;
+    skip_unchanged: number;
+    not_linked: number;
+    selected: number;
+  };
+  lines: BulkPoPreviewLine[];
+}
+
+/** Dry-run for the batch PO wizard — per-SKU old/new prices without persisting. */
+export function previewBulkPo(
+  supplierId: string,
+  body: { link_ids?: string[]; product_ids?: string[]; mode: BulkPoMode; value: string },
+): Promise<BulkPoPreview> {
+  return apiFetch<BulkPoPreview>(
+    `/api/suppliers/${encodeURIComponent(supplierId)}/skus/bulk-po/preview/`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
 }
 
 /** Batch-update PO base prices on a supplier's links (by link ids or product ids). */

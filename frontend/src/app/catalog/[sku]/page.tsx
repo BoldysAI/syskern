@@ -42,7 +42,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
-import { useBreadcrumbOverride, type BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
+import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
+import {
+  buildProductBreadcrumbs,
+  parseProductNavigationContext,
+} from "@/lib/product-navigation";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { EditContext, type EditContextValue, type DescriptionKind } from "./_tabs/edit-context";
 import { GeneralTab } from "./_tabs/GeneralTab";
@@ -288,29 +292,12 @@ function ProductPageContent() {
 
   const editing = manualEditing ?? (wantEdit && userCanEdit && Boolean(product));
 
-  const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] => {
-    const from = searchParams.get("from");
-    const simId = searchParams.get("simulation_id");
-    const simLabel = searchParams.get("simulation_label");
-
-    if (from === "simulation" && simId) {
-      return [
-        { href: "/", label: "Tableau de bord" },
-        { href: "/simulator", label: "Simulations" },
-        { href: `/simulator/${simId}`, label: simLabel || "Simulation" },
-        { label: product?.name || decodedSku },
-      ];
-    }
-
-    const crumbs: BreadcrumbCrumb[] = [
-      { href: "/", label: "Tableau de bord" },
-      { href: "/catalog", label: "Catalogue" },
-    ];
-    if (product?.universe) {
-      crumbs.push({ label: product.universe });
-    }
-    crumbs.push({ label: product?.name || decodedSku });
-    return crumbs;
+  const breadcrumbCrumbs = useMemo(() => {
+    const navContext = parseProductNavigationContext(searchParams);
+    return buildProductBreadcrumbs(navContext, {
+      productLabel: product?.name || decodedSku,
+      universe: product?.universe,
+    });
   }, [searchParams, product, decodedSku]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(decodedSku));
@@ -654,7 +641,13 @@ function ProductPageContent() {
                   </Button>
                 )}
 
-                <AddToSimulationDialog productIds={[product.id]} productLabel={product.sku_code}>
+                <AddToSimulationDialog
+                  productIds={[product.id]}
+                  productLabel={product.sku_code}
+                  prefilledSkus={[
+                    { id: product.id, sku_code: product.sku_code, name: product.name },
+                  ]}
+                >
                   <Button size="sm">
                     <Plus size={14} weight="bold" />
                     Ajouter à une simulation

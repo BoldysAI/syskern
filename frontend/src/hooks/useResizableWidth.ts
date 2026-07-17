@@ -27,10 +27,12 @@ interface Options {
   min: number;
   max: number;
   storageKey?: string;
+  /** `right` = panel on the left (drag handle on right edge). `left` = panel on the right. */
+  edge?: "left" | "right";
 }
 
 /** Drag-to-resize a panel width (persisted to localStorage when `storageKey` is set). */
-export function useResizableWidth(defaultWidth: number, { min, max, storageKey }: Options) {
+export function useResizableWidth(defaultWidth: number, { min, max, storageKey, edge = "right" }: Options) {
   const [width, setWidth] = useState(() => loadWidth(storageKey, defaultWidth));
   const [isResizing, setIsResizing] = useState(false);
 
@@ -47,7 +49,8 @@ export function useResizableWidth(defaultWidth: number, { min, max, storageKey }
       document.body.style.userSelect = "none";
 
       const onMove = (ev: MouseEvent) => {
-        latest = Math.max(min, Math.min(max, startW + ev.clientX - startX));
+        const delta = edge === "left" ? startX - ev.clientX : ev.clientX - startX;
+        latest = Math.max(min, Math.min(max, startW + delta));
         setWidth(latest);
       };
       const onUp = () => {
@@ -63,7 +66,7 @@ export function useResizableWidth(defaultWidth: number, { min, max, storageKey }
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [width, min, max, storageKey]
+    [width, min, max, storageKey, edge]
   );
 
   return { width, startResize, isResizing };

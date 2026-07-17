@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
+import { useResizableWidth } from "@/hooks/useResizableWidth";
+import { cn } from "@/lib/utils";
 import { AppIcon } from "@/components/AppIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
@@ -68,6 +70,16 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const [historyOpen, setHistoryOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [historySort, setHistorySort] = useState<DataTableSortState>(HISTORY_SORT);
+  const {
+    width: historyPanelWidth,
+    startResize: startHistoryResize,
+    isResizing: isHistoryResizing,
+  } = useResizableWidth(880, {
+    min: 560,
+    max: 1400,
+    storageKey: "syskern:supplier-price-history-width",
+    edge: "left",
+  });
 
   const supplierKey = `supplier:${id}`;
   const skusKey = `supplier-skus:${id}`;
@@ -96,6 +108,18 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     for (const s of skus ?? []) m.set(s.product, s);
     return m;
   }, [skus]);
+
+  const productNavigationContext = useMemo(
+    () =>
+      supplier
+        ? {
+            kind: "supplier" as const,
+            supplierId: id,
+            supplierName: supplier.name,
+          }
+        : ({ kind: "catalog" as const }),
+    [id, supplier],
+  );
 
   const existingProductIds = useMemo(
     () => new Set((skus ?? []).map((s) => s.product)),
@@ -129,27 +153,30 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     }
   };
 
-  // Per-supplier PO + remove action, appended to the shared catalog columns.
-  const extraColumns = useMemo<DataTableColumnDef<Product>[]>(() => {
-    const cols: DataTableColumnDef<Product>[] = [
-      {
-        key: "supplier_po",
-        label: "PO base",
-        width: 130,
-        align: "right",
-        render: (p) => {
-          const link = linkByProduct.get(p.id);
-          if (!link) return <span className="text-muted-foreground">—</span>;
-          return (
-            <span className="font-data text-foreground">
-              {link.po_base_price ?? "—"} {link.po_currency ?? ""}
-            </span>
-          );
-        },
+  // Per-supplier PO before PV; unlink action stays at the end.
+  const supplierPoColumn = useMemo<DataTableColumnDef<Product>>(
+    () => ({
+      key: "supplier_po",
+      label: "PO base",
+      width: 130,
+      align: "right",
+      render: (p) => {
+        const link = linkByProduct.get(p.id);
+        if (!link) return <span className="text-muted-foreground">—</span>;
+        return (
+          <span className="font-data text-foreground">
+            {link.po_base_price ?? "—"} {link.po_currency ?? ""}
+          </span>
+        );
       },
-    ];
-    if (userCanEdit) {
-      cols.push({
+    }),
+    [linkByProduct],
+  );
+
+  const supplierTrailingColumns = useMemo<DataTableColumnDef<Product>[]>(() => {
+    if (!userCanEdit) return [];
+    return [
+      {
         key: "supplier_unlink",
         label: "",
         width: 56,
@@ -170,9 +197,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             </Button>
           );
         },
-      });
-    }
-    return cols;
+      },
+    ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkByProduct, userCanEdit]);
 
@@ -335,42 +361,64 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             enableSavedFilters={false}
             title="SKU du fournisseur"
             initialFilters={{ supplier: [supplier.name] }}
+            productNavigationContext={productNavigationContext}
             filtersCollapsedStorageKey="syskern:supplier-skus-filters-collapsed"
             filtersWidthStorageKey="syskern:supplier-skus-filters-width"
             paginationJumpInputId="supplier-skus-page"
-            extraColumns={extraColumns}
+            extraColumns={[supplierPoColumn]}
+            insertExtraColumnsBefore="catalog_pv"
+            trailingExtraColumns={supplierTrailingColumns}
           />
         </Card>
       </div>
 
-      {/* Price history — side panel */}
+      {/* Price history — resizable side panel */}
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl">
-          <SheetHeader>
+        <SheetContent
+          side="right"
+          className="flex h-full max-w-none flex-col gap-0 p-0 sm:max-w-none"
+          style={{ width: historyPanelWidth, maxWidth: "96vw" }}
+        >
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau d'historique"
+            onMouseDown={startHistoryResize}
+            className={cn(
+              "absolute left-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
+              "hover:bg-primary/20",
+              isHistoryResizing && "bg-primary/30",
+            )}
+          >
+            <span className="h-10 w-0.5 rounded-full bg-border" />
+          </div>
+
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12">
             <SheetTitle>Historique des prix</SheetTitle>
             <SheetDescription>
               Changements de PO base pour les SKU de {supplier.name}.
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-            <div className="overflow-hidden rounded-lg border border-border">
-              <DataTable
-                columns={historyColumns}
-                rows={sortedHistory}
-                rowKey={(h) => h.id}
-                storageKey="supplier-price-history"
-                sort={historySort}
-                defaultSort={HISTORY_SORT}
-                onSort={(field) => setHistorySort((s) => cycleSortField(field, s, HISTORY_SORT))}
-                emptyState={
-                  <EmptyState
-                    className="border-none bg-transparent shadow-none"
-                    icon={<AppIcon icon={ClockCounterClockwise} size="lg" />}
-                    title="Aucun changement de prix enregistré"
-                  />
-                }
-              />
-            </div>
+
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-2">
+            <DataTable
+              className="min-h-0 flex-1"
+              columns={historyColumns}
+              rows={sortedHistory}
+              rowKey={(h) => h.id}
+              storageKey="supplier-price-history"
+              sort={historySort}
+              defaultSort={HISTORY_SORT}
+              onSort={(field) => setHistorySort((s) => cycleSortField(field, s, HISTORY_SORT))}
+              density="compact"
+              emptyState={
+                <EmptyState
+                  className="border-none bg-transparent shadow-none"
+                  icon={<AppIcon icon={ClockCounterClockwise} size="lg" />}
+                  title="Aucun changement de prix enregistré"
+                />
+              }
+            />
           </div>
         </SheetContent>
       </Sheet>

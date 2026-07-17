@@ -133,8 +133,10 @@ class TestRunnerCdcExample:
             "transport",
             "transport",
             "customs",
-            "margin",
+            "symea_margin",
         ]
+        sale_modules = [step["module"] for step in breakdown["sale"]["steps"]]
+        assert sale_modules == ["syskern_margin"]
 
     def test_recalculation_trace_appended(self) -> None:
         sim = _cdc_simulation()
@@ -454,3 +456,235 @@ class TestRunnerIncotermWarnings:
         assert ctx["sale_incoterm"] == "EXW"
         warnings = line.calculation_breakdown["warnings"]
         assert any("EXW" in w for w in warnings)
+
+    def test_sale_breakdown_margin_before_transport(self) -> None:
+        """Persisted sale breakdown lists Syskern margin before PV transports."""
+        sim = _cdc_simulation()
+        sim.calculation_chain = {
+            **_CDC_CALCULATION_CHAIN,
+            "sale_chain": {
+                "transports": [
+                    {
+                        "order": 1,
+                        "transport_mode_code": "TRUCK_FULL",
+                        "global_cost": "100",
+                        "currency": "EUR",
+                        "pallet_count": 1,
+                    }
+                ],
+                "customs": None,
+                "syskern_margin": {"rate": "0.20"},
+            },
+        }
+        sim.save(update_fields=["calculation_chain"])
+        line = _cdc_line(sim)
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        sale_steps = line.calculation_breakdown["sale"]["steps"]
+        assert sale_steps[0]["module"] == "syskern_margin"
+        assert sale_steps[1]["module"] == "transport"
+        pr = line.pr_eur
+        transport_per_unit = Decimal("100") / Decimal("9")  # 1 pallet, 9 units/pallet
+        wrong_pv = (pr + transport_per_unit) / Decimal("0.8")
+        assert line.pv_eur != wrong_pv
+        assert sale_steps[0]["output_price"]["amount"] == str(pr / Decimal("0.8"))
+
+
+# ─── CDC Feedback 1 — quantity-driven mix + PA coefficient ─────────────────
+
+_MINIMAL_CHAIN: dict = {
+    "purchase_chain": {
+        "currency_conversion": {"to_currency": "EUR"},
+        "transports": [],
+        "customs": None,
+        "symea_margin": {"rate": "0", "position": "after_transports"},
+    },
+    "sale_chain": {"transports": [], "customs": None, "syskern_margin": {"rate": "0.20"}},
+}
+
+
+class TestRunnerFeedback1:
+    """Quantity per SKU drives the mix on project sims; transport coefficient on chain."""
+
+    def _product(self, sku: str, *, stock, pamp, odoo_id: int | None = 90) -> Product:
+        product = Product.objects.create(
+            sku_code=sku,
+            name=sku,
+            is_copper_indexed=False,
+            pallet_qty=40,
+            base_unit="unit",
+            odoo_id=odoo_id,
+            stock_quantity=stock,
+            pamp_eur=pamp,
+        )
+        ProductSupplier.objects.create(
+            product=product,
+            supplier_name="Fournisseur",
+            is_active=True,
+            po_base_price=Decimal("100"),
+            po_currency=Currency.EUR,
+        )
+        return product
+
+    def _sim(self, sim_type: SimulationType) -> Simulation:
+        return Simulation.objects.create(
+            label="FB1",
+            simulation_type=sim_type,
+            project_name="Projet" if sim_type == SimulationType.PROJECT else "",
+            market_params=_CDC_MARKET_PARAMS,
+            calculation_chain=_MINIMAL_CHAIN,
+        )
+
+    def test_project_quantity_drives_auto_mix(self) -> None:
+        sim = self._sim(SimulationType.PROJECT)
+        product = self._product("FB1-AUTO", stock=Decimal("30"), pamp=Decimal("100"))
+        line = SimulationLine.objects.create(
+            simulation=sim, product=product, quantity=Decimal("100"), status="pending"
+        )
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        # part_stock = min(30, 100) / 100 = 30 %.
+        assert line.effective_mix_pct == 30
+        assert line.calculation_breakdown["pr"]["steps"][-1]["metadata"]["mix_source"] == (
+            "quantity_driven"
+        )
+
+    def test_force_manual_mix_uses_slider(self) -> None:
+        sim = self._sim(SimulationType.PROJECT)
+        sim.stock_purchase_mix_pct = 100
+        sim.save(update_fields=["stock_purchase_mix_pct"])
+        product = self._product("FB1-MANUAL", stock=Decimal("30"), pamp=Decimal("100"))
+        line = SimulationLine.objects.create(
+            simulation=sim,
+            product=product,
+            quantity=Decimal("100"),
+            force_manual_mix=True,
+            status="pending",
+        )
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        # Manual mix wins over the quantity-driven auto-mix.
+        assert line.effective_mix_pct == 100
+        assert line.calculation_breakdown["pr"]["steps"][-1]["metadata"]["mix_source"] == "manual"
+
+    def test_tariff_ignores_quantity(self) -> None:
+        sim = self._sim(SimulationType.TARIFF)
+        sim.stock_purchase_mix_pct = 50
+        sim.save(update_fields=["stock_purchase_mix_pct"])
+        product = self._product("FB1-TARIFF", stock=Decimal("30"), pamp=Decimal("100"))
+        line = SimulationLine.objects.create(
+            simulation=sim, product=product, quantity=Decimal("100"), status="pending"
+        )
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        # Tariff → manual mix only; quantity is ignored.
+        assert line.effective_mix_pct == 50
+
+    def test_transport_coefficient_multiplies_pa(self) -> None:
+        sim = self._sim(SimulationType.TARIFF)
+        sim.calculation_chain = {
+            **_MINIMAL_CHAIN,
+            "purchase_chain": {
+                **_MINIMAL_CHAIN["purchase_chain"],
+                "transport_pricing": "coefficient",
+                "transport_coefficient": "1.10",
+                "transports": [
+                    {
+                        "order": 1,
+                        "transport_mode_code": "COEF",
+                        "global_cost": "0",
+                        "currency": "EUR",
+                        "pallet_count": 0,
+                        "override_coefficient": "1.10",
+                    }
+                ],
+            },
+        }
+        sim.save(update_fields=["calculation_chain"])
+        product = self._product("FB1-COEF", stock=Decimal("0"), pamp=None)
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="pending")
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        # PO 100 EUR, symea 0 % → PA net 100, then transport x1.10 = 110.
+        assert line.pa_net_eur == Decimal("110.0000")
+        transport_steps = [
+            s
+            for s in line.calculation_breakdown["purchase"]["steps"]
+            if s.get("module") == "transport"
+        ]
+        assert len(transport_steps) == 1
+        assert transport_steps[0]["metadata"]["mode"] == "coefficient"
+        assert transport_steps[0]["metadata"]["coefficient"] == "1.10"
+
+    def test_line_pa_coefficient_override_on_detailed_chain(self) -> None:
+        """Per-line coefficient replaces detailed transports for that line only."""
+        sim = self._sim(SimulationType.TARIFF)
+        sim.calculation_chain = {
+            **_MINIMAL_CHAIN,
+            "purchase_chain": {
+                **_MINIMAL_CHAIN["purchase_chain"],
+                "transport_pricing": "detailed",
+                "transports": [
+                    {
+                        "order": 1,
+                        "transport_mode_code": "TRUCK_FULL",
+                        "global_cost": "100",
+                        "currency": "EUR",
+                        "pallet_count": 1,
+                    }
+                ],
+            },
+        }
+        sim.save(update_fields=["calculation_chain"])
+        product = self._product("FB1-LINE-COEF", stock=Decimal("0"), pamp=None, odoo_id=None)
+        line = SimulationLine.objects.create(
+            simulation=sim,
+            product=product,
+            pa_coefficient_override=Decimal("1.05"),
+            status="pending",
+        )
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.pa_net_eur == Decimal("105.0000")
+
+    def test_null_line_coefficient_keeps_chain_coefficient(self) -> None:
+        """Lines without override keep the simulation-wide chain coefficient."""
+        sim = self._sim(SimulationType.TARIFF)
+        sim.calculation_chain = {
+            **_MINIMAL_CHAIN,
+            "purchase_chain": {
+                **_MINIMAL_CHAIN["purchase_chain"],
+                "transport_pricing": "coefficient",
+                "transport_coefficient": "1.10",
+                "transports": [
+                    {
+                        "order": 1,
+                        "transport_mode_code": "COEF",
+                        "global_cost": "0",
+                        "currency": "EUR",
+                        "pallet_count": 0,
+                        "override_coefficient": "1.10",
+                    }
+                ],
+            },
+        }
+        sim.save(update_fields=["calculation_chain"])
+        product = self._product("FB1-CHAIN-COEF", stock=Decimal("0"), pamp=None)
+        line = SimulationLine.objects.create(simulation=sim, product=product, status="pending")
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.pa_net_eur == Decimal("110.0000")

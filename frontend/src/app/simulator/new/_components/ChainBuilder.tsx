@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import useSWR from "swr";
 import {
   DndContext,
   KeyboardSensor,
@@ -17,12 +19,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { DotsSixVertical, Plus, Trash } from "@phosphor-icons/react";
+import { DotsSixVertical, BookmarkSimple, Plus, Trash } from "@phosphor-icons/react";
 import { FilterSelect } from "@/components/FilterSelect";
 import { LocationSelectField } from "@/components/LocationSelectField";
 import type { TransportMode } from "@/lib/api";
+import { listTransportPresets } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { localizeLabel } from "@/lib/transport-modes";
+import {
+  canSaveTransportAsPreset,
+  presetToTransportDraft,
+} from "@/lib/transport-presets";
+import { SaveTransportPresetModal } from "./SaveTransportPresetModal";
 import type { ChainDraft, TransportDraft } from "./wizard-draft";
 
 interface Props {
@@ -49,11 +57,13 @@ function SortableTransport({
   modes,
   onChange,
   onRemove,
+  onSaveAsPreset,
 }: {
   transport: TransportDraft;
   modes: TransportMode[];
   onChange: (t: TransportDraft) => void;
   onRemove: () => void;
+  onSaveAsPreset?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: transport.uid,
@@ -89,6 +99,11 @@ function SortableTransport({
             set({
               transport_mode_code: code,
               category: mode?.category ?? transport.category,
+              pallet_count:
+                transport.pallet_count ||
+                (mode?.default_pallet_capacity != null
+                  ? String(mode.default_pallet_capacity)
+                  : transport.pallet_count),
             });
           }}
           placeholder="Mode…"
@@ -143,19 +158,38 @@ function SortableTransport({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-muted-foreground hover:text-red-500 self-start p-1"
-        aria-label="Supprimer ce transport"
-      >
-        <Trash size={16} />
-      </button>
+      <div className="flex flex-col gap-1 self-start">
+        {onSaveAsPreset && canSaveTransportAsPreset(transport) && (
+          <button
+            type="button"
+            onClick={onSaveAsPreset}
+            className="text-muted-foreground hover:text-primary p-1"
+            aria-label="Enregistrer comme preset"
+            title="Enregistrer comme preset"
+          >
+            <BookmarkSimple size={16} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-muted-foreground hover:text-red-500 p-1"
+          aria-label="Supprimer ce transport"
+        >
+          <Trash size={16} />
+        </button>
+      </div>
     </div>
   );
 }
 
 export function ChainBuilder({ title, chain, isPurchase, transportModes, onChange }: Props) {
+  const [presetPick, setPresetPick] = useState("");
+  const [savePresetTransport, setSavePresetTransport] = useState<TransportDraft | null>(null);
+  const { data: presets = [] } = useSWR(["transport-presets"], () =>
+    listTransportPresets({ activeOnly: true }),
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -170,7 +204,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
     onChange({ ...chain, transports: arrayMove(chain.transports, oldIndex, newIndex) });
   };
 
-  const addTransport = () =>
+  const addTransport = (draft: Partial<TransportDraft> = {}) =>
     onChange({
       ...chain,
       transports: [
@@ -184,9 +218,17 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
           pallet_count: "",
           from_location: "",
           to_location: "",
+          ...draft,
         },
       ],
     });
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((p) => p.id === presetId);
+    if (!preset) return;
+    addTransport(presetToTransportDraft(preset));
+    setPresetPick("");
+  };
 
   const updateTransport = (uidKey: string, t: TransportDraft) =>
     onChange({
@@ -226,42 +268,108 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Transports {chain.transports.length > 0 && `(${chain.transports.length})`}
-        </span>
-        {chain.transports.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun transport. Ajoutez-en si nécessaire.</p>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={chain.transports.map((t) => t.uid)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="flex flex-col gap-2">
-                {chain.transports.map((t) => (
-                  <SortableTransport
-                    key={t.uid}
-                    transport={t}
-                    modes={transportModes}
-                    onChange={(next) => updateTransport(t.uid, next)}
-                    onRemove={() => removeTransport(t.uid)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-        <button
-          type="button"
-          onClick={addTransport}
-          className="flex items-center gap-1.5 self-start px-3 py-1.5 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50"
-        >
-          <Plus size={15} />
           Transport
-        </button>
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {(["detailed", "coefficient"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...chain,
+                  transportPricingMode: mode,
+                })
+              }
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                chain.transportPricingMode === mode
+                  ? "border-primary bg-accent text-accent-foreground"
+                  : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {mode === "detailed" ? "Modules détaillés" : "Coefficient"}
+            </button>
+          ))}
+        </div>
+
+        {chain.transportPricingMode === "coefficient" ? (
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+              Coefficient multiplicateur (×)
+            </label>
+            <input
+              value={chain.transportCoefficient}
+              onChange={(e) => onChange({ ...chain, transportCoefficient: e.target.value })}
+              placeholder="ex. 1,05"
+              inputMode="decimal"
+              className={fieldCls}
+              aria-label="Coefficient transport"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Alternative aux transports détaillés : le prix est multiplié par ce coefficient dans
+              la chaîne {isPurchase ? "PA" : "PV"}.
+            </p>
+          </div>
+        ) : (
+          <>
+            <span className="text-xs text-muted-foreground">
+              Transports {chain.transports.length > 0 && `(${chain.transports.length})`}
+            </span>
+            {chain.transports.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun transport. Ajoutez-en si nécessaire.
+              </p>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={chain.transports.map((t) => t.uid)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col gap-2">
+                    {chain.transports.map((t) => (
+                      <SortableTransport
+                        key={t.uid}
+                        transport={t}
+                        modes={transportModes}
+                        onChange={(next) => updateTransport(t.uid, next)}
+                        onRemove={() => removeTransport(t.uid)}
+                        onSaveAsPreset={() => setSavePresetTransport(t)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => addTransport()}
+                className="flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus size={15} />
+                Ajouter un transport
+              </button>
+              {presets.length > 0 && (
+                <FilterSelect
+                  value={presetPick}
+                  onChange={(value) => {
+                    setPresetPick(value);
+                    if (value) applyPreset(value);
+                  }}
+                  placeholder="Preset transport…"
+                  options={presets.map((p) => ({ value: p.id, label: p.name }))}
+                  compact
+                  className="min-w-[12rem] flex-1 sm:flex-none"
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 border-t border-[#F1F5F9] pt-3">
@@ -297,6 +405,13 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
           </div>
         )}
       </div>
+
+      <SaveTransportPresetModal
+        open={savePresetTransport != null}
+        transport={savePresetTransport}
+        isPurchase={isPurchase}
+        onClose={() => setSavePresetTransport(null)}
+      />
     </div>
   );
 }

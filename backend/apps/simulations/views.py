@@ -22,6 +22,7 @@ from apps.offers.serializers import (
     OfferCoverageCheckSerializer,
 )
 from apps.offers.tasks import generate_project_offer_task, generate_tariff_offers_task
+from apps.products.filters import ProductFilter
 from apps.products.models import Product
 
 from .filters import SavedComparisonFilter, SimulationFilter
@@ -37,6 +38,7 @@ from .serializers import (
     AddLinesSerializer,
     BulkEditSerializer,
     CompareSerializer,
+    CompareWhatIfSerializer,
     DuplicateSerializer,
     RecalculateSerializer,
     SavedComparisonPatchSerializer,
@@ -53,6 +55,7 @@ from .services.runner import (
     PRICING_AFFECTING_FIELDS,
     mark_lines_dirty_after_pricing_change,
     recalculate_single_line,
+    recompute_simulation_whatif,
     snapshot_finalize_trace,
     sync_simulation_dirty_flag,
 )
@@ -62,21 +65,13 @@ from .tasks import EXPORT_DIR, export_simulation_task, recalculate_task
 def _filter_simulation_lines(simulation: Simulation, flt: dict):
     """Build the bulk-edit line queryset from a cumulative filter (CDC §6.9.5).
 
-    Supports product hierarchy (universe/family/range), brand, supplier
-    `factory_code`, and the calculation status flags `has_warning`/`has_error`.
-    Dynamic attributes are intentionally out of scope (see decisions.md).
+    Dynamic attributes (`attr_<code>`) and full-text search (`q`) are supported via
+    ``ProductFilter`` — same contract as the catalogue.
     """
     qs = simulation.lines.all()
-    if flt.get("brand"):
-        qs = qs.filter(product__brand=flt["brand"])
-    if flt.get("range"):
-        qs = qs.filter(product__range=flt["range"])
-    if flt.get("universe"):
-        qs = qs.filter(product__universe=flt["universe"])
-    if flt.get("family"):
-        qs = qs.filter(product__family=flt["family"])
-    if flt.get("factory_code"):
-        qs = qs.filter(product__factory_code=flt["factory_code"])
+    # Brand / hierarchy / factory code accept a single value or a CSV/list
+    # (multi-select), mirroring the catalog + simulation table filters.
+    qs = _apply_line_product_filters(qs, flt)
     line_ids = flt.get("line_ids")
     if line_ids:
         if isinstance(line_ids, list | tuple):
@@ -92,6 +87,62 @@ def _filter_simulation_lines(simulation: Simulation, flt: dict):
         if flt.get("has_error"):
             qs = qs.filter(status="error")
     return qs
+
+
+def _csv_values(raw) -> list[str]:
+    """Split a CSV query-param into a clean list (empty when absent)."""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    if isinstance(raw, list | tuple):
+        return [str(part).strip() for part in raw if str(part).strip()]
+    return []
+
+
+def _apply_line_product_filters(qs, params):
+    """Filter simulation lines using the same rules as the product catalogue.
+
+    Reuses ``ProductFilter`` (CDC §4.1.1) on the simulation's products so the
+    simulation table exposes the **same** filter dimensions and semantics as
+    ``GET /api/products/`` — hierarchy, brand, supplier, stock, PAMP, langs,
+    dynamic attributes (``attr_<code>``), full-text ``q``, etc.
+    """
+    if not params:
+        return qs
+
+    skip = {
+        "line_ids",
+        "status_in",
+        "has_warning",
+        "has_error",
+        "simulation",
+        "ordering",
+        "limit",
+        "offset",
+        "page",
+    }
+    product_data: dict[str, str] = {}
+    for key, raw in params.items():
+        if key in skip or raw in (None, ""):
+            continue
+        if isinstance(raw, list | tuple):
+            values = [str(part).strip() for part in raw if str(part).strip()]
+            if not values:
+                continue
+            product_data[key] = ",".join(values)
+        else:
+            product_data[key] = str(raw)
+
+    if not product_data:
+        return qs
+
+    product_ids = qs.values_list("product_id", flat=True).distinct()
+    products = Product.objects.filter(id__in=product_ids)
+    filtered_ids = ProductFilter(data=product_data, queryset=products).qs.values_list(
+        "id", flat=True
+    )
+    return qs.filter(product_id__in=filtered_ids)
 
 
 def _parse_status_in(flt: dict) -> list[str] | None:
@@ -416,6 +467,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 supplier_snapshot=line.supplier_snapshot,
                 margin_override=line.margin_override,
                 stock_purchase_mix_pct_override=line.stock_purchase_mix_pct_override,
+                quantity=line.quantity,
+                force_manual_mix=line.force_manual_mix,
+                pa_coefficient_override=line.pa_coefficient_override,
                 po_net_origin_currency=line.po_net_origin_currency,
                 po_net_eur=line.po_net_eur,
                 pa_net_eur=line.pa_net_eur,
@@ -438,17 +492,30 @@ class SimulationViewSet(viewsets.ModelViewSet):
         self._ensure_writable(simulation)
         ser = AddLinesSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        product_ids = ser.validated_data["product_ids"]
+        data = ser.validated_data
+        items = data.get("items")
+        if items:
+            product_ids = [item["product_id"] for item in items]
+        else:
+            product_ids = data["product_ids"]
+            items = [{"product_id": pid} for pid in product_ids]
 
         existing = set(
             simulation.lines.filter(product_id__in=product_ids).values_list("product_id", flat=True)
         )
+        products_by_id = {p.id: p for p in Product.objects.filter(id__in=product_ids)}
         new_lines = []
-        for product in Product.objects.filter(id__in=product_ids):
-            if product.id in existing:
+        for item in items:
+            product = products_by_id.get(item["product_id"])
+            if product is None or product.id in existing:
                 continue
             new_lines.append(
-                SimulationLine(simulation=simulation, product=product, status="pending")
+                SimulationLine(
+                    simulation=simulation,
+                    product=product,
+                    status="pending",
+                    quantity=item.get("quantity"),
+                )
             )
         SimulationLine.objects.bulk_create(new_lines)
         sync_simulation_dirty_flag(simulation.pk)
@@ -466,7 +533,11 @@ class SimulationViewSet(viewsets.ModelViewSet):
 
         if data.get("reset"):
             updated = qs.update(
-                margin_override=None, stock_purchase_mix_pct_override=None, status="dirty"
+                margin_override=None,
+                stock_purchase_mix_pct_override=None,
+                force_manual_mix=False,
+                pa_coefficient_override=None,
+                status="dirty",
             )
         else:
             payload = {}
@@ -474,6 +545,12 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 payload["margin_override"] = data["margin_override"]
             if "stock_purchase_mix_pct_override" in data:
                 payload["stock_purchase_mix_pct_override"] = data["stock_purchase_mix_pct_override"]
+            if "quantity" in data:
+                payload["quantity"] = data["quantity"]
+            if "force_manual_mix" in data:
+                payload["force_manual_mix"] = data["force_manual_mix"]
+            if "pa_coefficient_override" in data:
+                payload["pa_coefficient_override"] = data["pa_coefficient_override"]
             # Affected lines become dirty — PV is not recalculated automatically.
             updated = qs.update(status="dirty", **payload) if payload else 0
 
@@ -625,6 +702,9 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(status="warning")
             if params.get("has_error") in {"true", "1"}:
                 qs = qs.filter(status="error")
+        # CDC Feedback 1 — product filters (brand priority) mirror the catalog
+        # so the simulation view can be filtered like the catalogue (§4.1.1).
+        qs = _apply_line_product_filters(qs, params)
         return qs
 
     def perform_update(self, serializer):
@@ -760,7 +840,32 @@ class CompareSimulationsView(viewsets.ViewSet):
         ser.is_valid(raise_exception=True)
         sim_ids = [str(x) for x in ser.validated_data.get("simulation_ids") or []]
         recalc_ids = [str(x) for x in ser.validated_data.get("recalculation_ids") or []]
+        return Response(self._build_payload(sim_ids, recalc_ids))
 
+    @action(detail=False, methods=["post"], url_path="what-if")
+    def what_if(self, request):
+        """Recompute compared simulations with overridden market params (CDC Feedback 1).
+
+        The override is applied **in memory** to the live simulation columns
+        (recompute, non-persisted) so the user can normalise a market parameter
+        (e.g. the copper base) and see the price gaps update — without touching
+        the source simulations (which stay finalized/immutable). Recalculation
+        snapshot columns stay frozen.
+        """
+        ser = CompareWhatIfSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        sim_ids = [str(x) for x in ser.validated_data.get("simulation_ids") or []]
+        recalc_ids = [str(x) for x in ser.validated_data.get("recalculation_ids") or []]
+        override = ser.validated_data.get("market_params_override") or {}
+        return Response(self._build_payload(sim_ids, recalc_ids, market_params_override=override))
+
+    def _build_payload(
+        self,
+        sim_ids: list[str],
+        recalc_ids: list[str],
+        *,
+        market_params_override: dict | None = None,
+    ) -> dict:
         sims = {str(s.id): s for s in Simulation.objects.filter(id__in=sim_ids)}
         if len(sims) != len(set(sim_ids)):
             raise ValidationError("Certaines simulations sont introuvables.")
@@ -791,6 +896,18 @@ class CompareSimulationsView(viewsets.ViewSet):
         for sid in sim_ids:
             s = sims[sid]
             key = f"simulation:{sid}"
+            context = _simulation_column_context(s)
+            whatif = None
+            if market_params_override:
+                # Reflect the simulated params in the column context (for the
+                # "Paramètres" diff) and recompute the per-line values.
+                context = {
+                    **context,
+                    "market_params": {**context["market_params"], **market_params_override},
+                }
+                whatif = recompute_simulation_whatif(
+                    s, market_params_override=market_params_override
+                )
             columns.append(
                 {
                     "key": key,
@@ -800,22 +917,25 @@ class CompareSimulationsView(viewsets.ViewSet):
                     "label": s.label,
                     "status": s.status,
                     "aggregates": _simulation_aggregates(s),
-                    "context": _simulation_column_context(s),
+                    "context": context,
                 }
             )
             for line in s.lines.select_related("product").all():
                 entry = _entry(line.product_id, line.product.sku_code, line.product.designation)
-                entry["values"][key] = {
-                    "pa_net_eur": str(line.pa_net_eur) if line.pa_net_eur is not None else None,
-                    "pr_eur": str(line.pr_eur) if line.pr_eur is not None else None,
-                    "pv_eur": str(line.pv_eur) if line.pv_eur is not None else None,
-                    "effective_margin_rate": (
-                        str(line.effective_margin_rate)
-                        if line.effective_margin_rate is not None
-                        else None
-                    ),
-                    "effective_mix_pct": line.effective_mix_pct,
-                }
+                if whatif is not None and str(line.product_id) in whatif:
+                    entry["values"][key] = whatif[str(line.product_id)]
+                else:
+                    entry["values"][key] = {
+                        "pa_net_eur": str(line.pa_net_eur) if line.pa_net_eur is not None else None,
+                        "pr_eur": str(line.pr_eur) if line.pr_eur is not None else None,
+                        "pv_eur": str(line.pv_eur) if line.pv_eur is not None else None,
+                        "effective_margin_rate": (
+                            str(line.effective_margin_rate)
+                            if line.effective_margin_rate is not None
+                            else None
+                        ),
+                        "effective_mix_pct": line.effective_mix_pct,
+                    }
 
         # ── Frozen recalculation-snapshot columns (CDC §6.9.12) ───────
         for rid in recalc_ids:
@@ -843,7 +963,7 @@ class CompareSimulationsView(viewsets.ViewSet):
                     "effective_mix_pct": snap.get("effective_mix_pct"),
                 }
 
-        return Response({"columns": columns, "products": list(matrix.values())})
+        return {"columns": columns, "products": list(matrix.values())}
 
 
 class SavedComparisonViewSet(viewsets.ModelViewSet):

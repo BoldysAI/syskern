@@ -23,11 +23,13 @@ from apps.simulations.services.engine import (
     ProductView,
     SimulationContext,
     TransportModule,
-    build_purchase_modules,
     build_pr_breakdown,
+    apply_line_pa_coefficient_override,
+    build_purchase_modules,
     build_sale_modules,
     compute_pr,
     compute_predictive_pamp,
+    compute_quantity_driven_mix_pct,
     quantize,
     resolve_margin_rate,
     resolve_mix_pct,
@@ -155,6 +157,63 @@ def test_cdc_example_pv_487_70(cdc_product, cdc_market_params, cdc_purchase_chai
 
     assert pv.currency == "EUR"
     assert pv.amount == Decimal("487.7045")
+
+
+def test_syskern_margin_applied_before_sale_transports():
+    """CDC Feedback 1 — the Syskern margin is applied on the PR *before* the
+    sale-side transports/customs (fixed position, hard-coded).
+
+    PR = 100 EUR, Syskern margin 20 %, one detailed transport adding 10 EUR/unit
+    (global 100 EUR / 1 pallet / 10 units per pallet):
+      - margin first : 100 / 0.8 = 125, then + 10 = 135        (new, expected)
+      - transport first (old): 100 + 10 = 110, then / 0.8 = 137.50
+    """
+    ctx = _plain_ctx(pallet_qty=10)
+    modules = build_sale_modules(
+        {
+            "transports": [
+                {
+                    "order": 1,
+                    "transport_mode_code": "TRUCK_FULL",
+                    "global_cost": "100",
+                    "currency": "EUR",
+                    "pallet_count": 1,
+                }
+            ],
+            "customs": None,
+            "syskern_margin": {"rate": "0.20"},
+        },
+        syskern_margin_rate=Decimal("0.20"),
+    )
+    # The margin module must come first in the chain.
+    assert modules[0].label == "syskern"  # type: ignore[attr-defined]
+    pv = run_chain(
+        modules,
+        starting_price=PriceWithCurrency(amount=Decimal("100"), currency="EUR"),
+        context=ctx,
+    )
+    assert pv.steps[0].module_type == "syskern_margin"
+    assert pv.steps[1].module_type == "transport"
+    assert pv.final_price.amount == Decimal("135.0000")
+
+
+def test_apply_line_pa_coefficient_override_is_noop_when_null():
+    chain = {
+        "transport_pricing": "detailed",
+        "transports": [{"order": 1, "transport_mode_code": "TRUCK_FULL"}],
+    }
+    assert apply_line_pa_coefficient_override(chain, coefficient=None) is chain
+
+
+def test_apply_line_pa_coefficient_override_replaces_transports():
+    chain = {
+        "transport_pricing": "detailed",
+        "transports": [{"order": 1, "transport_mode_code": "TRUCK_FULL", "global_cost": "100"}],
+    }
+    patched = apply_line_pa_coefficient_override(chain, coefficient=Decimal("1.05"))
+    assert patched["transport_pricing"] == "coefficient"
+    assert patched["transports"][0]["override_coefficient"] == "1.05"
+    assert chain["transport_pricing"] == "detailed"
 
 
 # ─── Module-level tests ───────────────────────────────────────────────────
@@ -762,6 +821,45 @@ class TestMargin:
         assert resolve_margin_rate(
             simulation_margin_rate=Decimal("0.20"), line_override=None
         ) == Decimal("0.20")
+
+    def test_quantity_driven_mix_partial_stock(self):
+        """CDC Feedback 1 — part_stock = min(stock, qty) / qty (raw stock)."""
+        # Stock covers part of the order → mix is that fraction.
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("30"), quantity=Decimal("100"))
+            == 30
+        )
+        # Stock covers the full order → full stock (capped at 100).
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("500"), quantity=Decimal("100"))
+            == 100
+        )
+        # No stock → pure purchase (0).
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("0"), quantity=Decimal("100"))
+            == 0
+        )
+
+    def test_quantity_driven_mix_missing_quantity_returns_none(self):
+        """Missing / non-positive quantity → None (caller falls back to manual)."""
+        assert compute_quantity_driven_mix_pct(stock_quantity=Decimal("10"), quantity=None) is None
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("10"), quantity=Decimal("0"))
+            is None
+        )
+
+    def test_quantity_driven_mix_rounds_half_up(self):
+        """Fractional weight rounds to the nearest integer percentage."""
+        # 1/3 → 33.33 → 33
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("1"), quantity=Decimal("3"))
+            == 33
+        )
+        # 5/8 → 62.5 → 63 (ROUND_HALF_UP)
+        assert (
+            compute_quantity_driven_mix_pct(stock_quantity=Decimal("5"), quantity=Decimal("8"))
+            == 63
+        )
 
     def test_resolve_margin_rate_symea_vs_syskern(self):
         # The resolution is role-agnostic: the caller passes whichever rate

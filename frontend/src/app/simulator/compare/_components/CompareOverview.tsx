@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import type { CompareColumn, CompareProduct } from "@/lib/api";
 import { decToPct, fmtEur } from "@/app/simulator/[id]/_components/sim-format";
+import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
 import { buildDiffSections } from "./compare-diff";
 import { columnVisuals, deltaBg, deltaColor } from "./compare-colors";
@@ -37,9 +38,14 @@ import {
 interface Props {
   columns: CompareColumn[];
   products: CompareProduct[];
+  simulationNavContext?: SimulationNavigationContext;
 }
 
-export function CompareOverview({ columns, products }: Props) {
+export function CompareOverview({
+  columns,
+  products,
+  simulationNavContext = { kind: "default" },
+}: Props) {
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
     () => columnVisuals(columns.map((c) => c.label), columns.map((c) => c.key)),
@@ -94,7 +100,7 @@ export function CompareOverview({ columns, products }: Props) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <Link
-                    href={`/simulator/${col.simulation_id}`}
+                    href={buildSimulationHref(col.simulation_id, simulationNavContext)}
                     className="block truncate text-sm font-semibold text-foreground hover:text-warm"
                     title={v.label}
                   >

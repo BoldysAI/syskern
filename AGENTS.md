@@ -108,6 +108,7 @@ syskern/
 7. **Respecte le périmètre MVP1. N'ajoute aucune fonctionnalité hors CDC.** Bornes notables :
    - **Auth = vrais users + rôles** (`admin`/`commercial`/`viewer`, `apps.accounts.Profile` ; login session via `core.views.login_view`). ⚠️ **Écart assumé au CDC §9.1** (qui prévoyait un mot de passe unique partagé) — tracé dans `docs/agent/decisions.md`. Le code fait foi : étends cette auth, ne la remplace pas par un shared-password.
    - **Marge Symea** : défaut **6 %**, formule `PR = X / (1 - marge)`. Seul déplacement autorisé : toggle « avant/après transports » (CDC §6).
+   - **Marge Syskern** : défaut **20 %**, formule `PV = X / (1 - marge)`. Position **fixe** : appliquée sur le PR **avant** les transports/douane vente (CDC Feedback 1 — cf. `pricing-chain.md`, `decisions.md` 2026-07-14).
    - **Paramètres marché (cuivre, FX) saisis manuellement** et historisés. Pas de fetch auto de cours en MVP1.
 8. **Performance DB** : `select_related` / `prefetch_related` systématiques. Pas de N+1.
 9. **Messages API destinés à l'utilisateur en français.**

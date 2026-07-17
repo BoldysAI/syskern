@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
-import { Equals } from "@phosphor-icons/react";
+import { Equals, PencilSimple } from "@phosphor-icons/react";
 import type { CompareColumn } from "@/lib/api";
 import { RECALC_TRIGGER } from "@/app/simulator/[id]/_components/sim-format";
+import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
 import {
   buildDiffSections,
@@ -15,12 +16,21 @@ import {
   type DiffRow,
 } from "./compare-diff";
 import { columnVisuals } from "./compare-colors";
+import { CompareSimulationParamsSheet } from "./CompareSimulationParamsSheet";
 
 interface Props {
   columns: CompareColumn[];
+  canEdit?: boolean;
+  simulationNavContext?: SimulationNavigationContext;
+  onSimulationReplaced?: (sourceId: string, effectiveId: string) => void;
 }
 
-export function CompareContextDiff({ columns }: Props) {
+export function CompareContextDiff({
+  columns,
+  canEdit = false,
+  simulationNavContext = { kind: "default" },
+  onSimulationReplaced,
+}: Props) {
   const sections = useMemo(() => buildDiffSections(columns), [columns]);
   const diffCount = useMemo(() => countDiffs(sections), [sections]);
   const baseKey = columns[0]?.key ?? "";
@@ -28,6 +38,17 @@ export function CompareContextDiff({ columns }: Props) {
     () => columnVisuals(columns.map((c) => c.label), columns.map((c) => c.key)),
     [columns],
   );
+
+  const [editingColumn, setEditingColumn] = useState<CompareColumn | null>(null);
+
+  const handleSaved = ({ sourceId, effectiveId }: { sourceId: string; effectiveId: string }) => {
+    if (sourceId !== effectiveId) {
+      onSimulationReplaced?.(sourceId, effectiveId);
+    } else {
+      onSimulationReplaced?.(sourceId, effectiveId);
+    }
+    setEditingColumn(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -52,17 +73,20 @@ export function CompareContextDiff({ columns }: Props) {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="sticky left-0 z-20 min-w-[200px] bg-muted/40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Paramètre
-                </th>
-                {visuals.map((v, i) => (
+        <table className="w-full min-w-[720px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <th className="sticky left-0 z-20 min-w-[200px] bg-muted/40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Paramètre
+              </th>
+              {visuals.map((v, i) => {
+                const col = columns[i];
+                const isLiveSim = col.type === "simulation";
+                return (
                   <th
                     key={v.key}
                     className={cn(
-                      "min-w-[160px] px-4 py-3 text-left align-bottom",
+                      "min-w-[180px] px-4 py-3 text-left align-bottom",
                       v.isRef && "bg-warm/5",
                     )}
                   >
@@ -73,9 +97,9 @@ export function CompareContextDiff({ columns }: Props) {
                       >
                         {String.fromCharCode(65 + i)}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <Link
-                          href={`/simulator/${columns[i].simulation_id}`}
+                          href={buildSimulationHref(col.simulation_id, simulationNavContext)}
                           className="block truncate text-sm font-semibold text-foreground hover:text-warm"
                           title={v.label}
                         >
@@ -90,36 +114,59 @@ export function CompareContextDiff({ columns }: Props) {
                             vs réf.
                           </span>
                         )}
+                        {canEdit && isLiveSim && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingColumn(col)}
+                            className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                          >
+                            <PencilSimple size={11} />
+                            Modifier
+                          </button>
+                        )}
+                        {canEdit && !isLiveSim && (
+                          <span
+                            className="mt-1.5 block text-[10px] text-muted-foreground"
+                            title="Les snapshots de recalcul sont figés"
+                          >
+                            Snapshot figé
+                          </span>
+                        )}
                       </div>
                     </div>
                   </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map((section) => (
+              <Fragment key={section.title}>
+                <tr className="border-y border-border bg-muted/30">
+                  <td
+                    colSpan={columns.length + 1}
+                    className="sticky left-0 z-10 bg-muted/30 px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground"
+                  >
+                    {section.title}
+                  </td>
+                </tr>
+                {section.rows.map((row) => (
+                  <ParamDiffRow key={row.id} row={row} visuals={visuals} baseKey={baseKey} />
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sections.map((section) => (
-                <Fragment key={section.title}>
-                  <tr className="border-y border-border bg-muted/30">
-                    <td
-                      colSpan={columns.length + 1}
-                      className="sticky left-0 z-10 bg-muted/30 px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground"
-                    >
-                      {section.title}
-                    </td>
-                  </tr>
-                  {section.rows.map((row) => (
-                    <ParamDiffRow
-                      key={row.id}
-                      row={row}
-                      visuals={visuals}
-                      baseKey={baseKey}
-                    />
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <CompareSimulationParamsSheet
+        simulationId={editingColumn?.simulation_id ?? null}
+        simulationLabel={editingColumn?.label ?? ""}
+        simulationStatus={editingColumn?.status ?? null}
+        open={editingColumn != null}
+        onClose={() => setEditingColumn(null)}
+        onSaved={handleSaved}
+      />
     </div>
   );
 }

@@ -69,14 +69,20 @@ def create_project_offer(
     simulation: Simulation,
     client: Client,
     project_name: str,
-    quantities: dict[str, float],
+    quantities: dict[str, float] | None = None,
     language: str,
     expiration_date: date | None,
     ai_instructions: str,
     sections_config: dict | None = None,
     attached_document_ids: list | None = None,
 ) -> Offer:
-    """Create the project Offer + OfferLines (one client, per-SKU quantities)."""
+    """Create the project Offer + OfferLines for a single client.
+
+    Quantities are inherited from the simulation lines (CDC Feedback 1 — the
+    quantity now lives on the project simulation, not on the offer). A legacy
+    ``quantities`` dict (sku -> qty) is still honoured when provided for
+    backward compatibility; otherwise each offer line reuses its simulation
+    line quantity (defaulting to 1 when the line has none)."""
     offer = Offer.objects.create(
         simulation=simulation,
         offer_type=OfferType.PROJECT,
@@ -99,9 +105,21 @@ def create_project_offer(
     lines_by_sku = {
         ln.product.sku_code: ln for ln in simulation.lines.select_related("product").all()
     }
+    if quantities:
+        # Legacy path — explicit per-SKU quantities.
+        items: list[tuple[str, Decimal]] = [
+            (sku, Decimal(str(qty))) for sku, qty in quantities.items()
+        ]
+    else:
+        # Inherit quantities from the simulation lines (CDC Feedback 1).
+        items = [
+            (ln.product.sku_code, ln.quantity if ln.quantity is not None else Decimal(1))
+            for ln in lines_by_sku.values()
+        ]
+
     order = 0
     offer_lines = []
-    for sku, qty in quantities.items():
+    for sku, qty in items:
         sim_line = lines_by_sku.get(sku)
         if sim_line is None:
             continue  # SKU not in the simulation — skip (validated upstream)

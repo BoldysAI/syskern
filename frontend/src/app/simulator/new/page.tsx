@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
 import { addSimulationLines, createSimulation } from "@/lib/api";
@@ -17,9 +17,16 @@ import {
   clearDraft,
   collectWizardCreateWarnings,
   collectWizardStep3Issues,
+  clearCatalogSeed,
+  catalogDraft,
+  emptyDraft,
   loadDraft,
+  normalizeIntegerQuantity,
   persistDraft,
+  peekCatalogSeed,
+  resolveSelectedSkusByProductIds,
   step1Valid,
+  withSelectedSkuDefaults,
   type WizardCreateWarning,
   type WizardDraft,
 } from "./_components/wizard-draft";
@@ -31,23 +38,113 @@ const STEPS = [
 ] as const;
 
 export default function NewSimulationPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+      <NewSimulationPageContent />
+    </Suspense>
+  );
+}
+
+function NewSimulationPageContent() {
   const router = useRouter();
-  const [draft, setDraft] = useState<WizardDraft>(loadDraft);
+  const searchParams = useSearchParams();
+  const fromCatalog = searchParams.get("from") === "catalog";
+  const catalogProductIds = searchParams.get("product_ids") ?? "";
+
+  const [draft, setDraft] = useState<WizardDraft>(emptyDraft);
+  const [ready, setReady] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createWarnings, setCreateWarnings] = useState<WizardCreateWarning[] | null>(null);
+  const catalogInitDoneRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      if (fromCatalog) {
+        if (catalogInitDoneRef.current) {
+          if (!cancelled) setReady(true);
+          return;
+        }
+
+        const seed = peekCatalogSeed();
+        const urlIds = catalogProductIds.split(",").map((id) => id.trim()).filter(Boolean);
+        const productIds = seed?.productIds.length ? seed.productIds : urlIds;
+
+        if (!productIds.length) {
+          if (!cancelled) {
+            setSeedError(
+              "Aucun produit catalogue à pré-remplir. Réessayez depuis le catalogue.",
+            );
+            setDraft(emptyDraft());
+            setReady(true);
+          }
+          return;
+        }
+
+        catalogInitDoneRef.current = true;
+
+        if (seed?.selectedSkus?.length) {
+          if (!cancelled) {
+            setDraft(catalogDraft(seed.selectedSkus.map(withSelectedSkuDefaults)));
+            setReady(true);
+          }
+          return;
+        }
+
+        try {
+          const selectedSkus = await resolveSelectedSkusByProductIds(
+            productIds,
+            seed?.selectedSkus ?? [],
+          );
+          if (cancelled) return;
+          if (selectedSkus.length === 0) {
+            setSeedError(
+              "Les produits sélectionnés n'ont pas pu être chargés. Réessayez depuis le catalogue.",
+            );
+            setDraft(emptyDraft());
+          } else {
+            setDraft(catalogDraft(selectedSkus.map(withSelectedSkuDefaults)));
+          }
+        } catch {
+          if (cancelled) return;
+          setSeedError(
+            "Les produits sélectionnés n'ont pas pu être chargés. Réessayez depuis le catalogue.",
+          );
+          setDraft(emptyDraft());
+        } finally {
+          if (!cancelled) setReady(true);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setDraft(loadDraft());
+        setReady(true);
+      }
+    };
+
+    void init();
+    return () => {
+      cancelled = true;
+    };
+  }, [fromCatalog, catalogProductIds]);
+
+  useEffect(() => {
+    if (!ready || fromCatalog) return;
     persistDraft(draft);
-  }, [draft]);
+  }, [draft, ready, fromCatalog]);
 
   const update = (patch: Partial<WizardDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const step1Ok = step1Valid(draft);
   const step3Issues = useMemo(() => collectWizardStep3Issues(draft), [draft]);
+  const catalogSkuCount = fromCatalog ? draft.selectedSkus.length : 0;
 
-  const canSubmit = step1Ok && !saving;
+  const canSubmit = step1Ok && !saving && ready;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -58,10 +155,14 @@ export default function NewSimulationPage() {
       if (draft.selectedSkus.length > 0) {
         await addSimulationLines(
           sim.id,
-          draft.selectedSkus.map((s) => s.id)
+          draft.selectedSkus.map((s) => ({
+            product_id: s.id,
+            quantity: normalizeIntegerQuantity(s.quantity),
+          })),
         );
       }
       clearDraft();
+      if (fromCatalog) clearCatalogSeed();
       router.push(`/simulator/${sim.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Création de la simulation échouée.");
@@ -83,6 +184,15 @@ export default function NewSimulationPage() {
     else void handleSubmit();
   };
 
+  if (!ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6 text-sm text-muted-foreground">
+        <CircleNotch size={20} className="mr-2 animate-spin" />
+        Préparation du wizard…
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -100,6 +210,20 @@ export default function NewSimulationPage() {
         </Link>
 
         {step !== 2 && <PageHeader title="Nouvelle simulation" className="mb-6" />}
+
+        {catalogSkuCount > 0 && (
+          <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">
+            {catalogSkuCount} produit{catalogSkuCount > 1 ? "s" : ""} pré-sélectionné
+            {catalogSkuCount > 1 ? "s" : ""} depuis le catalogue — complétez le type et les paramètres
+            ci-dessous.
+          </div>
+        )}
+
+        {seedError && (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {seedError}
+          </div>
+        )}
 
         <ol className={cn("flex items-center gap-2", step === 2 ? "mb-0" : "mb-8")}>
         {STEPS.map((s, i) => {
@@ -183,6 +307,7 @@ export default function NewSimulationPage() {
             className="min-h-0 flex-1"
             selectedSkus={draft.selectedSkus}
             notFoundSkus={draft.notFoundSkus}
+            simulationType={draft.type}
             onChange={(v) => update({ selectedSkus: v })}
             onNotFoundChange={(v) => update({ notFoundSkus: v })}
           />

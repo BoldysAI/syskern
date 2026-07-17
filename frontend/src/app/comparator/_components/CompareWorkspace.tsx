@@ -1,14 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 import { ChartBar, Gear, Stack } from "@phosphor-icons/react";
 import {
   compareSimulations,
   getSimulations,
+  updateSavedComparison,
   type CompareResponse,
   type Simulation,
 } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { canEdit } from "@/lib/auth";
+import {
+  compareSimulationNavContext,
+  type SimulationNavigationContext,
+} from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
 import { CompareContextDiff } from "@/app/simulator/compare/_components/CompareContextDiff";
 import { CompareOverview } from "@/app/simulator/compare/_components/CompareOverview";
@@ -19,18 +26,72 @@ type TabId = "overview" | "context" | "products";
 interface Props {
   simulationIds: string[];
   recalculationIds: string[];
+  /** When set, simulation id replacements are persisted on the saved comparison. */
+  savedComparisonId?: string;
+  /** Breadcrumb return target for simulation links opened from this workspace. */
+  compareReturnHref?: string;
+  compareReturnLabel?: string;
+  onSimulationIdsChange?: (ids: string[]) => void;
 }
 
-export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
+export function CompareWorkspace({
+  simulationIds: simulationIdsProp,
+  recalculationIds,
+  savedComparisonId,
+  compareReturnHref,
+  compareReturnLabel = "Comparaison",
+  onSimulationIdsChange,
+}: Props) {
+  const { role } = useAuth();
+  const userCanEdit = canEdit(role);
+
+  const [simulationIds, setSimulationIds] = useState(simulationIdsProp);
   const [tab, setTab] = useState<TabId>("overview");
   const [sortByDelta, setSortByDelta] = useState(true);
   const [commonOnly, setCommonOnly] = useState(true);
 
+  useEffect(() => {
+    setSimulationIds(simulationIdsProp);
+  }, [simulationIdsProp]);
+
+  const simulationNavContext = useMemo((): SimulationNavigationContext => {
+    if (compareReturnHref) {
+      return compareSimulationNavContext(compareReturnHref, compareReturnLabel);
+    }
+    return { kind: "default" };
+  }, [compareReturnHref, compareReturnLabel]);
+
+  const replaceSimulationId = useCallback(
+    async (sourceId: string, effectiveId: string) => {
+      const nextIds = simulationIds.map((id) => (id === sourceId ? effectiveId : id));
+      setSimulationIds(nextIds);
+      onSimulationIdsChange?.(nextIds);
+
+      if (savedComparisonId) {
+        try {
+          await updateSavedComparison(savedComparisonId, { simulation_ids: nextIds });
+          void globalMutate(["saved-comparison", savedComparisonId]);
+        } catch {
+          // Compare refresh still works locally; saved object may be stale until reload.
+        }
+      }
+
+      void globalMutate(
+        (key) => Array.isArray(key) && key[0] === "compare",
+        undefined,
+        { revalidate: true },
+      );
+    },
+    [simulationIds, onSimulationIdsChange, savedComparisonId],
+  );
+
   const columnCount = simulationIds.length + recalculationIds.length;
   const compareKey =
-    columnCount >= 2 ? ["compare", simulationIds.join(","), recalculationIds.join(",")] : null;
+    columnCount >= 2
+      ? ["compare", simulationIds.join(","), recalculationIds.join(",")]
+      : null;
 
-  const { data, isLoading, error } = useSWR<CompareResponse>(compareKey, () =>
+  const { data, isLoading, error, mutate } = useSWR<CompareResponse>(compareKey, () =>
     compareSimulations({
       simulation_ids: simulationIds,
       recalculation_ids: recalculationIds,
@@ -43,6 +104,14 @@ export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
     const map = new Map((simulations ?? []).map((s) => [s.id, s.label]));
     return simulationIds.map((id) => map.get(id) ?? id.slice(0, 8));
   }, [simulationIds, simulations]);
+
+  const handleSimulationReplaced = useCallback(
+    (sourceId: string, effectiveId: string) => {
+      void replaceSimulationId(sourceId, effectiveId);
+      void mutate();
+    },
+    [replaceSimulationId, mutate],
+  );
 
   if (!compareKey) {
     return (
@@ -111,8 +180,21 @@ export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
         />
       </div>
 
-      {tab === "overview" && <CompareOverview columns={data.columns} products={data.products} />}
-      {tab === "context" && <CompareContextDiff columns={data.columns} />}
+      {tab === "overview" && (
+        <CompareOverview
+          columns={data.columns}
+          products={data.products}
+          simulationNavContext={simulationNavContext}
+        />
+      )}
+      {tab === "context" && (
+        <CompareContextDiff
+          columns={data.columns}
+          canEdit={userCanEdit}
+          simulationNavContext={simulationNavContext}
+          onSimulationReplaced={handleSimulationReplaced}
+        />
+      )}
       {tab === "products" && (
         <CompareSkuTable
           columns={data.columns}
@@ -121,6 +203,7 @@ export function CompareWorkspace({ simulationIds, recalculationIds }: Props) {
           onToggleSort={() => setSortByDelta((v) => !v)}
           commonOnly={commonOnly}
           onToggleCommon={() => setCommonOnly((v) => !v)}
+          simulationNavContext={simulationNavContext}
         />
       )}
     </div>

@@ -1,16 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
-import { SidebarSimple, WarningCircle } from "@phosphor-icons/react";
-import { exportSimulation, getSimulation, type SimulationDetail } from "@/lib/api";
-import { persistLastVisited } from "@/lib/last-visited";
+import { SidebarSimple, WarningCircle, ArrowsOut } from "@phosphor-icons/react";
+import {
+  exportSimulation,
+  getSimulation,
+  type BulkEditFilter,
+  type SimulationDetail,
+} from "@/lib/api";
 import {
   useBreadcrumbOverride,
   type BreadcrumbCrumb,
 } from "@/components/layout/BreadcrumbContext";
+import {
+  buildSimulationBreadcrumbs,
+  parseSimulationNavigationContext,
+} from "@/lib/simulation-navigation";
+import { persistLastVisited } from "@/lib/last-visited";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,10 +29,12 @@ import { RecalculateModal } from "./_components/RecalculateModal";
 import { BulkEditModal } from "./_components/BulkEditModal";
 import { AddProductsModal } from "./_components/AddProductsModal";
 import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
+import { SimulationParamsSheet } from "@/app/simulator/_components/SimulationParamsSheet";
 
 export default function SimulationDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = params?.id ?? "";
 
   const {
@@ -42,8 +53,10 @@ export default function SimulationDetailPage() {
   const [recalcOpen, setRecalcOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkLineIds, setBulkLineIds] = useState<string[] | null>(null);
+  const [bulkFilter, setBulkFilter] = useState<BulkEditFilter | null>(null);
   const [addProductsOpen, setAddProductsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [paramsSheetOpen, setParamsSheetOpen] = useState(false);
   const [pendingMarketParams, setPendingMarketParams] = useState<Record<string, string> | null>(
     null
   );
@@ -70,11 +83,12 @@ export default function SimulationDetailPage() {
       ];
     }
 
-    return [
-      { href: "/", label: "Tableau de bord" },
-      { href: "/simulator", label: "Simulations" },
-      { label: sim.label },
-    ];
+    const navContext = parseSimulationNavigationContext(searchParams);
+    if (navContext.kind === "compare") {
+      return buildSimulationBreadcrumbs(navContext, sim.label);
+    }
+
+    return buildSimulationBreadcrumbs({ kind: "default" }, sim.label);
   }, [sim, searchParams]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));
@@ -134,11 +148,24 @@ export default function SimulationDetailPage() {
   return (
     <div className="flex h-full min-h-0">
       {collapsed ? (
-        <div className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-card py-3">
+        <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-card py-3">
+          {sim.status !== "archived" && (
+            <button
+              type="button"
+              onClick={() => setParamsSheetOpen(true)}
+              className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Ouvrir les paramètres en plein écran"
+              title="Plein écran"
+            >
+              <ArrowsOut size={18} />
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => setCollapsed(false)}
             className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Afficher le panneau des paramètres"
+            title="Afficher le panneau"
           >
             <SidebarSimple size={18} />
           </button>
@@ -154,6 +181,7 @@ export default function SimulationDetailPage() {
             readOnly={readOnly}
             onChanged={() => void mutateSim()}
             onCollapse={() => setCollapsed(true)}
+            onOpenParamsSheet={() => setParamsSheetOpen(true)}
             onMarketParamsChange={setPendingMarketParams}
           />
           <div
@@ -178,8 +206,9 @@ export default function SimulationDetailPage() {
           readOnly={readOnly}
           onRecalc={() => setRecalcOpen(true)}
           onAddProducts={() => setAddProductsOpen(true)}
-          onBulkEdit={(lineIds) => {
-            setBulkLineIds(lineIds?.length ? lineIds : null);
+          onBulkEdit={(opts) => {
+            setBulkLineIds(opts?.lineIds?.length ? opts.lineIds : null);
+            setBulkFilter(opts?.filter ?? null);
             setBulkOpen(true);
           }}
           onExport={() => exportSimulation(sim.id)}
@@ -205,13 +234,31 @@ export default function SimulationDetailPage() {
         simId={sim.id}
         open={bulkOpen}
         lineIds={bulkLineIds}
+        isProject={sim.simulation_type === "project"}
+        initialFilter={bulkFilter ?? undefined}
         onClose={() => {
           setBulkOpen(false);
           setBulkLineIds(null);
+          setBulkFilter(null);
         }}
         onApplied={refreshAll}
       />
       <RecalcHistoryDrawer simId={sim.id} open={historyOpen} onClose={() => setHistoryOpen(false)} />
+
+      <SimulationParamsSheet
+        simulationId={sim.id}
+        simulationLabel={sim.label}
+        simulationStatus={sim.status}
+        open={paramsSheetOpen}
+        onClose={() => setParamsSheetOpen(false)}
+        onSaved={({ sourceId, effectiveId }) => {
+          if (effectiveId !== sourceId) {
+            router.push(`/simulator/${effectiveId}`);
+            return;
+          }
+          void mutateSim();
+        }}
+      />
     </div>
   );
 }

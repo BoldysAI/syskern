@@ -1,24 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import useSWR from "swr";
-import { PencilSimple, MagicWand } from "@phosphor-icons/react";
-import { listTransportModes, type TransportMode } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
+import { SimulationParamsFields } from "@/app/simulator/_components/SimulationParamsFields";
 import {
-  SaleIncotermFields,
-  useIncotermPrefillConfirm,
-} from "@/app/simulator/_components/SaleIncotermSection";
-import { chainDraftHasContent, suggestSaleChainDraft } from "@/lib/incoterms";
-import { ChainBuilder } from "./ChainBuilder";
-import { MarketParamsModal } from "./MarketParamsModal";
-import { WizardStep3IssuesBanner } from "./WizardStep3IssuesBanner";
-import {
-  applyImportChinePreset,
   type ChainDraft,
   type MarketParamsDraft,
   type SymeaPosition,
+  type WizardDraft,
 } from "./wizard-draft";
 
 interface Props {
@@ -44,19 +31,7 @@ interface Props {
   issues?: string[];
 }
 
-const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
-
-function MarketValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-foreground tabular-nums">{value || "—"}</span>
-    </div>
-  );
-}
-
+/** Wizard step 3 — delegates to `SimulationParamsFields` (canonical layout). */
 export function ParamsStep({
   marketParams,
   purchaseChain,
@@ -79,166 +54,43 @@ export function ParamsStep({
   introText = "Configurez les paramètres marché et les chaînes de calcul. Les résultats seront calculés après création (clic sur « Recalculer »).",
   issues = [],
 }: Props) {
-  const [marketOpen, setMarketOpen] = useState(false);
-  const { request: requestPrefill, modal: prefillModal } = useIncotermPrefillConfirm();
-  const { data: transportModes } = useSWR<TransportMode[]>("transport-modes-active", () =>
-    listTransportModes(true)
-  );
+  const draft = {
+    label: "",
+    type: "tariff" as const,
+    clientIds: [],
+    projectName: "",
+    selectedSkus: [],
+    notFoundSkus: [],
+    marketParams,
+    purchaseChain,
+    saleChain,
+    mixPct,
+    symeaPct,
+    syskernPct,
+    symeaPosition,
+    saleIncoterm,
+    saleIncotermLocation,
+  } satisfies WizardDraft;
 
-  const applySaleIncoterm = (code: string) => {
-    requestPrefill(
-      chainDraftHasContent(saleChain),
-      `Chaîne PV pour ${code}`,
-      `Proposer une structure de chaîne PV adaptée à l'incoterm ${code} ?`,
-      () => {
-        onSaleIncoterm(code);
-        onSaleChain(suggestSaleChainDraft(code));
-      }
-    );
-  };
-
-  const applyPreset = () => {
-    const { purchase, sale } = applyImportChinePreset();
-    onPurchaseChain(purchase);
-    onSaleChain(sale);
+  const onChange = (patch: Partial<WizardDraft>) => {
+    if (patch.marketParams !== undefined) onMarketParams(patch.marketParams);
+    if (patch.purchaseChain !== undefined) onPurchaseChain(patch.purchaseChain);
+    if (patch.saleChain !== undefined) onSaleChain(patch.saleChain);
+    if (patch.mixPct !== undefined) onMixPct(patch.mixPct);
+    if (patch.symeaPct !== undefined) onSymeaPct(patch.symeaPct);
+    if (patch.syskernPct !== undefined) onSyskernPct(patch.syskernPct);
+    if (patch.symeaPosition !== undefined) onSymeaPosition(patch.symeaPosition);
+    if (patch.saleIncoterm !== undefined) onSaleIncoterm(patch.saleIncoterm);
+    if (patch.saleIncotermLocation !== undefined) onSaleIncotermLocation(patch.saleIncotermLocation);
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <WizardStep3IssuesBanner issues={issues} />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{introText}</p>
-        <button
-          type="button"
-          onClick={applyPreset}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-accent-foreground border border-primary/40 rounded-lg hover:bg-accent/50"
-        >
-          <MagicWand size={15} />
-          Preset « Standard import Chine »
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Market params */}
-        <div className="border border-border rounded-xl bg-card shadow-sm p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Marché</h3>
-            <button
-              type="button"
-              onClick={() => setMarketOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
-            >
-              <PencilSimple size={13} />
-              Modifier
-            </button>
-          </div>
-          <MarketValue
-            label={`Cuivre base (${marketParams.copper_currency ?? "RMB"})`}
-            value={marketParams.copper_base_price}
-          />
-          <MarketValue
-            label={`Cuivre actuel (${marketParams.copper_currency ?? "RMB"})`}
-            value={marketParams.copper_current_price}
-          />
-          <MarketValue label="FX EUR→RMB" value={marketParams.fx_eur_rmb} />
-          <MarketValue label="FX EUR→USD" value={marketParams.fx_eur_usd} />
-        </div>
-
-        {/* Global params */}
-        <div className="border border-border rounded-xl bg-card shadow-sm p-4 flex flex-col gap-4 lg:col-span-2">
-          <h3 className="text-sm font-bold text-foreground">Paramètres globaux</h3>
-
-          <StockPurchaseMixSlider
-            title="Mix stock / achat global"
-            value={mixPct}
-            onChange={onMixPct}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Marge Symea (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={99}
-                step="0.1"
-                value={symeaPct}
-                onChange={(e) => onSymeaPct(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Marge Syskern (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={99}
-                step="0.1"
-                value={syskernPct}
-                onChange={(e) => onSyskernPct(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelCls}>Position marge Symea</label>
-            <div className="flex gap-2">
-              {(["after_transports", "before_transports"] as SymeaPosition[]).map((pos) => (
-                <button
-                  type="button"
-                  key={pos}
-                  onClick={() => onSymeaPosition(pos)}
-                  className={cn(
-                    "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
-                    symeaPosition === pos
-                      ? "border-primary bg-accent text-accent-foreground"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {pos === "after_transports" ? "Après transports" : "Avant transports"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="border border-border rounded-xl bg-card shadow-sm p-4">
-        <h3 className="text-sm font-bold text-foreground mb-3">Incoterm de vente</h3>
-        <SaleIncotermFields
-          incoterm={saleIncoterm}
-          location={saleIncotermLocation}
-          onIncotermChange={applySaleIncoterm}
-          onLocationChange={onSaleIncotermLocation}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChainBuilder
-          title="Chaîne PA (achat)"
-          chain={purchaseChain}
-          isPurchase
-          transportModes={transportModes ?? []}
-          onChange={onPurchaseChain}
-        />
-        <ChainBuilder
-          title="Chaîne PV (vente)"
-          chain={saleChain}
-          isPurchase={false}
-          transportModes={transportModes ?? []}
-          onChange={onSaleChain}
-        />
-      </div>
-
-      <MarketParamsModal
-        open={marketOpen}
-        onOpenChange={setMarketOpen}
-        value={marketParams}
-        onSave={onMarketParams}
-      />
-      {prefillModal}
-    </div>
+    <SimulationParamsFields
+      draft={draft}
+      onChange={onChange}
+      issues={issues}
+      introText={introText}
+      showImportPreset
+    />
   );
 }

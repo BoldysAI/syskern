@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import (
@@ -28,6 +30,7 @@ class SimulationLineSerializer(serializers.ModelSerializer):
         decimal_places=4,
         read_only=True,
     )
+    pv_total_eur = serializers.SerializerMethodField()
 
     class Meta:
         model = SimulationLine
@@ -45,12 +48,16 @@ class SimulationLineSerializer(serializers.ModelSerializer):
             "supplier_snapshot",
             "margin_override",
             "stock_purchase_mix_pct_override",
+            "quantity",
+            "force_manual_mix",
+            "pa_coefficient_override",
             "po_net_origin_currency",
             "po_net_eur",
             "pa_net_eur",
             "pamp_predictive_eur",
             "pr_eur",
             "pv_eur",
+            "pv_total_eur",
             "effective_margin_rate",
             "effective_mix_pct",
             "calculation_breakdown",
@@ -75,6 +82,7 @@ class SimulationLineSerializer(serializers.ModelSerializer):
             "pamp_predictive_eur",
             "pr_eur",
             "pv_eur",
+            "pv_total_eur",
             "effective_margin_rate",
             "effective_mix_pct",
             "calculation_breakdown",
@@ -83,6 +91,12 @@ class SimulationLineSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def get_pv_total_eur(self, obj: SimulationLine) -> str | None:
+        """Total price = unit PV x quantity (CDC Feedback 1); None when unknown."""
+        if obj.pv_eur is None or obj.quantity is None:
+            return None
+        return str(obj.pv_eur * obj.quantity)
 
 
 class SimulationListSerializer(serializers.ModelSerializer):
@@ -147,8 +161,12 @@ class SimulationWriteSerializer(serializers.ModelSerializer):
             list(getattr(instance, "client_ids", []) or []),
         )
         project_name = attrs.get("project_name", getattr(instance, "project_name", "") or "")
+        label = attrs.get("label", getattr(instance, "label", "") or "")
 
         if sim_type == SimulationType.PROJECT:
+            if not (project_name and project_name.strip()) and label and label.strip():
+                project_name = label.strip()
+                attrs["project_name"] = project_name
             if not (project_name and project_name.strip()):
                 raise serializers.ValidationError(
                     {"project_name": "Le nom du projet est requis pour une simulation projet."}
@@ -177,10 +195,27 @@ class SimulationRecalculationSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class AddLineItemSerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
+    quantity = serializers.DecimalField(
+        max_digits=12, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0")
+    )
+
+
 class AddLinesSerializer(serializers.Serializer):
     """Body for `POST /api/simulations/{id}/lines`."""
 
-    product_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    product_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=False
+    )
+    items = AddLineItemSerializer(many=True, required=False, allow_empty=False)
+
+    def validate(self, attrs):
+        if not attrs.get("product_ids") and not attrs.get("items"):
+            raise serializers.ValidationError(
+                "Fournir product_ids ou items (product_id + paramètres optionnels)."
+            )
+        return attrs
 
 
 class BulkEditSerializer(serializers.Serializer):
@@ -192,6 +227,17 @@ class BulkEditSerializer(serializers.Serializer):
     )
     stock_purchase_mix_pct_override = serializers.IntegerField(
         required=False, allow_null=True, min_value=0, max_value=100
+    )
+    quantity = serializers.DecimalField(
+        max_digits=12, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0")
+    )
+    force_manual_mix = serializers.BooleanField(required=False)
+    pa_coefficient_override = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+        min_value=Decimal("0.0001"),
     )
     reset = serializers.BooleanField(default=False)
 
@@ -246,6 +292,30 @@ class CompareSerializer(serializers.Serializer):
         return attrs
 
 
+class CompareWhatIfSerializer(serializers.Serializer):
+    """Body for `POST /api/simulations/compare/what-if` (CDC Feedback 1).
+
+    Same columns as `compare`, plus a `market_params_override` applied to the
+    live simulation columns for an in-memory (non-persisted) recompute.
+    """
+
+    simulation_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=4
+    )
+    recalculation_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=4
+    )
+    market_params_override = serializers.DictField(required=False, default=dict)
+
+    def validate(self, attrs):
+        total = len(attrs.get("simulation_ids") or []) + len(attrs.get("recalculation_ids") or [])
+        if total < 2:
+            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+        if total > 4:
+            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
+        return attrs
+
+
 def _validate_compare_ids(simulation_ids: list, recalculation_ids: list) -> None:
     """Ensure compare column IDs exist (shared by live compare + saved compare)."""
     sim_ids = [str(x) for x in simulation_ids]
@@ -256,10 +326,7 @@ def _validate_compare_ids(simulation_ids: list, recalculation_ids: list) -> None
         raise serializers.ValidationError("Doublon dans les recalculs sélectionnés.")
     if Simulation.objects.filter(id__in=sim_ids).count() != len(set(sim_ids)):
         raise serializers.ValidationError("Certaines simulations sont introuvables.")
-    if (
-        SimulationRecalculation.objects.filter(id__in=recalc_ids).count()
-        != len(set(recalc_ids))
-    ):
+    if SimulationRecalculation.objects.filter(id__in=recalc_ids).count() != len(set(recalc_ids)):
         raise serializers.ValidationError("Certains recalculs sont introuvables.")
 
 
@@ -290,10 +357,7 @@ class SavedComparisonSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_columns(self, obj: SavedComparison) -> list[dict]:
-        sims = {
-            str(s.id): s
-            for s in Simulation.objects.filter(id__in=obj.simulation_ids)
-        }
+        sims = {str(s.id): s for s in Simulation.objects.filter(id__in=obj.simulation_ids)}
         recalcs = {
             str(r.id): r
             for r in SimulationRecalculation.objects.filter(
@@ -315,11 +379,7 @@ class SavedComparisonSerializer(serializers.ModelSerializer):
         for rid in obj.recalculation_ids:
             key = str(rid)
             r = recalcs.get(key)
-            label = (
-                f"Recalcul du {r.calculated_at:%d/%m/%Y %H:%M}"
-                if r
-                else "(recalcul supprimé)"
-            )
+            label = f"Recalcul du {r.calculated_at:%d/%m/%Y %H:%M}" if r else "(recalcul supprimé)"
             out.append(
                 {
                     "type": "recalculation",

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Avg, Max, Min
@@ -27,6 +28,7 @@ from ..models import (
     Simulation,
     SimulationLine,
     SimulationRecalculation,
+    SimulationType,
 )
 from .engine import (
     PendingPurchase,
@@ -34,21 +36,25 @@ from .engine import (
     ProductView,
     SimulationContext,
     build_pr_breakdown,
+    build_purchase_chain_config_for_line,
     build_purchase_modules,
     build_sale_modules,
     compute_pr,
     compute_predictive_pamp,
+    compute_quantity_driven_mix_pct,
+    quantize,
     resolve_margin_rate,
     resolve_mix_pct,
     run_chain,
+    to_decimal,
 )
+from .engine.errors import humanize_engine_error
+from .engine.validation import collect_preflight_fx_errors, negative_price_errors
 from .incoterm_rules import (
     build_incoterm_context,
     check_purchase_chain_coherence,
     check_sale_chain_coherence,
 )
-from .engine.errors import humanize_engine_error
-from .engine.validation import collect_preflight_fx_errors, negative_price_errors
 
 # ─── Per-line input ──────────────────────────────────────────────────────
 
@@ -88,9 +94,9 @@ PRICING_AFFECTING_FIELDS = (
 def sync_simulation_dirty_flag(simulation_id) -> bool:
     """Reconcile ``Simulation.is_dirty`` with outstanding line recalc work.
 
-  ``is_dirty`` is True while at least one line is ``dirty`` or ``pending``.
-  A partial line recalc can therefore clear the flag once every line has been
-  brought up to date — without requiring a global Celery recalc.
+    ``is_dirty`` is True while at least one line is ``dirty`` or ``pending``.
+    A partial line recalc can therefore clear the flag once every line has been
+    brought up to date — without requiring a global Celery recalc.
     """
     needs_recalc = SimulationLine.objects.filter(
         simulation_id=simulation_id,
@@ -250,20 +256,30 @@ def _recalculate_line(
     line.product_snapshot = _product_snapshot(product)
     line.supplier_snapshot = _supplier_snapshot(supplier)
 
+    effective_purchase_config = build_purchase_chain_config_for_line(
+        purchase_config,
+        symea_margin_rate=simulation.symea_margin_rate,
+        pa_coefficient_override=line.pa_coefficient_override,
+    )
+
     # Pre-flight: collect every blocking error and non-blocking warning before the chain.
     input_errors, input_warnings = _validate_line_inputs(product, supplier)
     fx_errors = collect_preflight_fx_errors(
         simulation.market_params or {},
         product=product,
         po_currency=supplier.po_currency if supplier else Currency.EUR.value,
-        purchase_config=purchase_config,
+        purchase_config=effective_purchase_config,
         sale_config=sale_config,
     )
     purchase_incoterm = str(supplier.incoterm or "") if supplier else ""
-    preflight_warnings = input_warnings + check_sale_chain_coherence(
-        simulation.sale_incoterm,
-        sale_config,
-    ) + check_purchase_chain_coherence(purchase_incoterm, purchase_config)
+    preflight_warnings = (
+        input_warnings
+        + check_sale_chain_coherence(
+            simulation.sale_incoterm,
+            sale_config,
+        )
+        + check_purchase_chain_coherence(purchase_incoterm, effective_purchase_config)
+    )
     preflight_errors = input_errors + fx_errors
     if preflight_errors:
         return _persist_diagnostics(
@@ -288,13 +304,7 @@ def _recalculate_line(
             amount=po_base_price,
             currency=supplier.po_currency,
         )
-        purchase_modules = build_purchase_modules(
-            {
-                **purchase_config,
-                "symea_margin": purchase_config.get("symea_margin")
-                or {"rate": str(simulation.symea_margin_rate), "position": "after_transports"},
-            }
-        )
+        purchase_modules = build_purchase_modules(effective_purchase_config)
         purchase_result = run_chain(purchase_modules, starting_price=starting_po, context=ctx)
         pa_net = purchase_result.final_price.amount
 
@@ -308,18 +318,28 @@ def _recalculate_line(
             pamp_eur=product.pamp_eur,
             pending_purchases=pending_purchases or [],
         )
-        # The requested mix (override vs simulation) vs the effective mix: when
-        # the predictive PAMP is unavailable the mix is forced to 0 (CDC §6.7.1)
-        # — and we never hide that behind a silent 0 (CDC §6.6).
-        requested_mix_pct = resolve_mix_pct(
-            simulation_mix_pct=simulation.stock_purchase_mix_pct,
-            line_override=line.stock_purchase_mix_pct_override,
-        )
-        mix_pct = resolve_mix_pct(
-            simulation_mix_pct=simulation.stock_purchase_mix_pct,
-            line_override=line.stock_purchase_mix_pct_override,
-            pamp_available=pamp_predictive is not None,
-        )
+        # Quantity-driven auto-mix for project simulations (CDC Feedback 1):
+        # the stock weight is derived from the line quantity and the raw stock
+        # (part_stock = min(stock, qty) / qty). It replaces the manual slider
+        # unless the line forces the manual mix or it's a tariff simulation.
+        auto_mix_pct: int | None = None
+        if simulation.simulation_type == SimulationType.PROJECT and not line.force_manual_mix:
+            auto_mix_pct = compute_quantity_driven_mix_pct(
+                stock_quantity=product.stock_quantity,
+                quantity=line.quantity,
+            )
+
+        # The requested mix (auto, override or simulation) vs the effective mix:
+        # when the predictive PAMP is unavailable the mix is forced to 0
+        # (CDC §6.7.1) — and we never hide that behind a silent 0 (CDC §6.6).
+        if auto_mix_pct is not None:
+            requested_mix_pct = auto_mix_pct
+        else:
+            requested_mix_pct = resolve_mix_pct(
+                simulation_mix_pct=simulation.stock_purchase_mix_pct,
+                line_override=line.stock_purchase_mix_pct_override,
+            )
+        mix_pct = requested_mix_pct if pamp_predictive is not None else 0
         mix_warnings: list[str] = []
         if pamp_predictive is None and requested_mix_pct > 0:
             mix_warnings.append(
@@ -340,6 +360,8 @@ def _recalculate_line(
             pamp_eur=product.pamp_eur,
             pending_purchases=pending_purchases or [],
             mix_warnings=mix_warnings,
+            auto_mix_pct=auto_mix_pct,
+            line_quantity=line.quantity,
         )
 
         # ─── Sale chain → PV ──────────────────────────────────────────
@@ -414,8 +436,9 @@ def _recalculate_line(
             + sale_result.warnings
             + incoterm_warnings
         )
+        purchase_breakdown = purchase_result.to_breakdown()
         line.calculation_breakdown = {
-            "purchase": purchase_result.to_breakdown(),
+            "purchase": purchase_breakdown,
             "pr": pr_breakdown,
             "sale": sale_result.to_breakdown(),
             "mix_pct": mix_pct,
@@ -571,6 +594,96 @@ def _aggregate(simulation: Simulation, results: Iterable[LineResult]) -> dict:
         "warnings_count": warnings,
         "errors_count": errors,
     }
+
+
+def recompute_simulation_whatif(
+    simulation: Simulation,
+    *,
+    market_params_override: dict | None = None,
+) -> dict[str, dict]:
+    """Recompute PA/PR/PV per line with overridden market params, in memory.
+
+    Used by the comparison what-if (CDC Feedback 1): it lets the user normalise
+    a market parameter (e.g. the copper base) across compared simulations to
+    test price-gap sensitivity, **without ever modifying the source simulation**
+    (which stays finalized/immutable). Nothing is persisted.
+
+    The mix (``effective_mix_pct``), predictive PAMP, margin and any PA
+    coefficient stay frozen at their last-calculation values — only the market
+    parameters change — so the recompute isolates the market-parameter effect.
+
+    Returns a mapping ``product_id -> {pa_net_eur, pr_eur, pv_eur,
+    effective_margin_rate, effective_mix_pct}`` (all strings / int / None).
+    """
+    market_params = {**(simulation.market_params or {}), **(market_params_override or {})}
+    chain_config = simulation.calculation_chain or {}
+    purchase_config = chain_config.get("purchase_chain") or {}
+    sale_config = chain_config.get("sale_chain") or {}
+
+    out: dict[str, dict] = {}
+    for line in simulation.lines.select_related("product").all():
+        entry = {
+            "pa_net_eur": str(line.pa_net_eur) if line.pa_net_eur is not None else None,
+            "pr_eur": str(line.pr_eur) if line.pr_eur is not None else None,
+            "pv_eur": str(line.pv_eur) if line.pv_eur is not None else None,
+            "effective_margin_rate": (
+                str(line.effective_margin_rate) if line.effective_margin_rate is not None else None
+            ),
+            "effective_mix_pct": line.effective_mix_pct,
+        }
+        supplier = line.supplier_snapshot or {}
+        po_base = supplier.get("po_base_price")
+        if po_base in (None, "", "0", 0):
+            # No PO base to recompute from — keep the frozen values.
+            out[str(line.product_id)] = entry
+            continue
+        try:
+            product_view = (
+                ProductView.from_snapshot(line.product_snapshot)
+                if line.product_snapshot
+                else ProductView.from_model(line.product)
+            )
+            ctx = SimulationContext(product=product_view, market_params=market_params)
+            starting_po = PriceWithCurrency(
+                amount=to_decimal(po_base),
+                currency=(supplier.get("po_currency") or Currency.EUR.value),
+            )
+            effective_purchase_config = build_purchase_chain_config_for_line(
+                purchase_config,
+                symea_margin_rate=simulation.symea_margin_rate,
+                pa_coefficient_override=line.pa_coefficient_override,
+            )
+            purchase_modules = build_purchase_modules(effective_purchase_config)
+            pa_net = run_chain(
+                purchase_modules, starting_price=starting_po, context=ctx
+            ).final_price.amount
+            mix_pct = line.effective_mix_pct or 0
+            pr = compute_pr(
+                pa_net_eur=pa_net,
+                pamp_predictive_eur=line.pamp_predictive_eur,
+                mix_pct=mix_pct,
+            )
+            margin_rate = (
+                line.effective_margin_rate
+                if line.effective_margin_rate is not None
+                else simulation.syskern_margin_rate
+            )
+            sale_modules = build_sale_modules(
+                sale_config, syskern_margin_rate=to_decimal(margin_rate)
+            )
+            pv = run_chain(
+                sale_modules,
+                starting_price=PriceWithCurrency(amount=pr, currency=Currency.EUR.value),
+                context=ctx,
+            ).final_price.amount
+            entry["pa_net_eur"] = str(pa_net)
+            entry["pr_eur"] = str(pr)
+            entry["pv_eur"] = str(pv)
+        except Exception:
+            # Any engine error → keep the frozen values (never crash the compare).
+            pass
+        out[str(line.product_id)] = entry
+    return out
 
 
 def _build_line_snapshots(simulation: Simulation) -> list[dict]:

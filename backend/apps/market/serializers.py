@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import MarketParameter, MarketParameterType, TransportMode
+from .models import MarketParameter, MarketParameterType, TransportMode, TransportPreset
 
 
 class TransportModeSerializer(serializers.ModelSerializer):
@@ -10,6 +10,27 @@ class TransportModeSerializer(serializers.ModelSerializer):
         model = TransportMode
         fields = "__all__"
         read_only_fields = ("id", "created_at", "updated_at")
+
+
+class TransportPresetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransportPreset
+        fields = "__all__"
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate_transport_mode_code(self, value: str) -> str:
+        code = (value or "").strip().upper()
+        if not code:
+            raise serializers.ValidationError("Le mode de transport est requis.")
+        if not TransportMode.objects.filter(code=code, is_active=True).exists():
+            raise serializers.ValidationError(f"Mode de transport inconnu ou inactif : {code}.")
+        return code
+
+    def validate_name(self, value: str) -> str:
+        name = (value or "").strip()
+        if not name:
+            raise serializers.ValidationError("Le nom est requis.")
+        return name
 
 
 class MarketParameterSerializer(serializers.ModelSerializer):

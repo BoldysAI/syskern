@@ -154,6 +154,14 @@ def seed_transport_modes(transport_mode_model: Any) -> None:
         )
 
 
+# Kept for migration 0005 backwards compatibility only — presets are user-created (no seed).
+TRANSPORT_PRESETS: list[dict[str, Any]] = []
+
+
+def seed_transport_presets(transport_preset_model: Any) -> None:
+    """No-op: transport presets are created by users in settings or from simulations."""
+
+
 def seed_market_reference_data(incoterm_model: Any, transport_mode_model: Any) -> None:
     seed_incoterms(incoterm_model)
     seed_transport_modes(transport_mode_model)

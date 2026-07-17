@@ -351,10 +351,16 @@ domaine (`catalog`, `offers`, `library`, `comparator`, `simulator`, `suppliers`)
 - **Layout** = shell pleine hauteur `flex h-full` : `aside` sidebar gauche (repliable via
   `usePersistedBoolean`, largeur `useResizableWidth` si besoin) + colonne principale (toolbar recherche +
   active bar + `DataTable`).
-- **Modèle de filtres** = un module `x-filters.ts` : type `XFilters` (arrays `string[]`), `applyXFilters`
-  (client) ou `buildXQuery` (serveur), `countActive`, `buildChips`/`removeChip`.
+- **Modèle de filtres produit** = `CatalogFilters` + `buildCatalogQuery()` — **source unique** pour
+  catalogue, lignes simulation (`getSimulationLines`), bulk-edit et export produits.
+- **Lignes simulation (`SimulationTable`)** : `SimulationLinesFilterSidebar` =
+  `SimulationLineStatusFilterSection` + **`CatalogSidebar`** (mêmes sections que le catalogue) ;
+  `ActiveFilterBar` + `CatalogFilterSheet` mobile (`prependContent` = statut calcul). **Interdit** :
+  barre de `FilterSelect` / dropdowns pour filtrer les SKU. L'édition groupée reprend les filtres
+  actifs du tableau (sidebar), pas de second panneau de filtres dans `BulkEditModal`.
 - `FilterSelect` (dropdown) est réservé aux **formulaires** (ligne de transport, modale) — **pas** aux
-  filtres de liste. Réf. : `suppliers/_components/{SuppliersFiltersSidebar,SuppliersActiveFilterBar,supplier-filters}`.
+  filtres de liste. Réf. domaine hors produit :
+  `suppliers/_components/{SuppliersFiltersSidebar,SuppliersActiveFilterBar,supplier-filters}`.
 - **Sélection de produits/SKU** (picker, wizard, panneau embarqué) = **réutiliser `CatalogBrowser`**
   (`variant="embedded"`, `selectedIds`/`onToggleProduct`, `disabledRowIds`, `extraColumns`,
   `initialFilters` pour scoper) — le vrai tableau catalogue avec tous ses filtres. Ne jamais recréer un
@@ -455,10 +461,14 @@ Référence : `app/settings/attributes/_components/rows.tsx` + `page.tsx`.
 
 `/settings` et `/settings/attributes` partagent `app/settings/_components/SettingsNav.tsx`
 (onglets = **liens** Next, état actif via `usePathname` + `useSearchParams`). Les sections de
-`/settings` (Marché/Transport/Odoo/**Alertes offres**) sont pilotées par le query-param `?tab=`
-au lieu d'onglets Radix in-page ; **Attributs dynamiques** reste une route dédiée
-(`/settings/attributes`). **`useSearchParams` impose une frontière `<Suspense>`** côté Next 16
-(sinon `next build` échoue) — encapsuler le composant qui le lit.
+`/settings` (Marché / Modes transport / **Presets transport** / Odoo / **Alertes offres**) sont
+pilotées par le query-param `?tab=` au lieu d'onglets Radix in-page ; **Attributs dynamiques**
+reste une route dédiée (`/settings/attributes`). **`useSearchParams` impose une frontière
+`<Suspense>`** côté Next 16 (sinon `next build` échoue) — encapsuler le composant qui le lit.
+
+Onglet **Presets transport** (`?tab=transport-presets`) : `TabTransportPresets` — CRUD
+`TransportPreset` (nom unique, mode, coût, palettes, lieux ; partagés PA et PV). Aucun preset
+pré-installé — création admin ou depuis une simulation (signet).
 
 Onglet **Marché** : CRUD paramètres cuivre/FX via `listMarketParameters` / `createMarketParameter`
 / `updateMarketParameter` / `deleteMarketParameter` ; champ optionnel `source` (LME, BCE, manual).
@@ -468,12 +478,27 @@ Pour récupérer le paramètre actif côté simulation : `getCurrentMarketParame
 ## Fil d'Ariane contextuel (`BreadcrumbContext`)
 
 Référence : `components/layout/BreadcrumbContext.tsx`, consommé par `AppShell`.
+**Navigation produit** : `lib/product-navigation.ts` (`buildProductHref`, `parseProductNavigationContext`, `buildProductBreadcrumbs`).
 
-- Crumbs par défaut dérivés du pathname (segments cliquables).
+### Règle stricte (plateforme entière)
+
+Le fil d'Ariane doit **toujours refléter le parcours réel** de l'utilisateur — pas le pathname seul ni une hiérarchie « logique » inventée.
+
+1. **Liens entrants** : toute navigation vers une page « détail » (fiche produit, simulation, offre, etc.) depuis un autre module doit passer un **contexte de navigation** (query `?from=…` + ids/labels métier) ou un override breadcrumb explicite.
+2. **Page cible** : lit ce contexte et appelle `useBreadcrumbOverride` avec la chaîne complète (chaque segment intermédiaire cliquable).
+3. **Jamais** d'UUID, SKU seul ou clé technique visible dans les libellés.
+4. **Helper unique fiche produit** : `buildProductHref(sku, ctx)` depuis listes catalogue embarquées (`CatalogBrowser.productNavigationContext`), simulation (`productEditHref`), etc. ; la fiche lit le même contrat via `parseProductNavigationContext`.
+
+Contextes produit supportés : `catalog` (défaut), `simulation` (`?from=simulation&simulation_id&simulation_label`), `supplier` (`?from=supplier&supplier_id&supplier_name`).
+
+**Navigation simulation** : `lib/simulation-navigation.ts` — depuis une comparaison (`?from=compare&return_href&return_label`) → fil d'Ariane : Tableau de bord · Comparaisons · {comparaison} · {simulation}.
+
+- Crumbs par défaut dérivés du pathname (segments cliquables) — **fallback uniquement** quand aucun contexte n'est fourni.
 - Une page peut **surcharger** via `useBreadcrumbOverride(crumbs | null)` (cleanup au démontage).
-- Cas simulation → fiche produit : Accueil · Simulations · {label} · {SKU}.
-- Cas catalogue : Accueil · Catalogue · {universe?} · {SKU}. Fiche produit lit `?from=simulation` pour
-  restaurer le fil d'Ariane simulation au retour.
+- Exemples :
+  - Simulation → produit : Tableau de bord · Simulations · {label sim} · {produit}
+  - Fournisseur → produit : Tableau de bord · Fournisseurs · {nom fournisseur} · {produit}
+  - Catalogue → produit : Tableau de bord · Catalogue · {univers?} · {produit}
 
 ## Liste simulations (`/simulator`)
 
@@ -503,24 +528,49 @@ Référence : `app/simulator/new/` (CDC §6.9.2). Trois étapes : type/contexte 
   non trouvés ; confirmation à la création si des SKU importés sont introuvables :
   - `WizardCatalogPicker` : délègue à `CatalogBrowser` (même tableau / colonnes que `/catalog`).
   - `ImportFilePanel` : drag-and-drop `.xlsx`/`.csv`, `lookupBulkProducts` → `notFoundSkus`.
-  - `SelectedSkuList` : liste cumulative sticky à droite.
+  - `SelectedSkuList` : liste cumulative sticky à droite ; colonne **Qté** (simulations **Projet**
+    uniquement, entiers ≥ 1, défaut 1) — pas de coefficient par SKU.
   - *(Retiré)* onglet « filtre de gamme » — couvert par les filtres hiérarchie du catalogue.
-- **Étape 3** : `ParamsStep` — `MarketParamsModal` (sélecteur **LME/SHE** + **devise cuivre** RMB/USD/EUR ;
+- **Entrée catalogue** : `?from=catalog&product_ids=` (cf. `AddToSimulationDialog`) — brouillon
+  `localStorage` **non lu** ; seed one-shot `sessionStorage` (`CATALOG_SEED_KEY`) + résolution API
+  des SKU manquants ; à la sortie du wizard, seed purgé.
+- **Étape 3** : `ParamsStep` délègue à **`SimulationParamsFields`** (disposition canonique — cf. § « Paramètres simulation »). `MarketParamsModal` (sélecteur **LME/SHE** + **devise cuivre** RMB/USD/EUR ;
   `getCurrentMarketParameter` + `listMarketParameters` filtrés par `copper_market` ; pré-remplissage dans la
   devise choisie ; à l'enregistrement `buildMarketParams` convertit en RMB/tonne pour le moteur ;
   FX EUR→RMB/USD),
   **incoterm de vente** (`SaleIncotermFields` + prefill PV semi-auto), mix/marges, `ChainBuilder` PA/PV,
   `ChainBuilder` DnD (`@dnd-kit`) pour chaînes PA/PV (douane = **taux %** `rate_pct`, transports avec
-  sélecteur mode FR), mix/marges/position Symea, preset import Chine.
+  sélecteur mode FR), mix/marges/position Symea, preset import Chine. **Transport (CDC Feedback 1)** :
+  toggle **Modules détaillés** / **Coefficient** par chaîne PA et PV (`transportPricingMode`,
+  `transportCoefficient` → `transport_pricing` + leg `COEF` en API) ; alternative globale aux modules
+  détaillés, **pas par SKU**. **Presets transport** : bouton « Ajouter un transport » + dropdown
+  presets (`GET /api/transport-presets/?is_active=true`, liste vide au départ — création utilisateur) ; montants indicatifs, **modifiables après insertion**. Icône signet sur une ligne
+  transport → `SaveTransportPresetModal` (création preset nommé, visible pour tous). Admin :
+  `/settings?tab=transport-presets` (`TabTransportPresets` — CRUD). Helpers : `lib/transport-presets.ts`.
 - **Soumission** : `createSimulation` + `addSimulationLines` → redirect `/simulator/[id]` (draft).
 - **Validation étape 3** : `collectWizardStep3Issues` (cuivre si variation PA, FX requis selon
   chaînes, palettes transports) + bannière `WizardStep3IssuesBanner` dans `ParamsStep`.
   À la création : `collectWizardCreateWarnings` → modale `WizardCreateWarningsDialog` (cartes
   colorées par type : paramètres / SKU / import).
   `validateTransportChains` reste pour l'autosave sidebar (premier problème palettes).
-- **Helpers partagés** (`wizard-draft.ts`) : `buildSimulationPatch`, `simulationToEditDraft`, `step1Valid`, `buildMarketParams`.
+- **Helpers partagés** (`wizard-draft.ts`) : `buildSimulationPatch`, `simulationToEditDraft`, `step1Valid`,
+  `buildMarketParams`, `validateTransportChains`, `collectTransportIssues` (valide aussi le coefficient
+  transport), `buildCalculationChain` / `parseChainDraft` (modes transport détaillé/coefficient).
 - **Dépendance** : `xlsx@0.18.5` (npm registry) pour le parsing Excel côté client.
 - **npm** : installer les deps **uniquement** dans `frontend/` (`cd frontend && npm ci`). Jamais à la racine du repo (cf. `decisions.md`).
+
+## Catalogue → simulation (`AddToSimulationDialog`)
+
+Référence : `components/AddToSimulationDialog.tsx` — catalogue liste (`/catalog`) et fiche produit.
+
+- Modale **2 onglets** :
+  - **Simulation existante** (brouillon uniquement) → `POST /api/simulations/{id}/lines/` avec `product_ids`.
+  - **Nouvelle simulation** → redirect wizard `/simulator/new?from=catalog&product_ids=…`.
+- Seed one-shot : `sessionStorage` (`syskern:wizard-catalog-seed:v1`, `writeCatalogSeed` /
+  `peekCatalogSeed` / `clearCatalogSeed` dans `wizard-draft.ts`) + résolution API des SKU manquants
+  (`resolveSelectedSkusByProductIds`). **Le brouillon wizard `localStorage`** (`DRAFT_KEY`) **n'est
+  ni lu ni écrasé** sur l'entrée catalogue — `emptyDraft()` + SKU pré-remplis.
+- Détail fiche produit : peut passer `prefilledSkus` pour éviter un fetch inutile.
 
 ## Vue principale simulation (`/simulator/[id]`)
 
@@ -529,7 +579,8 @@ sidebar paramètres collapsible (360px) · tableau résultats `flex-1` · drawer
 Lecture seule si `status !== "draft"` (finalized/archived).
 
 - **`SimulationSidebar`** : header (libellé + statut + Finaliser/Dupliquer/Archiver/Supprimer + bouton
-  « contexte » → modale `TypeStep` pour type/clients/`project_name`). **Finaliser** → `FinalizeModal`
+  « contexte » → modale `TypeStep` pour type/clients/`project_name` ; **groupe Réduire / Plein écran**
+  → `SimulationParamsSheet` `AppModal size="full"`, même UX que comparaison). **Finaliser** → `FinalizeModal`
   (liste des conséquences + saisie du libellé exact pour confirmer ; affiche la liste des SKU en erreur
   renvoyée par le 400). **Dupliquer** → `DuplicateModal` (libellé pré-rempli `"<label> (copie)"`,
   modifiable) puis redirect vers la copie ; toujours actif (même finalized). Sections Marché
@@ -538,7 +589,7 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   (`SaleIncotermFields` + `GET /api/incoterms` ; modale confirmation prefill chaîne PV ;
   bouton « Adapter la chaîne PA depuis les fournisseurs » → skeleton PA depuis incoterm achat
   majoritaire des lignes), Paramètres globaux (mix/marges/position Symea), Chaîne PA + PV
-  (`ChainBuilder` DnD). **Autosave `useAutosave(draft, persist, {delay: 1000})`** →
+  (`ChainBuilder` — toggle transport détaillé/coefficient identique au wizard). **Autosave `useAutosave(draft, persist, {delay: 1000})`** →
   `updateSimulation(id, buildSimulationPatch(draft))`. ⚠️ **Déviation assumée : 1s** (vs convention
   2s) car exigé par le CDC §6.9.3 ; validation `step1Valid` + `validateTransportChains` **avant** le
   PATCH (jamais de chaîne invalide persistée). Draft réhydraté via `simulationToEditDraft(sim)`,
@@ -549,17 +600,28 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   catalogue filtré, multi-sélection, `POST /api/simulations/{id}/lines/`) / Édition groupée / Exporter Excel / Historique) ;
   **grille via `DataTable` partagé** (`components/data-table/`, clé largeurs
   `syskern:simulation-col-widths:v1`) avec colonnes métier : SKU, Désignation (`product_designation`),
-  Gamme, Stock, PAMP, PAMP prév., Mix eff., PA net, PR, Marge eff., PV, Statut + menu kebab ;
+  Gamme, Stock, PAMP, PAMP prév., **Quantité** (Projet), Mix eff., PA net, PR, Marge eff.,
+  PV, **Prix total** (Projet, `pv_total_eur`), Statut + menu kebab ;
+  **Colonnes Projet uniquement** (CDC Feedback 1) : **Quantité** (éditable → `quantity`, pilote le mix auto),
+  **Prix total** (= PV × quantité) ; cellule **Mix** = `MixCell` : mode **auto** (badge « auto », piloté par la
+  quantité) ou **manuel** (slider/override) via le toggle `force_manual_mix`.   **Coefficient transport** (chaîne PA/PV,
+  mode « Coefficient » dans `ChainBuilder`) : alternative aux modules détaillés, au niveau simulation ;
+  **surcharge par ligne** : `pa_coefficient_override` via édition groupée (filtre gamme/marque…) ou PATCH
+  ligne — `NULL` = hérite la chaîne (comportement inchangé).
   **sélection multiple** (cases à gauche, barre d'actions : modifier / réinitialiser surcharges /
   recalculer la sélection / retirer la sélection) ;
   menu ⋮ → **Retirer de la simulation** ; `DELETE /api/simulation-lines/{id}/` et
   `POST /api/simulations/{id}/lines/bulk-delete/` ; édition groupée sur sélection via
   `filter.line_ids` ;
   surlignage jaune (warning) / rouge (error), badge « surchargé », cellules éditables Marge/Mix →
-  `updateSimulationLine` au blur (ligne dirty, PV non recalculé). Tri cyclique + pagination identiques
-  au catalogue. **Filtres statut** : 3 cases OK / Avertissements / Erreurs (toutes cochées par défaut)
-  → query `status_in=ok,warning,error` (omis si les 3 ou 0 cochées). Liste fetchée séparément
-  (clé SWR `["sim-lines", simId, statusIn, ordering, page]`).
+  `updateSimulationLine` au blur (ligne dirty, PV non recalculé). **Filtres lignes** : sidebar gauche
+  (repliable/redimensionnable) = **`CatalogSidebar`** + section **Statut calcul** ; `SearchInput` +
+  `ActiveFilterBar` + sheet mobile — **même style que le catalogue** (pas de dropdowns). Tri cyclique
+  + pagination identiques au catalogue. **Filtres statut calcul** : multi-checkbox OK / Avertissements /
+  Erreurs dans la sidebar (défaut = les trois). **Filtres produits** : hiérarchie, marque, fournisseur,
+  stock, PAMP, langues, attributs dynamiques — identiques au catalogue (`buildCatalogQuery` → API) ;
+  l'édition groupée reprend ce filtre actif (bulk sur tout l'ensemble filtré, pas la page).
+  Liste fetchée séparément (clé SWR `["sim-lines", simId, statusIn, ordering, page, productFiltersKey]`).
 - **Diagnostics & breakdown ligne** :
   - Colonne **Statut** : liste **toutes** les erreurs (rouge) et, si pas d'erreur, tous les
     avertissements (ambre) — plus de troncature « 1ʳᵉ ligne (+N) ». Clic → `LineDiagnosticsDrawer`
@@ -572,10 +634,14 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   - Toasts / modales simulateur (`RecalculateModal`, `SimulationTable`, `SimulationSidebar`) :
     `humanizeApiError()` extrait le `detail` DRF ou humanise les erreurs moteur.
   - Colonne Statut : erreurs (rouge) **puis** avertissements (ambre) affichés ensemble.
-  - Menu kebab **⋮** → **Détail du calcul** → `CalculationBreakdownDrawer` (wizard 3 étapes :
-    Synthèse PR/mix + snapshot marché + **incoterms achat/vente**, Chaîne PA, Chaîne PV ; lit `calculation_breakdown` +
-    `formatBreakdownStepDetails` pour narrations FR par module ; modes transport résolus via
-    `lib/transport-modes.ts` + `listTransportModes`).
+  - Menu kebab **⋮** → **Détail du calcul** → `CalculationBreakdownDrawer` (**4 onglets** :
+    Synthèse — formules PR + **chaîne PV** (ordre d'application + déroulé PR → étapes → PV), snapshot marché,
+    incoterms ; Chaîne PA ; **Chaîne PR** ; Chaîne PV). Lit `calculation_breakdown` +
+    `formatBreakdownStepDetails` pour narrations FR par module ; titres d'étape via **`stepModuleLabel`**
+    (`syskern_margin` / `symea_margin`, rétrocompat `margin` + `metadata.label`). Onglet Chaîne PV : texte
+    explicite « marge Syskern en premier sur le PR ». Modes transport résolus via
+    `lib/transport-modes.ts` + `listTransportModes`. **Lignes non recalculées** depuis Feedback 1 peuvent
+    encore montrer l'ancien ordre/PV — déclencher un recalcul global ou par ligne.
   - Menu kebab visible aussi en **lecture seule** (recalcul / reset désactivés).
 - **Liens produit depuis simulation** : **SKU uniquement** → `/catalog/{sku}?edit=1&from=simulation&…`
   via `productEditHref()` (`sim-format.ts`, `stopPropagation` sur le lien). Désignation = texte simple
@@ -584,18 +650,26 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 - **`StockPurchaseMixSlider`** (`app/simulator/_components/StockPurchaseMixSlider.tsx`) :
   composant partagé mix stock/achat. **`value` = part stock (PAMP) dans le PR** (0 = 100 % achat à
   gauche, 100 = 100 % stock à droite). Barre bicolore + libellés « Achat (PA) » / « Stock (PAMP) » +
-  répartition `X % achat · Y % stock`. Utilisé dans `SimulationSidebar`, `ParamsStep`, `BulkEditModal`.
+  répartition `X % achat · Y % stock`. Utilisé dans `SimulationParamsFields`, `BulkEditModal`.
+- **Paramètres simulation — disposition canonique (règle stricte)** : toute édition des paramètres de
+  calcul (marché, mix, marges, incoterm vente, chaînes PA/PV) **réutilise `SimulationParamsFields`**
+  (`app/simulator/_components/SimulationParamsFields.tsx`) — même grille que l'étape wizard 3
+  « Paramètres et chaîne » : (1) **Marché** (1 col) + **Paramètres globaux** (2 cols) en
+  `lg:grid-cols-3` ; (2) **Incoterm de vente** pleine largeur ; (3) **Chaînes PA / PV** côte à côte
+  en `lg:grid-cols-2`. Consommateurs : `ParamsStep` (création), `SimulationSidebar` (détail),
+  `SimulationParamsSheet` / `CompareSimulationParamsSheet` (plein écran détail + comparaison),
+  `CompareSimulationParamsSheet` (comparaison). **Ne pas** recréer une mise en page ad hoc.
+  Modales comparaison denses : `ComparisonEditDialog` + `CompareSimulationParamsSheet` → `AppModal`
+  `size="full"`.
 - **Sidebar simulation redimensionnable** : `useResizableWidth` (280–640 px, défaut 360, clé
   `syskern:simulation-sidebar-width`) + poignée drag sur `SimulationSidebar`. **Sidebar app**
   repliable : `usePersistedBoolean` (`syskern:main-sidebar-collapsed`) + toggle dans `AppShell`.
 - **`RecalculateModal`** : 3 scopes (`params_only`/`with_odoo_refresh`/`full_refresh`), estimation durée,
   barre de progression → `recalculateSimulation(id, {scope, market_params})` (snapshot marché courant
   de la sidebar, tout scope) (`dispatchAndPoll`).
-- **`BulkEditModal`** : filtres cumulables (univers, famille, gamme **indépendants**, marque,
-  `factory_code`, has_warning/has_error) **ou** mode sélection (`lineIds` → `filter.line_ids`) ;
-  aperçu `{count}` débouncé (`bulkEditPreview`), mode **Définir marge et mix** (envoie
-  `margin_override` + `stock_purchase_mix_pct_override` ensemble) ou reset (`bulkEditLines`)
-  + confirmation.
+- **`BulkEditModal`** : mode sélection (`lineIds`) ou filtre tableau (`initialFilter` = filtres sidebar
+  actifs). Aperçu `{count}` débouncé (`bulkEditPreview`). Pas de panneau filtres dans la modale —
+  ajuster la sidebar avant d'ouvrir. Mode **Définir** (marge, mix, quantité/mode mix projet) ou reset.
 - **`RecalcHistoryDrawer`** : `getRecalculations(id, {limit})` **paginé** (LimitOffset, « Charger plus »
   par tranches de 10) — tag de scope coloré + paramètres figés (cuivre, FX, mix, marges, chaîne,
   snapshot Odoo) + agrégats (PA/PR/PV moyens, **marge moyenne**, PV min/max). 2 actions par entrée :
@@ -608,19 +682,27 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   - **Wizard** `app/comparator/new/page.tsx` — 3 étapes : (1) nom + note, (2) sélection 2–4 simulations + **aperçu SKU communs** (`SkuOverlapPreview`), (3) aperçu live (`CompareWorkspace`) puis `createSavedComparison` → redirect `/comparator/{id}`. Draft `localStorage` `syskern:new-comparison-draft:v1`. Préremplissage URL `?sims=` / `?recalc=` (depuis liste simulations ou drawer recalc).
   - **Détail** `app/comparator/[id]/` — header (modifier / supprimer) + `CompareWorkspace` (onglets Synthèse / Paramètres / Lignes SKU). **`ComparisonEditDialog`** : nom, note, re-sélection simulations (`updateSavedComparison` incl. colonnes).
   - Nav principale : entrée **Comparaisons** dans `AppShell`. Depuis `/simulator` : multi-select → `/comparator/new?sims=…` ; bouton Comparaisons → liste.
-  - Composants partagés : `CompareWorkspace`, `compare-diff.ts`, `CompareOverview`, `CompareContextDiff`, `CompareSkuTable` (dossier `simulator/compare/_components/`).
-  - **API** : `compareSimulations` (calcul live) ; CRUD `getComparisonsList` / `getSavedComparison` / `createSavedComparison` / `updateSavedComparison` / `deleteSavedComparison`.
+  - Composants partagés : `CompareWorkspace`, `compare-diff.ts`, `CompareOverview`, `CompareContextDiff`, `CompareSkuTable`, **`CompareSimulationParamsSheet`**, **`SimulationParamsFields`** (dossier `simulator/compare/_components/` et `simulator/_components/`).
+  - **Édition paramètres depuis la comparaison** : onglet **Paramètres** → bouton **Modifier** par colonne « simulation » (pas les snapshots recalc). Ouvre `CompareSimulationParamsSheet` (`AppModal size="full"`) avec **`SimulationParamsFields`** (disposition canonique — cf. § Paramètres simulation ; **pas** libellé/type/clients). **Enregistrer et recalculer** → `updateSimulation` + `recalculateSimulation` (`params_only`). **Simulation finalisée/archivée** : bannière + confirmation → `duplicateSimulation` (brouillon) puis PATCH + recalc ; la **nouvelle** simulation remplace l'ancienne colonne dans la comparaison (`updateSavedComparison` si objet persisté). **`ComparisonEditDialog`** : même taille `full`. Fil d'Ariane retour comparaison : `lib/simulation-navigation.ts`.
+  - **Sensibilité / normalisation paramètres marché (spec client, parcours officiel)** — pas de panneau what-if en UI
+    (cf. `decisions.md` 2026-07-15). Pour tester l'impact d'une base cuivre (ou FX) commune sur les écarts affichés
+    **sans toucher une simulation finalisée** : onglet Paramètres → **Modifier** → ajuster **Paramètres marché**
+    → **Enregistrer et recalculer** (fork automatique si finalisée). Répéter **par colonne** à aligner. Les onglets
+    Synthèse et Lignes SKU se rafraîchissent après remplacement d'ID (`CompareWorkspace` / SWR `compare`). Ne pas
+    brancher `compareSimulationsWhatIf` sur de nouveaux écrans — API legacy uniquement.
+  - **API** : `compareSimulations` (calcul live) ; CRUD comparaisons ; `duplicateSimulation` / `updateSimulation` /
+    `recalculateSimulation` pour l'édition depuis compare. `compare/what-if` : conservé backend, **sans UI**.
 - Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
-  `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, `productEditHref`, `MODULE_LABELS`,
-  `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`). Erreurs moteur / API :
+  `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, **`stepModuleLabel`**, `productEditHref`, `MODULE_LABELS`,
+  `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`, **`prChainSteps`** fallback PR). Erreurs moteur / API :
   `lib/humanize-errors.ts` (`humanizeEngineMessage`, `humanizeApiError`). **Montants EUR = 2 décimales à l'affichage**
   (`displayMoneyOptions` dans `fmtEur` / `fmtPrice` / narrations breakdown) ; autres devises jusqu'à 4.
   Le moteur backend conserve 4 décimales — ne jamais arrondir côté front pour calculer.
 - **Libellés modes transport** : `lib/transport-modes.ts` — `localizeLabel`, `transportModeLabel`,
   `transportModeLabelMap` (API `TransportMode.label.fr` + fallback seeds `TRUCK_FULL` → « Camion complet », etc.).
   Utilisé par `ChainBuilder` (select), `CalculationBreakdownDrawer` (breakdown).
-- SKU : ajout/suppression de lignes hors de cette vue (à venir / catalogue). L'ancien `SimulationEditModal`
-  est **supprimé** (remplacé par la sidebar autosave).
+- SKU : ajout via **`AddProductsModal`** (catalogue filtré, `POST /lines/`) ; suppression via menu
+  ligne ou bulk-delete. L'ancien `SimulationEditModal` est **supprimé** (remplacé par la sidebar autosave).
 
 ## Dev Next.js — racine Turbopack
 
@@ -744,15 +826,16 @@ via `AuthProvider` + `proxy.ts` (routes publiques : `/login`, `/api`, assets sta
 
 **Listes catalogue / offres** (phase 2 refonte UI) : tokens sémantiques (`border-border`, `text-muted-foreground`, `bg-card`), `EmptyState`, `StatusBadge`, `Checkbox` shadcn, `Button` shadcn, `SearchInput` / `FilterSelect`. Catalogue : toolbar + sidebar filtres (`FilterSection` icônes `primary`, pas `warm`), pagination/tri `DataTable` en `primary` (plus d’orange legacy), `ExportButton` / `ProductDrawer` shadcn, CTA verts. **SKU et PAMP** : `text-primary`. **Orange (`warm`)** : graphiques / accents pricing avancés (onglet Commercial) uniquement.
 
-**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : filtres catalogue via `WizardCatalogPicker` / `CatalogSidebar`. Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button`. Simulation détail : filtres statut lignes → `Checkbox` shadcn dans `SimulationTable`.
+**Filtres / formulaires** : préférer `Checkbox`, `Select`, `Switch`, `Slider` shadcn — pas de `<select>` / `<input type="range">` / checkbox HTML natifs sur les écrans principaux. Fiche produit : `catalog/[sku]/_tabs/Field.tsx` utilise Switch, Select, Input, Textarea shadcn. Wizard simulation : filtres catalogue via `WizardCatalogPicker` / `CatalogSidebar`. **Lignes simulation** : `SimulationLinesFilterSidebar` (= statut calcul + `CatalogSidebar`). Bibliothèque : filtres liste + upload modal → `FilterSelect` / `Input` / `Button` (formulaires uniquement pour `FilterSelect`).
 
 Toasts : `sonner` via `<Toaster />` dans `layout.tsx`. Confirmations : `AlertDialog` shadcn (pas `confirm()`).
 
 ### Fils d'Ariane
 
 - Premier crumb : **Tableau de bord** (`href="/"`), pas « Accueil » ni lien catalogue.
+- **Règle stricte** : le fil d'Ariane reflète **d'où l'utilisateur est arrivé** (parcours réel), pas seulement l'URL. Voir `lib/product-navigation.ts` + section « Fil d'Ariane » dans `frontend.md`.
 - **Jamais** d'UUID, SKU seul ou clé technique dans le fil d'Ariane visible : `buildAutoBreadcrumbs` fournit des libellés génériques ; les pages entité chargent un titre via `useBreadcrumbOverride`.
-- Overrides obligatoires : simulation (`sim.label`), offre (`offer.label`), fiche produit (`product.name` + hiérarchie).
+- Overrides obligatoires : simulation (`sim.label`), offre (`offer.label`), fiche produit (`product.name` + hiérarchie contextuelle), fournisseur (`supplier.name` quand on vient de `/suppliers/[id]`).
 
 ### Modales et contenu dense
 
@@ -807,8 +890,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Data fetching via SWR, cache key en tableau
 - [ ] Decimal API fields traités comme `string`, jamais de calcul front
 - [ ] Nouveau tableau paginé : réutiliser `components/data-table/DataTable` (pas de `<table>` custom)
-- [ ] Filtres de liste : style unique (`FilterSection` + `FilterCheckboxGroup` + chips `ActiveFilterBar`,
-      cf. § « Filtres de liste ») — jamais de barre de `FilterSelect`/dropdowns
+- [ ] Filtres de liste : style unique (`FilterSection` + `FilterCheckboxGroup` + chips, cf. § « Filtres de liste »)
+- [ ] Filtres lignes simulation → **`CatalogSidebar`** + `ActiveFilterBar` (jamais `FilterSelect` en barre)
 - [ ] Tailwind 4 : vérifier syntaxe via Context7 si doute
 - [ ] `cn()` pour toutes les classes conditionnelles
 - [ ] `canEdit(role)` / `isAdmin(role)` pour les guards de permission
@@ -818,6 +901,8 @@ import { cn } from "@/lib/utils";     // clsx + tailwind-merge — toujours cn()
 - [ ] Travail PIM (catalogue / fiche produit / attributs) → lire `pim.md`
 - [ ] Colonnes catalogue visibles → `CatalogColumnsDialog` + `catalog-column-storage.ts` (v2) ;
       export Excel séparé ; `attr_columns` API dérivé des clés `attr:*`
-- [ ] Wizard / édition simulation → `validateTransportChains` + `buildSimulationPatch` ; vue 3 zones autosave sur `/simulator/[id]`
+- [ ] Wizard / édition simulation → `SimulationParamsFields` pour les paramètres (jamais de layout custom) ;
+      `validateTransportChains` + `buildSimulationPatch` ; modes transport détaillé/coefficient via `ChainBuilder`
 - [ ] Mix stock/achat → `MixSlider` (alias `StockPurchaseMixSlider`)
 - [ ] Breakdown calcul → `CalculationBreakdownDrawer` + helpers `sim-format.ts` (pas de calcul prix front)
+- [ ] Fil d'Ariane → reflète le parcours utilisateur (`useBreadcrumbOverride` + `lib/product-navigation.ts` pour les fiches produit ; `lib/simulation-navigation.ts` depuis comparaison)

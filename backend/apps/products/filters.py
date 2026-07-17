@@ -28,6 +28,7 @@ class ProductFilter(filters.FilterSet):
     """
 
     q = filters.CharFilter(method="filter_search")
+    ids = filters.CharFilter(method="filter_ids")
     sku_code = filters.CharFilter(field_name="sku_code", lookup_expr="icontains")
     # Accepts one or several comma-separated values, matched case-insensitively.
     # e.g. ?universe=COPPER  or  ?universe=COPPER,OPTICAL FIBER
@@ -76,6 +77,13 @@ class ProductFilter(filters.FilterSet):
             "is_active",
             "is_copper_indexed",
         ]
+
+    def filter_ids(self, queryset, name, value: str):
+        """Match explicit product UUIDs (comma-separated), e.g. catalog → wizard seed."""
+        uuids = [v.strip() for v in value.split(",") if v.strip()]
+        if not uuids:
+            return queryset
+        return queryset.filter(id__in=uuids)
 
     def filter_search(self, queryset, name, value: str):
         """Multilingual full-text search over the `search_vector` column.

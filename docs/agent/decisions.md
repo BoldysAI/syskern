@@ -812,3 +812,103 @@ pas seulement des champs répétés sur chaque produit. Épic FEEDBACK 1 (spike 
   quarantaine « create » faisait un `Product.objects.create()` nu, sans push.
 - **Démo locale (2026-07-07)** : purge complète → bootstrap Odoo-first → **700 produits Odoo** +
   **304 en quarantaine** (SKU Excel hors Odoo) + **74% pricables** après activation.
+
+## 2026-07-14 · [P] Feedback 1 — quantité/mix, marge Syskern, coefficient transport, filtres, what-if, presets transport
+Lot « Feedback 1 » (6 demandes client). Déviations et décisions assumées :
+
+- **Quantité par SKU sur la simulation Projet + mix piloté par le stock.** Nouveaux champs `SimulationLine.quantity`
+  et `force_manual_mix` (migration `simulations/0008`). Pour les simulations **Projet uniquement**, le mix stock/achat
+  est calculé automatiquement : `part_stock = min(stock_quantity brut, quantité) / quantité` →
+  `effective_mix_pct` (fonction pure `engine/pamp.compute_quantity_driven_mix_pct`). Le slider manuel reste
+  disponible via `force_manual_mix=True`. Les simulations **Tarif** sont inchangées (mix manuel uniquement,
+  pas de champ quantité). La quantité **remonte à l'offre projet** (lecture seule) — `create_project_offer`
+  lit `sim_line.quantity` ; l'étape « Quantités » du wizard offre est retirée (affichage lecture seule).
+- **⚠️ Incohérence CDC/Yassine levée (le code fait foi).** Yassine indiquait que les achats engagés ne sont
+  « pas accessibles en MVP1 ». **C'est inexact** : `get_pending_purchases()` est pleinement implémenté (adapters
+  Odoo v16 **et** v19, `purchase.order.line` state `purchase`/`done`) et alimente `compute_predictive_pamp` via
+  `odoo_refresh.refresh_odoo_for_simulation` (cf. décision 2026-06-23). Décision : **on garde le PAMP prévisionnel
+  actuel** (stock + achats engagés). Le mix piloté par la quantité ne change **que le poids stock** (basé sur le
+  stock brut `stock_quantity`) ; la **valeur** de la jambe stock (PAMP prévisionnel) est inchangée.
+- **Marge Syskern en position fixe AVANT les transports/douane vente (déviation Annexe Technique).** L'Annexe
+  documentait « transports vente → douane vente → marge Syskern » (marge en dernier). La demande client inverse :
+  `build_sale_modules` place désormais `MarginModule(syskern)` **en premier** (sur le PR), avant transports et
+  douane. Position **fixe, codée en dur, non configurable** (ce n'est pas un module drag & drop). Impact assumé :
+  change les montants finaux de toutes les **futures** simulations ; les simulations finalisées restent immuables.
+  **Breakdown & UI** : `MarginModule` persiste `module: "syskern_margin"` (Symea PA → `"symea_margin"`) ;
+  `CalculationBreakdownDrawer` affiche « Marge Syskern » en **étape 1** de la chaîne PV + section Synthèse
+  « Chaîne PV » (ordre + déroulé). Legacy `module: "margin"` + `metadata.label` encore lu. **Recalcul requis**
+  pour les lignes déjà calculées avec l'ancien ordre (breakdown figé jusqu'au prochain `run_simulation`).
+- **Coefficient transport (override chaîne PA/PV).** Dans `ChainBuilder` (wizard + sidebar simulation),
+  section Transport : toggle **Modules détaillés** / **Coefficient** (`transport_pricing`, leg `COEF` avec
+  `override_coefficient`). Alternative globale aux transports détaillés — **pas par SKU** au niveau chaîne.
+  **Surcharge par ligne** : `SimulationLine.pa_coefficient_override` (éditable PATCH + bulk-edit filtré) remplace
+  les legs transport **pour cette ligne uniquement** quand renseigné ; `NULL` = comportement inchangé (hérite la chaîne).
+- **Filtres + bulk-edit dans la vue Simulation.** `SimulationLineViewSet` accepte `brand`/`range`/`universe`/
+  `family`/`factory_code` (CSV multi, helper `_apply_line_product_filters`) en plus de `status_in` — miroir des
+  filtres catalogue (§4.1.1), **marque prioritaire**. `_filter_simulation_lines` (bulk) passe aussi en CSV multi.
+  Le tableau front expose une barre de filtres ; le bulk-edit cible le **même filtre** (donc tout l'ensemble filtré,
+  pas seulement la page).
+- **Comparaison — what-if paramètres marché.** Nouvel endpoint `POST /api/simulations/compare/what-if`
+  (`market_params_override`) : recalcul **en mémoire, non persisté** des colonnes « simulation » vivantes
+  (`runner.recompute_simulation_whatif`, réutilise le moteur sur les snapshots figés). Le mix, le PAMP prévisionnel
+  et la marge restent figés — seuls les paramètres marché changent — pour isoler l'effet marché.
+  Les colonnes « recalculation » (snapshots) restent figées. La simulation source n'est **jamais** modifiée.
+- **Presets transport.** Modèle `TransportPreset` (`apps/market`, migration `0005`) — **aucun seed** :
+  l'utilisateur crée ses presets (paramètres ou signet depuis une simulation). CRUD
+  `GET/POST/PATCH/DELETE /api/transport-presets/` (`is_active` filtre). Liste unique PA/PV.
+  Front : `ChainBuilder` charge l'API ; `/settings?tab=transport-presets` ; `SaveTransportPresetModal`.
+
+## 2026-07-14 · [P] Catalogue → wizard simulation (remplace quick-add modal)
+
+- **« Ajouter à simulation » depuis le catalogue** ouvre une modale à deux onglets :
+  **simulation existante** (brouillon → `POST /lines`) ou **nouvelle simulation**
+  (wizard `/simulator/new?from=catalog` avec SKU pré-sélectionnés). Seed one-shot en
+  `sessionStorage` (`syskern:wizard-catalog-seed:v1`) + URL `product_ids` + résolution API
+  `GET /api/products/?ids=…`. **Le brouillon wizard persisté** (`syskern:new-simulation-draft:v1`)
+  **n'est ni lu ni écrasé** sur cette entrée — wizard catalogue = `emptyDraft()` + SKU ;
+  entrée `/simulator/new` classique = `loadDraft()` inchangé.
+
+## 2026-07-14 · [P] Fil d'Ariane — parcours utilisateur (règle stricte plateforme)
+
+- Le fil d'Ariane doit **toujours refléter d'où l'utilisateur est arrivé**, pas seulement le pathname.
+- **Fiche produit** : helper unique `lib/product-navigation.ts` — liens entrants via `buildProductHref(sku, ctx)` ;
+  la page lit `?from=…` via `parseProductNavigationContext` et `buildProductBreadcrumbs` + `useBreadcrumbOverride`.
+- Contextes produit : `catalog` (défaut), `simulation`, `supplier` (`?from=supplier&supplier_id&supplier_name`).
+- **Correctif** : catalogue embarqué fiche fournisseur passait sans contexte → breadcrumb « Catalogue » au lieu de
+  « Fournisseurs · {nom} ». Playbook `frontend.md` § Fil d'Ariane + checklist.
+
+## 2026-07-15 · [P] Comparaison — édition complète des paramètres (remplace what-if marché)
+
+**Demande client couverte** : tester la sensibilité des écarts de prix entre simulations comparées en ajustant
+un paramètre marché (ex. base cuivre) **depuis la vue Comparaison**, sans modifier la simulation source
+**finalisée** (immuable).
+
+**Décision produit (acceptée)** : ce besoin est traité par **édition persistée + recalcul**, pas par un panneau
+what-if en mémoire. L'API `POST /api/simulations/compare/what-if` reste en place (tests, scripts) mais **n'a plus
+d'équivalent UI** — ne pas réintroduire `WhatIfMarketPanel` sans revue produit explicite.
+
+- **Retrait UI** : `WhatIfMarketPanel` (override cuivre/FX en mémoire, preview sans persistance) — jugé insuffisant
+  (une seule colonne, pas de recalcul moteur complet, pas d'alignement avec le reste de l'édition paramètres).
+- **Parcours officiel** (onglet **Paramètres** de `CompareWorkspace`) :
+  1. Bouton **Modifier** sur la colonne simulation à ajuster (pas les snapshots recalc).
+  2. `CompareSimulationParamsSheet` + `SimulationParamsFields` → section **Paramètres marché** (`MarketParamsModal`).
+  3. **Enregistrer et recalculer** → `updateSimulation` + `recalculateSimulation({ scope: "params_only" })`.
+  4. **Simulation finalisée/archivée** : `duplicateSimulation` (brouillon « … (comparaison) ») puis PATCH + recalc ;
+     la **nouvelle** simulation remplace l'ID colonne ; l'original **reste intact**. Comparaison persistée :
+     `updateSavedComparison` si `savedComparisonId` présent.
+  5. **Normaliser un paramètre commun** (ex. même base cuivre sur toutes les colonnes) : répéter l'étape par
+     colonne concernée — il n'y a **pas** d'override global unique en UI.
+- **Brouillon** : la colonne comparée **est modifiée sur place** (pas de fork) — acceptable car non finalisée.
+- **Écart sémantique** vs what-if API : le recalcul `params_only` passe par le moteur complet ; le what-if API
+  fige mix/PAMP/marge au dernier calcul pour isoler l'effet marché uniquement. Les écarts affichés après édition
+  depuis compare suivent donc la logique **recalcul standard**, pas le what-if pur.
+- **Fil d'Ariane** : `lib/simulation-navigation.ts` — lien simulation depuis comparaison avec retour contextuel.
+- **Refactor** : `SimulationParamsFields` extrait de `SimulationSidebar` pour partage wizard/detail/compare.
+
+## 2026-07-15 · [P] Paramètres simulation — disposition canonique unique
+
+- **`SimulationParamsFields`** = grille unique (marché + globaux / incoterm / chaînes PA·PV côte à côte),
+  calquée sur l'étape wizard 3 « Paramètres et chaîne ». `ParamsStep` délègue à ce composant.
+- **Règle** : toute nouvelle surface d'édition des paramètres de calcul doit réutiliser ce composant
+  (sidebar détail, comparaison, wizard) — pas de layout ad hoc.
+- **Modales comparaison** : `ComparisonEditDialog` + `CompareSimulationParamsSheet` → `AppModal size="full"`.

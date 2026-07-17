@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Faders, X } from "@phosphor-icons/react";
 import type { CatalogFilters } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,9 @@ interface CatalogFilterSheetProps {
   onSaveFilter: (name: string) => void;
   onApplyFilter: (f: SavedFilter) => void;
   onDeleteFilter: (id: string) => void;
+  /** Optional blocks rendered above the catalogue filter sections (e.g. simulation status). */
+  prependContent?: ReactNode;
+  title?: string;
 }
 
 export function CatalogFilterSheet({
@@ -39,6 +43,8 @@ export function CatalogFilterSheet({
   onSaveFilter,
   onApplyFilter,
   onDeleteFilter,
+  prependContent,
+  title = "Filtres catalogue",
 }: CatalogFilterSheetProps) {
   const active = countActiveFilters(filters);
 
@@ -52,7 +58,7 @@ export function CatalogFilterSheet({
                 <AppIcon icon={Faders} weight="duotone" size="md" />
               </span>
               <div>
-                <SheetTitle className="text-base">Filtres catalogue</SheetTitle>
+                <SheetTitle className="text-base">{title}</SheetTitle>
                 {active > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {active} critère{active > 1 ? "s" : ""} actif{active > 1 ? "s" : ""}
@@ -78,6 +84,7 @@ export function CatalogFilterSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
+          {prependContent}
           <CatalogSidebar
             filters={filters}
             onChange={onChange}

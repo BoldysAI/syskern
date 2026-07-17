@@ -172,6 +172,9 @@ function NewComparisonWizard() {
             <CompareWorkspace
               simulationIds={draft.simulationIds}
               recalculationIds={draft.recalculationIds}
+              compareReturnHref={`/comparator/new?sims=${draft.simulationIds.join(",")}${draft.recalculationIds.length ? `&recalc=${draft.recalculationIds.join(",")}` : ""}`}
+              compareReturnLabel="Nouvelle comparaison"
+              onSimulationIdsChange={(ids) => update({ simulationIds: ids })}
             />
           </div>
         )}

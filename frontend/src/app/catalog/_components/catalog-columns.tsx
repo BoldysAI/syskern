@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import type { ProductNavigationContext } from "@/lib/product-navigation";
+import { buildProductHref } from "@/lib/product-navigation";
 import { cn } from "@/lib/utils";
 import { StatusBadge, universeBadgeVariant } from "@/components/StatusBadge";
 import { formatAttributeDisplayValue } from "@/components/AttributeRenderer";
@@ -51,7 +53,13 @@ function CoverageBadge({ product }: { product: Product }) {
 
 export interface UseCatalogColumnsOptions {
   skuAsLink?: boolean;
+  /** Preserved on SKU links so the product fiche breadcrumb matches entry context. */
+  productNavigationContext?: ProductNavigationContext;
   extraColumns?: DataTableColumnDef<Product>[];
+  /** Insert `extraColumns` immediately before this core column key (e.g. `catalog_pv`). */
+  insertExtraColumnsBefore?: string;
+  /** Columns always appended after core + `extraColumns`. */
+  trailingExtraColumns?: DataTableColumnDef<Product>[];
   /** Keys from catalog-column-registry (+ attr:code). Empty = defaults. */
   visibleColumnKeys?: string[];
   attributeColumns?: AttributeRegistry[];
@@ -60,6 +68,7 @@ export interface UseCatalogColumnsOptions {
 function buildCoreColumnDef(
   key: string,
   skuAsLink: boolean,
+  productNavigationContext: ProductNavigationContext,
 ): DataTableColumnDef<Product> | null {
   switch (key) {
     case "sku_code":
@@ -71,7 +80,7 @@ function buildCoreColumnDef(
         render: (product) =>
           skuAsLink ? (
             <Link
-              href={`/catalog/${encodeURIComponent(product.sku_code)}`}
+              href={buildProductHref(product.sku_code, productNavigationContext)}
               className="font-mono text-sm font-semibold text-primary hover:text-primary/80 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
@@ -233,7 +242,10 @@ function buildCoreColumnDef(
 /** Colonnes du tableau catalogue — source unique pour toutes les vues catalogue. */
 export function useCatalogColumns({
   skuAsLink = true,
+  productNavigationContext = { kind: "catalog" },
   extraColumns = [],
+  insertExtraColumnsBefore,
+  trailingExtraColumns = [],
   visibleColumnKeys,
   attributeColumns = [],
 }: UseCatalogColumnsOptions = {}) {
@@ -248,13 +260,22 @@ export function useCatalogColumns({
       visibleColumnKeys && visibleColumnKeys.length > 0
         ? visibleColumnKeys.filter((k) => {
             if (k.startsWith("attr:")) return attrByCode.has(k.slice(5));
-            return buildCoreColumnDef(k, skuAsLink) != null;
+            return buildCoreColumnDef(k, skuAsLink, productNavigationContext) != null;
           })
         : [...CATALOG_COLUMN_ORDER.filter((k) => k !== "lang_coverage"), ...attrKeys];
 
     const cols: DataTableColumnDef<Product>[] = [];
+    let extrasInserted = false;
 
     for (const key of orderedKeys) {
+      if (
+        insertExtraColumnsBefore &&
+        key === insertExtraColumnsBefore &&
+        extraColumns.length > 0
+      ) {
+        cols.push(...extraColumns);
+        extrasInserted = true;
+      }
       if (key.startsWith("attr:")) {
         const code = key.slice(5);
         const attr = attrByCode.get(code);
@@ -270,12 +291,27 @@ export function useCatalogColumns({
         });
         continue;
       }
-      const core = buildCoreColumnDef(key, skuAsLink);
+      const core = buildCoreColumnDef(key, skuAsLink, productNavigationContext);
       if (core) cols.push(core);
     }
 
-    return [...cols, ...extraColumns];
-  }, [skuAsLink, extraColumns, visibleColumnKeys, attributeColumns]);
+    if (!extrasInserted && extraColumns.length > 0) {
+      cols.push(...extraColumns);
+    }
+    if (trailingExtraColumns.length > 0) {
+      cols.push(...trailingExtraColumns);
+    }
+
+    return cols;
+  }, [
+    skuAsLink,
+    extraColumns,
+    insertExtraColumnsBefore,
+    trailingExtraColumns,
+    productNavigationContext,
+    visibleColumnKeys,
+    attributeColumns,
+  ]);
 }
 
 export { visibleAttrCodes };

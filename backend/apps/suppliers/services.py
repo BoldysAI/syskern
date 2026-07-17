@@ -16,6 +16,61 @@ from .models import Supplier
 _PO_QUANTUM = Decimal("0.0001")
 _HUNDRED = Decimal("100")
 
+SKIP_NO_PO = "skip_no_po"
+SKIP_UNCHANGED = "skip_unchanged"
+WILL_UPDATE = "will_update"
+
+
+def _bulk_po_new_price(
+    old: Decimal | None, *, mode: str, value: Decimal
+) -> tuple[Decimal | None, str]:
+    """Compute the target PO and whether the link would be updated or skipped."""
+    if mode == "set":
+        new = value
+    elif old is None:
+        return None, SKIP_NO_PO
+    elif mode == "pct":
+        new = old * (Decimal(1) + value / _HUNDRED)
+    else:  # abs
+        new = old + value
+
+    new = new.quantize(_PO_QUANTUM)
+    if new < 0:
+        new = Decimal("0").quantize(_PO_QUANTUM)
+    if new == old:
+        return new, SKIP_UNCHANGED
+    return new, WILL_UPDATE
+
+
+def _bulk_po_line_preview(link: ProductSupplier, *, mode: str, value: Decimal) -> dict:
+    old = link.po_base_price
+    new, status = _bulk_po_new_price(old, mode=mode, value=value)
+    return {
+        "link_id": str(link.id),
+        "product_id": str(link.product_id),
+        "product_sku": link.product.sku_code,
+        "product_name": link.product.name,
+        "po_currency": link.po_currency,
+        "old_po_base_price": str(old) if old is not None else None,
+        "new_po_base_price": str(new) if new is not None else None,
+        "status": status,
+    }
+
+
+def preview_bulk_po(
+    links: list[ProductSupplier], *, mode: str, value: Decimal, not_linked: int = 0
+) -> dict:
+    """Dry-run for the batch PO wizard — no DB writes."""
+    lines = [_bulk_po_line_preview(link, mode=mode, value=value) for link in links]
+    summary = {
+        WILL_UPDATE: sum(1 for row in lines if row["status"] == WILL_UPDATE),
+        SKIP_NO_PO: sum(1 for row in lines if row["status"] == SKIP_NO_PO),
+        SKIP_UNCHANGED: sum(1 for row in lines if row["status"] == SKIP_UNCHANGED),
+        "not_linked": not_linked,
+        "selected": len(lines) + not_linked,
+    }
+    return {"summary": summary, "lines": lines}
+
 
 def _unique_supplier_code(name: str) -> str:
     """Derive a unique `Supplier.code` from a display name."""
@@ -39,20 +94,8 @@ def apply_bulk_po(links: list[ProductSupplier], *, mode: str, value: Decimal) ->
     skipped = 0
     for link in links:
         old = link.po_base_price
-        if mode == "set":
-            new = value
-        elif old is None:
-            skipped += 1
-            continue
-        elif mode == "pct":
-            new = old * (Decimal(1) + value / _HUNDRED)
-        else:  # abs
-            new = old + value
-
-        new = new.quantize(_PO_QUANTUM)
-        if new < 0:
-            new = Decimal("0").quantize(_PO_QUANTUM)
-        if new == old:
+        new, status = _bulk_po_new_price(old, mode=mode, value=value)
+        if status != WILL_UPDATE:
             skipped += 1
             continue
 

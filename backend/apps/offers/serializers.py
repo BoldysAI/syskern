@@ -176,7 +176,9 @@ class GenerateProjectOfferSerializer(serializers.Serializer):
 
     client_id = serializers.UUIDField()
     project_name = serializers.CharField(max_length=255)
-    quantities = serializers.DictField(child=serializers.FloatField(), allow_empty=False)
+    # Quantities are inherited from the simulation lines (CDC Feedback 1); the
+    # dict is now an optional legacy override.
+    quantities = serializers.DictField(child=serializers.FloatField(), required=False, default=dict)
     language = serializers.ChoiceField(choices=Language.choices, default=Language.FR)
     expiration_date = serializers.DateField(required=False, allow_null=True)
     ai_instructions = serializers.CharField(required=False, allow_blank=True, default="")

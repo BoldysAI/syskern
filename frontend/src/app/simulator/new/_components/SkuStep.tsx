@@ -4,15 +4,18 @@ import { useMemo } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Table, ListChecks } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import type { SimulationType } from "@/lib/api";
 import { WizardCatalogPicker } from "./WizardCatalogPicker";
 import { ImportFilePanel } from "./ImportFilePanel";
 import { NotFoundSkuBanner } from "./NotFoundSkuBanner";
 import { SelectedSkuList } from "./SelectedSkuList";
 import type { SelectedSku } from "./wizard-draft";
+import { withSelectedSkuDefaults } from "./wizard-draft";
 
 interface Props {
   selectedSkus: SelectedSku[];
   notFoundSkus: string[];
+  simulationType: SimulationType;
   onChange: (skus: SelectedSku[]) => void;
   onNotFoundChange: (skus: string[]) => void;
   className?: string;
@@ -21,12 +24,21 @@ interface Props {
 const TAB_TRIGGER =
   "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors data-[state=active]:border-primary data-[state=active]:text-accent-foreground data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:text-foreground";
 
-export function SkuStep({ selectedSkus, notFoundSkus, onChange, onNotFoundChange, className }: Props) {
+export function SkuStep({
+  selectedSkus,
+  notFoundSkus,
+  simulationType,
+  onChange,
+  onNotFoundChange,
+  className,
+}: Props) {
   const selectedIds = useMemo(() => new Set(selectedSkus.map((s) => s.id)), [selectedSkus]);
 
   const handleAdd = (skus: SelectedSku[]) => {
     const byId = new Map(selectedSkus.map((s) => [s.id, s]));
-    for (const s of skus) byId.set(s.id, s);
+    for (const s of skus) {
+      byId.set(s.id, withSelectedSkuDefaults({ ...byId.get(s.id), ...s }));
+    }
     onChange([...byId.values()]);
   };
 
@@ -61,7 +73,7 @@ export function SkuStep({ selectedSkus, notFoundSkus, onChange, onNotFoundChange
           value="catalogue"
           className="flex min-h-0 flex-1 flex-col pt-3 focus:outline-none data-[state=inactive]:hidden"
         >
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
             <WizardCatalogPicker
               selectedIds={selectedIds}
               onAdd={handleAdd}
@@ -71,6 +83,8 @@ export function SkuStep({ selectedSkus, notFoundSkus, onChange, onNotFoundChange
             />
             <SelectedSkuList
               skus={selectedSkus}
+              simulationType={simulationType}
+              onChange={onChange}
               onRemove={handleRemove}
               onClear={handleClear}
               className="flex min-h-0 flex-col lg:max-h-none lg:h-full"

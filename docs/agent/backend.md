@@ -60,10 +60,14 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 
 ## Intégrations
 - **Odoo** : jamais d'accès direct. `apps.odoo_sync.adapters.factory.get_odoo_adapter[_for]`. v16/v19 derrière l'ABC `OdooAdapter`. → `odoo-adapter.md`.
-- **Pricing** : moteur isolé dans `apps/simulations/services/engine/` + `runner.py` (Decimal, transaction, trace `SimulationRecalculation`). → `pricing-chain.md`.
+- **Pricing** : moteur isolé dans `apps/simulations/services/engine/` + `runner.py` (Decimal, transaction, trace `SimulationRecalculation`). Marge Syskern = **avant** transports PV (`build_sale_modules`). → `pricing-chain.md`.
 - **Paramètres marché** (`apps/market`) : CRUD `GET/POST /api/market-parameters/` ;
   paramètre actif courant `GET /api/market-parameters/current/?parameter_type=copper_price`
   (+ `copper_market=LME|SHE` ; FX : `fx_from_currency` + `fx_to_currency`). Cuivre/FX **non seedés** — saisie manuelle.
+  **Modes transport** : CRUD `/api/transport-modes/`. **Presets transport** : CRUD
+  `/api/transport-presets/` — legs pré-remplis pour `ChainBuilder` (liste unique PA+PV ; champs leg :
+  `transport_mode_code`, `global_cost`, `currency`, `pallet_count`, lieux). **Pas de seed** —
+  création utilisateur (paramètres ou signet simulation). Validation : mode actif requis à la création.
 - **Lookup bulk SKU** (`apps/products`) : `POST /api/products/lookup-bulk` body `{skus: [...]}` →
   `{found: [{id, sku_code, name}], not_found: [...]}`. Une requête `sku_code__in`, produits actifs
   uniquement. Route **avant** le router DRF (évite le conflit `products/{pk}`).
@@ -71,7 +75,9 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
   Validations création/édition : projet = 1 client + `project_name` ; tarif = `client_ids` peut être vide.
   **`PATCH /api/simulations/{id}/`** : édition brouillon (label, clients, `market_params`, `calculation_chain`, marges, mix) → `is_dirty=True` via `perform_update`. Garde : `finalized` **et** `archived` → 403. DELETE finalized → 403 ; avec offres → 409.
   Lignes : `GET /api/simulation-lines/?simulation=&status_in=` (CSV `ok,warning,error` ; legacy
-  `has_warning`/`has_error`). Recalc : `POST .../recalculate/` body `{scope, market_params?}` —
+  `has_warning`/`has_error`) + filtres produits (`brand`, `range`, `universe`, `family`, `factory_code` CSV).
+  Overrides ligne éditables : `margin_override`, `stock_purchase_mix_pct_override`, `quantity`, `force_manual_mix`, `pa_coefficient_override` (transport PA par ligne ; `NULL` = chaîne simulation).
+  Bulk : `POST .../lines/bulk/` (marge, mix, quantité, coefficient PA, mode mix, reset). Recalc :
   `market_params` persistés avant recalc pour **tout** scope si fournis. Tests :
   `apps/products/tests/test_lookup_bulk.py`, `apps/simulations/tests/test_views.py`, `apps/simulations/tests/test_engine.py`.
 - **Gamma / OpenAI / DeepL** : clients `httpx` dans `apps/offers/services/` (pattern client simple, sans factory). → `integrations.md`.

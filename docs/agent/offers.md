@@ -41,12 +41,14 @@
 - Endpoint : `POST /api/simulations/{id}/generate-project-offer/` (action `SimulationViewSet`).
   Garde : `finalized` + type `project`, sinon **400**. `202 + {task_id}`.
 - Tâche : `offers/tasks.py:generate_project_offer_task(simulation_id, params)`.
-  `params` = {client_id, project_name, quantities(sku->qty), language, expiration_date(ISO),
-  ai_instructions, sections_config}. Retry : `POST /api/offers/{id}/regenerate/` →
+  `params` = {client_id, project_name, quantities?(sku->qty — **legacy optionnel**), language,
+  expiration_date(ISO), ai_instructions, sections_config}. Retry : `POST /api/offers/{id}/regenerate/` →
   `regenerate_project_offer_task`.
 - Orchestration : `services/project_generator.py`
   - `create_project_offer(...)` → Offer (type project, 1 client, EUR, devis_gamma) + OfferLines
-    avec **quantités** (final_price = `SimulationLine.pv_eur`).
+    (final_price = `SimulationLine.pv_eur`). **Quantités (CDC Feedback 1)** : héritées de la simulation
+    (`SimulationLine.quantity`, défaut 1 si non renseignée) — la quantité vit désormais sur la simulation
+    Projet, plus sur l'offre. `quantities` reste accepté comme **override legacy** (prioritaire s'il est fourni).
   - `run_generation(offer)` (retry-safe, lit tout depuis l'offre) → OpenAI args → payload Gamma
     5 sections → `gamma.generate_and_wait` → stocke `gamma_document_id`, `generated_file_url`
     (= gammaUrl), `project_info.gamma_export_url` (PDF), snapshot HTML best-effort.
@@ -58,8 +60,8 @@
   `generation_error`. Gamma échoue → `error` + retry possible (l'offre + lignes persistent).
 - Intégration Gamma : voir `docs/integrations/gamma.md` (contrat, crédits, erreurs).
 - UI : `frontend/src/app/offers/new-project/?simulation_id=` (wizard 5 étapes : client+projet,
-  quantités éditables, langue+expiration, sections, instructions IA ; poll long 1-3 min ;
-  lien Gamma + bouton « Réessayer » sur erreur).
+  quantités **en lecture seule** (reprises de la simulation, CDC Feedback 1), langue+expiration, sections,
+  instructions IA ; poll long 1-3 min ; lien Gamma + bouton « Réessayer » sur erreur).
 
 ## Langue cible & couverture i18n (§10.5)
 

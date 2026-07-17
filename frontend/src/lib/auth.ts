@@ -20,9 +20,20 @@ function getCsrfToken(): string {
 }
 
 export async function getSession(): Promise<SessionResponse> {
-  const res = await fetch("/api/auth/session", { credentials: "include" });
-  if (!res.ok) return { authenticated: false, user: null };
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch("/api/auth/session", {
+      credentials: "include",
+      signal: controller.signal,
+    });
+    if (!res.ok) return { authenticated: false, user: null };
+    return res.json();
+  } catch {
+    return { authenticated: false, user: null };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function loginApi(email: string, password: string): Promise<AuthUser> {

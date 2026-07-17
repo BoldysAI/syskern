@@ -115,6 +115,9 @@ export function ComparisonDetailPage({ id }: Props) {
         <CompareWorkspace
           simulationIds={data.simulation_ids}
           recalculationIds={data.recalculation_ids}
+          savedComparisonId={data.id}
+          compareReturnHref={`/comparator/${data.id}`}
+          compareReturnLabel={data.label}
         />
       </main>
 

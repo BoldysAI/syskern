@@ -41,6 +41,7 @@ import { ActiveFilterBar } from "./ActiveFilterBar";
 import { CatalogFilterSheet, CatalogFilterTrigger } from "./CatalogFilterSheet";
 import { countActiveFilters } from "./active-filters";
 import { useCatalogColumns, visibleAttrCodes } from "./catalog-columns";
+import type { ProductNavigationContext } from "@/lib/product-navigation";
 import { CATALOG_COLUMN_WIDTHS_KEY } from "./useColumnWidths";
 import { CatalogColumnsDialog } from "./CatalogColumnsDialog";
 import {
@@ -75,7 +76,13 @@ export interface CatalogBrowserProps {
   simulationId?: string;
   density?: "default" | "compact";
   skuAsLink?: boolean;
+  /** Passed through SKU links (`buildProductHref`) for contextual breadcrumbs on the product fiche. */
+  productNavigationContext?: ProductNavigationContext;
   extraColumns?: DataTableColumnDef<Product>[];
+  /** Insert `extraColumns` before this core column (e.g. `catalog_pv`). */
+  insertExtraColumnsBefore?: string;
+  /** Columns appended after all core columns. */
+  trailingExtraColumns?: DataTableColumnDef<Product>[];
   filtersCollapsedStorageKey?: string;
   filtersWidthStorageKey?: string;
   paginationJumpInputId?: string;
@@ -116,7 +123,10 @@ export function CatalogBrowser({
   simulationId,
   density = "default",
   skuAsLink = true,
+  productNavigationContext = { kind: "catalog" },
   extraColumns = [],
+  insertExtraColumnsBefore,
+  trailingExtraColumns = [],
   filtersCollapsedStorageKey = "syskern:catalog-filters-collapsed",
   filtersWidthStorageKey = "syskern:catalog-filters-width",
   paginationJumpInputId = "catalog-page-jump",
@@ -333,7 +343,10 @@ export function CatalogBrowser({
 
   const columns = useCatalogColumns({
     skuAsLink,
+    productNavigationContext,
     extraColumns,
+    insertExtraColumnsBefore,
+    trailingExtraColumns,
     visibleColumnKeys:
       variant === "page" || simulationId ? effectiveVisibleColumnKeys : undefined,
     attributeColumns: variant === "page" ? visibleAttrDefs : [],

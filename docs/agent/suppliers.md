@@ -91,7 +91,8 @@ Aligné sur le design system (`frontend.md`) : tokens sémantiques, icônes Phos
 - **`/suppliers/[id]`** : paramètres par défaut + section **« SKU liés » = `CatalogBrowser`** (`variant
   "embedded"`) **scopé au fournisseur** (`initialFilters={{ supplier: [name] }}`) → tous les filtres
   catalogue + colonnes `extraColumns` **PO base** (via une map `product_id → lien`) et **Retirer**.
-  Bouton **« Lier des SKU »** → `AddSkusDialog`. **Historique des prix = bouton → side panel `Sheet`**
+  Clic SKU → fiche produit avec `productNavigationContext` fournisseur (`buildProductHref`) pour fil
+  d'Ariane : Tableau de bord · Fournisseurs · {nom} · {produit}. Bouton **« Lier des SKU »** → `AddSkusDialog`. **Historique des prix = bouton → side panel `Sheet`**
   (`DataTable`). Boutons « Modifier les prix » (wizard) et « Modifier ».
 - **Ajout de SKU** (`_components/AddSkusDialog.tsx`) : modale `CatalogBrowser` (multi-select, produits
   déjà liés désactivés) → `bulkLinkSkus`.
@@ -126,3 +127,4 @@ quand un fournisseur apparaît d'abord via Odoo.
 - [ ] Chaque PO écrit (import + CRUD) alimente `SupplierPriceHistory`
 - [ ] Migrations générées + committées ; `ruff`/`mypy`/`pytest` verts
 - [ ] Frontend : tokens sémantiques, `canEdit`, toasts FR ; `lint`/`tsc`/`build` verts
+- [ ] Clic SKU catalogue embarqué → `productNavigationContext` fournisseur (`buildProductHref`) pour fil d'Ariane contextuel

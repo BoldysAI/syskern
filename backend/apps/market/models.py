@@ -41,6 +41,28 @@ class TransportMode(BaseModel):
         return self.code
 
 
+class TransportPreset(BaseModel):
+    """Pre-filled transport leg templates for simulation chain builders (PA and PV)."""
+
+    name = models.CharField(max_length=128, unique=True)
+    transport_mode_code = models.CharField(max_length=32)
+    category = models.CharField(max_length=16, choices=TransportCategory.choices)
+    global_cost = models.CharField(max_length=32, blank=True, default="")
+    currency = models.CharField(max_length=3, choices=Currency.choices)
+    pallet_count = models.CharField(max_length=16, blank=True, default="")
+    from_location = models.CharField(max_length=128, blank=True, default="")
+    to_location = models.CharField(max_length=128, blank=True, default="")
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "transport_presets"
+        ordering = ["display_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Incoterm(BaseModel):
     """Reference table of supported Incoterms 2020 (CDC §3.3 → `incoterms`).
 

@@ -4,12 +4,41 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from apps.core.models import Currency
 
 from .context import DEC_ZERO, CalculationStep, PriceWithCurrency, to_decimal
 from .modules import quantize
+
+
+def compute_quantity_driven_mix_pct(
+    *,
+    stock_quantity: Decimal | None,
+    quantity: Decimal | None,
+) -> int | None:
+    """Quantity-driven stock/purchase mix for project simulations (CDC Feedback 1).
+
+    ``part_stock = min(stock_brut, quantity) / quantity`` gives the stock weight
+    (0..100). Based on the raw Odoo stock (``stock_quantity``) only — committed
+    purchases do not affect the *weight* (they still feed the predictive PAMP
+    *value* via ``compute_predictive_pamp``).
+
+    Returns the stock weight as an integer percentage, or ``None`` when it can't
+    be computed (missing or non-positive quantity) — the caller then falls back
+    to the manual mix.
+    """
+    if quantity is None:
+        return None
+    qty = to_decimal(quantity)
+    if qty <= DEC_ZERO:
+        return None
+    stock = to_decimal(stock_quantity) if stock_quantity is not None else DEC_ZERO
+    if stock < DEC_ZERO:
+        stock = DEC_ZERO
+    part_stock = min(stock, qty) / qty
+    pct = int((part_stock * Decimal(100)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return max(0, min(100, pct))
 
 
 @dataclass(frozen=True)
@@ -116,6 +145,8 @@ def build_pr_breakdown(
     pamp_eur: Decimal | None,
     pending_purchases: Iterable[PendingPurchase] = (),
     mix_warnings: list[str] | None = None,
+    auto_mix_pct: int | None = None,
+    line_quantity: Decimal | None = None,
 ) -> dict:
     """Build the PR chain breakdown persisted on ``calculation_breakdown.pr``."""
     eur = Currency.EUR.value
@@ -133,11 +164,15 @@ def build_pr_breakdown(
         steps.append(
             CalculationStep(
                 module_type="predictive_pamp",
-                input_price=PriceWithCurrency(amount=to_decimal(pamp_explain["pamp_eur"]), currency=eur),
+                input_price=PriceWithCurrency(
+                    amount=to_decimal(pamp_explain["pamp_eur"]), currency=eur
+                ),
                 output_price=PriceWithCurrency(
                     amount=to_decimal(pamp_predictive_eur), currency=eur
                 ),
-                metadata={k: v for k, v in pamp_explain.items() if k not in {"available", "reason"}},
+                metadata={
+                    k: v for k, v in pamp_explain.items() if k not in {"available", "reason"}
+                },
                 order=1,
                 applied=True,
             )
@@ -166,6 +201,13 @@ def build_pr_breakdown(
             str(pamp_predictive_eur) if pamp_predictive_eur is not None else None
         ),
     }
+    if auto_mix_pct is not None:
+        mix_meta["auto_mix_pct"] = auto_mix_pct
+        mix_meta["mix_source"] = "quantity_driven"
+        mix_meta["line_quantity"] = str(line_quantity) if line_quantity is not None else None
+        mix_meta["stock_quantity"] = str(stock_quantity) if stock_quantity is not None else None
+    else:
+        mix_meta["mix_source"] = "manual"
     if pamp_predictive_eur is not None:
         pamp_d = to_decimal(pamp_predictive_eur)
         pa_d = to_decimal(pa_net_eur)

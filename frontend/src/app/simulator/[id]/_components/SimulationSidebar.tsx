@@ -18,6 +18,7 @@ import {
   SidebarSimple,
   PencilSimple,
   Trash,
+  ArrowsOut,
 } from "@phosphor-icons/react";
 import {
   archiveSimulation,
@@ -38,19 +39,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { StockPurchaseMixSlider } from "@/app/simulator/_components/StockPurchaseMixSlider";
-import {
-  SaleIncotermFields,
-  useIncotermPrefillConfirm,
-} from "@/app/simulator/_components/SaleIncotermSection";
-import {
-  chainDraftHasContent,
-  dominantPurchaseIncoterm,
-  suggestPurchaseChainDraft,
-  suggestSaleChainDraft,
-} from "@/lib/incoterms";
-import { ChainBuilder } from "../../new/_components/ChainBuilder";
-import { MarketParamsModal } from "../../new/_components/MarketParamsModal";
+import { SimulationParamsFields } from "@/app/simulator/_components/SimulationParamsFields";
 import { TypeStep } from "../../new/_components/TypeStep";
 import {
   buildMarketParams,
@@ -58,29 +47,16 @@ import {
   simulationToEditDraft,
   step1Valid,
   validateTransportChains,
-  type SymeaPosition,
   type WizardDraft,
 } from "../../new/_components/wizard-draft";
-
-const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
-const inputCls =
-  "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 interface Props {
   sim: SimulationDetail;
   readOnly: boolean;
   onChanged: () => void;
   onCollapse: () => void;
+  onOpenParamsSheet?: () => void;
   onMarketParamsChange?: (params: Record<string, string>) => void;
-}
-
-function MarketValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-foreground font-data">{value || "—"}</span>
-    </div>
-  );
 }
 
 export function SimulationSidebar({
@@ -88,12 +64,12 @@ export function SimulationSidebar({
   readOnly,
   onChanged,
   onCollapse,
+  onOpenParamsSheet,
   onMarketParamsChange,
 }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [draft, setDraft] = useState<WizardDraft>(() => simulationToEditDraft(sim));
-  const [marketOpen, setMarketOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -102,32 +78,8 @@ export function SimulationSidebar({
   const { data: transportModes } = useSWR<TransportMode[]>("transport-modes-active", () =>
     listTransportModes(true)
   );
-  const { request: requestPrefill, modal: prefillModal } = useIncotermPrefillConfirm();
 
   const update = (patch: Partial<WizardDraft>) => setDraft((d) => ({ ...d, ...patch }));
-
-  const applySaleIncoterm = (code: string) => {
-    requestPrefill(
-      chainDraftHasContent(draft.saleChain),
-      `Chaîne PV pour ${code}`,
-      `Proposer une structure de chaîne PV adaptée à l'incoterm ${code} ? Les montants restent à saisir manuellement.`,
-      () => update({ saleIncoterm: code, saleChain: suggestSaleChainDraft(code) })
-    );
-  };
-
-  const applyPurchaseFromSuppliers = () => {
-    const dominant = dominantPurchaseIncoterm(
-      sim.lines.map((l) => ({
-        incoterm: l.supplier_snapshot?.incoterm as string | undefined,
-      }))
-    );
-    requestPrefill(
-      chainDraftHasContent(draft.purchaseChain),
-      `Chaîne PA pour ${dominant}`,
-      `Proposer une structure PA adaptée à l'incoterm achat majoritaire (${dominant}) ? Les montants restent à saisir.`,
-      () => update({ purchaseChain: suggestPurchaseChainDraft(dominant) })
-    );
-  };
 
   // Autosave (CDC §6.9.4 → debounce 1s). Validate before PATCH so we never
   // persist an invalid chain; the backend marks the simulation dirty.
@@ -156,6 +108,10 @@ export function SimulationSidebar({
     if (readOnly) return;
     await persist(next);
   };
+
+  const supplierLines = sim.lines.map((l) => ({
+    incoterm: l.supplier_snapshot?.incoterm as string | undefined,
+  }));
 
   const runAction = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
@@ -224,13 +180,28 @@ export function SimulationSidebar({
               )}
             </div>
           </div>
-          <button
-            onClick={onCollapse}
-            className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Réduire le panneau"
-          >
-            <SidebarSimple size={18} />
-          </button>
+          <div className="flex shrink-0 items-stretch overflow-hidden rounded-lg border border-border">
+            {onOpenParamsSheet && sim.status !== "archived" && (
+              <button
+                type="button"
+                onClick={onOpenParamsSheet}
+                className="border-r border-border p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Ouvrir les paramètres en plein écran"
+                title="Plein écran"
+              >
+                <ArrowsOut size={18} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Réduire le panneau"
+              title="Réduire le panneau"
+            >
+              <SidebarSimple size={18} />
+            </button>
+          </div>
         </div>
 
         {!readOnly && error && (
@@ -304,139 +275,15 @@ export function SimulationSidebar({
       </div>
 
       <div className="flex flex-col gap-4 p-4">
-        {/* Market params */}
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Marché</h3>
-            {!readOnly && (
-              <button
-                onClick={() => setMarketOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
-              >
-                <PencilSimple size={13} />
-                Modifier
-              </button>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <MarketValue
-              label={`Cuivre base (${draft.marketParams.copper_currency ?? "RMB"})`}
-              value={draft.marketParams.copper_base_price}
-            />
-            <MarketValue
-              label={`Cuivre actuel (${draft.marketParams.copper_currency ?? "RMB"})`}
-              value={draft.marketParams.copper_current_price}
-            />
-            <MarketValue label="FX EUR→RMB" value={draft.marketParams.fx_eur_rmb} />
-            <MarketValue label="FX EUR→USD" value={draft.marketParams.fx_eur_usd} />
-          </div>
-        </section>
-
-        {/* Sale incoterm (CDC §6.8.3) */}
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-foreground">Incoterm de vente</h3>
-          <SaleIncotermFields
-            incoterm={draft.saleIncoterm}
-            location={draft.saleIncotermLocation}
-            disabled={readOnly}
-            onIncotermChange={applySaleIncoterm}
-            onLocationChange={(saleIncotermLocation) => update({ saleIncotermLocation })}
-          />
-        </section>
-
-        {/* Global params */}
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-foreground">Paramètres globaux</h3>
-          <div className="flex flex-col gap-4">
-            <StockPurchaseMixSlider
-              value={draft.mixPct}
-              disabled={readOnly}
-              onChange={(mixPct) => update({ mixPct })}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Marge Symea (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={99}
-                  step="0.1"
-                  value={draft.symeaPct}
-                  disabled={readOnly}
-                  onChange={(e) => update({ symeaPct: e.target.value })}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Marge Syskern (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={99}
-                  step="0.1"
-                  value={draft.syskernPct}
-                  disabled={readOnly}
-                  onChange={(e) => update({ syskernPct: e.target.value })}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Position marge Symea</label>
-              <div className="flex gap-2">
-                {(["after_transports", "before_transports"] as SymeaPosition[]).map((pos) => (
-                  <button
-                    type="button"
-                    key={pos}
-                    disabled={readOnly}
-                    onClick={() => update({ symeaPosition: pos })}
-                    className={cn(
-                      "flex-1 rounded-lg border py-2 text-xs font-medium transition-colors disabled:opacity-50",
-                      draft.symeaPosition === pos
-                        ? "border-primary bg-accent text-accent-foreground"
-                        : "border-border text-muted-foreground hover:bg-muted"
-                    )}
-                  >
-                    {pos === "after_transports" ? "Après transports" : "Avant transports"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Chains */}
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={applyPurchaseFromSuppliers}
-            className="self-start text-xs font-medium text-warm hover:text-accent-foreground underline-offset-2 hover:underline"
-          >
-            Adapter la chaîne PA depuis les fournisseurs
-          </button>
-        )}
-        <ChainBuilder
-          title="Chaîne PA (achat)"
-          chain={draft.purchaseChain}
-          isPurchase
+        <SimulationParamsFields
+          draft={draft}
+          onChange={update}
+          readOnly={readOnly}
+          supplierLines={supplierLines}
           transportModes={transportModes ?? []}
-          onChange={(v) => update({ purchaseChain: v })}
-        />
-        <ChainBuilder
-          title="Chaîne PV (vente)"
-          chain={draft.saleChain}
-          isPurchase={false}
-          transportModes={transportModes ?? []}
-          onChange={(v) => update({ saleChain: v })}
+          onMarketParamsSave={readOnly ? undefined : saveMarketParamsNow}
         />
       </div>
-
-      <MarketParamsModal
-        open={marketOpen}
-        onOpenChange={setMarketOpen}
-        value={draft.marketParams}
-        onSave={(v) => void saveMarketParamsNow(v)}
-      />
 
       <FinalizeModal
         simId={sim.id}
@@ -480,8 +327,6 @@ export function SimulationSidebar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {prefillModal}
 
       {busy && (
         <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-foreground/90 px-3 py-2 text-sm text-background">
