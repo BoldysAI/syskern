@@ -44,10 +44,7 @@ import { useCatalogColumns, visibleAttrCodes } from "./catalog-columns";
 import type { ProductNavigationContext } from "@/lib/product-navigation";
 import { CATALOG_COLUMN_WIDTHS_KEY } from "./useColumnWidths";
 import { CatalogColumnsDialog } from "./CatalogColumnsDialog";
-import {
-  loadVisibleCatalogColumns,
-  saveVisibleCatalogColumns,
-} from "./catalog-column-storage";
+import { loadVisibleCatalogColumns, saveVisibleCatalogColumns } from "./catalog-column-storage";
 import {
   loadSavedFilters,
   normalizeCatalogFilters,
@@ -155,7 +152,10 @@ export function CatalogBrowser({
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(filtersCollapsedStorageKey, false);
+  const [filtersCollapsed, setFiltersCollapsed] = usePersistedBoolean(
+    filtersCollapsedStorageKey,
+    false,
+  );
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() =>
     variant === "page" ? loadVisibleCatalogColumns() : [],
   );
@@ -205,10 +205,13 @@ export function CatalogBrowser({
     }, 300);
   };
 
-  const applyFilters = useCallback((next: CatalogFilters | ((prev: CatalogFilters) => CatalogFilters)) => {
-    setFilters(next);
-    setPage(1);
-  }, []);
+  const applyFilters = useCallback(
+    (next: CatalogFilters | ((prev: CatalogFilters) => CatalogFilters)) => {
+      setFilters(next);
+      setPage(1);
+    },
+    [],
+  );
 
   const resetFilters = () => {
     setFilters(initialFilters ?? {});
@@ -250,9 +253,7 @@ export function CatalogBrowser({
     selectableProducts.every((p) => selectedIds!.has(p.id));
 
   const somePageSelected =
-    selectionEnabled &&
-    selectableProducts.some((p) => selectedIds!.has(p.id)) &&
-    !allPageSelected;
+    selectionEnabled && selectableProducts.some((p) => selectedIds!.has(p.id)) && !allPageSelected;
 
   const applyBulkSelection = useCallback(
     (bulkProducts: Product[], select: boolean, scope: "page" | "filtered") => {
@@ -277,7 +278,13 @@ export function CatalogBrowser({
         if (!select && isSelected) onToggleProduct!(product);
       }
     },
-    [onToggleFilteredProducts, onTogglePageProducts, onToggleProduct, selectedIds, selectionEnabled],
+    [
+      onToggleFilteredProducts,
+      onTogglePageProducts,
+      onToggleProduct,
+      selectedIds,
+      selectionEnabled,
+    ],
   );
 
   const selectFilteredProducts = async (select: boolean) => {
@@ -337,7 +344,8 @@ export function CatalogBrowser({
   const noop = useCallback(() => {}, []);
 
   const visibleAttrDefs = useMemo(
-    () => (allAttributes ?? []).filter((a) => effectiveVisibleColumnKeys.includes(`attr:${a.code}`)),
+    () =>
+      (allAttributes ?? []).filter((a) => effectiveVisibleColumnKeys.includes(`attr:${a.code}`)),
     [allAttributes, effectiveVisibleColumnKeys],
   );
 
@@ -373,7 +381,9 @@ export function CatalogBrowser({
 
   const rootClassName = cn(
     "flex min-h-0 overflow-hidden",
-    variant === "page" ? "h-full bg-background" : "min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm",
+    variant === "page"
+      ? "h-full bg-background"
+      : "min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm",
     className,
   );
 
@@ -494,7 +504,9 @@ export function CatalogBrowser({
             ) : (
               <div className="flex min-w-0 items-center gap-2">
                 <SquaresFour size={18} weight="duotone" className="shrink-0 text-primary" />
-                <span className="text-sm font-semibold text-foreground">{title ?? "Catalogue"}</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {title ?? "Catalogue"}
+                </span>
                 {!isLoading && (
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {total.toLocaleString("fr-FR")} produit{total !== 1 ? "s" : ""}
@@ -564,6 +576,7 @@ export function CatalogBrowser({
           rows={products}
           rowKey={(p) => p.id}
           storageKey={columnWidthsKey}
+          reorderable={variant === "page"}
           sort={sort}
           defaultSort={DEFAULT_SORT}
           onSort={handleSort}
@@ -657,7 +670,9 @@ export function CatalogBrowser({
                           {total.toLocaleString("fr-FR")}
                         </span>
                       </DropdownMenuItem>
-                      {(somePageSelected || allPageSelected || (selectedIds && selectedIds.size > 0)) && (
+                      {(somePageSelected ||
+                        allPageSelected ||
+                        (selectedIds && selectedIds.size > 0)) && (
                         <>
                           <DropdownMenuSeparator />
                           {(somePageSelected || allPageSelected) && (

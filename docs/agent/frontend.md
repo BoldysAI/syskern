@@ -427,6 +427,12 @@ const columns: DataTableColumnDef<Product>[] = [
 - **Colonnes redimensionnables** : poignée à droite de chaque en-tête ; largeurs persistées
   dans `localStorage` via `storageKey` (catalogue : `syskern:catalog-col-widths:v1` ;
   simulation : `syskern:simulation-col-widths:v1`).
+- **Colonnes réordonnables (DnD, FEEDBACK 1)** : prop `reorderable` (opt-in) → poignée de
+  glissement (`DotsSixVertical`, visible au survol) sur chaque en-tête ; `@dnd-kit` horizontal
+  (`DataTableHeader.tsx` + `useColumnOrder.ts`). Ordre persisté sous `${storageKey}:col-order` ;
+  colonnes nouvelles ajoutées en fin, colonnes retirées ignorées. Activé sur **catalogue**
+  (`variant==="page"` uniquement, pas embedded) et **simulation**. Les colonnes
+  `renderLeadingHeader`/`renderTrailingCell` (checkbox / kebab) restent fixes (hors `SortableContext`).
 - **Pagination** : `DataTablePagination` (numéros de page, ellipses, champ « Aller à »).
 - **Styles** : en-tête sticky `bg-slate-100/95`, lignes zebra + hover orange, SKU en
   `font-mono text-orange-600`, skeleton loading intégré.

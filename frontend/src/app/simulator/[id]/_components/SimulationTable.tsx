@@ -1094,6 +1094,7 @@ export function SimulationTable({
         rows={lines}
         rowKey={(line) => line.id}
         storageKey={STORAGE_KEY}
+        reorderable
         sort={sort}
         defaultSort={DEFAULT_SORT}
         onSort={handleSort}

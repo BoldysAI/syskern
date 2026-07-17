@@ -37,6 +37,11 @@ export interface DataTableProps<T> {
   rowKey: (row: T) => string;
   /** `localStorage` key for persisted column widths (one per screen). */
   storageKey: string;
+  /**
+   * Enable drag-and-drop column reordering (FEEDBACK 1). Persists the order
+   * under `${storageKey}:col-order`. New columns append; removed columns drop.
+   */
+  reorderable?: boolean;
 
   sort: DataTableSortState;
   defaultSort: DataTableSortState;
@@ -69,7 +74,7 @@ export interface DataTableProps<T> {
 export function cycleSortField(
   field: string,
   current: DataTableSortState,
-  defaultSort: DataTableSortState
+  defaultSort: DataTableSortState,
 ): DataTableSortState {
   if (current.field === field) {
     if (current.dir === "asc") return { field, dir: "desc" };

@@ -1,17 +1,28 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
+import { DataTableHeaderCell } from "./DataTableHeader";
 import { DataTablePagination } from "./DataTablePagination";
-import { DataTableSortIcon } from "./DataTableSortIcon";
 import type { DataTableColumnDef, DataTableProps } from "./types";
-import { isDefaultSort } from "./types";
+import { useColumnOrder } from "./useColumnOrder";
 import { useColumnWidths } from "./useColumnWidths";
 
 import { Skeleton } from "@/components/ui/skeleton";
-
-const TH_CLASS =
-  "text-left text-xs font-semibold text-muted-foreground whitespace-nowrap select-none";
 
 function TableSkeleton({ className }: { className?: string }) {
   return <Skeleton className={cn("h-4 w-full", className)} />;
@@ -28,6 +39,7 @@ export function DataTable<T>({
   rows,
   rowKey,
   storageKey,
+  reorderable = false,
   sort,
   defaultSort,
   onSort,
@@ -54,12 +66,25 @@ export function DataTable<T>({
   );
   const { resolveWidth, startResize, resizingKey } = useColumnWidths(defaultWidths, storageKey);
 
+  const { orderedColumns, move } = useColumnOrder(columns, storageKey, reorderable);
+  const reorderEnabled = reorderable;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleHeaderDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) move(String(active.id), String(over.id));
+  };
+
   const cellPy = density === "compact" ? "py-2" : "py-3";
   const headerPy = density === "compact" ? "py-2.5" : "py-3.5";
 
   const hasLeading = !!renderLeadingHeader || !!renderLeadingCell;
   const hasTrailing = !!renderTrailingCell;
-  const colSpan = columns.length + (hasLeading ? 1 : 0) + (hasTrailing ? 1 : 0);
+  const colSpan = orderedColumns.length + (hasLeading ? 1 : 0) + (hasTrailing ? 1 : 0);
 
   if (errorState) {
     return (
@@ -69,197 +94,153 @@ export function DataTable<T>({
     );
   }
 
+  const headerCells = orderedColumns.map((col) => (
+    <DataTableHeaderCell
+      key={col.key}
+      col={col}
+      width={resolveWidth(col.key, col.width)}
+      headerPy={headerPy}
+      sort={sort}
+      defaultSort={defaultSort}
+      onSort={onSort}
+      startResize={startResize}
+      resizingKey={resizingKey}
+      reorderable={reorderEnabled}
+    />
+  ));
+
+  const tableEl = (
+    <table
+      className="border-collapse table-fixed"
+      style={{ width: "max-content", minWidth: "100%" }}
+    >
+      <colgroup>
+        {hasLeading && <col style={{ width: leadingWidth }} />}
+        {orderedColumns.map((c) => (
+          <col key={c.key} style={{ width: resolveWidth(c.key, c.width) }} />
+        ))}
+        {hasTrailing && <col style={{ width: trailingWidth ?? 48 }} />}
+      </colgroup>
+      <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 shadow-sm backdrop-blur-sm">
+        <tr>
+          {hasLeading && <th className="px-3 py-3">{renderLeadingHeader?.()}</th>}
+          {reorderEnabled ? (
+            <SortableContext
+              items={orderedColumns.map((c) => c.key)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {headerCells}
+            </SortableContext>
+          ) : (
+            headerCells
+          )}
+          {hasTrailing && <th className="w-10" />}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {isLoading ? (
+          Array.from({ length: loadingRowCount }).map((_, i) => (
+            <tr key={i} className="bg-card">
+              {hasLeading && (
+                <td className="px-3 py-3">
+                  <TableSkeleton className="h-4 w-4" />
+                </td>
+              )}
+              {orderedColumns.map((col) => (
+                <td
+                  key={col.key}
+                  className="overflow-hidden px-4 py-3"
+                  style={{
+                    width: resolveWidth(col.key, col.width),
+                    maxWidth: resolveWidth(col.key, col.width),
+                  }}
+                >
+                  <TableSkeleton />
+                </td>
+              ))}
+              {hasTrailing && (
+                <td className="px-4 py-3">
+                  <TableSkeleton className="h-4 w-6" />
+                </td>
+              )}
+            </tr>
+          ))
+        ) : rows.length === 0 ? (
+          <tr>
+            <td colSpan={colSpan} className="py-24 text-center">
+              {emptyState}
+            </td>
+          </tr>
+        ) : (
+          rows.map((row) => {
+            const key = rowKey(row);
+            const extraRowClass = rowClassName?.(row);
+            const isSelected = selectedRowKeys?.has(key);
+            return (
+              <tr
+                key={key}
+                className={cn(
+                  "border-b border-border transition-colors duration-200",
+                  onRowClick && "cursor-pointer",
+                  isSelected && "bg-primary/5 hover:bg-primary/10",
+                  extraRowClass ??
+                    (isSelected ? undefined : "bg-card even:bg-muted/30 hover:bg-accent/50"),
+                )}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
+                {hasLeading && (
+                  <td className={cn("px-3", cellPy)} onClick={(e) => e.stopPropagation()}>
+                    {renderLeadingCell?.(row)}
+                  </td>
+                )}
+                {orderedColumns.map((col) => {
+                  const cellClass =
+                    typeof col.cellClassName === "function"
+                      ? col.cellClassName(row)
+                      : col.cellClassName;
+                  const colWidth = resolveWidth(col.key, col.width);
+                  return (
+                    <td
+                      key={col.key}
+                      className={cn(
+                        "overflow-hidden px-4",
+                        cellPy,
+                        alignClass(col.align),
+                        cellClass,
+                      )}
+                      style={{ width: colWidth, maxWidth: colWidth }}
+                    >
+                      {col.render(row)}
+                    </td>
+                  );
+                })}
+                {hasTrailing && (
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    {renderTrailingCell?.(row)}
+                  </td>
+                )}
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  );
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <div ref={scrollRef} className="flex-1 overflow-auto">
-        <table
-          className="border-collapse table-fixed"
-          style={{ width: "max-content", minWidth: "100%" }}
-        >
-          <colgroup>
-            {hasLeading && <col style={{ width: leadingWidth }} />}
-            {columns.map((c) => (
-              <col key={c.key} style={{ width: resolveWidth(c.key, c.width) }} />
-            ))}
-            {hasTrailing && <col style={{ width: trailingWidth ?? 48 }} />}
-          </colgroup>
-          <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 shadow-sm backdrop-blur-sm">
-            <tr>
-              {hasLeading && (
-                <th className="px-3 py-3">{renderLeadingHeader?.()}</th>
-              )}
-              {columns.map((col) => {
-                const sortable = !!col.sortField;
-                const isActive =
-                  sortable &&
-                  sort.field === col.sortField &&
-                  !isDefaultSort(sort, defaultSort);
-                const showDefaultActive =
-                  sortable &&
-                  col.sortField === defaultSort.field &&
-                  isDefaultSort(sort, defaultSort);
-                const showSortState = isActive || showDefaultActive;
-
-                return (
-                  <th
-                    key={col.key}
-                    className={cn(TH_CLASS, alignClass(col.align), "group relative p-0")}
-                    style={{
-                      width: resolveWidth(col.key, col.width),
-                      minWidth: resolveWidth(col.key, col.width),
-                    }}
-                  >
-                    <div className="flex h-full min-h-[44px] items-stretch">
-                      {sortable ? (
-                        <button
-                          type="button"
-                          onClick={() => onSort(col.sortField!)}
-                          className={cn(
-                            "flex min-w-0 flex-1 items-center gap-1 px-4",
-                            headerPy,
-                            col.align === "right" && "justify-end text-right",
-                            col.align === "center" && "justify-center",
-                            "transition-colors hover:text-foreground",
-                            showSortState && "text-foreground"
-                          )}
-                          title="Trier : croissant, décroissant, puis défaut"
-                        >
-                          <span className="truncate">{col.label}</span>
-                          <DataTableSortIcon
-                            active={showSortState}
-                            dir={sort.field === col.sortField ? sort.dir : defaultSort.dir}
-                          />
-                        </button>
-                      ) : (
-                        <span
-                          className={cn(
-                            "flex flex-1 items-center truncate px-4",
-                            headerPy,
-                            col.align === "right" && "justify-end",
-                            col.align === "center" && "justify-center"
-                          )}
-                        >
-                          {col.label}
-                        </span>
-                      )}
-                      {col.resizable !== false && (
-                        <span
-                          role="separator"
-                          aria-orientation="vertical"
-                          aria-label={`Redimensionner la colonne ${col.label}`}
-                          onMouseDown={(e) => startResize(col.key, e)}
-                          className={cn(
-                            "relative z-20 flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center",
-                            resizingKey === col.key
-                              ? "bg-primary/20"
-                              : "opacity-60 hover:bg-accent group-hover:opacity-100"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-5 w-0.5 rounded-full transition-colors",
-                              resizingKey === col.key ? "bg-primary" : "bg-border"
-                            )}
-                          />
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-              {hasTrailing && <th className="w-10" />}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {isLoading ? (
-              Array.from({ length: loadingRowCount }).map((_, i) => (
-                <tr key={i} className="bg-card">
-                  {hasLeading && (
-                    <td className="px-3 py-3">
-                      <TableSkeleton className="h-4 w-4" />
-                    </td>
-                  )}
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className="overflow-hidden px-4 py-3"
-                      style={{
-                        width: resolveWidth(col.key, col.width),
-                        maxWidth: resolveWidth(col.key, col.width),
-                      }}
-                    >
-                      <TableSkeleton />
-                    </td>
-                  ))}
-                  {hasTrailing && (
-                    <td className="px-4 py-3">
-                      <TableSkeleton className="h-4 w-6" />
-                    </td>
-                  )}
-                </tr>
-              ))
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={colSpan} className="py-24 text-center">
-                  {emptyState}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => {
-                const key = rowKey(row);
-                const extraRowClass = rowClassName?.(row);
-                const isSelected = selectedRowKeys?.has(key);
-                return (
-                  <tr
-                    key={key}
-                    className={cn(
-                      "border-b border-border transition-colors duration-200",
-                      onRowClick && "cursor-pointer",
-                      isSelected && "bg-primary/5 hover:bg-primary/10",
-                      extraRowClass ??
-                        (isSelected
-                          ? undefined
-                          : "bg-card even:bg-muted/30 hover:bg-accent/50")
-                    )}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  >
-                    {hasLeading && (
-                      <td className={cn("px-3", cellPy)} onClick={(e) => e.stopPropagation()}>
-                        {renderLeadingCell?.(row)}
-                      </td>
-                    )}
-                    {columns.map((col) => {
-                      const cellClass =
-                        typeof col.cellClassName === "function"
-                          ? col.cellClassName(row)
-                          : col.cellClassName;
-                      const colWidth = resolveWidth(col.key, col.width);
-                      return (
-                        <td
-                          key={col.key}
-                          className={cn(
-                            "overflow-hidden px-4",
-                            cellPy,
-                            alignClass(col.align),
-                            cellClass
-                          )}
-                          style={{ width: colWidth, maxWidth: colWidth }}
-                        >
-                          {col.render(row)}
-                        </td>
-                      );
-                    })}
-                    {hasTrailing && (
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        {renderTrailingCell?.(row)}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+        {reorderEnabled ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleHeaderDragEnd}
+          >
+            {tableEl}
+          </DndContext>
+        ) : (
+          tableEl
+        )}
       </div>
 
       {pagination && !isLoading && (
