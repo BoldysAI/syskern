@@ -18,7 +18,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Plus, Tag } from "@phosphor-icons/react";
-import { listAttributes, reorderAttributes, type AttributeCategory, type AttributeRegistry } from "@/lib/api";
+import {
+  listAttributes,
+  reorderAttributes,
+  type AttributeCategory,
+  type AttributeRegistry,
+} from "@/lib/api";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
@@ -27,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import SettingsNav, { SettingsNavFallback } from "../_components/SettingsNav";
 import AttributeFormModal from "./_components/AttributeFormModal";
+import CompletenessPanel from "./_components/CompletenessPanel";
 import DeleteAttributeDialog from "./_components/DeleteAttributeDialog";
 import { CATEGORIES } from "./_components/constants";
 import { AttributeRow, SortableAttributeRow } from "./_components/rows";
@@ -48,7 +54,7 @@ export default function AttributesAdminPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const filtered = useMemo(() => {
@@ -94,7 +100,7 @@ export default function AttributesAdminPage() {
     }));
     const others = data.filter((a) => a.category !== selectedCat);
     const optimistic = [...others, ...reordered].sort(
-      (a, b) => a.display_order - b.display_order || a.code.localeCompare(b.code)
+      (a, b) => a.display_order - b.display_order || a.code.localeCompare(b.code),
     );
 
     setReorderError(null);
@@ -176,6 +182,8 @@ export default function AttributesAdminPage() {
         )}
       </Card>
 
+      <CompletenessPanel />
+
       {editing !== null && (
         <AttributeFormModal
           attribute={editing === "new" ? undefined : editing}
@@ -232,12 +240,7 @@ function AttributesTable({
             strategy={verticalListSortingStrategy}
           >
             {attributes.map((a) => (
-              <SortableAttributeRow
-                key={a.id}
-                attribute={a}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
+              <SortableAttributeRow key={a.id} attribute={a} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </SortableContext>
         ) : (
@@ -275,7 +278,7 @@ function Chip({
         "px-3 py-1.5 text-sm font-medium rounded-full border transition-colors",
         active
           ? "border-primary bg-accent text-accent-foreground"
-          : "border-border text-muted-foreground hover:bg-muted"
+          : "border-border text-muted-foreground hover:bg-muted",
       )}
     >
       {children}

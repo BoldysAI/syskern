@@ -33,6 +33,7 @@ from .serializers import (
     ProductWriteSerializer,
 )
 from .services.catalog_pv import build_catalog_pv_map, catalog_pv_payload
+from .services.completeness import build_attribute_completeness
 from .services.sku_parser import parse_sku
 from .tasks import (
     EXPORT_DIR,
@@ -196,6 +197,18 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(parse_sku(str(raw)))
+
+    # ── /api/products/attribute-completeness ─────────────────────────────────
+
+    @action(detail=False, methods=["get"], url_path="attribute-completeness")
+    def attribute_completeness(self, request):
+        """Per-field fill rate across the active catalog (FEEDBACK 1).
+
+        Returns ``{total_products, average_percent, fields[]}`` (core columns +
+        dynamic attributes), sorted least-complete first. Powers the completeness
+        table on ``/settings/attributes`` and the dashboard widget.
+        """
+        return Response(build_attribute_completeness())
 
     # ── /api/products/{id}/price-history ─────────────────────────────────────
 

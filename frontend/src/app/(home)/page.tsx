@@ -24,6 +24,7 @@ import { DashboardActivityTimeline } from "@/app/_components/DashboardActivityTi
 import { DashboardResumeCard } from "@/app/_components/DashboardResumeCard";
 import { DashboardOnboarding } from "@/app/_components/DashboardOnboarding";
 import { DashboardAdminLinks } from "@/app/_components/DashboardAdminLinks";
+import { DashboardCompletenessCard } from "@/app/_components/DashboardCompletenessCard";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -169,6 +170,8 @@ export default function HomePage() {
           )}
 
           <DashboardMarketCard />
+
+          <DashboardCompletenessCard />
 
           {userCanEdit && (
             <section>

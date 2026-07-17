@@ -1013,6 +1013,28 @@ export function getAttributeRegistry(category?: AttributeCategory): Promise<Attr
   );
 }
 
+/** One field's fill rate across the active catalog (FEEDBACK 1). */
+export interface CompletenessField {
+  key: string; // core field name, or `attr:<uuid>` for a dynamic attribute
+  label: string;
+  kind: "core" | "attribute";
+  group: string;
+  filled: number;
+  missing: number;
+  percent: number;
+}
+
+export interface AttributeCompleteness {
+  total_products: number;
+  average_percent: number;
+  fields: CompletenessField[]; // sorted least-complete first
+}
+
+/** Catalog-wide attribute completeness (core columns + dynamic attributes). */
+export function getAttributeCompleteness(): Promise<AttributeCompleteness> {
+  return apiFetch<AttributeCompleteness>("/api/products/attribute-completeness/");
+}
+
 /** Upsert one attribute value on a product (PUT, body `{value}`). */
 export function setProductAttribute(
   productId: string,
@@ -1788,10 +1810,10 @@ export function bulkUpdatePo(
   supplierId: string,
   body: { link_ids?: string[]; product_ids?: string[]; mode: BulkPoMode; value: string },
 ): Promise<BulkPoResult> {
-  return apiFetch<BulkPoResult>(
-    `/api/suppliers/${encodeURIComponent(supplierId)}/skus/bulk-po/`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  return apiFetch<BulkPoResult>(`/api/suppliers/${encodeURIComponent(supplierId)}/skus/bulk-po/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /** Link several existing products (SKUs) to a supplier at once (catalog picker). */
