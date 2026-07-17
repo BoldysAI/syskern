@@ -47,18 +47,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { DRAFT_KEY, loadDraft, type Core, type WizardDraft } from "./draft";
 
-const DRAFT_KEY = "syskern:new-product-draft:v1";
 const SKU_RE = /^[A-Z0-9-]+$/;
-
-type Core = Record<string, unknown>;
-
-interface WizardDraft {
-  core: Core;
-  attrs: Record<string, unknown>;
-  suppliers: ProductSupplier[];
-  fullForm: boolean;
-}
 
 const STEPS = [
   { id: "identification", label: "Identification" },
@@ -91,34 +82,6 @@ function sortAttrs(attrs: AttributeRegistry[]): AttributeRegistry[] {
   return attrs
     .slice()
     .sort((a, b) => a.display_order - b.display_order || a.code.localeCompare(b.code));
-}
-
-function emptyDraft(): WizardDraft {
-  return {
-    core: { base_unit: "unit", supply_policy: "buy", is_stockable: true, is_copper_indexed: false },
-    attrs: {},
-    suppliers: [],
-    fullForm: false,
-  };
-}
-
-function loadDraft(): WizardDraft {
-  if (typeof window === "undefined") return emptyDraft();
-  try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
-    if (!raw) return emptyDraft();
-    const parsed = JSON.parse(raw) as Partial<WizardDraft> & { step?: number };
-    // `step` was persisted in v1 drafts — intentionally not restored (always start at Identification).
-    return {
-      ...emptyDraft(),
-      core: parsed.core ?? emptyDraft().core,
-      attrs: parsed.attrs ?? {},
-      suppliers: parsed.suppliers ?? [],
-      fullForm: parsed.fullForm ?? false,
-    };
-  } catch {
-    return emptyDraft();
-  }
 }
 
 function TextField({

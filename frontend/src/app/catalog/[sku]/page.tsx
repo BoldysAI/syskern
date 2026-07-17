@@ -9,6 +9,7 @@ import {
   ArrowsClockwise,
   Check,
   ClockCounterClockwise,
+  Copy,
   Package,
   PencilSimple,
   Plus,
@@ -48,6 +49,7 @@ import {
   parseProductNavigationContext,
 } from "@/lib/product-navigation";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
+import { buildDuplicateDraft, seedProductDraft } from "../new/draft";
 import { EditContext, type EditContextValue, type DescriptionKind } from "./_tabs/edit-context";
 import { GeneralTab } from "./_tabs/GeneralTab";
 import { TechnicalTab } from "./_tabs/TechnicalTab";
@@ -493,6 +495,15 @@ function ProductPageContent() {
 
   const odooUrl = buildOdooUrl(product?.odoo_id);
 
+  // Duplicate (FEEDBACK 1): seed the creation wizard with this product's values
+  // (SKU cleared, no supplier / price history), then open it.
+  const handleDuplicate = useCallback(() => {
+    if (!product) return;
+    seedProductDraft(buildDuplicateDraft(product, attrsData ?? []));
+    toast.success("Produit dupliqué — renseignez un nouveau SKU pour l'enregistrer.");
+    router.push("/catalog/new");
+  }, [product, attrsData, router]);
+
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
@@ -653,6 +664,13 @@ function ProductPageContent() {
                     Ajouter à une simulation
                   </Button>
                 </AddToSimulationDialog>
+
+                {userCanEdit ? (
+                  <Button variant="outline" size="sm" onClick={handleDuplicate}>
+                    <Copy size={14} />
+                    Dupliquer
+                  </Button>
+                ) : null}
 
                 <Button variant="outline" size="sm" disabled title="Disponible en MVP2">
                   <ClockCounterClockwise size={14} />

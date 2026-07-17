@@ -313,7 +313,15 @@ Logistique, Fournisseur(s), Validation) + **toggle « Formulaire complet »**.
   cohérence cuivre (miroir `ProductWriteSerializer`). Impossible d'avancer si erreurs.
 - **Brouillon `localStorage`** (`syskern:new-product-draft:v1`) : champs + fournisseurs draft
   restaurés au montage ; **l'étape du wizard n'est pas persistée** (réouverture = Identification).
-  Purgé après création réussie.
+  Purgé après création réussie. **Clé + shape + helpers = source unique**
+  [frontend/src/app/catalog/new/draft.ts](../../frontend/src/app/catalog/new/draft.ts)
+  (`DRAFT_KEY`, `WizardDraft`, `loadDraft`, `seedProductDraft`, `buildDuplicateDraft`).
+- **Duplication (FEEDBACK 1)** : bouton « Dupliquer » sur la fiche produit (`canEdit`) →
+  `buildDuplicateDraft(product, attrValues)` seede le brouillon avec hiérarchie, marque,
+  descriptions, champs core logistique/technique **et tous les attributs dynamiques**, puis
+  `router.push('/catalog/new')` (`fullForm=true`). **SKU vidé + requis** (unique/immuable) ;
+  **ni l'historique de prix ni le fournisseur actif ne sont copiés** (nouveau produit sans
+  fournisseur, décision Yassine). L'utilisateur renseigne un SKU puis enregistre.
 - SKU `onBlur` → `parseSku` → pré-remplit `parent_reference` / `factory_code` (non écrasés
   si l'utilisateur les a édités).
 - Hiérarchie : dropdowns en cascade (univers → famille → gamme → sous-gamme) via
