@@ -86,3 +86,51 @@ def test_purge_blocked_when_locked():
     call_command("bootstrap_catalog", "--purge", stdout=out)
     assert "locked" in out.getvalue().lower()
     assert Product.objects.count() == 1  # purge never ran
+
+
+@pytest.mark.django_db(transaction=True)  # ALTER TABLE ... DISABLE TRIGGER needs a real txn
+def test_purge_with_simulations_clears_finalized_sim_and_products(tmp_path):
+    from apps.products.models import Product
+    from apps.simulations.models import (
+        Simulation,
+        SimulationLine,
+        SimulationStatus,
+        SimulationType,
+    )
+
+    p = Product.objects.create(sku_code="SIMP1", name="x", migration_source=MigrationSource.MANUAL)
+    sim = Simulation.objects.create(label="s", simulation_type=SimulationType.TARIFF)
+    SimulationLine.objects.create(simulation=sim, product=p)
+    # finalize it (draft→finalized is allowed); now it's un-deletable via the guard.
+    Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
+
+    out = StringIO()
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nope"},
+        BASE_DIR=tmp_path,
+        ODOO={"SYNC_ENABLED": False},
+    ):
+        call_command("bootstrap_catalog", "--purge", "--with-simulations", stdout=out)
+    assert Simulation.objects.count() == 0
+    assert Product.objects.count() == 0
+
+
+def test_purge_without_flag_fails_on_pricing_history(tmp_path):
+    from django.db.models import ProtectedError
+
+    from apps.products.models import Product
+    from apps.simulations.models import Simulation, SimulationLine, SimulationType
+
+    p = Product.objects.create(sku_code="SIMP2", name="x", migration_source=MigrationSource.MANUAL)
+    sim = Simulation.objects.create(label="s", simulation_type=SimulationType.TARIFF)
+    SimulationLine.objects.create(simulation=sim, product=p)
+
+    with (
+        override_settings(
+            MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nope"},
+            BASE_DIR=tmp_path,
+            ODOO={"SYNC_ENABLED": False},
+        ),
+        pytest.raises(ProtectedError),
+    ):
+        call_command("bootstrap_catalog", "--purge", stdout=StringIO())

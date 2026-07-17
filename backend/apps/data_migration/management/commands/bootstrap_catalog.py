@@ -75,6 +75,16 @@ class Command(BaseCommand):
                 "loudly if a simulation references a product (pricing history present)."
             ),
         )
+        parser.add_argument(
+            "--with-simulations",
+            action="store_true",
+            default=False,
+            help=(
+                "With --purge: ALSO delete offers + simulations (incl. finalized/archived, "
+                "bypassing the DB guard triggers) so the product purge can proceed. "
+                "DESTROYS pricing history — use only for a full pre-go-live reset."
+            ),
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         if settings.MIGRATION.get("LOCKED", False):
@@ -84,6 +94,8 @@ class Command(BaseCommand):
         if opts["purge"]:
             from apps.data_migration.reset import count_migration_data, reset_migration_data
 
+            if opts["with_simulations"]:
+                self._purge_simulations_and_offers()
             self.stdout.write(
                 self.style.WARNING(f"--purge: wiping migrated data {count_migration_data()}")
             )
@@ -149,6 +161,47 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Supplier activation failed: {exc}"))
 
         self.stdout.write(self.style.SUCCESS(f"Bootstrap done ({loaded} source file(s) loaded)."))
+
+    def _purge_simulations_and_offers(self) -> None:
+        """Delete offers + simulations, incl. finalized/archived ones.
+
+        The DB triggers (migration simulations/0003) block deleting a finalized/
+        archived simulation and its lines; there is no UI/API path to remove
+        them either (by design). For a full pre-go-live reset we disable those
+        guard triggers, delete offers (FK-PROTECT parents) then simulations
+        (cascades lines + recalculations), and re-enable the triggers.
+        """
+        from django.db import connection
+
+        from apps.offers.models import Offer
+        from apps.simulations.models import Simulation
+
+        with connection.cursor() as cur:
+            cur.execute(
+                "ALTER TABLE simulation_lines "
+                "DISABLE TRIGGER simulation_lines_guard_finalized_parent_trigger;"
+            )
+            cur.execute(
+                "ALTER TABLE simulations DISABLE TRIGGER simulations_guard_finalized_trigger;"
+            )
+        try:
+            n_offers = Offer.objects.all().delete()[0]
+            n_sims = Simulation.objects.all().delete()[0]
+            self.stdout.write(
+                self.style.WARNING(
+                    f"--with-simulations: deleted {n_offers} offer row(s) + {n_sims} "
+                    f"simulation row(s) (guard triggers bypassed)."
+                )
+            )
+        finally:
+            with connection.cursor() as cur:
+                cur.execute(
+                    "ALTER TABLE simulations ENABLE TRIGGER simulations_guard_finalized_trigger;"
+                )
+                cur.execute(
+                    "ALTER TABLE simulation_lines "
+                    "ENABLE TRIGGER simulation_lines_guard_finalized_parent_trigger;"
+                )
 
     def _resolve_sources_dir(self) -> str:
         """First candidate dir that actually holds one of our source globs.
