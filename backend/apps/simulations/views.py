@@ -351,6 +351,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             "ai_instructions": data.get("ai_instructions") or "",
             "sections_config": data.get("sections_config"),
             "attached_document_ids": [str(d) for d in data.get("attached_document_ids") or []],
+            "gamma_template": data.get("gamma_template") or "",
         }
         task = generate_project_offer_task.delay(str(simulation.id), payload)
         return Response(

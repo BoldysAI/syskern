@@ -50,19 +50,21 @@ const LANGUAGES = [
   { code: "en", label: "English" },
   { code: "es", label: "Español" },
 ];
-const STEPS = [
-  "Client & projet",
-  "Quantités",
-  "Langue & validité",
-  "Sections",
-  "Instructions IA",
-];
+const STEPS = ["Client & projet", "Quantités", "Langue & validité", "Sections", "Instructions IA"];
 const SECTIONS: { key: string; label: string }[] = [
   { key: "cover", label: "1. Couverture" },
   { key: "presentation", label: "2. Présentation Syskern" },
   { key: "pricing", label: "3. Tableau de prix" },
   { key: "arguments", label: "4. Argumentaires (IA)" },
   { key: "conditions", label: "5. Conditions" },
+];
+// Gamma layout templates (FEEDBACK 1). Values must match the backend
+// GammaTemplate choices; "" = default project template.
+const GAMMA_TEMPLATES: { value: string; label: string }[] = [
+  { value: "", label: "Défaut" },
+  { value: "distributeur", label: "Distributeur" },
+  { value: "factoring", label: "Factoring" },
+  { value: "export", label: "Export" },
 ];
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ function ProjectWizard() {
   const [expiration, setExpiration] = useState("");
   const [aiInstructions, setAiInstructions] = useState("");
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
+  const [gammaTemplate, setGammaTemplate] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<GenResult | null>(null);
@@ -178,6 +181,7 @@ function ProjectWizard() {
               ai_instructions: aiInstructions,
               sections_config: sectionsConfig,
               attached_document_ids: attachedDocIds,
+              gamma_template: gammaTemplate,
             },
           );
       setResult(await pollGeneration(task_id));
@@ -350,24 +354,50 @@ function ProjectWizard() {
         )}
 
         {step === 3 && (
-          <Section title="Sections du devis" hint="Les 5 sections fixes du devis Gamma.">
-            <div className="flex flex-col gap-2">
-              {SECTIONS.map((s) => (
-                <label
-                  key={s.key}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted/50"
-                >
-                  <Checkbox
-                    checked={sectionOn(s.key)}
-                    onCheckedChange={() =>
-                      setSectionOverride((o) => ({ ...o, [s.key]: !sectionOn(s.key) }))
-                    }
-                  />
-                  {s.label}
-                </label>
-              ))}
+          <>
+            <Section title="Sections du devis" hint="Les 5 sections fixes du devis Gamma.">
+              <div className="flex flex-col gap-2">
+                {SECTIONS.map((s) => (
+                  <label
+                    key={s.key}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      checked={sectionOn(s.key)}
+                      onCheckedChange={() =>
+                        setSectionOverride((o) => ({ ...o, [s.key]: !sectionOn(s.key) }))
+                      }
+                    />
+                    {s.label}
+                  </label>
+                ))}
+              </div>
+            </Section>
+            <div className="mt-5">
+              <Section
+                title="Mise en page (modèle Gamma)"
+                hint="Choisit le template de présentation du devis."
+              >
+                <div className="flex flex-wrap gap-2">
+                  {GAMMA_TEMPLATES.map((t) => (
+                    <Button
+                      key={t.value}
+                      type="button"
+                      size="sm"
+                      variant={gammaTemplate === t.value ? "default" : "outline"}
+                      onClick={() => setGammaTemplate(t.value)}
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Les modèles (Distributeur / Factoring / Export) sont conçus côté client dans
+                  Gamma. Un modèle non encore configuré utilise la mise en page par défaut.
+                </p>
+              </Section>
             </div>
-          </Section>
+          </>
         )}
 
         {step === 4 && (

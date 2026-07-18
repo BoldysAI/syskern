@@ -40,6 +40,20 @@ class GenerationStatus(models.TextChoices):
     ERROR = "error", "Error (retry possible)"
 
 
+class GammaTemplate(models.TextChoices):
+    """Project-offer layout chosen at generation (FEEDBACK 1, CDC §7.7.2).
+
+    Each value maps to a client-owned Gamma template id configured in
+    ``settings.GAMMA["TEMPLATES"]``; an empty value uses the default
+    (``TEMPLATE_ID_DEVIS_PROJET``). The templates themselves are designed by
+    the client — the platform only references their ids.
+    """
+
+    DISTRIBUTEUR = "distributeur", "Distributeur"
+    FACTORING = "factoring", "Factoring"
+    EXPORT = "export", "Export"
+
+
 class Offer(BaseModel):
     simulation = models.ForeignKey(
         "simulations.Simulation",
@@ -67,6 +81,10 @@ class Offer(BaseModel):
 
     # Generation parameters
     export_format = models.CharField(max_length=16, choices=ExportFormat.choices)
+    # Project-offer Gamma layout (FEEDBACK 1). Empty = default project template.
+    gamma_template = models.CharField(
+        max_length=32, choices=GammaTemplate.choices, blank=True, default=""
+    )
     ai_instructions = models.TextField(blank=True, default="")
     price_justification = models.TextField(blank=True, default="")
 

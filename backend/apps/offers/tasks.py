@@ -208,6 +208,7 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
         ai_instructions=params.get("ai_instructions") or "",
         sections_config=params.get("sections_config"),
         attached_document_ids=params.get("attached_document_ids") or [],
+        gamma_template=params.get("gamma_template") or "",
     )
     offer = run_generation(offer)
     return _offer_generation_result(offer)

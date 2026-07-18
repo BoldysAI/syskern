@@ -5,7 +5,14 @@ from rest_framework import serializers
 from apps.clients.models import Client
 from apps.core.models import Currency, Language
 
-from .models import Offer, OfferAlertConfig, OfferLine, OfferStatus, OfferType
+from .models import (
+    GammaTemplate,
+    Offer,
+    OfferAlertConfig,
+    OfferLine,
+    OfferStatus,
+    OfferType,
+)
 from .services.excel import validate_columns
 
 
@@ -187,6 +194,10 @@ class GenerateProjectOfferSerializer(serializers.Serializer):
     )
     attached_document_ids = serializers.ListField(
         child=serializers.UUIDField(), required=False, default=list
+    )
+    # Gamma layout (FEEDBACK 1). Empty = default project template.
+    gamma_template = serializers.ChoiceField(
+        choices=GammaTemplate.choices, required=False, allow_blank=True, default=""
     )
 
     def validate_client_id(self, value):

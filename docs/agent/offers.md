@@ -57,6 +57,12 @@
   - `run_generation(offer)` (retry-safe, lit tout depuis l'offre) → OpenAI args → payload Gamma
     5 sections → `gamma.generate_and_wait` → stocke `gamma_document_id`, `generated_file_url`
     (= gammaUrl), `project_info.gamma_export_url` (PDF), snapshot HTML best-effort.
+  - **Sélecteur de template (FEEDBACK 1, §7.7.2)** : `Offer.gamma_template`
+    (`distributeur`/`factoring`/`export`/"") choisi au wizard (étape « Sections »). `_build_payload`
+    → `_resolve_gamma_template(offer)` : `settings.GAMMA["TEMPLATES"][choix]` → `payload["themeId"]`,
+    **fallback** sur `TEMPLATE_ID_DEVIS_PROJET` si vide/non configuré. Les templates sont **conçus côté
+    client** dans Gamma (env `GAMMA_TEMPLATE_ID_{DISTRIBUTEUR,FACTORING,EXPORT}`) — la plateforme ne
+    référence que les ids. Marche dès aujourd'hui avec un seul id (tous les choix → template par défaut).
 - Argumentaires IA : `services/ai_arguments.py:generate_arguments(...)` (OpenAI `generate_json`,
   gpt-4o-mini configurable via `OPENAI_MODEL`, temp 0.7). 3 argumentaires {technical, commercial,
   logistic} dans la langue cible. **Échec OpenAI → None** (offre générée sans copy + warning).

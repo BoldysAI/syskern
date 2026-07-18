@@ -216,6 +216,14 @@ GAMMA = {
     "API_KEY": env("GAMMA_API_KEY", default=""),
     "TEMPLATE_ID_DEVIS_PROJET": env("GAMMA_TEMPLATE_ID_DEVIS_PROJET", default=""),
     "TEMPLATE_ID_CATALOGUE_TARIFE": env("GAMMA_TEMPLATE_ID_CATALOGUE_TARIFE", default=""),
+    # Project-offer layouts chosen at generation (FEEDBACK 1, CDC §7.7.2).
+    # Client-owned templates: the client creates them in Gamma and provides the
+    # ids. Any left empty falls back to TEMPLATE_ID_DEVIS_PROJET at resolution.
+    "TEMPLATES": {
+        "distributeur": env("GAMMA_TEMPLATE_ID_DISTRIBUTEUR", default=""),
+        "factoring": env("GAMMA_TEMPLATE_ID_FACTORING", default=""),
+        "export": env("GAMMA_TEMPLATE_ID_EXPORT", default=""),
+    },
     # Set false only on dev/staging when Python cannot validate public CAs (macOS native).
     "VERIFY_TLS": env.bool("GAMMA_VERIFY_TLS", default=True),
 }

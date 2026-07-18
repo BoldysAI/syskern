@@ -75,6 +75,7 @@ def create_project_offer(
     ai_instructions: str,
     sections_config: dict | None = None,
     attached_document_ids: list | None = None,
+    gamma_template: str = "",
 ) -> Offer:
     """Create the project Offer + OfferLines for a single client.
 
@@ -96,6 +97,7 @@ def create_project_offer(
         valid_from=timezone.now().date(),
         valid_to=expiration_date,
         export_format=ExportFormat.DEVIS_GAMMA,
+        gamma_template=gamma_template or "",
         ai_instructions=ai_instructions,
         attached_document_ids=attached_document_ids or [],
         generation_status=GenerationStatus.PENDING,
@@ -202,10 +204,24 @@ def build_gamma_payload(
     }
     if offer.ai_instructions:
         payload["additionalInstructions"] = offer.ai_instructions[:5000]
-    template_id = settings.GAMMA.get("TEMPLATE_ID_DEVIS_PROJET")
+    template_id = _resolve_gamma_template(offer)
     if template_id:
         payload["themeId"] = template_id
     return payload
+
+
+def _resolve_gamma_template(offer: Offer) -> str:
+    """Gamma template id for this offer (FEEDBACK 1, CDC §7.7.2).
+
+    Maps the offer's chosen layout (``distributeur``/``factoring``/``export``)
+    to its configured id, falling back to the default project template when the
+    choice is empty or that specific id is not configured yet (client hasn't
+    provided it). So the selector works today with a single configured id.
+    """
+    gamma = settings.GAMMA
+    choice = (offer.gamma_template or "").lower()
+    specific = gamma.get("TEMPLATES", {}).get(choice) if choice else ""
+    return specific or gamma.get("TEMPLATE_ID_DEVIS_PROJET") or ""
 
 
 # ── Generation (external calls) ──────────────────────────────────────────────
