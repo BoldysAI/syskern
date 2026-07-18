@@ -47,6 +47,30 @@ def _product_designation(line, offer, client) -> str | None:
     return text or None
 
 
+def _market_param(key: str, *, numeric: bool = True) -> Callable:
+    """Extractor for a simulation market parameter (copper base, FX rate…).
+
+    The value is the same for every line (it is the simulation-level snapshot,
+    ``offer.simulation.market_params``) — exposed as an opt-in column so a
+    tariff export can carry the pricing basis (CDC §7.2.3, FEEDBACK 1).
+    """
+
+    def extract(line, offer, client) -> Any:
+        simulation = getattr(offer, "simulation", None)
+        params = getattr(simulation, "market_params", None) or {}
+        val = params.get(key)
+        if val is None or val == "":
+            return None
+        if not numeric:
+            return str(val)
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
+
+    return extract
+
+
 _COLUMN_REGISTRY: dict[str, dict[str, Any]] = {
     "sku_code": {"h": {"fr": "Réf. SKU", "en": "SKU", "es": "SKU"}, "v": _product_attr("sku_code")},
     "name": {
@@ -109,6 +133,33 @@ _COLUMN_REGISTRY: dict[str, dict[str, Any]] = {
     "client_name": {
         "h": {"fr": "Client", "en": "Client", "es": "Cliente"},
         "v": lambda line, offer, client: client.name if client else None,
+    },
+    # ── Paramètres marché (base cuivre, FX) — opt-in, FEEDBACK 1 (CDC §7.2.3) ──
+    # Constantes au niveau simulation : même valeur sur chaque ligne, incluses
+    # seulement si l'utilisateur les coche à la génération.
+    "copper_market": {
+        "h": {"fr": "Marché cuivre", "en": "Copper market", "es": "Mercado del cobre"},
+        "v": _market_param("copper_market", numeric=False),
+    },
+    "copper_base_price": {
+        "h": {"fr": "Base cuivre", "en": "Copper base", "es": "Base del cobre"},
+        "v": _market_param("copper_base_price"),
+        "number_format": "#,##0.00",
+    },
+    "copper_current_price": {
+        "h": {"fr": "Cuivre actuel", "en": "Current copper", "es": "Cobre actual"},
+        "v": _market_param("copper_current_price"),
+        "number_format": "#,##0.00",
+    },
+    "fx_eur_rmb": {
+        "h": {"fr": "FX EUR→RMB", "en": "FX EUR→RMB", "es": "FX EUR→RMB"},
+        "v": _market_param("fx_eur_rmb"),
+        "number_format": "#,##0.0000",
+    },
+    "fx_eur_usd": {
+        "h": {"fr": "FX EUR→USD", "en": "FX EUR→USD", "es": "FX EUR→USD"},
+        "v": _market_param("fx_eur_usd"),
+        "number_format": "#,##0.0000",
     },
 }
 

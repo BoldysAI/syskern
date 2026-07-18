@@ -27,7 +27,12 @@
 - Excel : `offers/services/excel.py`. `_COLUMN_REGISTRY` (clé → en-têtes FR/EN/ES + extracteur) ;
   `validate_columns`, `available_columns(lang)` ; `build_tariff_xlsx(...)`. En-têtes traduits en code
   (§10.5.4) ; note de taux si devise ≠ EUR (§7.2.5). Catalogue exposé via
-  `GET /api/offers/tariff-columns/?lang=`.
+  `GET /api/offers/tariff-columns/?lang=`. **Le wizard récupère ce catalogue dynamiquement** →
+  ajouter une colonne = **une seule** entrée dans `_COLUMN_REGISTRY` (front auto).
+- **Paramètres marché sélectionnables (FEEDBACK 1, §7.2.3)** : colonnes opt-in `copper_market`,
+  `copper_base_price`, `copper_current_price`, `fx_eur_rmb`, `fx_eur_usd` — extracteur `_market_param`
+  lit le snapshot `offer.simulation.market_params` (constantes niveau simulation, même valeur sur
+  chaque ligne). Absentes du snapshot → cellule vide (pas d'erreur).
 - Conversion devise : **au moment de la génération** (§6.8.2), PV EUR → devise de vente via
   `apps.simulations.services.engine.context.fx_rate(...)` (pivot EUR — **ne pas dupliquer** le FX).
 - Fichiers : `/tmp/syskern_exports/offers/{offer_id}.xlsx` (volume monté) ; téléchargement
