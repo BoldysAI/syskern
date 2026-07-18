@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowUpRight, X } from "@phosphor-icons/react";
-import { getProduct, type ProductDetail } from "@/lib/api";
+import { toast } from "sonner";
+import { ArrowUpRight, Copy, X } from "@phosphor-icons/react";
+import {
+  getProduct,
+  getProductAttributes,
+  type ProductAttributeValue,
+  type ProductDetail,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { canEdit } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildDuplicateDraft, seedProductDraft } from "../new/draft";
 
 function localize(desc?: Record<string, string>): string {
   if (!desc) return "";
@@ -25,12 +35,29 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 /** Slide-over quick view for a product (CDC §4.3, Écran 1). */
 export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: () => void }) {
+  const router = useRouter();
+  const { role } = useAuth();
+  const userCanEdit = canEdit(role);
+
   const { data, isLoading, error } = useSWR<ProductDetail>(
     sku ? ["product-drawer", sku] : null,
     () => getProduct(sku as string),
   );
+  // Attribute values are only needed to seed a duplication (edit users).
+  const { data: attrs } = useSWR<ProductAttributeValue[]>(
+    sku && userCanEdit ? ["product-drawer-attrs", sku] : null,
+    () => getProductAttributes(sku as string),
+  );
 
   const activeSupplier = data?.suppliers?.find((s) => s.is_active)?.supplier_name;
+
+  // Duplicate from the catalog row (FEEDBACK 1) — same flow as the fiche.
+  const handleDuplicate = () => {
+    if (!data) return;
+    seedProductDraft(buildDuplicateDraft(data, attrs ?? []));
+    toast.success("Produit dupliqué — renseignez un nouveau SKU pour l'enregistrer.");
+    router.push("/catalog/new");
+  };
 
   return (
     <Dialog.Root open={!!sku} onOpenChange={(o) => !o && onClose()}>
@@ -92,9 +119,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 <Row
                   label="Stock"
                   value={
-                    data.stock_quantity != null
-                      ? Math.round(parseFloat(data.stock_quantity))
-                      : "—"
+                    data.stock_quantity != null ? Math.round(parseFloat(data.stock_quantity)) : "—"
                   }
                 />
                 {localize(data.description_marketing) && (
@@ -111,11 +136,21 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
             )}
           </div>
 
-          <div className="border-t border-border p-5">
+          <div className="flex gap-2 border-t border-border p-5">
             {sku && (
-              <Button nativeButton={false} render={<Link href={`/catalog/${encodeURIComponent(sku)}`} />} className="w-full">
+              <Button
+                nativeButton={false}
+                render={<Link href={`/catalog/${encodeURIComponent(sku)}`} />}
+                className="flex-1"
+              >
                 Ouvrir la fiche complète
                 <ArrowUpRight size={16} />
+              </Button>
+            )}
+            {userCanEdit && data && (
+              <Button variant="outline" onClick={handleDuplicate} title="Dupliquer ce produit">
+                <Copy size={16} />
+                Dupliquer
               </Button>
             )}
           </div>

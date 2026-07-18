@@ -317,7 +317,8 @@ Logistique, Fournisseur(s), Validation) + **toggle « Formulaire complet »**.
   Purgé après création réussie. **Clé + shape + helpers = source unique**
   [frontend/src/app/catalog/new/draft.ts](../../frontend/src/app/catalog/new/draft.ts)
   (`DRAFT_KEY`, `WizardDraft`, `loadDraft`, `seedProductDraft`, `buildDuplicateDraft`).
-- **Duplication (FEEDBACK 1)** : bouton « Dupliquer » sur la fiche produit (`canEdit`) →
+- **Duplication (FEEDBACK 1)** : bouton « Dupliquer » sur la fiche produit **et depuis la ligne
+  catalogue** (drawer `ProductDrawer`), `canEdit` → même flux partagé →
   `buildDuplicateDraft(product, attrValues)` seede le brouillon avec hiérarchie, marque,
   descriptions, champs core logistique/technique **et tous les attributs dynamiques**, puis
   `router.push('/catalog/new')` (`fullForm=true`). **SKU vidé + requis** (unique/immuable) ;
