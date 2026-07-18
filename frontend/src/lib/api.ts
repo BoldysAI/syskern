@@ -326,6 +326,8 @@ export interface Product {
   attribute_values?: Record<string, unknown>;
   /** Present when a simulation line with PV exists (see `simulation_id` query param). */
   catalog_pv?: CatalogPv | null;
+  /** Per-product fill rate (%) over the tracked field set (FEEDBACK 1). */
+  completeness_pct?: number | null;
   updated_at?: string;
 }
 
@@ -1192,8 +1194,16 @@ export function getSimulationLines(
 ): Promise<PaginatedResponse<SimulationLine>> {
   const limit = params.limit ?? 200;
   const page = params.page ?? 1;
-  const { simulation, status_in, has_warning, has_error, ordering, page: _p, limit: _l, ...catalogFilters } =
-    params;
+  const {
+    simulation,
+    status_in,
+    has_warning,
+    has_error,
+    ordering,
+    page: _p,
+    limit: _l,
+    ...catalogFilters
+  } = params;
   const q = new URLSearchParams({
     simulation,
     limit: String(limit),

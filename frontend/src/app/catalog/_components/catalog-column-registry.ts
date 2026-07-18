@@ -26,6 +26,7 @@ export const CATALOG_CORE_COLUMN_META: CatalogColumnMeta[] = [
   { key: "is_copper_indexed", label: "Indexé cuivre", kind: "core" },
   { key: "is_active", label: "Actif", kind: "core" },
   { key: "lang_coverage", label: "Langues", kind: "core" },
+  { key: "completeness_pct", label: "Complétude", kind: "core" },
 ];
 
 /** Default visible columns on first visit / after reset. */
@@ -38,6 +39,7 @@ export const DEFAULT_VISIBLE_CATALOG_COLUMNS: string[] = [
   "pamp_eur",
   "stock_quantity",
   "is_active",
+  "completeness_pct",
 ];
 
 export function attrColumnKey(code: string): string {
@@ -54,10 +56,7 @@ export function parseAttrColumnKey(key: string): string | null {
 }
 
 /** Merge core order with attribute keys (attributes after visible core columns). */
-export function orderVisibleColumnKeys(
-  visibleKeys: string[],
-  attributeKeys: string[],
-): string[] {
+export function orderVisibleColumnKeys(visibleKeys: string[], attributeKeys: string[]): string[] {
   const visible = new Set(visibleKeys);
   const core = CATALOG_COLUMN_ORDER.filter((k) => visible.has(k));
   const attrs = attributeKeys.filter((k) => visible.has(k));

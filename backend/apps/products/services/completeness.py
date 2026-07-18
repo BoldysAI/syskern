@@ -118,3 +118,52 @@ def build_attribute_completeness() -> dict[str, Any]:
     fields.sort(key=lambda f: (f["percent"], f["label"]))
     average = round(sum(f["percent"] for f in fields) / len(fields), 1) if fields else 0.0
     return {"total_products": total, "average_percent": average, "fields": fields}
+
+
+def _core_field_filled(product: Product, field: str, kind: str) -> bool:
+    val = getattr(product, field, None)
+    if kind == "char":
+        return bool(val)
+    if kind == "num":
+        return val is not None
+    if kind == "json_fr":
+        return bool((val or {}).get("fr"))
+    return bool(val)
+
+
+def build_product_completeness_map(products: list[Product]) -> dict[str, float]:
+    """Per-product fill rate over the **same** field set as the catalog widget.
+
+    Returns ``{product_id: percent}`` for the given products (a catalog page).
+    Two queries total — registry count + one grouped PAV count — so it stays
+    cheap for a paginated list. Powers the optional "Complétude" catalog column.
+    """
+    products = list(products)
+    if not products:
+        return {}
+    registry_count = AttributeRegistry.objects.count()
+    total = len(_CORE_FIELDS) + registry_count
+    if total == 0:
+        return {str(p.id): 0.0 for p in products}
+
+    ids = [p.id for p in products]
+    rows = (
+        ProductAttributeValue.objects.filter(product_id__in=ids)
+        .exclude(value=None)
+        .exclude(value="")
+        .exclude(value=[])
+        .values("product_id")
+        .annotate(n=Count("id"))
+    )
+    attr_filled = {row["product_id"]: row["n"] for row in rows}
+
+    result: dict[str, float] = {}
+    for product in products:
+        core = sum(
+            1
+            for field, _label, kind, _group in _CORE_FIELDS
+            if _core_field_filled(product, field, kind)
+        )
+        attrs = min(attr_filled.get(product.id, 0), registry_count)
+        result[str(product.id)] = round(100 * (core + attrs) / total, 1)
+    return result

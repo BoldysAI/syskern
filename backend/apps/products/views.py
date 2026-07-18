@@ -33,7 +33,7 @@ from .serializers import (
     ProductWriteSerializer,
 )
 from .services.catalog_pv import build_catalog_pv_map, catalog_pv_payload
-from .services.completeness import build_attribute_completeness
+from .services.completeness import build_attribute_completeness, build_product_completeness_map
 from .services.sku_parser import parse_sku
 from .tasks import (
     EXPORT_DIR,
@@ -143,11 +143,16 @@ class ProductViewSet(viewsets.ModelViewSet):
         product_ids = [str(p.id) for p in items]
         simulation_id = (request.query_params.get("simulation_id") or "").strip() or None
         pv_map = build_catalog_pv_map(product_ids, simulation_id=simulation_id)
+        completeness_map = build_product_completeness_map(items)
 
         serializer = self.get_serializer(
             items,
             many=True,
-            context={**self.get_serializer_context(), "catalog_pv_map": pv_map},
+            context={
+                **self.get_serializer_context(),
+                "catalog_pv_map": pv_map,
+                "completeness_map": completeness_map,
+            },
         )
         if page is not None:
             return self.get_paginated_response(serializer.data)

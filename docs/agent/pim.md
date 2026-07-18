@@ -123,6 +123,7 @@ Miroir frontend : `components/AttributeRenderer.tsx` (`validateAttributeValue`,
 | `GET` | `/api/products/exports/{task_id}` | download du `.xlsx` produit par la tâche |
 | `POST` | `/api/products/parse-sku` | utilitaire wizard → `{sku, parent_reference, factory_code}` (service `sku_parser`) ; 400 si `sku` absent |
 | `GET` | `/api/products/attribute-completeness` | **complétude catalogue (FEEDBACK 1)** — `{total_products, average_percent, fields[]}` sur les produits **actifs** ; champs cœur + attributs dynamiques, triés du moins au plus complet. Service `services/completeness.build_attribute_completeness`. Alimente le tableau `/settings/attributes` + le widget dashboard (`DashboardCompletenessCard`) |
+| `GET` | `/api/products/` (liste) | chaque ligne inclut **`completeness_pct`** (taux de remplissage **par produit**, même jeu de champs que le widget) — `build_product_completeness_map(items)` dans `list()` (2 requêtes/page), passé au serializer via `context["completeness_map"]`. Colonne **« Complétude »** du catalogue (opt-in, `DEFAULT_VISIBLE`), rendu barre+% (`CompletenessCell`) |
 | `GET` | `/api/hierarchy/distinct?level=…` | valeurs distinctes par niveau (cascade wizard : universe → family → range → sub_range) |
 | `GET` | `/api/supplier-names` | noms fournisseurs distincts déjà utilisés dans le catalogue |
 | `GET` | `/api/supplier-names/template?name=…` | pré-remplissage commercial depuis la dernière ligne `ProductSupplier` de ce nom ; 404 si inconnu |

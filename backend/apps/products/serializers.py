@@ -144,6 +144,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     i18n_coverage = serializers.SerializerMethodField()
     attribute_values = serializers.SerializerMethodField()
     catalog_pv = serializers.SerializerMethodField()
+    completeness_pct = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -164,6 +165,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "i18n_coverage",
             "attribute_values",
             "catalog_pv",
+            "completeness_pct",
             "updated_at",
         )
 
@@ -191,6 +193,9 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def get_catalog_pv(self, obj: Product) -> dict | None:
         return self.context.get("catalog_pv_map", {}).get(str(obj.id))
+
+    def get_completeness_pct(self, obj: Product) -> float | None:
+        return self.context.get("completeness_map", {}).get(str(obj.id))
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):

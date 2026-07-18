@@ -82,3 +82,30 @@ def test_fields_sorted_least_complete_first():
     Product.objects.create(sku_code="S2", name="b", brand="Y")
     percents = [f["percent"] for f in build_attribute_completeness()["fields"]]
     assert percents == sorted(percents)
+
+
+def test_product_completeness_map_core_and_attributes():
+    from apps.products.services.completeness import _CORE_FIELDS, build_product_completeness_map
+
+    p1 = Product.objects.create(
+        sku_code="C1", name="a", brand="X", gtin="1", universe="U", family="F"
+    )  # 4 core fields filled
+    p2 = Product.objects.create(sku_code="C2", name="b")  # 0 core filled
+    attr = AttributeRegistry.objects.create(
+        code="awg2",
+        label={"fr": "AWG"},
+        category=AttributeCategory.TECHNICAL,
+        data_type=AttributeDataType.NUMBER,
+    )
+    ProductAttributeValue.objects.create(product=p1, attribute=attr, value="23")
+
+    total = len(_CORE_FIELDS) + AttributeRegistry.objects.count()
+    m = build_product_completeness_map([p1, p2])
+    assert m[str(p1.id)] == round(100 * 5 / total, 1)  # 4 core + 1 attribute
+    assert m[str(p2.id)] == 0.0
+
+
+def test_product_completeness_map_empty():
+    from apps.products.services.completeness import build_product_completeness_map
+
+    assert build_product_completeness_map([]) == {}

@@ -9,11 +9,7 @@ import { StatusBadge, universeBadgeVariant } from "@/components/StatusBadge";
 import { formatAttributeDisplayValue } from "@/components/AttributeRenderer";
 import type { AttributeRegistry, Product } from "@/lib/api";
 import type { DataTableColumnDef } from "@/components/data-table";
-import {
-  attrColumnKey,
-  attrSortField,
-  CATALOG_COLUMN_ORDER,
-} from "./catalog-column-registry";
+import { attrColumnKey, attrSortField, CATALOG_COLUMN_ORDER } from "./catalog-column-registry";
 import { CatalogPvDisplay } from "./catalog-pv-display";
 import { visibleAttrCodes } from "./catalog-column-storage";
 
@@ -24,6 +20,28 @@ export function parseDec(v?: string | null): number {
 function UniverseBadge({ universe }: { universe: string }) {
   if (!universe) return <span className="text-muted-foreground/50">—</span>;
   return <StatusBadge variant={universeBadgeVariant(universe)}>{universe}</StatusBadge>;
+}
+
+function completenessColor(pct: number): string {
+  if (pct < 40) return "bg-destructive";
+  if (pct < 75) return "bg-warm";
+  return "bg-primary";
+}
+
+/** Per-product fill rate (FEEDBACK 1) — bar + %, same colours as the widget. */
+function CompletenessCell({ pct }: { pct?: number | null }) {
+  if (pct == null) return <span className="text-muted-foreground/50">—</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full", completenessColor(pct))}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-sm tabular-nums text-muted-foreground">{pct}%</span>
+    </div>
+  );
 }
 
 function CoverageBadge({ product }: { product: Product }) {
@@ -87,7 +105,9 @@ function buildCoreColumnDef(
               {product.sku_code}
             </Link>
           ) : (
-            <span className="font-mono text-sm font-semibold text-foreground">{product.sku_code}</span>
+            <span className="font-mono text-sm font-semibold text-foreground">
+              {product.sku_code}
+            </span>
           ),
       };
     case "name":
@@ -234,6 +254,13 @@ function buildCoreColumnDef(
         cellClassName: "!px-2",
         render: (product) => <CoverageBadge product={product} />,
       };
+    case "completeness_pct":
+      return {
+        key: "completeness_pct",
+        label: "Complétude",
+        width: 130,
+        render: (product) => <CompletenessCell pct={product.completeness_pct} />,
+      };
     default:
       return null;
   }
@@ -268,11 +295,7 @@ export function useCatalogColumns({
     let extrasInserted = false;
 
     for (const key of orderedKeys) {
-      if (
-        insertExtraColumnsBefore &&
-        key === insertExtraColumnsBefore &&
-        extraColumns.length > 0
-      ) {
+      if (insertExtraColumnsBefore && key === insertExtraColumnsBefore && extraColumns.length > 0) {
         cols.push(...extraColumns);
         extrasInserted = true;
       }
@@ -286,8 +309,7 @@ export function useCatalogColumns({
           sortField: attrSortField(code),
           width: 140,
           cellClassName: "text-sm text-muted-foreground truncate",
-          render: (product) =>
-            formatAttributeDisplayValue(attr, product.attribute_values?.[code]),
+          render: (product) => formatAttributeDisplayValue(attr, product.attribute_values?.[code]),
         });
         continue;
       }
