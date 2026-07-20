@@ -6,7 +6,8 @@ from rest_framework import serializers
 
 from apps.products.models import Incoterm, ProductSupplier, SupplierPriceHistory
 
-from .models import Supplier
+from .models import Supplier, SupplierImportMapping
+from .services_import import MAPPABLE_FIELDS, REQUIRED_FIELDS
 
 
 class SupplierListSerializer(serializers.ModelSerializer):
@@ -130,6 +131,75 @@ class SupplierProductLinkSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = fields
+
+
+def _validate_index_map(value: dict) -> dict:
+    """Shared validation: known logical fields, required present, integer indices."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Mapping invalide.")
+    unknown = set(value) - set(MAPPABLE_FIELDS)
+    if unknown:
+        raise serializers.ValidationError(
+            f"Champs inconnus dans le mapping : {', '.join(sorted(unknown))}."
+        )
+    normalised: dict = {}
+    for field, raw in value.items():
+        if raw is None or raw == "":
+            continue
+        try:
+            normalised[field] = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise serializers.ValidationError({field: "Index de colonne invalide."}) from exc
+    missing = [f for f in REQUIRED_FIELDS if f not in normalised]
+    if missing:
+        raise serializers.ValidationError(f"Champs obligatoires manquants : {', '.join(missing)}.")
+    return normalised
+
+
+class SupplierImportMappingSerializer(serializers.ModelSerializer):
+    """A reusable Excel-to-platform column mapping template (import wizard).
+
+    ``column_map`` maps a logical field to a 0-based column index; ``header_row``
+    is 1-based (see ``services_import``).
+    """
+
+    supplier_name = serializers.CharField(source="supplier.name", read_only=True, default=None)
+
+    class Meta:
+        model = SupplierImportMapping
+        fields = (
+            "id",
+            "name",
+            "supplier",
+            "supplier_name",
+            "column_map",
+            "header_row",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "supplier_name", "created_at", "updated_at")
+
+    def validate_column_map(self, value: dict) -> dict:
+        return _validate_index_map(value)
+
+
+class SupplierImportInspectSerializer(serializers.Serializer):
+    """Body for re-reading an uploaded file with a chosen header row."""
+
+    upload_token = serializers.CharField()
+    header_row = serializers.IntegerField(required=False, default=1, min_value=1)
+
+
+class SupplierImportRunSerializer(serializers.Serializer):
+    """Body for the preview / apply import endpoints."""
+
+    upload_token = serializers.CharField()
+    column_map = serializers.DictField(child=serializers.CharField(allow_blank=True))
+    supplier_id = serializers.UUIDField(required=False, allow_null=True)
+    header_row = serializers.IntegerField(required=False, default=1, min_value=1)
+
+    def validate_column_map(self, value: dict) -> dict:
+        return _validate_index_map(value)
 
 
 class SupplierPriceHistorySerializer(serializers.ModelSerializer):

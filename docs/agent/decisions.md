@@ -920,3 +920,48 @@ d'équivalent UI** — ne pas réintroduire `WhatIfMarketPanel` sans revue produ
   carte « Poids & indexation cuivre »). Retirés des cartes core de `LogisticsTab.tsx` (carte « Poids &
   unité » renommée « Unité & approvisionnement » ; carte « Indexation cuivre » supprimée). Le
   conditionnement (colisage/palette) reste en Logistique. Aucun changement backend/modèle — pur ré-agencement UI.
+
+## 2026-07-20 · [P] Import PO fournisseurs — wizard à mapping explicite (remplace le devinement de colonnes)
+
+**Problème** : l'import PO (`import_po_task`) devinait les colonnes SKU/fournisseur/PO via des alias de
+headers et **échouait dès que la structure Excel différait** (cas fréquent).
+
+**Décision** : remplacer par un **wizard à mapping manuel explicite**, en 4 étapes (choix fournisseur filtré
+ou ignorer → upload → mapping colonnes → synthèse dry-run → confirmer), avec mappings réutilisables persistés.
+
+- **Nouveau modèle** `suppliers.SupplierImportMapping` (`db_table="supplier_import_mappings"`) : template
+  **nommé et réutilisable** (`name`, `supplier` FK **nullable** — scoping optionnel, pas 1-par-fournisseur car
+  un fichier peut être multi-fournisseurs, `column_map` JSON = champ logique → **label de header Excel**).
+- **Flux 3 endpoints** (remplace `POST /api/suppliers/import-po/`) :
+  `import-po/analyze/` (multipart, **sync borné** : renvoie `upload_token` + headers + échantillon),
+  `import-po/preview/` et `import-po/apply/` (`202 + task_id`, Celery). Le fichier persiste entre les phases
+  via `upload_token` (uuid hex, garde anti-traversal). Tasks : `import_po_preview_task` (dry-run, no-op DB) +
+  `import_po_apply_task`. Rapport de rejets inchangé.
+- **Champs mappables** : `sku`+`po` **obligatoires** ; `supplier`, `po_currency`, `factory_code`, `incoterm`
+  optionnels (appliqués seulement si mappés et une écriture PO a lieu — sémantique PO-centrée conservée).
+- **Résolution fournisseur (l'Excel fait foi)** : colonne fournisseur mappée et non vide → prime par ligne
+  (matchée sur l'existant, **jamais créée** → rejet si introuvable) ; sinon fournisseur choisi à l'étape 1
+  (défaut) ; ni l'un ni l'autre → ligne rejetée (`no_supplier`).
+- **Edge cases** (statuts surfacés au front) : `will_update`, `will_create_link` (SKU existant non lié → lien
+  créé pré-rempli), `unchanged`, `sku_not_found` (**montré, no-op**), `supplier_not_found`, `invalid_po`,
+  `no_supplier`, `missing_sku`. Matching SKU/fournisseur sur l'existant only, jamais de création de produit.
+- **Front** : `PoImportWizard.tsx` remplace `PoImportDialog.tsx` (supprimé). Étape 1 = `DataTable` +
+  `SuppliersFiltersSidebar` (style plateforme). Playbook `suppliers.md` mis à jour.
+
+## 2026-07-20 · [P] Import PO — mapping **par index de colonne** + ligne d'en-tête configurable
+
+**Retour client** : (1) seules les colonnes **nommées** étaient sélectionnables au mapping, or beaucoup de
+fichiers ont des colonnes sans en-tête ; (2) l'en-tête n'est pas toujours en ligne 1 (ligne de titre au-dessus).
+
+**Décision** (affine l'entrée précédente du jour) :
+- `column_map` passe de « champ logique → **label de header** » à « champ logique → **index de colonne
+  0-based** ». Ainsi **toutes** les colonnes (même sans nom) sont mappables. Le front les affiche « A · {label} »
+  ou « Colonne B » si sans nom.
+- Nouveau champ `SupplierImportMapping.header_row` (**1-based**, migration `0003`) : la ligne des en-têtes est
+  choisie par l'utilisateur et **persistée avec le template**. `read_excel_headers`/`_iter_data_rows`
+  ignorent les lignes avant, lisent l'en-tête à `header_row`, et démarrent les données après.
+- `analyze/` renvoie désormais `header_row` + `column_count` ; nouvel endpoint **`inspect/`**
+  (`{upload_token, header_row}`) relit le fichier avec une autre ligne d'en-tête **sans re-upload**.
+  `preview/`/`apply/` + tasks prennent `header_row`.
+- ⚠️ **Piège** : côté front, un index `0` est falsy — tester `columnMap[field] != null`, jamais
+  `Boolean(columnMap[field])`, pour la validation SKU/PO.

@@ -49,3 +49,38 @@ class Supplier(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
+
+
+class SupplierImportMapping(BaseModel):
+    """A reusable Excel-to-platform column mapping for the PO import wizard.
+
+    Named template so users can re-import files with a non-standard structure
+    without re-mapping every time. ``supplier`` is an optional scoping hint (a
+    file may be multi-supplier, so the mapping is not strictly tied to one).
+    ``column_map`` maps a logical field to a **0-based column index** (so unnamed
+    columns stay mappable): ``{"sku": 0, "po": 3, "supplier": 1, ...}``.
+    ``header_row`` (1-based) records which row holds the header labels.
+    """
+
+    name = models.CharField(max_length=255)
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        related_name="import_mappings",
+        null=True,
+        blank=True,
+    )
+    # ``column_map`` maps a logical field to a 0-based column index (see
+    # ``services_import``). ``header_row`` is 1-based (the file's header line).
+    column_map = models.JSONField(default=dict)
+    header_row = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "supplier_import_mappings"
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["supplier"], name="idx_import_map_supplier"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name

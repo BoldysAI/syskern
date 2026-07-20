@@ -1837,11 +1837,94 @@ export function bulkLinkSkus(
   );
 }
 
-/** Upload an Excel (SKU / fournisseur / PO) and dispatch the batch import task. */
-export async function startPoImport(file: File): Promise<{ task_id: string }> {
+// ── PO import wizard (analyze → map → preview → apply) ─────────────────────
+
+/** Logical fields the import wizard can map to Excel columns. */
+export type ImportMappableField =
+  | "sku"
+  | "po"
+  | "supplier"
+  | "po_currency"
+  | "factory_code"
+  | "incoterm";
+
+/** Excel-to-platform mapping: logical field → 0-based column index. */
+export type ImportColumnMap = Partial<Record<ImportMappableField, number>>;
+
+export interface PoImportAnalyzeResult {
+  upload_token: string;
+  header_row: number;
+  headers: string[];
+  sample_rows: string[][];
+  column_count: number;
+}
+
+export interface PoImportInspectResult {
+  header_row: number;
+  headers: string[];
+  sample_rows: string[][];
+  column_count: number;
+}
+
+export type PoImportRowStatus =
+  | "will_update"
+  | "will_create_link"
+  | "unchanged"
+  | "sku_not_found"
+  | "supplier_not_found"
+  | "invalid_po"
+  | "no_supplier"
+  | "missing_sku";
+
+export interface PoImportPreviewLine {
+  row: number;
+  sku: string;
+  supplier: string;
+  po: string;
+  status: PoImportRowStatus;
+  reason: string;
+  old_po_base_price: string | null;
+  new_po_base_price: string | null;
+  po_currency: string | null;
+}
+
+export interface PoImportPreview {
+  summary: {
+    total: number;
+    will_update: number;
+    will_create_link: number;
+    unchanged: number;
+    sku_not_found: number;
+    supplier_not_found: number;
+    invalid_po: number;
+    no_supplier: number;
+    missing_sku: number;
+    rejected: number;
+  };
+  lines: PoImportPreviewLine[];
+}
+
+/** Reusable Excel-to-platform column mapping template. */
+export interface SupplierImportMapping {
+  id: string;
+  name: string;
+  supplier: string | null;
+  supplier_name: string | null;
+  column_map: ImportColumnMap;
+  header_row: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Upload an Excel and get back its headers + a bounded sample for mapping. */
+export async function analyzePoImport(
+  file: File,
+  headerRow = 1,
+): Promise<PoImportAnalyzeResult> {
   const fd = new FormData();
   fd.append("file", file);
-  const res = await fetch("/api/suppliers/import-po/", {
+  fd.append("header_row", String(headerRow));
+  const res = await fetch("/api/suppliers/import-po/analyze/", {
     method: "POST",
     credentials: "include",
     headers: { "X-CSRFToken": getCsrfToken() },
@@ -1852,6 +1935,69 @@ export async function startPoImport(file: File): Promise<{ task_id: string }> {
     throw new Error(data?.detail ?? `Erreur ${res.status}`);
   }
   return res.json();
+}
+
+/** Re-read an already-uploaded file with a different header row (no re-upload). */
+export function inspectPoImport(body: {
+  upload_token: string;
+  header_row: number;
+}): Promise<PoImportInspectResult> {
+  return apiFetch<PoImportInspectResult>("/api/suppliers/import-po/inspect/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+interface PoImportRunBody {
+  upload_token: string;
+  column_map: ImportColumnMap;
+  supplier_id?: string | null;
+  header_row: number;
+}
+
+/** Dispatch the dry-run resolution (synthesis). Returns a Celery `task_id`. */
+export function previewPoImport(body: PoImportRunBody): Promise<{ task_id: string }> {
+  return apiFetch<{ task_id: string }>("/api/suppliers/import-po/preview/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Dispatch the apply step. Returns a Celery `task_id`. */
+export function applyPoImport(body: PoImportRunBody): Promise<{ task_id: string }> {
+  return apiFetch<{ task_id: string }>("/api/suppliers/import-po/apply/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** List reusable import mapping templates (optionally scoped to a supplier). */
+export function listImportMappings(supplierId?: string): Promise<SupplierImportMapping[]> {
+  const q = new URLSearchParams({ limit: "500", ordering: "name" });
+  if (supplierId) q.set("supplier", supplierId);
+  return apiFetch<PaginatedResponse<SupplierImportMapping>>(
+    `/api/suppliers/import-mappings/?${q.toString()}`,
+  ).then((r) => r.results ?? []);
+}
+
+/** Create a reusable import mapping template. */
+export function saveImportMapping(body: {
+  name: string;
+  supplier?: string | null;
+  column_map: ImportColumnMap;
+  header_row: number;
+}): Promise<SupplierImportMapping> {
+  return apiFetch<SupplierImportMapping>("/api/suppliers/import-mappings/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Delete a reusable import mapping template. */
+export function deleteImportMapping(id: string): Promise<void> {
+  return apiFetch<void>(`/api/suppliers/import-mappings/${encodeURIComponent(id)}/`, {
+    method: "DELETE",
+  });
 }
 
 // ── Attribute registry admin (CDC §4.1.4) ─────────────────────────────────

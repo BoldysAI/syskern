@@ -8,6 +8,7 @@ supplier is a soft-delete and is refused (409) while SKUs are still linked.
 from __future__ import annotations
 
 import uuid as _uuid_module
+from pathlib import Path
 
 from django.db.models import Count
 from django.http import FileResponse, Http404
@@ -20,11 +21,14 @@ from rest_framework.response import Response
 from apps.products.models import Product, ProductSupplier
 
 from .filters import SupplierFilter
-from .models import Supplier
+from .models import Supplier, SupplierImportMapping
 from .serializers import (
     SupplierBulkLinkSerializer,
     SupplierBulkPoSerializer,
     SupplierDetailSerializer,
+    SupplierImportInspectSerializer,
+    SupplierImportMappingSerializer,
+    SupplierImportRunSerializer,
     SupplierListSerializer,
     SupplierPriceHistorySerializer,
     SupplierProductLinkSerializer,
@@ -32,9 +36,19 @@ from .serializers import (
     SupplierWriteSerializer,
 )
 from .services import apply_bulk_po, bulk_link_skus, preview_bulk_po
-from .tasks import IMPORT_DIR, import_po_task
+from .services_import import read_excel_headers, validate_column_map
+from .tasks import IMPORT_DIR, import_po_apply_task, import_po_preview_task
 
 _ALLOWED_UPLOAD_SUFFIXES = (".xlsx", ".xlsm")
+
+
+def _parse_header_row(raw: object) -> int:
+    """Coerce a request-supplied header row (1-based) to a safe positive int."""
+    try:
+        value = int(str(raw))
+    except (TypeError, ValueError):
+        return 1
+    return value if value >= 1 else 1
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -233,19 +247,34 @@ class SupplierViewSet(viewsets.ModelViewSet):
         )
         return Response(SupplierPriceHistorySerializer(rows, many=True).data)
 
-    # ── Batch Excel PO import (async — AGENTS §4) ─────────────────────────────
+    # ── PO import wizard (analyze → preview → apply, async — AGENTS §4) ────────
+
+    @staticmethod
+    def _upload_path_for(token: str) -> Path | None:
+        """Resolve (and guard) the on-disk path of an uploaded file by token.
+
+        Token is a hex uuid produced by `import_analyze`; reject anything else
+        to avoid path traversal.
+        """
+        try:
+            _uuid_module.UUID(token)
+        except (ValueError, AttributeError):
+            return None
+        return IMPORT_DIR / f"upload_{token}.xlsx"
 
     @action(
         detail=False,
         methods=["post"],
-        url_path="import-po",
+        url_path="import-po/analyze",
         parser_classes=[MultiPartParser, FormParser],
     )
-    def import_po(self, request):
-        """Upload an Excel (SKU / fournisseur / PO) and dispatch the batch import.
+    def import_analyze(self, request):
+        """Upload an Excel and return its headers + a bounded sample of rows.
 
-        Returns 202 + `task_id`; the client polls `/api/tasks/{task_id}/` and
-        downloads the rejection report from `/api/suppliers/imports/{task_id}/report/`.
+        The mapping step consumes `headers` / `column_count` (every column is
+        addressable by index, even unnamed ones); `upload_token` is passed back
+        to the inspect / preview / apply endpoints (the file stays on disk until
+        applied). `header_row` (1-based, default 1) selects the header line.
         """
         upload = request.FILES.get("file")
         if upload is None:
@@ -260,14 +289,99 @@ class SupplierViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        header_row = _parse_header_row(request.data.get("header_row"))
+
         IMPORT_DIR.mkdir(parents=True, exist_ok=True)
-        upload_id = _uuid_module.uuid4().hex
-        upload_path = IMPORT_DIR / f"upload_{upload_id}.xlsx"
+        token = _uuid_module.uuid4().hex
+        upload_path = IMPORT_DIR / f"upload_{token}.xlsx"
         with upload_path.open("wb") as fh:
             for chunk in upload.chunks():
                 fh.write(chunk)
 
-        result = import_po_task.delay(str(upload_path))
+        try:
+            headers, sample_rows, column_count = read_excel_headers(
+                upload_path, header_row=header_row
+            )
+        except ValueError as exc:
+            upload_path.unlink(missing_ok=True)
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                "upload_token": token,
+                "header_row": header_row,
+                "headers": headers,
+                "sample_rows": sample_rows,
+                "column_count": column_count,
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="import-po/inspect")
+    def import_inspect(self, request):
+        """Re-read an already-uploaded file with a different header row.
+
+        Lets the wizard change which row holds the headers without re-uploading.
+        """
+        ser = SupplierImportInspectSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        path = self._upload_path_for(data["upload_token"])
+        if path is None or not path.is_file():
+            return Response(
+                {"detail": "Fichier d'import introuvable ou expiré. Relancez l'upload."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        header_row = data.get("header_row", 1)
+        try:
+            headers, sample_rows, column_count = read_excel_headers(path, header_row=header_row)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "header_row": header_row,
+                "headers": headers,
+                "sample_rows": sample_rows,
+                "column_count": column_count,
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="import-po/preview")
+    def import_preview(self, request):
+        """Dispatch the dry-run resolution (synthesis). Returns 202 + task_id."""
+        return self._dispatch_import(request, import_po_preview_task)
+
+    @action(detail=False, methods=["post"], url_path="import-po/apply")
+    def import_apply(self, request):
+        """Dispatch the apply step. Returns 202 + task_id."""
+        return self._dispatch_import(request, import_po_apply_task)
+
+    def _dispatch_import(self, request, task):
+        ser = SupplierImportRunSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        path = self._upload_path_for(data["upload_token"])
+        if path is None or not path.is_file():
+            return Response(
+                {"detail": "Fichier d'import introuvable ou expiré. Relancez l'upload."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        column_map = data["column_map"]  # already normalised to int indices
+        header_row = data.get("header_row", 1)
+        try:
+            _, _, column_count = read_excel_headers(path, header_row=header_row)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        errors = validate_column_map(column_map, column_count)
+        if errors:
+            return Response({"detail": " ".join(errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+        supplier_id = data.get("supplier_id")
+        result = task.delay(
+            str(path), column_map, str(supplier_id) if supplier_id else None, header_row
+        )
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
@@ -275,7 +389,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path=r"imports/(?P<task_id>[\w-]+)/report")
     def import_report(self, request, task_id=None):
-        """Download the Excel rejection report produced by `import_po_task`."""
+        """Download the Excel rejection report produced by the apply task."""
         file_path = IMPORT_DIR / f"{task_id}_report.xlsx"
         if not file_path.is_file():
             raise Http404("Rapport introuvable ou expiré.")
@@ -285,3 +399,24 @@ class SupplierViewSet(viewsets.ModelViewSet):
             filename="import_po_rapport.xlsx",
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+
+class SupplierImportMappingViewSet(viewsets.ModelViewSet):
+    """CRUD over reusable PO-import column-mapping templates.
+
+    Mounted at `/api/suppliers/import-mappings/`. Optional `?supplier=` filter
+    (by UUID) so the wizard can surface the mappings scoped to a supplier while
+    still allowing global (supplier-less) templates.
+    """
+
+    serializer_class = SupplierImportMappingSerializer
+    queryset = SupplierImportMapping.objects.select_related("supplier").all()
+    ordering_fields = ("name", "updated_at")
+    ordering = ("name",)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        supplier = self.request.query_params.get("supplier")
+        if supplier:
+            qs = qs.filter(supplier_id=supplier)
+        return qs

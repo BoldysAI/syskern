@@ -28,7 +28,7 @@ import { SearchInput } from "@/components/SearchInput";
 import { Button } from "@/components/ui/button";
 import { deleteSupplier, listSuppliers, type Supplier } from "@/lib/api";
 import { SupplierModal } from "./_components/SupplierModal";
-import { PoImportDialog } from "./_components/PoImportDialog";
+import { PoImportWizard } from "./_components/PoImportWizard";
 import { BatchPriceWizard } from "./_components/BatchPriceWizard";
 import { SuppliersFiltersSidebar } from "./_components/SuppliersFiltersSidebar";
 import { SuppliersActiveFilterBar } from "./_components/SuppliersActiveFilterBar";
@@ -337,7 +337,7 @@ export default function SuppliersPage() {
         />
       )}
 
-      {importOpen && <PoImportDialog open onClose={() => setImportOpen(false)} />}
+      {importOpen && <PoImportWizard open onClose={() => setImportOpen(false)} />}
 
       {wizardOpen && <BatchPriceWizard open onClose={() => setWizardOpen(false)} />}
     </div>
