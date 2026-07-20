@@ -80,6 +80,14 @@ class ProductOrderingFilter(OrderingFilter):
                 parts.append(col.desc(nulls_last=True) if desc else col.asc(nulls_last=True))
                 continue
 
+            if name == "completeness_pct":
+                from .services.completeness import completeness_sort_expression
+
+                qs = qs.annotate(_completeness_sort=completeness_sort_expression())
+                col = F("_completeness_sort")
+                parts.append(col.desc(nulls_last=True) if desc else col.asc(nulls_last=True))
+                continue
+
             if name in self._NULLS_LAST_FIELDS:
                 col = F(name)
                 parts.append(col.desc(nulls_last=True) if desc else col.asc(nulls_last=True))

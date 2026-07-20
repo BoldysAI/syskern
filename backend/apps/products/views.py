@@ -79,6 +79,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         "stock_quantity",
         "is_copper_indexed",
         "is_active",
+        "completeness_pct",
         "updated_at",
     )
     ordering = ("sku_code",)

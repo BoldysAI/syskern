@@ -258,6 +258,7 @@ function buildCoreColumnDef(
       return {
         key: "completeness_pct",
         label: "Complétude",
+        sortField: "completeness_pct",
         width: 130,
         render: (product) => <CompletenessCell pct={product.completeness_pct} />,
       };

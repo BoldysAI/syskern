@@ -77,7 +77,7 @@ class TestAttributeOrdering:
         )
         p_low = _make("SORT-LOW")
         p_high = _make("SORT-HIGH")
-        p_none = _make("SORT-NONE")
+        _make("SORT-NONE")  # no attribute value → sorts NULLS LAST
         ProductAttributeValue.objects.create(product=p_low, attribute=attr, value=5)
         ProductAttributeValue.objects.create(product=p_high, attribute=attr, value=50)
 
@@ -110,3 +110,28 @@ class TestAttributeOrdering:
         assert resp.status_code == 200
         order = _sku_order(resp)
         assert order.index("SORT-Z") < order.index("SORT-A")
+
+
+class TestCompletenessOrdering:
+    def test_orders_catalog_by_completeness(self, client):
+        from apps.attributes.models import (
+            AttributeCategory,
+            AttributeDataType,
+            AttributeRegistry,
+            ProductAttributeValue,
+        )
+
+        rich = _make("RICH", brand="B", gtin="1", universe="U", family="F", hs_code="H")
+        attr = AttributeRegistry.objects.create(
+            code="awgc",
+            label={"fr": "AWG"},
+            category=AttributeCategory.TECHNICAL,
+            data_type=AttributeDataType.NUMBER,
+        )
+        ProductAttributeValue.objects.create(product=rich, attribute=attr, value="23")
+        _make("POOR")  # only name + description_marketing FR (via _make)
+
+        desc = _sku_order(client.get("/api/products/", {"ordering": "-completeness_pct"}))
+        assert desc.index("RICH") < desc.index("POOR")
+        asc = _sku_order(client.get("/api/products/", {"ordering": "completeness_pct"}))
+        assert asc.index("POOR") < asc.index("RICH")

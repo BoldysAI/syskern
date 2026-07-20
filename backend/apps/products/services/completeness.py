@@ -7,9 +7,21 @@ on ``/settings/attributes`` and the dashboard completeness widget.
 
 from __future__ import annotations
 
+import operator
+from functools import reduce
 from typing import Any
 
-from django.db.models import Count, Q
+from django.db.models import (
+    Case,
+    Count,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce, Least
 
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.products.models import Product
@@ -167,3 +179,43 @@ def build_product_completeness_map(products: list[Product]) -> dict[str, float]:
         attrs = min(attr_filled.get(product.id, 0), registry_count)
         result[str(product.id)] = round(100 * (core + attrs) / total, 1)
     return result
+
+
+def completeness_sort_expression():
+    """ORM expression for a product's filled-field count (core + attributes).
+
+    Same field set as :func:`build_product_completeness_map`. The denominator is
+    constant per request, so the raw filled count is **monotonic** with the
+    completeness % — ordering by it sorts the catalog by completeness server-side
+    (used by ``ProductOrderingFilter``). A correlated subquery counts non-empty
+    attribute values (no GROUP BY on the main query).
+    """
+    core_terms = [
+        Case(When(_core_field_cond(field, kind), then=1), default=0, output_field=IntegerField())
+        for field, _label, kind, _group in _CORE_FIELDS
+    ]
+    core_filled = reduce(operator.add, core_terms)
+
+    attr_subquery = (
+        ProductAttributeValue.objects.filter(product_id=OuterRef("pk"))
+        .exclude(value=None)
+        .exclude(value="")
+        .exclude(value=[])
+        .values("product_id")
+        .annotate(n=Count("id"))
+        .values("n")
+    )
+    attr_filled = Least(
+        Coalesce(Subquery(attr_subquery, output_field=IntegerField()), Value(0)),
+        Value(AttributeRegistry.objects.count()),
+    )
+    return core_filled + attr_filled
+
+
+def _core_field_cond(field: str, kind: str) -> Q:
+    if kind == "char":
+        return ~Q(**{field: ""})
+    if kind == "num":
+        return Q(**{f"{field}__isnull": False})
+    # json_fr — FR key present and non-empty.
+    return Q(**{f"{field}__fr__isnull": False}) & ~Q(**{f"{field}__fr": ""})
