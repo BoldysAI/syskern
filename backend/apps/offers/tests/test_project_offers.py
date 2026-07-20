@@ -378,6 +378,11 @@ def test_build_gamma_payload_has_5_sections_and_price_table(fake_args, project_s
     assert payload["textOptions"]["language"] == "fr"
     assert payload["exportAs"] == "pdf"
     assert payload["additionalInstructions"] == "conformité CPR"
+    # Gamma best practices: preserve mode + split on our section breaks (avoids
+    # `deck_too_large` export failures); `amount` is ignored in preserve mode.
+    assert payload["textMode"] == "preserve"
+    assert payload["cardSplit"] == "inputTextBreaks"
+    assert "amount" not in payload["textOptions"]
     text = payload["inputText"]
     assert "Datacenter Marseille" in text
     assert "CABLE-1" in text and "RACK-1" in text  # price table rows

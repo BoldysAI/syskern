@@ -189,17 +189,27 @@ def build_gamma_payload(
             f"## {title['conditions'][lang]}\nConditions générales de vente Syskern.{validity}"
         )
 
-    input_text = "\n\n".join(parts)
+    # Separate sections with a `---` rule: Gamma's `inputTextBreaks` splits a
+    # new card on each break, so the deck maps 1:1 to our sections (a long price
+    # table stays inside its own card) — deterministic count, exportable to PDF.
+    input_text = "\n\n---\n\n".join(parts)
     num_cards = max(1, sum(1 for v in sections.values() if v))
 
     payload: dict = {
         "inputText": input_text,
-        "textMode": "preserve",  # keep our structured devis content
+        "textMode": "preserve",  # keep our structured devis content verbatim
         "format": "presentation",
+        # Split cards on our own markdown section breaks (each `##` = one card)
+        # instead of letting Gamma auto-split. Keeps the deck to our N sections
+        # so a long price table stays on a single card and the PDF auto-export
+        # doesn't fail with `deck_too_large` (Gamma best practice for preserve).
+        "cardSplit": "inputTextBreaks",
         "numCards": num_cards,
         "title": offer.project_name,
         "exportAs": "pdf",
-        "textOptions": {"language": lang, "amount": "detailed"},
+        # `amount` is ignored in preserve mode (Gamma keeps our text as-is), so
+        # we send only the target language.
+        "textOptions": {"language": lang},
         "imageOptions": {"source": image_source},
     }
     if offer.ai_instructions:

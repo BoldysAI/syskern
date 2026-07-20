@@ -57,6 +57,12 @@
   - `run_generation(offer)` (retry-safe, lit tout depuis l'offre) → OpenAI args → payload Gamma
     5 sections → `gamma.generate_and_wait` → stocke `gamma_document_id`, `generated_file_url`
     (= gammaUrl), `project_info.gamma_export_url` (PDF), snapshot HTML best-effort.
+  - **Payload Gamma — best practices (`build_gamma_payload`)** : `textMode="preserve"` (on garde
+    notre contenu verbatim) + **`cardSplit="inputTextBreaks"`** avec sections séparées par une ligne
+    **`---`** → une carte par section, count déterministe, **la table de prix reste dans UNE carte**.
+    Sans ces breaks, Gamma auto-splittait → **échec d'export `deck_too_large`** (« dépasse la longueur
+    d'exportation ») sur les offres à beaucoup de SKU. `textOptions` ne porte que `language` (`amount`
+    est **ignoré** en mode preserve). `numCards` conservé (hint, ignoré quand `cardSplit=inputTextBreaks`).
   - **Sélecteur de template (FEEDBACK 1, §7.7.2)** : `Offer.gamma_template`
     (`distributeur`/`factoring`/`export`/"") choisi au wizard (étape « Sections »). `_build_payload`
     → `_resolve_gamma_template(offer)` : `settings.GAMMA["TEMPLATES"][choix]` → `payload["themeId"]`,
