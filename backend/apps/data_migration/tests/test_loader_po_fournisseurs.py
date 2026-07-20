@@ -290,6 +290,19 @@ class TestPOLoaderReport:
         # tolerated → supplier created without a price). Row 3: NO_SKU, Row 4: NO_MATCH.
         assert report.rows_matched == 3
 
+    def test_supplier_fk_is_linked(self) -> None:
+        from apps.suppliers.models import Supplier
+
+        POFournisseursLoader().run(default_config())
+        links = ProductSupplier.objects.filter(product__sku_code="KCFU64PZHDGR5")
+        assert links.exists()
+        # Every link points at the managed Supplier entity matching its name
+        # (not left FK-null) — so the suppliers-list count is FK-based & correct.
+        for ps in links:
+            assert ps.supplier is not None
+            assert ps.supplier.name == ps.supplier_name
+            assert Supplier.objects.filter(pk=ps.supplier_id).exists()
+
     def test_eav_attributes_written(self) -> None:
         from apps.attributes.models import ProductAttributeValue
 

@@ -30,6 +30,12 @@ reste la **source de vérité pour le pricing**. Détail dans `decisions.md` (20
   - `supplier_name` **conservé** (dénormalisé) : compat Odoo sync (`update_or_create` sur le nom), filtres
     catalogue `?supplier=`, exports, `/api/supplier-names`. Maintenu en phase avec la FK à chaque écriture.
   - Contrainte inchangée : **un seul fournisseur actif par produit** (`one_active_supplier_per_product`).
+  - ⚠️ **La FK est la source de vérité** pour le count liste (`linked_skus_count = Count("product_links")`)
+    et la garde `destroy` (409 si `product_links.exists()`). **TOUT chemin d'écriture DOIT poser la FK**
+    via `get_or_create_supplier_by_name(name)` — Odoo sync (`runner`), loader Excel PO
+    (`loader_po_fournisseurs._upsert_supplier`), CRUD/import UI. Le loader Excel l'oubliait → 760 liens
+    FK-null après `--purge`/re-bootstrap → count faux (0) alors que le détail (par nom) montrait les
+    produits. Corrigé + migration `products/0008` re-backfille (idempotent, `supplier__isnull=True`).
 
 - **`products.SupplierPriceHistory`** (`db_table="supplier_price_history"`, `BaseModel`) — trace des PO.
   FK `product_supplier` (CASCADE), `old_po_base_price`, `new_po_base_price`, `po_currency`,

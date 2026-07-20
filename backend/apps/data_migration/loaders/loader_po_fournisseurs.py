@@ -53,6 +53,7 @@ import pandas as pd
 from apps.attributes.models import AttributeCategory, AttributeDataType, AttributeRegistry
 from apps.core.models import Currency
 from apps.products.models import Incoterm, MigrationSource, Product, ProductSupplier
+from apps.suppliers.services import get_or_create_supplier_by_name
 
 from .base import BaseExcelLoader
 from .eav import EAVDef, ensure_attributes, set_value
@@ -461,7 +462,18 @@ class POFournisseursLoader(BaseExcelLoader):
         )
 
         # Always update pricing fields — this is the enrichment step
-        supplier.supplier_name = supplier_code or _TRADING_COMPANY
+        name = supplier_code or _TRADING_COMPANY
+        supplier.supplier_name = name
+        # Link to the managed Supplier entity (like the Odoo sync) so the
+        # suppliers-list count + destroy guard are FK-based and correct — not
+        # left orphaned on the denormalised name alone.
+        supplier.supplier = get_or_create_supplier_by_name(
+            name,
+            defaults={
+                "currency_default": _PO_CURRENCY,
+                "factory_code_default": parsed_factory or "",
+            },
+        )
         supplier.po_base_price = fob_price
         supplier.po_currency = _PO_CURRENCY
         supplier.incoterm = _INCOTERM
