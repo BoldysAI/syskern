@@ -477,6 +477,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 pamp_predictive_eur=line.pamp_predictive_eur,
                 pr_eur=line.pr_eur,
                 pv_eur=line.pv_eur,
+                previous_pv_eur=line.previous_pv_eur,
                 effective_margin_rate=line.effective_margin_rate,
                 effective_mix_pct=line.effective_mix_pct,
                 calculation_breakdown=line.calculation_breakdown,
@@ -680,6 +681,7 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
     filter_backends = [OrderingFilter]
     ordering_fields = (
         "pv_eur",
+        "previous_pv_eur",
         "pa_net_eur",
         "pr_eur",
         "status",

@@ -51,9 +51,17 @@ Un échec Odoo **ne bloque jamais** un recalcul. Dans `recalculate_task`, les sc
 `with_odoo_refresh`/`full_refresh` encapsulent `refresh_odoo_for_simulation` : en cas d'échec,
 on log, on recalcule sur les **params courants** (mode dégradé, sans pending), la tâche **réussit**,
 et l'erreur est remontée via `data["odoo_refresh_error"]` + la `note` de la trace
-(`[Rafraîchissement Odoo indisponible : …]`). Le front (`RecalculateModal`) affiche un message
+(`[Rafraîchissement Odoo indisponible : …]`). Le front (`RecalculateButton`) affiche un toast
 non bloquant. Un système externe indisponible ne doit jamais empêcher de pricer.
 
+### Dernier PV (`previous_pv_eur` — FEEDBACK 2)
+
+Sur chaque recalcul **réussi**, `_recalculate_line` archive l'ancien `pv_eur` dans
+`SimulationLine.previous_pv_eur` avant d'écrire le nouveau PV. Couvre tous les chemins
+(`run_simulation`, `recalculate_single_line`). Échec diagnostics : champs inchangés. 1er calcul :
+`previous_pv_eur` reste `null`. Exposé read-only par l'API ; colonne « Dernier PV »
+dans `SimulationTable` (triable via `ordering=previous_pv_eur`, visibilité toggleable
+avec les autres colonnes).
 ---
 
 ## Pipeline complet (PA → PR → PV)
@@ -298,7 +306,7 @@ Tables Django ORM (`apps/simulations/models.py`, `apps/market/models.py`) — **
 | Table | Rôle |
 |---|---|
 | `simulations` | En-tête : `market_params` + `calculation_chain` snapshot, marges, mix, `odoo_snapshot_at`, statut `draft`/`finalized`/`archived` |
-| `simulation_lines` | 1 ligne/SKU : snapshots produit/fournisseur, overrides (`margin_override`, `stock_purchase_mix_pct_override`), **`quantity`** + **`force_manual_mix`** (Projet, CDC Feedback 1), résultats figés (`pa_net_eur`, `pr_eur`, `pv_eur`, `effective_margin_rate`, `effective_mix_pct`), `calculation_breakdown` (migration `0008`) |
+| `simulation_lines` | 1 ligne/SKU : snapshots produit/fournisseur, overrides (`margin_override`, `stock_purchase_mix_pct_override`), **`quantity`** + **`force_manual_mix`** (Projet, CDC Feedback 1), résultats figés (`pa_net_eur`, `pr_eur`, `pv_eur`, **`previous_pv_eur`**, `effective_margin_rate`, `effective_mix_pct`), `calculation_breakdown` (migrations `0008` + `0010`) |
 | `simulation_recalculations` | Trace d'audit à chaque recalc global (`aggregates`, `line_snapshots`, `trigger_type`, snapshots) |
 | `market_parameters` | Cuivre/FX saisis manuellement, historisés ; source pour les snapshots `market_params` |
 

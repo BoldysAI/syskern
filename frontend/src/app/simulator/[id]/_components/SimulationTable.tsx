@@ -63,6 +63,12 @@ import { formatIncotermDisplay } from "@/lib/incoterms";
 import { normalizeIntegerQuantity } from "@/app/simulator/new/_components/wizard-draft";
 import { LineDiagnosticsDrawer } from "./LineDiagnosticsDrawer";
 import { CalculationBreakdownDrawer } from "./CalculationBreakdownDrawer";
+import { RecalculateButton } from "./RecalculateButton";
+import { SimulationColumnsDialog } from "./SimulationColumnsDialog";
+import {
+  loadVisibleSimulationColumns,
+  saveVisibleSimulationColumns,
+} from "./simulation-column-storage";
 import {
   SimulationLinesFilterSidebar,
   SimulationLineStatusFilterSection,
@@ -73,12 +79,15 @@ import { buildSimulationLineBulkFilter } from "./simulation-line-filters";
 interface Props {
   sim: SimulationDetail;
   readOnly: boolean;
-  onRecalc: () => void;
+  /** Live market params from the sidebar (passed to recalc). */
+  marketParams?: Record<string, unknown>;
   onBulkEdit: (opts?: { lineIds?: string[]; filter?: BulkEditFilter }) => void;
   onAddProducts: () => void;
   onExport: () => void;
   onHistory: () => void;
   onChanged: () => void;
+  /** Refresh sim header + lines after a global recalc. */
+  onRecalcDone: () => void;
 }
 
 const PAGE_SIZE = 200;
@@ -292,12 +301,13 @@ function RowMenu({
 export function SimulationTable({
   sim,
   readOnly,
-  onRecalc,
+  marketParams,
   onBulkEdit,
   onAddProducts,
   onExport,
   onHistory,
   onChanged,
+  onRecalcDone,
 }: Props) {
   const confirm = useConfirm();
   const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>({});
@@ -562,8 +572,16 @@ export function SimulationTable({
   };
 
   const isProject = sim.simulation_type === "project";
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
+    loadVisibleSimulationColumns(sim.simulation_type === "project"),
+  );
 
-  const columns = useMemo<DataTableColumnDef<SimulationLine>[]>(
+  const applyVisibleColumns = (keys: string[]) => {
+    setVisibleColumns(keys);
+    saveVisibleSimulationColumns(keys);
+  };
+
+  const allColumns = useMemo<DataTableColumnDef<SimulationLine>[]>(
     () => [
       {
         key: "product_sku",
@@ -721,6 +739,15 @@ export function SimulationTable({
         ),
       },
       {
+        key: "previous_pv_eur",
+        label: "Dernier PV",
+        sortField: "previous_pv_eur",
+        width: 110,
+        align: "right",
+        cellClassName: "text-sm text-muted-foreground font-data",
+        render: (line) => fmtEur(line.previous_pv_eur),
+      },
+      {
         key: "pv_eur",
         label: "PV",
         sortField: "pv_eur",
@@ -797,6 +824,11 @@ export function SimulationTable({
       },
     ],
     [readOnly, busyLine, patchLine, fromSimulation, isProject],
+  );
+
+  const columns = useMemo(
+    () => allColumns.filter((col) => visibleColumns.includes(col.key)),
+    [allColumns, visibleColumns],
   );
 
   return (
@@ -906,22 +938,13 @@ export function SimulationTable({
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={onRecalc}
+            <RecalculateButton
+              simId={sim.id}
+              marketParams={marketParams}
               disabled={readOnly}
-              variant={sim.is_dirty ? "default" : "outline"}
-              size="sm"
-              className="gap-2 font-semibold"
-            >
-              <Calculator size={15} />
-              Recalculer
-              {sim.is_dirty && (
-                <span
-                  className="h-2 w-2 rounded-full bg-primary-foreground"
-                  title="Recalcul nécessaire"
-                />
-              )}
-            </Button>
+              isDirty={sim.is_dirty}
+              onDone={onRecalcDone}
+            />
             <Button
               onClick={onAddProducts}
               disabled={readOnly}
@@ -957,6 +980,11 @@ export function SimulationTable({
             <Button onClick={onHistory} variant="outline" size="sm">
               Historique
             </Button>
+            <SimulationColumnsDialog
+              isProject={isProject}
+              visibleKeys={visibleColumns}
+              onApply={applyVisibleColumns}
+            />
           </div>
         </div>
       </div>
