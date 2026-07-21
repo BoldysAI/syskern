@@ -212,6 +212,13 @@ class SimulationLine(BaseModel):
     )
     pr_eur = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     pv_eur = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    previous_pv_eur = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="PV just before the latest successful recalculation (FEEDBACK 2).",
+    )
 
     # Frozen effective values used at calculation time (CDC §6.9.10).
     effective_margin_rate = models.DecimalField(

@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimulationSidebar } from "./_components/SimulationSidebar";
 import { SimulationTable } from "./_components/SimulationTable";
-import { RecalculateModal } from "./_components/RecalculateModal";
 import { BulkEditModal } from "./_components/BulkEditModal";
 import { AddProductsModal } from "./_components/AddProductsModal";
 import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
@@ -50,7 +49,6 @@ export default function SimulationDetailPage() {
     max: 640,
     storageKey: "syskern:simulation-sidebar-width",
   });
-  const [recalcOpen, setRecalcOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkLineIds, setBulkLineIds] = useState<string[] | null>(null);
   const [bulkFilter, setBulkFilter] = useState<BulkEditFilter | null>(null);
@@ -204,7 +202,7 @@ export default function SimulationDetailPage() {
         <SimulationTable
           sim={sim}
           readOnly={readOnly}
-          onRecalc={() => setRecalcOpen(true)}
+          marketParams={pendingMarketParams ?? undefined}
           onAddProducts={() => setAddProductsOpen(true)}
           onBulkEdit={(opts) => {
             setBulkLineIds(opts?.lineIds?.length ? opts.lineIds : null);
@@ -214,16 +212,10 @@ export default function SimulationDetailPage() {
           onExport={() => exportSimulation(sim.id)}
           onHistory={() => setHistoryOpen(true)}
           onChanged={() => void mutateSim()}
+          onRecalcDone={refreshAll}
         />
       </main>
 
-      <RecalculateModal
-        simId={sim.id}
-        marketParams={pendingMarketParams ?? undefined}
-        open={recalcOpen}
-        onClose={() => setRecalcOpen(false)}
-        onDone={refreshAll}
-      />
       <AddProductsModal
         simId={sim.id}
         open={addProductsOpen}

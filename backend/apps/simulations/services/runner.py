@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Avg, Max, Min
@@ -42,7 +41,6 @@ from .engine import (
     compute_pr,
     compute_predictive_pamp,
     compute_quantity_driven_mix_pct,
-    quantize,
     resolve_margin_rate,
     resolve_mix_pct,
     run_chain,
@@ -426,6 +424,7 @@ def _recalculate_line(
         line.pa_net_eur = pa_net
         line.pamp_predictive_eur = pamp_predictive
         line.pr_eur = pr
+        line.previous_pv_eur = line.pv_eur
         line.pv_eur = pv
         line.effective_mix_pct = mix_pct
         line.effective_margin_rate = margin_rate

@@ -476,6 +476,8 @@ export interface SimulationLine {
   pamp_predictive_eur: string | null;
   pr_eur: string | null;
   pv_eur: string | null;
+  /** PV just before the latest successful recalculation (FEEDBACK 2). */
+  previous_pv_eur: string | null;
   pv_total_eur: string | null;
   effective_margin_rate: string | null;
   effective_mix_pct: number | null;
@@ -485,7 +487,7 @@ export interface SimulationLine {
   last_calculated_at: string | null;
 }
 
-/** Recalc scopes from the modal (CDC §6.9.4). */
+/** Recalc scopes (FEEDBACK 2: primary button = params_only; menu = advanced). */
 export type RecalcScope = "params_only" | "with_odoo_refresh" | "full_refresh";
 
 /** One frozen per-SKU result inside a recalc trace (CDC §6.9.12). */

@@ -23,7 +23,7 @@ from apps.simulations.models import (
     SimulationRecalculation,
     SimulationType,
 )
-from apps.simulations.services.runner import run_simulation
+from apps.simulations.services.runner import recalculate_single_line, run_simulation
 
 pytestmark = pytest.mark.django_db
 
@@ -688,3 +688,83 @@ class TestRunnerFeedback1:
 
         line.refresh_from_db()
         assert line.pa_net_eur == Decimal("110.0000")
+
+
+class TestPreviousPvEur:
+    """FEEDBACK 2 — previous_pv_eur tracks the PV just before a successful recalc."""
+
+    @staticmethod
+    def _bump_syskern_margin(sim: Simulation, rate: str) -> None:
+        chain = dict(sim.calculation_chain or {})
+        sale = dict(chain.get("sale_chain") or {})
+        sale["syskern_margin"] = {"rate": rate}
+        chain["sale_chain"] = sale
+        sim.calculation_chain = chain
+        sim.syskern_margin_rate = Decimal(rate)
+        sim.save(update_fields=["calculation_chain", "syskern_margin_rate"])
+
+    def test_first_recalc_leaves_previous_null(self) -> None:
+        sim = _cdc_simulation()
+        line = _cdc_line(sim)
+
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.pv_eur == Decimal("487.7045")
+        assert line.previous_pv_eur is None
+
+    def test_second_global_recalc_stores_previous_pv(self) -> None:
+        sim = _cdc_simulation()
+        line = _cdc_line(sim)
+
+        run_simulation(sim)
+        line.refresh_from_db()
+        first_pv = line.pv_eur
+        assert first_pv is not None
+
+        self._bump_syskern_margin(sim, "0.25")
+        run_simulation(sim)
+
+        line.refresh_from_db()
+        assert line.previous_pv_eur == first_pv
+        assert line.pv_eur != first_pv
+        # 390.1636 / (1 - 0.25) = 520.218133… → quantized to 4 dp.
+        assert line.pv_eur == Decimal("520.2181")
+
+    def test_single_line_recalc_updates_previous_pv(self) -> None:
+        sim = _cdc_simulation()
+        line = _cdc_line(sim)
+
+        run_simulation(sim)
+        line.refresh_from_db()
+        first_pv = line.pv_eur
+
+        self._bump_syskern_margin(sim, "0.30")
+        recalculate_single_line(line)
+
+        line.refresh_from_db()
+        assert line.previous_pv_eur == first_pv
+        assert line.pv_eur != first_pv
+
+    def test_failed_preflight_does_not_change_previous_or_pv(self) -> None:
+        sim = _cdc_simulation()
+        line = _cdc_line(sim)
+        run_simulation(sim)
+        line.refresh_from_db()
+        first_pv = line.pv_eur
+
+        self._bump_syskern_margin(sim, "0.25")
+        recalculate_single_line(line)
+        line.refresh_from_db()
+        second_pv = line.pv_eur
+        previous_after_ok = line.previous_pv_eur
+        assert previous_after_ok == first_pv
+
+        # Break the product so the next recalc hits preflight errors.
+        line.product.suppliers.filter(is_active=True).update(is_active=False)
+        recalculate_single_line(line)
+
+        line.refresh_from_db()
+        assert line.status == "error"
+        assert line.pv_eur == second_pv
+        assert line.previous_pv_eur == previous_after_ok

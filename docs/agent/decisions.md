@@ -965,3 +965,27 @@ fichiers ont des colonnes sans en-tête ; (2) l'en-tête n'est pas toujours en l
   `preview/`/`apply/` + tasks prennent `header_row`.
 - ⚠️ **Piège** : côté front, un index `0` est falsy — tester `columnMap[field] != null`, jamais
   `Boolean(columnMap[field])`, pour la validation SKU/PO.
+
+## 2026-07-21 · [P] Feedback 2 — recalcul 1-clic + colonne « Dernier PV »
+
+Lot Feedback 2 (friction UX recalcul + avant/après PV rapide, distinct du comparateur).
+
+- **Recalcul sans popup** : le bouton principal lance immédiatement `scope: "params_only"` (avec
+  `market_params` sidebar). Les scopes `with_odoo_refresh` / `full_refresh` restent accessibles via un
+  **menu déroulant** (split-button `RecalculateButton`). `RecalculateModal` **supprimé**. Erreur Odoo
+  dégradée → toast `sonner` (non bloquant), comme avant.
+- **`previous_pv_eur`** sur `SimulationLine` (migration `0010`) : PV juste avant le dernier recalcul
+  **réussi**. Écrit dans `_recalculate_line` (`previous_pv_eur = pv_eur` puis `pv_eur = nouveau`) —
+  couvre recalcul global, « Enregistrer et recalculer », ligne / sélection. Échec diagnostics
+  (`_persist_diagnostics`) : inchangé. 1er calcul → `null`. Duplicate copie le champ.
+- **Front** : colonne optionnelle **« Dernier PV »** (juste avant PV), **visible par défaut**, toggle
+  via menu Colonnes ; préférence `localStorage` `syskern:simulation-optional-columns:v1`.
+
+## 2026-07-21 · [P] Feedback 2 (suite) — colonnes simulation style catalogue + tri Dernier PV
+
+- **Visibilité** : toutes les colonnes du tableau simulation sont sélectionnables/désélectionnables
+  via `SimulationColumnsDialog` (comme le catalogue) ; SKU verrouillé ; Quantité / Prix total
+  réservés aux sims Projet. Clé `syskern:simulation-visible-columns:v1` (migration depuis
+  `syskern:simulation-optional-columns:v1`).
+- **Tri** : `previous_pv_eur` ajouté à `SimulationLineViewSet.ordering_fields` ; colonne front
+  `sortField: "previous_pv_eur"`.

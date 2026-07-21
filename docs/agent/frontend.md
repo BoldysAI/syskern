@@ -602,12 +602,17 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   monté avec `key={sim.id}`.
 - **`SimulationTable`** : bandeau contexte (dernier calcul, cuivre base/actuel, FX, **incoterm vente**,
   snapshot Odoo,
-  boutons **Recalculer** [proéminent si `is_dirty`] / **Ajouter des produits** (`AddProductsModal` —
-  catalogue filtré, multi-sélection, `POST /api/simulations/{id}/lines/`) / Édition groupée / Exporter Excel / Historique) ;
+  boutons **Recalculer** (split-button FEEDBACK 2 — clic = `params_only` immédiat ; chevron =
+  Odoo / full refresh ; proéminent si `is_dirty`) / **Ajouter des produits** (`AddProductsModal` —
+  catalogue filtré, multi-sélection, `POST /api/simulations/{id}/lines/`) / Édition groupée / Exporter Excel / Historique / **Colonnes** ;
   **grille via `DataTable` partagé** (`components/data-table/`, clé largeurs
   `syskern:simulation-col-widths:v1`) avec colonnes métier : SKU, Désignation (`product_designation`),
   Gamme, Stock, PAMP, PAMP prév., **Quantité** (Projet), Mix eff., PA net, PR, Marge eff.,
-  PV, **Prix total** (Projet, `pv_total_eur`), Statut + menu kebab ;
+  **Dernier PV** (`previous_pv_eur`, triable), PV, **Prix total** (Projet, `pv_total_eur`), Statut + menu kebab ;
+  **Visibilité colonnes** (style catalogue) : `SimulationColumnsDialog` +
+  `simulation-column-storage.ts` (`syskern:simulation-visible-columns:v1`, SKU verrouillé,
+  Quantité/Prix total seulement en Projet ; défaut = toutes visibles ; migration depuis
+  `syskern:simulation-optional-columns:v1`) ;
   **Colonnes Projet uniquement** (CDC Feedback 1) : **Quantité** (éditable → `quantity`, pilote le mix auto),
   **Prix total** (= PV × quantité) ; cellule **Mix** = `MixCell` : mode **auto** (badge « auto », piloté par la
   quantité) ou **manuel** (slider/override) via le toggle `force_manual_mix`.   **Coefficient transport** (chaîne PA/PV,
@@ -637,7 +642,7 @@ Lecture seule si `status !== "draft"` (finalized/archived).
   - Messages via `lineDiagnostics()` (`sim-format.ts`) qui passe par `humanizeEngineMessage()`
     (`lib/humanize-errors.ts`) — texte FR utilisateur, y compris pour diagnostics legacy anglais
     déjà persistés en base.
-  - Toasts / modales simulateur (`RecalculateModal`, `SimulationTable`, `SimulationSidebar`) :
+  - Toasts / simulateur (`RecalculateButton`, `SimulationTable`, `SimulationSidebar`) :
     `humanizeApiError()` extrait le `detail` DRF ou humanise les erreurs moteur.
   - Colonne Statut : erreurs (rouge) **puis** avertissements (ambre) affichés ensemble.
   - Menu kebab **⋮** → **Détail du calcul** → `CalculationBreakdownDrawer` (**4 onglets** :
@@ -670,9 +675,10 @@ Lecture seule si `status !== "draft"` (finalized/archived).
 - **Sidebar simulation redimensionnable** : `useResizableWidth` (280–640 px, défaut 360, clé
   `syskern:simulation-sidebar-width`) + poignée drag sur `SimulationSidebar`. **Sidebar app**
   repliable : `usePersistedBoolean` (`syskern:main-sidebar-collapsed`) + toggle dans `AppShell`.
-- **`RecalculateModal`** : 3 scopes (`params_only`/`with_odoo_refresh`/`full_refresh`), estimation durée,
-  barre de progression → `recalculateSimulation(id, {scope, market_params})` (snapshot marché courant
-  de la sidebar, tout scope) (`dispatchAndPoll`).
+- **`RecalculateButton`** (FEEDBACK 2) : split-button — clic principal → `params_only` immédiat
+  (pas de Dialog) ; menu chevron → `with_odoo_refresh` / `full_refresh` ;
+  `recalculateSimulation(id, {scope, market_params})` (`dispatchAndPoll`) ; toast si
+  `odoo_refresh_error`. Remplace l'ancien `RecalculateModal`.
 - **`BulkEditModal`** : mode sélection (`lineIds`) ou filtre tableau (`initialFilter` = filtres sidebar
   actifs). Aperçu `{count}` débouncé (`bulkEditPreview`). Pas de panneau filtres dans la modale —
   ajuster la sidebar avant d'ouvrir. Mode **Définir** (marge, mix, quantité/mode mix projet) ou reset.

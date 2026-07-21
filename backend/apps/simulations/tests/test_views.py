@@ -373,12 +373,30 @@ class TestSingleLineRecalc:
         sim, line = _priceable_line()
         resp = client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
         assert resp.status_code == 200
+        body = resp.json()
         line.refresh_from_db()
         assert line.status == "ok"
         assert line.pv_eur is not None
+        assert body["previous_pv_eur"] is None
         # CDC §6.9.5 — single-line recalc must NOT append an audit trace.
         assert SimulationRecalculation.objects.filter(simulation=sim).count() == 0
 
+    def test_recalculate_single_line_sets_previous_pv(self, client: APIClient) -> None:
+        sim, line = _priceable_line()
+        client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
+        line.refresh_from_db()
+        first_pv = str(line.pv_eur)
+        chain = dict(sim.calculation_chain or {})
+        sale = dict(chain.get("sale_chain") or {})
+        sale["syskern_margin"] = {"rate": "0.30"}
+        chain["sale_chain"] = sale
+        sim.calculation_chain = chain
+        sim.save(update_fields=["calculation_chain"])
+        resp = client.post(f"/api/simulation-lines/{line.pk}/recalculate/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["previous_pv_eur"] == first_pv
+        assert body["pv_eur"] != first_pv
     def test_recalculate_single_line_finalized_blocked(self, client: APIClient) -> None:
         sim, line = _priceable_line()
         Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
@@ -596,6 +614,7 @@ class TestDuplicate:
             pa_net_eur=Decimal("100"),
             pr_eur=Decimal("110"),
             pv_eur=Decimal("130"),
+            previous_pv_eur=Decimal("120"),
             effective_margin_rate=Decimal("0.1500"),
             effective_mix_pct=40,
         )
@@ -613,6 +632,7 @@ class TestDuplicate:
         assert copy_line["margin_override"] == "0.1500"
         assert copy_line["stock_purchase_mix_pct_override"] == 40
         assert copy_line["pv_eur"] == "130.0000"
+        assert copy_line["previous_pv_eur"] == "120.0000"
         assert copy_line["effective_margin_rate"] == "0.1500"
         assert copy_line["effective_mix_pct"] == 40
 
