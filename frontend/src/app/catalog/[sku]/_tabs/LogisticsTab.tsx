@@ -22,7 +22,9 @@ export function LogisticsTab() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="border-none pb-0">
-            <CardTitle className="text-sm font-semibold">Unité & approvisionnement</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              Unité, poids & approvisionnement
+            </CardTitle>
           </CardHeader>
           <CardContent className="pt-3">
             <Field
@@ -32,6 +34,9 @@ export function LogisticsTab() {
               options={BASE_UNIT_OPTIONS}
             />
             <Field field="uom" label="Unité réelle (Odoo)" kind="text" readOnly />
+            {/* Poids unitaire : de retour en Logistique (FEEDBACK 2), sa place
+                d'origine. Le round 1 l'avait déplacé en Technique par erreur. */}
+            <Field field="unit_weight_kg" label="Poids unitaire" kind="number" unit="kg" />
             <Field
               field="supply_policy"
               label="Approvisionnement"

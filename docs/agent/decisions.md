@@ -989,3 +989,36 @@ Lot Feedback 2 (friction UX recalcul + avant/après PV rapide, distinct du compa
   `syskern:simulation-optional-columns:v1`).
 - **Tri** : `previous_pv_eur` ajouté à `SimulationLineViewSet.ordering_fields` ; colonne front
   `sortField: "previous_pv_eur"`.
+
+## 2026-07-22 · [P] Feedback 2 — lot PIM/OFFRES « quick wins » (recette Olivier)
+
+Lot issu de la session de recette du 20/07. Plusieurs points **corrigent le round 1** : c'est assumé,
+le client a arbitré différemment en voyant l'écran.
+
+- **Poids unitaire → retour en Logistique** : **annule** l'entrée du round 1 qui l'avait déplacé en
+  Technique. La carte « Poids & indexation cuivre » de l'onglet Technique est **supprimée** ;
+  `unit_weight_kg` revient dans « Unité, poids & approvisionnement » (Logistique). L'indexation cuivre
+  ne reste pas en Technique non plus → elle part en Commercial, portée par la relation
+  produit-fournisseur (entrée dédiée).
+- **« Hiérarchie » → « Arborescence »** dans toute l'UI (filtres catalogue, fiche produit, wizard,
+  récap). Terme demandé par le client. La donnée (`universe`/`family`/`range`/`sub_range`) est inchangée.
+- **Filtre catalogue « Actif » par défaut** : `CatalogBrowser` initialise `active_in: true`
+  (`withDefaultFilters`), y compris derrière `initialFilters` et après « Tout effacer ». Un appelant
+  qui demande explicitement `active_out` garde la main. Les produits soft-deletés restent accessibles
+  via le filtre « Statut produit » — le soft-delete lui-même est inchangé (CDC §4.6).
+- **Section de filtres pré-ouverte** : `FilterSection defaultOpen` est utilisé pour la **seule**
+  « Arborescence produit » du catalogue. Exception explicite à la convention « tout replié par défaut »
+  (documentée dans la prop). Ne pas étendre sans demande client.
+- **« Code usine » retiré du panneau Identifiants** de la fiche produit : l'information appartient à la
+  relation produit-fournisseur (module Fournisseurs). Le champ `factory_code` **reste en base** (règles
+  de matching migration §8.6) et reste saisissable dans le wizard de création (dérivé auto).
+- **« Code article » (`item_code`) remonté juste sous le SKU** (fiche + wizard). Le champ existait déjà
+  en base et dans la complétude, il était noyé dans « Identifiants ». ⚠️ **Non alimenté par Odoo** :
+  en v16 `default_code` est toujours vide (le SKU vient de `name`) — la source du code article côté
+  Odoo reste à déterminer avec le client.
+- **Unité réelle affichée avec le stock** : helper `productUnitLabel` (`lib/product-units.ts`) →
+  `uom` (Odoo, fait foi) sinon libellé de `base_unit`, sinon « u ». Appliqué fiche produit, drawer,
+  onglet Commercial. Remplace le générique « u »/« unités ».
+- **Total général dans l'offre** : le tableau de prix généré (`_price_table_markdown`) se termine par
+  une ligne **Total général / Grand total / Total general** (fr/en/es) ; la fiche offre affiche le même
+  total en `tfoot`. Les offres **tarifaires** (listes de prix sans quantité) ne sont pas concernées.

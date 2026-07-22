@@ -68,13 +68,7 @@ export function CatalogSidebar({
   className,
 }: CatalogSidebarProps) {
   const boundsFilters = useMemo(() => {
-    const {
-      pamp_min: _pm,
-      pamp_max: _px,
-      stock_min: _sm,
-      attrs: _attrs,
-      ...rest
-    } = filters;
+    const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, attrs: _attrs, ...rest } = filters;
     return rest;
   }, [filters]);
 
@@ -162,7 +156,15 @@ export function CatalogSidebar({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      <FilterSection title="Hiérarchie produit" icon={TreeStructure} activeCount={hierarchyCount}>
+      {/* Seule section pré-ouverte de la plateforme : c'est le filtre le plus
+          utilisé par le client, qui ne veut plus le déplier à chaque fois
+          (FEEDBACK 2). */}
+      <FilterSection
+        title="Arborescence produit"
+        icon={TreeStructure}
+        activeCount={hierarchyCount}
+        defaultOpen
+      >
         <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
           Cochez plusieurs valeurs par niveau (univers, famille, gamme, sous-gamme). Les niveaux
           inférieurs restent combinables avec l&apos;ensemble des parents sélectionnés.
@@ -187,11 +189,7 @@ export function CatalogSidebar({
         icon={Factory}
         activeCount={(filters.supplier?.length ?? 0) + (filters.active_supplier?.length ?? 0)}
       >
-        <SupplierFilterGroup
-          filters={filters}
-          suppliers={suppliers ?? []}
-          onPatch={patch}
-        />
+        <SupplierFilterGroup filters={filters} suppliers={suppliers ?? []} onPatch={patch} />
       </FilterSection>
 
       <FilterSection title="Statut produit" icon={Checks} activeCount={activeCount}>

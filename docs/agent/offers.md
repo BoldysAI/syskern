@@ -63,6 +63,10 @@
     Sans ces breaks, Gamma auto-splittait → **échec d'export `deck_too_large`** (« dépasse la longueur
     d'exportation ») sur les offres à beaucoup de SKU. `textOptions` ne porte que `language` (`amount`
     est **ignoré** en mode preserve). `numCards` conservé (hint, ignoré quand `cardSplit=inputTextBreaks`).
+  - **Total général (FEEDBACK 2)** : `_price_table_markdown` termine la table par une ligne
+    **Total général / Grand total / Total general** (fr/en/es) = somme des `final_price × quantity`.
+    La fiche offre (`/offers/[id]`) affiche le même total en `tfoot`. Les offres **tarifaires**
+    (listes de prix sans quantité) ne portent pas de total général.
   - **Sélecteur de template (FEEDBACK 1, §7.7.2)** : `Offer.gamma_template`
     (`distributeur`/`factoring`/`export`/"") choisi au wizard (étape « Sections »). `_build_payload`
     → `_resolve_gamma_template(offer)` : `settings.GAMMA["TEMPLATES"][choix]` → `payload["themeId"]`,

@@ -599,6 +599,12 @@ export default function NewProductPage() {
             error={errors.sku_code}
             placeholder="ex. KCFF6A4PZHDBL5-21"
           />
+          {/* Code article juste sous le SKU, comme sur la fiche produit (FEEDBACK 2). */}
+          <TextField
+            label="Code article"
+            value={str("item_code")}
+            onChange={(v) => set("item_code", v)}
+          />
           <TextField
             label="Nom"
             value={str("name")}
@@ -624,15 +630,10 @@ export default function NewProductPage() {
             }}
           />
           <TextField label="Marque" value={str("brand")} onChange={(v) => set("brand", v)} />
-          <TextField
-            label="Code article"
-            value={str("item_code")}
-            onChange={(v) => set("item_code", v)}
-          />
         </div>
       </SectionCard>
 
-      <SectionCard title="Hiérarchie">
+      <SectionCard title="Arborescence">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
             label="Univers"
@@ -844,7 +845,7 @@ export default function NewProductPage() {
           <Recap label="Code usine" value={str("factory_code")} />
           <Recap label="Marque" value={str("brand")} />
           <Recap
-            label="Hiérarchie"
+            label="Arborescence"
             value={[str("universe"), str("family"), str("range"), str("sub_range")]
               .filter(Boolean)
               .join(" › ")}

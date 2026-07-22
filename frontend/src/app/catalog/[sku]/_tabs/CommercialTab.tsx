@@ -14,6 +14,7 @@ import {
   type ProductSupplierInput,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { productUnitLabel } from "@/lib/product-units";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SupplierManager } from "@/components/SupplierManager";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +29,11 @@ import {
   formatPriceHistoryTooltipLabel,
   resolveChartPointIndex,
 } from "./price-history-chart";
-import { CatalogPvDisplay, CatalogPvSimulationSource, latestPvSourceFromHistory } from "@/app/catalog/_components/catalog-pv-display";
+import {
+  CatalogPvDisplay,
+  CatalogPvSimulationSource,
+  latestPvSourceFromHistory,
+} from "@/app/catalog/_components/catalog-pv-display";
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
@@ -192,7 +197,7 @@ export function CommercialTab() {
             <div className="mt-2 text-2xl font-bold font-data text-foreground">
               {Math.round(stock)}
               <span className="ml-1 text-base font-normal font-sans text-muted-foreground">
-                unités
+                {productUnitLabel(product)}
               </span>
             </div>
             <StatusBadge variant={stock > 0 ? "success" : "draft"} className="mt-2 gap-1">

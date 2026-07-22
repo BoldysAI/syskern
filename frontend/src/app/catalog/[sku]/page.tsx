@@ -31,6 +31,7 @@ import {
   type ProductDetail,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { productUnitLabel } from "@/lib/product-units";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -44,10 +45,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
-import {
-  buildProductBreadcrumbs,
-  parseProductNavigationContext,
-} from "@/lib/product-navigation";
+import { buildProductBreadcrumbs, parseProductNavigationContext } from "@/lib/product-navigation";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { buildDuplicateDraft, seedProductDraft } from "../new/draft";
 import { EditContext, type EditContextValue, type DescriptionKind } from "./_tabs/edit-context";
@@ -144,14 +142,14 @@ function KeyInfoCard({
         )}
 
         <InfoLine
-          label="Hiérarchie"
+          label="Arborescence"
           value={hierarchy || <span className="text-muted-foreground/50">—</span>}
         />
         <InfoLine
           label="Marque"
           value={product.brand || <span className="text-muted-foreground/50">—</span>}
         />
-        <InfoLine label="Stock" value={`${Math.round(stock)} u`} />
+        <InfoLine label="Stock" value={`${Math.round(stock)} ${productUnitLabel(product)}`} />
 
         <div className="mt-4 grid grid-cols-1 gap-2">
           <KpiCard

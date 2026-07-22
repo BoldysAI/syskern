@@ -11,7 +11,11 @@ interface FilterSectionProps {
   title: string;
   icon?: React.ComponentType<IconProps>;
   activeCount?: number;
-  /** Sections repliables : fermées par défaut sur toute la plateforme (ne pas passer `true`). */
+  /**
+   * Sections repliables : fermées par défaut sur toute la plateforme.
+   * Seule exception validée : l'arborescence produit du catalogue, que le client
+   * utilise à chaque recherche (FEEDBACK 2). Ne pas étendre sans demande explicite.
+   */
   defaultOpen?: boolean;
   children: ReactNode;
   className?: string;
@@ -34,7 +38,11 @@ export function FilterSection({
   };
 
   return (
-    <Collapsible.Root open={open} onOpenChange={handleOpenChange} className={cn("border-b border-border", className)}>
+    <Collapsible.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      className={cn("border-b border-border", className)}
+    >
       <Collapsible.Trigger className="flex w-full items-center gap-2.5 px-4 py-3.5 text-left transition-colors hover:bg-muted/40">
         {icon && (
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -49,7 +57,10 @@ export function FilterSection({
         )}
         <CaretDown
           size={14}
-          className={cn("shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")}
+          className={cn(
+            "shrink-0 text-muted-foreground transition-transform duration-200",
+            open && "rotate-180",
+          )}
         />
       </Collapsible.Trigger>
       <Collapsible.Content className="overflow-hidden px-4 pb-4 data-[state=closed]:hidden">

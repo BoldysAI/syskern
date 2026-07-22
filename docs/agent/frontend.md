@@ -251,16 +251,22 @@ embarquées, etc.) s’affiche **repliée** au premier rendu. L’utilisateur ou
 sections dont il a besoin.
 
 - **Composant canonique** : `FilterSection` (`components/FilterSection.tsx`) — `defaultOpen` vaut
-  `false` ; **ne jamais** passer `defaultOpen` ni l’ouvrir automatiquement selon le contenu (ex.
-  favoris déjà enregistrés, filtres actifs, etc.).
+  `false` ; **ne jamais** l’ouvrir automatiquement selon le contenu (ex. favoris déjà enregistrés,
+  filtres actifs, etc.).
 - **Sous-niveaux** : cascades hiérarchie (`HierarchyFilterCascade`), attributs dynamiques, etc. —
   même règle (`useState(false)` sur chaque repliable).
 - **Badge `activeCount`** : indique qu’un filtre est appliqué **sans** déplier la section.
 - **Ordre des options** : l’ordre d’affichage des cases à cocher (`FilterCheckboxGroup`) reste
   **fixe** (ordre fourni par l’appelant / API) — cocher une valeur **ne la remonte pas** en tête de
   liste. La recherche locale filtre uniquement, sans réordonner selon la sélection.
-- **Exceptions** : aucune pour l’instant ; le panneau filtres latéral peut rester visible/ouvert en
-  entier, seules les **sections internes** restent fermées.
+- **Exceptions** : **une seule** — « Arborescence produit » du catalogue (`CatalogSidebar`) passe
+  `defaultOpen` (FEEDBACK 2 : c’est le filtre que le client utilise à chaque recherche). Ne pas
+  étendre à d’autres sections sans demande client explicite. Le panneau filtres latéral peut rester
+  visible/ouvert en entier, seules les **sections internes** restent fermées.
+- **Filtres par défaut du catalogue** : `CatalogBrowser.withDefaultFilters()` applique `active_in:
+  true` au premier rendu **et** après « Tout effacer » — les produits soft-deletés sont masqués par
+  défaut (FEEDBACK 2). Un appelant passant explicitement `active_out` garde la main. Le chip
+  « Statut · Actif » reste retirable par l’utilisateur.
 
 Consommateurs actuels : `CatalogSidebar`, `SimulationFiltersSidebar`, `OffersFiltersSidebar`,
 `QuarantineFiltersSidebar`, `ComparisonFiltersSidebar`, `LibraryFiltersSidebar`, + les

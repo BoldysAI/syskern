@@ -389,6 +389,42 @@ def test_build_gamma_payload_has_5_sections_and_price_table(fake_args, project_s
     assert "487.70 EUR" in text
 
 
+def test_price_table_ends_with_grand_total(fake_args, project_sim, project_client):
+    """Le tableau de prix se termine par le total général (FEEDBACK 2)."""
+    offer = pg.create_project_offer(
+        simulation=project_sim,
+        client=project_client,
+        project_name="Datacenter Marseille",
+        quantities={"CABLE-1": 50, "RACK-1": 4},
+        language="fr",
+        expiration_date=None,
+        ai_instructions="",
+    )
+    table = pg._price_table_markdown(offer, "fr")
+    expected = sum(
+        (ln.final_price or Decimal(0)) * (ln.quantity or Decimal(0)) for ln in offer.lines.all()
+    )
+    last_row = table.splitlines()[-1]
+    assert "**Total général**" in last_row
+    assert f"**{expected:.2f} {offer.currency}**" in last_row
+    # Une ligne par produit + en-tête + séparateur + total.
+    assert len(table.splitlines()) == offer.lines.count() + 3
+
+
+def test_price_table_grand_total_is_localised(fake_args, project_sim, project_client):
+    offer = pg.create_project_offer(
+        simulation=project_sim,
+        client=project_client,
+        project_name="P",
+        quantities={"CABLE-1": 1},
+        language="en",
+        expiration_date=None,
+        ai_instructions="",
+    )
+    assert "**Grand total**" in pg._price_table_markdown(offer, "en").splitlines()[-1]
+    assert "**Total general**" in pg._price_table_markdown(offer, "es").splitlines()[-1]
+
+
 def test_build_payload_respects_disabled_sections(fake_args, project_sim, project_client):
     offer = pg.create_project_offer(
         simulation=project_sim,

@@ -151,14 +151,22 @@ def _price_table_markdown(offer: Offer, lang: str) -> str:
     }.get(lang, ("Réf.", "Désignation", "Qté", "Prix unit.", "Total"))
     rows = [f"| {' | '.join(headers)} |", "| --- | --- | --- | --- | --- |"]
     cur = offer.currency
+    grand_total = Decimal(0)
     for ln in offer.lines.select_related("product").all():
         qty = ln.quantity or Decimal(0)
         total = (ln.final_price or Decimal(0)) * qty
+        grand_total += total
         designation, _ = resolve_product_designation(ln.product, lang)
         rows.append(
             f"| {ln.product.sku_code} | {designation} | {qty:g} | "
             f"{ln.final_price:.2f} {cur} | {total:.2f} {cur} |"
         )
+    # Total général de l'offre (FEEDBACK 2) : le client voyait les totaux par
+    # ligne mais devait les additionner lui-même.
+    total_label = {"fr": "Total général", "en": "Grand total", "es": "Total general"}.get(
+        lang, "Total général"
+    )
+    rows.append(f"| **{total_label}** |  |  |  | **{grand_total:.2f} {cur}** |")
     return "\n".join(rows)
 
 

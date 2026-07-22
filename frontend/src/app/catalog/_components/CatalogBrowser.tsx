@@ -61,6 +61,17 @@ import {
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_SORT: DataTableSortState = { field: "sku_code", dir: "asc" };
 
+/**
+ * Les produits soft-deletés sont masqués par défaut (FEEDBACK 2) : ils polluaient
+ * le catalogue alors qu'on les garde uniquement pour l'historique PO/stock/ventes.
+ * L'utilisateur peut les réafficher via le filtre « Statut produit ».
+ */
+function withDefaultFilters(initial?: CatalogFilters): CatalogFilters {
+  const base: CatalogFilters = { active_in: true, ...(initial ?? {}) };
+  // Un appelant qui demande explicitement les inactifs garde la main.
+  return base.active_out ? { ...base, active_in: false } : base;
+}
+
 export interface CatalogBrowserProps {
   className?: string;
   /** `page` = plein écran catalogue ; `embedded` = wizard / panneau embarqué */
@@ -143,7 +154,7 @@ export function CatalogBrowser({
   const confirm = useConfirm();
   const selectionEnabled = Boolean(selectedIds && onToggleProduct);
 
-  const [filters, setFilters] = useState<CatalogFilters>(initialFilters ?? {});
+  const [filters, setFilters] = useState<CatalogFilters>(() => withDefaultFilters(initialFilters));
   const [searchInput, setSearchInput] = useState(initialFilters?.q ?? "");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
@@ -214,7 +225,7 @@ export function CatalogBrowser({
   );
 
   const resetFilters = () => {
-    setFilters(initialFilters ?? {});
+    setFilters(withDefaultFilters(initialFilters));
     setSearchInput(initialFilters?.q ?? "");
     setPage(1);
   };
@@ -355,8 +366,7 @@ export function CatalogBrowser({
     extraColumns,
     insertExtraColumnsBefore,
     trailingExtraColumns,
-    visibleColumnKeys:
-      variant === "page" || simulationId ? effectiveVisibleColumnKeys : undefined,
+    visibleColumnKeys: variant === "page" || simulationId ? effectiveVisibleColumnKeys : undefined,
     attributeColumns: variant === "page" ? visibleAttrDefs : [],
   });
 

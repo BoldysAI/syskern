@@ -15,7 +15,11 @@ import type { CatalogFilters } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { AppIcon } from "@/components/AppIcon";
-import { fetchHierarchyOptions, hierarchyOptionsSwrKey, type CatalogFiltersUpdater } from "./hierarchy-utils";
+import {
+  fetchHierarchyOptions,
+  hierarchyOptionsSwrKey,
+  type CatalogFiltersUpdater,
+} from "./hierarchy-utils";
 
 const LEVELS = [
   {
@@ -42,7 +46,7 @@ const LEVELS = [
   {
     key: "sub_range" as const,
     label: "Sous-gamme",
-    hint: "Niveau le plus fin de la hiérarchie produit.",
+    hint: "Niveau le plus fin de l'arborescence produit.",
     icon: Package,
     parentKeys: ["universe", "family", "range"] as const,
   },
@@ -146,7 +150,9 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
               Chargement…
             </div>
           ) : optionList.length === 0 ? (
-            <p className="py-4 text-center text-xs text-muted-foreground">Aucune valeur disponible</p>
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Aucune valeur disponible
+            </p>
           ) : (
             <FilterCheckboxGroup
               options={optionList}
@@ -179,7 +185,13 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
 
       if (!value) {
         if (key === "universe") {
-          return { ...prev, universe: undefined, family: undefined, range: undefined, sub_range: undefined };
+          return {
+            ...prev,
+            universe: undefined,
+            family: undefined,
+            range: undefined,
+            sub_range: undefined,
+          };
         }
         if (key === "family") {
           return { ...prev, family: undefined, range: undefined, sub_range: undefined };
@@ -196,8 +208,12 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
 
   const selectedPath = [
     filters.universe?.length ? `${filters.universe.length} univers` : null,
-    filters.family?.length ? `${filters.family.length} famille${filters.family.length > 1 ? "s" : ""}` : null,
-    filters.range?.length ? `${filters.range.length} gamme${filters.range.length > 1 ? "s" : ""}` : null,
+    filters.family?.length
+      ? `${filters.family.length} famille${filters.family.length > 1 ? "s" : ""}`
+      : null,
+    filters.range?.length
+      ? `${filters.range.length} gamme${filters.range.length > 1 ? "s" : ""}`
+      : null,
     filters.sub_range?.length
       ? `${filters.sub_range.length} sous-gamme${filters.sub_range.length > 1 ? "s" : ""}`
       : null,
@@ -207,7 +223,9 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
     <div className="flex flex-col gap-3">
       {selectedPath.length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Sélection</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+            Sélection
+          </p>
           <p className="mt-0.5 text-xs text-foreground">{selectedPath.join(" · ")}</p>
         </div>
       )}
@@ -215,8 +233,7 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
       <div className="flex flex-col gap-2">
         {LEVELS.map((level) => {
           const parentMissing =
-            level.parentKeys.length > 0 &&
-            level.parentKeys.every((k) => !(filters[k]?.length));
+            level.parentKeys.length > 0 && level.parentKeys.every((k) => !filters[k]?.length);
 
           return (
             <HierarchyLevelStep

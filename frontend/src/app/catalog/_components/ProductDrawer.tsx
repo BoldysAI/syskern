@@ -13,6 +13,7 @@ import {
   type ProductDetail,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { productUnitLabel } from "@/lib/product-units";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,9 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 <Row
                   label="Stock"
                   value={
-                    data.stock_quantity != null ? Math.round(parseFloat(data.stock_quantity)) : "—"
+                    data.stock_quantity != null
+                      ? `${Math.round(parseFloat(data.stock_quantity))} ${productUnitLabel(data)}`
+                      : "—"
                   }
                 />
                 {localize(data.description_marketing) && (

@@ -229,6 +229,17 @@ Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections
   et commitent via `setCore`/`setAttr`/`setDesc`.
 - Champs cœur → `Field.tsx` (mappé sur `keyof ProductDetail`). Attributs dynamiques →
   `AttributeRenderer` via `AttributeSection.tsx` (un bloc par `category`).
+- **Placement des champs (arbitré en recette, FEEDBACK 2 — ne pas redéplacer sans demande)** :
+  - `item_code` (« Code article ») → **juste sous le SKU** dans « Informations générales » (fiche +
+    wizard). ⚠️ non alimenté par Odoo à ce jour (en v16 `default_code` est vide).
+  - `factory_code` (« Code usine ») → **absent** du panneau « Identifiants » : il appartient à la
+    relation produit-fournisseur (onglet Commercial / module Fournisseurs). Le champ existe toujours
+    en base (matching migration §8.6) et reste dans le wizard de création (dérivé auto).
+  - `unit_weight_kg` → onglet **Logistique** (« Unité, poids & approvisionnement »). Le round 1
+    l'avait déplacé en Technique, le client a fait marche arrière.
+  - Le libellé « Hiérarchie » est devenu **« Arborescence »** partout (données inchangées).
+- **Unité affichée avec le stock** : toujours via `productUnitLabel` (`lib/product-units.ts`) →
+  `uom` (Odoo) sinon libellé `base_unit` sinon « u ». Ne pas réintroduire de « u »/« unités » en dur.
 - **Descriptions multilingues** (marketing/technique) → `DescriptionsEditor` rend
   `components/MultilingualField` (onglets FR/EN/ES + « Traduire depuis FR » via `/api/translate`).
   Détail multilingue → `i18n.md`.
