@@ -11,6 +11,7 @@ import {
   deleteProductSupplier,
   getPriceHistory,
   updateProductSupplier,
+  type ProductSupplier,
   type ProductSupplierInput,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,27 @@ import {
 
 function parseDec(v?: string | null): number {
   return v != null ? parseFloat(v) : 0;
+}
+
+/**
+ * Indexation cuivre appliquée pour une source d'achat (FEEDBACK 2).
+ * `effective_copper` est calculé par l'API : le front n'a pas à rejouer la règle
+ * d'héritage produit ↔ fournisseur.
+ */
+function CopperCell({ supplier }: { supplier: ProductSupplier }) {
+  const eff = supplier.effective_copper;
+  if (!eff?.is_copper_indexed) return <span className="text-muted-foreground/60">Non indexé</span>;
+  const weight = eff.copper_weight_kg_per_unit;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-data text-foreground">
+        {weight ? `${parseDec(weight).toLocaleString("fr-FR")} kg` : "poids manquant"}
+      </span>
+      <StatusBadge variant={eff.source === "supplier" ? "success" : "draft"}>
+        {eff.source === "supplier" ? "fournisseur" : "hérité"}
+      </StatusBadge>
+    </span>
+  );
 }
 
 const PERIODS: { id: "3m" | "6m" | "12m"; label: string }[] = [
@@ -359,16 +381,22 @@ export function CommercialTab() {
           <table className="w-full">
             <thead className="border-y border-border bg-muted/30">
               <tr>
-                {["Fournisseur", "Code usine", "Prix achat", "Devise", "Incoterm", "Actif"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Fournisseur",
+                  "Code usine",
+                  "Prix achat",
+                  "Devise",
+                  "Incoterm",
+                  "Cuivre",
+                  "Actif",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -394,6 +422,11 @@ export function CommercialTab() {
                     {s.incoterm
                       ? `${s.incoterm}${s.incoterm_location ? ` (${s.incoterm_location})` : ""}`
                       : "—"}
+                  </td>
+                  {/* Cuivre effectif pour CETTE source (FEEDBACK 2). « hérité »
+                      = la valeur du produit s'applique, pas de valeur propre. */}
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    <CopperCell supplier={s} />
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge variant={s.is_active ? "success" : "draft"}>

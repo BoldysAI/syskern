@@ -191,18 +191,33 @@ export function buildCatalogQuery(filters: CatalogFilters): Record<string, strin
 export type Currency = "EUR" | "USD" | "RMB";
 
 /** Supplier embedded in product list/detail */
+/**
+ * Indexation cuivre effective une fois la source d'achat appliquée (FEEDBACK 2).
+ * Calculée par le backend — le front n'a pas à rejouer la règle d'héritage.
+ */
+export interface EffectiveCopper {
+  is_copper_indexed: boolean;
+  copper_weight_kg_per_unit: string | null;
+  /** « supplier » si le fournisseur surcharge, « product » sinon. */
+  source: "supplier" | "product";
+}
+
 export interface ProductSupplier {
   id: string;
   supplier_name: string;
   factory_code?: string;
   po_base_price?: string | null;
   po_currency?: Currency;
-  is_copper_indexed?: boolean;
+  /** `null` = hérite du produit (FEEDBACK 2). */
+  is_copper_indexed?: boolean | null;
+  /** `null` = hérite du produit (FEEDBACK 2). */
+  copper_weight_kg_per_unit?: string | null;
   copper_base_price?: string | null;
   incoterm?: string;
   incoterm_location?: string;
   notes?: string;
   is_active: boolean;
+  effective_copper?: EffectiveCopper;
 }
 
 /** Writable supplier payload (create / update on a product). */
@@ -211,7 +226,10 @@ export interface ProductSupplierInput {
   factory_code?: string;
   po_base_price?: string | null;
   po_currency?: Currency;
-  is_copper_indexed?: boolean;
+  /** `null` = hérite du produit (FEEDBACK 2). */
+  is_copper_indexed?: boolean | null;
+  /** `null` = hérite du produit (FEEDBACK 2). */
+  copper_weight_kg_per_unit?: string | null;
   copper_base_price?: string | null;
   incoterm?: string;
   incoterm_location?: string;
@@ -1919,10 +1937,7 @@ export interface SupplierImportMapping {
 }
 
 /** Upload an Excel and get back its headers + a bounded sample for mapping. */
-export async function analyzePoImport(
-  file: File,
-  headerRow = 1,
-): Promise<PoImportAnalyzeResult> {
+export async function analyzePoImport(file: File, headerRow = 1): Promise<PoImportAnalyzeResult> {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("header_row", String(headerRow));

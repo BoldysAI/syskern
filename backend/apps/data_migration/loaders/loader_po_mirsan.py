@@ -318,7 +318,9 @@ class MirsanLoader(BaseExcelLoader):
         supplier.po_currency = _PO_CURRENCY
         supplier.incoterm = _INCOTERM
         supplier.incoterm_location = _ORIGIN
-        supplier.is_copper_indexed = False
+        # Le PO MIRSAN ne porte pas de donnée cuivre : `None` = hérite du produit
+        # (FEEDBACK 2). Forcer `False` désindexerait à tort un SKU cuivre.
+        supplier.is_copper_indexed = None
         if notes_parts:
             supplier.notes = " | ".join(notes_parts)
         supplier.save()

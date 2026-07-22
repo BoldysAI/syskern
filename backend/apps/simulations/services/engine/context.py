@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 from apps.core.models import Currency
+from apps.products.services.copper import resolve_copper
 
 from .errors import missing_fx_rate_message
 
@@ -91,13 +92,20 @@ class ProductView:
     base_unit: str = "unit"
 
     @classmethod
-    def from_model(cls, product) -> ProductView:
+    def from_model(cls, product, supplier=None) -> ProductView:
+        """Vue moteur du produit acheté chez `supplier`.
+
+        L'indexation cuivre est **résolue** produit ↔ fournisseur (FEEDBACK 2) :
+        une source d'achat peut déclarer son propre poids cuivre. Sans
+        fournisseur, ou si celui-ci ne surcharge rien, on retombe sur le produit.
+        """
+        copper = resolve_copper(product, supplier)
         return cls(
             sku_code=product.sku_code,
-            is_copper_indexed=bool(product.is_copper_indexed),
+            is_copper_indexed=copper.is_indexed,
             copper_weight_kg_per_unit=(
-                to_decimal(product.copper_weight_kg_per_unit)
-                if product.copper_weight_kg_per_unit is not None
+                to_decimal(copper.weight_kg_per_unit)
+                if copper.weight_kg_per_unit is not None
                 else None
             ),
             pallet_qty=product.pallet_qty,

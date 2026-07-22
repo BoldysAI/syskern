@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import * as Select from "@radix-ui/react-select";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -54,7 +54,10 @@ function emptySupplier(makeActive: boolean): ProductSupplierInput {
     factory_code: "",
     po_base_price: null,
     po_currency: "RMB",
-    is_copper_indexed: false,
+    // `null` = hérite du produit (FEEDBACK 2) — c'est le défaut voulu : on ne
+    // surcharge le cuivre que si CE fournisseur déclare sa propre valeur.
+    is_copper_indexed: null,
+    copper_weight_kg_per_unit: null,
     copper_base_price: null,
     incoterm: "",
     incoterm_location: "",
@@ -69,7 +72,8 @@ function toInput(s: ProductSupplier): ProductSupplierInput {
     factory_code: s.factory_code ?? "",
     po_base_price: s.po_base_price ?? null,
     po_currency: s.po_currency ?? "RMB",
-    is_copper_indexed: s.is_copper_indexed ?? false,
+    is_copper_indexed: s.is_copper_indexed ?? null,
+    copper_weight_kg_per_unit: s.copper_weight_kg_per_unit ?? null,
     copper_base_price: s.copper_base_price ?? null,
     incoterm: s.incoterm ?? "",
     incoterm_location: s.incoterm_location ?? "",
@@ -85,7 +89,11 @@ function sanitize(data: ProductSupplierInput): ProductSupplierInput {
     ...data,
     supplier_name: data.supplier_name.trim(),
     po_base_price: trimPrice(data.po_base_price),
-    copper_base_price: data.is_copper_indexed ? trimPrice(data.copper_base_price) : null,
+    // Explicitement « non indexé » → on purge les valeurs cuivre. « Hérite »
+    // (null) les conserve : elles ne servent simplement pas.
+    copper_base_price: data.is_copper_indexed === false ? null : trimPrice(data.copper_base_price),
+    copper_weight_kg_per_unit:
+      data.is_copper_indexed === false ? null : trimPrice(data.copper_weight_kg_per_unit),
   };
 }
 
@@ -103,10 +111,41 @@ function editableSnapshot(data: ProductSupplierInput): string {
 
 function isValid(data: ProductSupplierInput): boolean {
   if (!data.supplier_name.trim()) return false;
-  for (const v of [data.po_base_price, data.copper_base_price]) {
+  for (const v of [data.po_base_price, data.copper_base_price, data.copper_weight_kg_per_unit]) {
     if (v != null && String(v).trim() !== "" && !Number.isFinite(Number(v))) return false;
   }
   return true;
+}
+
+// ─── Indexation cuivre à 3 états (FEEDBACK 2) ───────────────────────────────
+// `is_copper_indexed` est nullable côté API : `null` = hérite du produit.
+
+type CopperMode = "inherit" | "indexed" | "not_indexed";
+
+const COPPER_MODES: { id: CopperMode; label: string }[] = [
+  { id: "inherit", label: "Hériter du produit" },
+  { id: "indexed", label: "Indexé" },
+  { id: "not_indexed", label: "Non indexé" },
+];
+
+function copperMode(data: ProductSupplierInput): CopperMode {
+  if (data.is_copper_indexed === true) return "indexed";
+  if (data.is_copper_indexed === false) return "not_indexed";
+  return "inherit";
+}
+
+function copperModePatch(
+  mode: CopperMode,
+  current: ProductSupplierInput,
+): Partial<ProductSupplierInput> {
+  if (mode === "indexed") return { is_copper_indexed: true };
+  // Hériter / non indexé : aucune valeur cuivre propre au fournisseur ne doit
+  // subsister, sinon elle réapparaîtrait en repassant sur « Indexé ».
+  return {
+    is_copper_indexed: mode === "inherit" ? null : false,
+    copper_weight_kg_per_unit: null,
+    copper_base_price: mode === "inherit" ? current.copper_base_price : null,
+  };
 }
 
 // ─── Shared field set (used by both the edit cards and the add form) ─────────
@@ -117,7 +156,8 @@ function templateToInput(template: ProductSupplier, makeActive: boolean): Produc
     factory_code: template.factory_code ?? "",
     po_base_price: template.po_base_price ?? null,
     po_currency: template.po_currency ?? "RMB",
-    is_copper_indexed: template.is_copper_indexed ?? false,
+    is_copper_indexed: template.is_copper_indexed ?? null,
+    copper_weight_kg_per_unit: template.copper_weight_kg_per_unit ?? null,
     copper_base_price: template.copper_base_price ?? null,
     incoterm: template.incoterm ?? "",
     incoterm_location: template.incoterm_location ?? "",
@@ -261,42 +301,74 @@ function SupplierFields({
         />
       </label>
 
-      <div className="flex items-center justify-between gap-3 sm:col-span-2 py-1">
+      {/* Indexation cuivre à 3 états (FEEDBACK 2) : deux fournisseurs du même SKU
+          peuvent déclarer un poids cuivre différent. « Hériter » = la valeur du
+          produit s'applique — c'est le défaut, et ce que fait tout lien existant. */}
+      <div className="flex flex-col gap-1 sm:col-span-2">
         <span className="text-xs font-medium text-muted-foreground">Indexation cuivre</span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={value.is_copper_indexed === true}
-          disabled={disabled}
-          onClick={() => onChange({ is_copper_indexed: !(value.is_copper_indexed === true) })}
-          className={cn(
-            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50",
-            value.is_copper_indexed ? "bg-primary" : "bg-muted-foreground/30",
-          )}
+        <div
+          role="radiogroup"
+          aria-label="Indexation cuivre"
+          className="inline-flex w-full rounded-md bg-muted p-0.5"
         >
-          <span
-            className={cn(
-              "inline-block h-4 w-4 transform rounded-full bg-popover shadow transition-transform",
-              value.is_copper_indexed ? "translate-x-6" : "translate-x-1",
-            )}
-          />
-        </button>
+          {COPPER_MODES.map((mode) => {
+            const selected = copperMode(value) === mode.id;
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={disabled}
+                onClick={() => onChange(copperModePatch(mode.id, value))}
+                className={cn(
+                  "flex-1 rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+                  selected
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {value.is_copper_indexed && (
-        <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="text-xs font-medium text-muted-foreground">Base cuivre</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={value.copper_base_price ?? ""}
-            disabled={disabled}
-            onChange={(e) =>
-              onChange({ copper_base_price: e.target.value === "" ? null : e.target.value })
-            }
-            className={inputCls}
-          />
-        </label>
+      {value.is_copper_indexed === true && (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Poids cuivre / unité (kg)
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={value.copper_weight_kg_per_unit ?? ""}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange({
+                  copper_weight_kg_per_unit: e.target.value === "" ? null : e.target.value,
+                })
+              }
+              className={inputCls}
+              placeholder="hérite du produit si vide"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">Base cuivre</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={value.copper_base_price ?? ""}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange({ copper_base_price: e.target.value === "" ? null : e.target.value })
+              }
+              className={inputCls}
+            />
+          </label>
+        </>
       )}
 
       <label className="flex flex-col gap-1 sm:col-span-2">
@@ -436,12 +508,10 @@ function SupplierCard({
   const [draft, setDraft] = useState<ProductSupplierInput>(() => toInput(supplier));
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setDraft((current) =>
-      current.is_active === supplier.is_active ? current : { ...current, is_active: supplier.is_active },
-    );
-  }, [supplier.id, supplier.is_active]);
-
+  // `is_active` du brouillon n'est jamais lu : l'affichage utilise la prop
+  // `supplier.is_active`, et `editableSnapshot`/`toUpdatePayload` l'excluent
+  // (l'activation passe par son propre endpoint). L'effet de synchro qui vivait
+  // ici ne servait donc à rien — et violait `react-hooks/set-state-in-effect`.
   const dirty = editableSnapshot(draft) !== editableSnapshot(toInput(supplier));
 
   const run = async (fn: () => Promise<void> | void) => {

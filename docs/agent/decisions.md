@@ -1022,3 +1022,49 @@ le client a arbitré différemment en voyant l'écran.
 - **Total général dans l'offre** : le tableau de prix généré (`_price_table_markdown`) se termine par
   une ligne **Total général / Grand total / Total general** (fr/en/es) ; la fiche offre affiche le même
   total en `tfoot`. Les offres **tarifaires** (listes de prix sans quantité) ne sont pas concernées.
+
+## 2026-07-22 · [P] Feedback 2 — indexation cuivre portée par la relation produit-fournisseur
+
+**Demande client (recette 20/07, Olivier)** : deux fournisseurs du même SKU déclarent un poids
+cuivre différent (Turquie 19 kg, Chine 17,80). Pour tarifer juste, la donnée doit suivre la source
+d'achat — *« le même type de variable que le PO »*. Champs déplacés en onglet **Commercial**.
+
+**Modèle retenu — surcharge, pas déplacement.** Les champs restent sur `Product` (valeur de
+référence catalogue, alimentée par Odoo/Excel) et deviennent **surchargeables** par
+`ProductSupplier` :
+- `ProductSupplier.is_copper_indexed` passe **nullable** (`None` = hérite du produit) ;
+- `ProductSupplier.copper_weight_kg_per_unit` **ajouté** (nullable, même précision que le produit) ;
+- migration `products/0009` (schéma) + `0010` (données).
+
+Les deux champs sont **indépendants** : un fournisseur peut ne surcharger que le poids.
+
+**Point de résolution unique** : `apps/products/services/copper.py:resolve_copper(product, supplier)`
+→ `CopperSpec(is_indexed, weight_kg_per_unit, source)`. Le moteur **ne lit plus jamais**
+`product.is_copper_indexed` / `product.copper_weight_kg_per_unit` en direct — il passe par
+`ProductView.from_model(product, supplier)`. Idem pour le préflight FX
+(`collect_line_fx_currencies(..., supplier=)`) : un fournisseur indexé impose le taux RMB même si le
+produit ne l'est pas.
+
+**⚠️ Pourquoi `0010` remet tout à `None`.** Le champ `is_copper_indexed` du lien existait déjà mais
+n'était exposé nulle part : personne ne l'avait saisi, il était **dérivé** par les loaders PO. En
+base, **24 liens actifs** portaient `False` alors que leur produit est indexé cuivre — séquelle des
+loaders MIRSAN/INFOKS qui forçaient `False` faute de lire du cuivre. Rendre le fournisseur
+autoritaire tel quel aurait **désindexé 24 SKU** et changé leur PA/PV en silence, y compris
+l'exemple de recette contractuel. On repart donc de `None` partout : comportement strictement
+identique à avant la migration (vérifié : 906 tests verts, 0 surcharge en base après migration).
+
+**Loaders alignés** : ne jamais écrire `False`. Les loaders qui lisent réellement du cuivre
+(`loader_po_fournisseurs`, `loader_po_ayp`) écrivent `True` **+ le poids déclaré par ce
+fournisseur** ; sans donnée cuivre ils écrivent `None` (hérite). MIRSAN/INFOKS passent de `False` à
+`None`. C'est le vrai gain : après re-bootstrap, chaque fournisseur porte le poids de **son** PO.
+
+**Snapshots** : `_product_snapshot(product, supplier)` fige les valeurs **effectives** + une clé
+`copper_source` (`supplier`/`product`) pour l'audit. Les snapshots antérieurs restent rejouables tels
+quels (ils portaient déjà les valeurs produit). `_supplier_snapshot` gagne
+`copper_weight_kg_per_unit`.
+
+**API/UI** : `ProductSupplierSerializer` expose les 2 champs + un `effective_copper` en lecture seule
+(`{is_copper_indexed, copper_weight_kg_per_unit, source}`) pour que le front n'ait pas à rejouer la
+règle. `SupplierManager` : le toggle binaire devient un sélecteur **3 états** (Hériter du produit /
+Indexé / Non indexé) + champ « Poids cuivre / unité ». Onglet Commercial : colonne **Cuivre** avec
+badge `hérité` / `fournisseur`.

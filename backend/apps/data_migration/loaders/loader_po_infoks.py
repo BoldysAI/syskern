@@ -242,7 +242,9 @@ class INFOKSLoader(BaseExcelLoader):
         supplier.po_currency = _PO_CURRENCY
         supplier.incoterm = _INCOTERM
         supplier.incoterm_location = _ORIGIN
-        supplier.is_copper_indexed = False
+        # Le PO INFOKS ne porte pas de donnée cuivre : `None` = hérite du produit
+        # (FEEDBACK 2). Forcer `False` désindexerait à tort un SKU cuivre.
+        supplier.is_copper_indexed = None
         if d.get("notes"):
             supplier.notes = d["notes"]
         supplier.save()

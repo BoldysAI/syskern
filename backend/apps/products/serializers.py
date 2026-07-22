@@ -6,6 +6,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from .models import Product, ProductSupplier
+from .services.copper import resolve_copper
 
 
 class BulkLookupSerializer(serializers.Serializer):
@@ -55,15 +56,34 @@ class ProductSupplierSerializer(serializers.ModelSerializer):
             "is_active",
             "po_base_price",
             "po_currency",
+            # `null` sur ces deux champs = « hérite du produit » (FEEDBACK 2).
             "is_copper_indexed",
+            "copper_weight_kg_per_unit",
             "copper_base_price",
             "incoterm",
             "incoterm_location",
             "notes",
             "created_at",
             "updated_at",
+            "effective_copper",
         )
-        read_only_fields = ("id", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at", "effective_copper")
+
+    effective_copper = serializers.SerializerMethodField()
+
+    def get_effective_copper(self, obj) -> dict:
+        """Valeurs cuivre réellement appliquées si cette source est active.
+
+        Évite au front de rejouer la règle d'héritage produit ↔ fournisseur.
+        """
+        spec = resolve_copper(obj.product, obj)
+        return {
+            "is_copper_indexed": spec.is_indexed,
+            "copper_weight_kg_per_unit": (
+                str(spec.weight_kg_per_unit) if spec.weight_kg_per_unit is not None else None
+            ),
+            "source": spec.source,
+        }
 
     @staticmethod
     def _activate_exclusive(instance: ProductSupplier) -> None:

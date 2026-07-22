@@ -237,7 +237,19 @@ class ProductSupplier(BaseModel):
     # Pricing parameters pre-filled into a simulation when this source is used.
     po_base_price = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     po_currency = models.CharField(max_length=3, choices=Currency.choices, default=Currency.RMB)
-    is_copper_indexed = models.BooleanField(default=False)
+    # Copper indexing per purchase source (FEEDBACK 2): two suppliers of the same
+    # SKU may declare a different copper weight (ex. Turquie 19 kg vs Chine 17,80).
+    # `None` on either field = « hérite du produit » — le moteur résout via
+    # `apps.products.services.copper.resolve_copper`. Ne jamais lire ces champs
+    # directement dans le pricing.
+    is_copper_indexed = models.BooleanField(null=True, blank=True, default=None)
+    copper_weight_kg_per_unit = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
     copper_base_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     incoterm = models.CharField(max_length=4, choices=Incoterm.choices, blank=True, default="")
     incoterm_location = models.CharField(max_length=128, blank=True, default="")

@@ -478,7 +478,12 @@ class POFournisseursLoader(BaseExcelLoader):
         supplier.po_currency = _PO_CURRENCY
         supplier.incoterm = _INCOTERM
         supplier.incoterm_location = d.get("origin") or ""
-        supplier.is_copper_indexed = is_copper
+        # Indexation cuivre portée par la source d'achat (FEEDBACK 2) : le poids
+        # cuivre vient du PO de CE fournisseur. Sans donnée cuivre dans le PO, on
+        # laisse `None` = hérite du produit (ne jamais forcer `False`, ça
+        # désindexerait un SKU cuivre acheté chez un fournisseur au PO incomplet).
+        supplier.is_copper_indexed = True if is_copper else None
+        supplier.copper_weight_kg_per_unit = copper_weight if is_copper else None
         if is_copper and self._copper_base_price is not None:
             supplier.copper_base_price = self._copper_base_price
         if notes:

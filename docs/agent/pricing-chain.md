@@ -176,6 +176,13 @@ dans `runner.py`. Replay historique → `ProductView.from_snapshot(snap)`.
   (`symea_margin`). Écart assumé au pseudo-code de la sous-tâche (cf. `decisions.md` 2026-06-23).
 
 **Cuivre (CDC §6.3.1) :**
+- ⚠️ **L'indexation et le poids cuivre se résolvent produit ↔ fournisseur** (FEEDBACK 2) : deux sources
+  d'achat du même SKU peuvent déclarer des poids différents. **Point d'entrée unique**
+  `apps/products/services/copper.py:resolve_copper(product, supplier)`. Le moteur ne lit **jamais**
+  `product.is_copper_indexed` / `product.copper_weight_kg_per_unit` en direct — il passe par
+  `ProductView.from_model(product, supplier)`, et le préflight FX par
+  `collect_line_fx_currencies(..., supplier=)`. `None` côté fournisseur = hérite du produit.
+  Les snapshots de ligne figent les valeurs **effectives** + `copper_source` (`supplier`/`product`).
 - Cours cuivre **toujours en RMB** dans `market_params` (`copper_base_price_rmb`, `copper_current_price_rmb`).
 - `variation_rmb = (current - base) * copper_weight_kg / 1000` ; si devise PO ≠ RMB, conversion via
   `get_fx_rate("RMB", po_currency)` avant addition au prix PO.

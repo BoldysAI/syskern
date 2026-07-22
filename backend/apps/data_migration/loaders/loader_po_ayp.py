@@ -443,7 +443,10 @@ class AYPLoader(BaseExcelLoader):
         supplier.po_currency = currency
         supplier.incoterm = _INCOTERM
         supplier.incoterm_location = _ORIGIN
-        supplier.is_copper_indexed = is_cu
+        # Poids cuivre déclaré par CE fournisseur (FEEDBACK 2). `None` quand la
+        # grille AYP n'annonce pas de cuivre = hérite du produit.
+        supplier.is_copper_indexed = True if is_cu else None
+        supplier.copper_weight_kg_per_unit = copper if is_cu else None
         base = d.get("copper_base_price")
         if is_cu and isinstance(base, Decimal):
             supplier.copper_base_price = base

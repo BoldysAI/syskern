@@ -7,9 +7,10 @@ from decimal import Decimal
 
 from apps.core.models import Currency
 from apps.products.models import Product
+from apps.products.services.copper import resolve_copper
 
-from .errors import missing_fx_rate_message
 from .context import to_decimal
+from .errors import missing_fx_rate_message
 
 
 def negative_price_errors(
@@ -131,13 +132,20 @@ def collect_line_fx_currencies(
     po_currency: str,
     purchase_config: dict,
     sale_config: dict,
+    supplier=None,
 ) -> set[str]:
-    """All non-EUR currencies that may trigger FX lookups for one line."""
-    copper_weight = product.copper_weight_kg_per_unit
+    """All non-EUR currencies that may trigger FX lookups for one line.
+
+    L'indexation cuivre est résolue produit ↔ fournisseur (FEEDBACK 2) : une
+    source d'achat indexée cuivre impose le taux RMB même si le produit ne l'est
+    pas au niveau catalogue.
+    """
+    copper = resolve_copper(product, supplier)
+    copper_weight = copper.weight_kg_per_unit
     needed = collect_purchase_fx_currencies(
         po_currency=po_currency,
         purchase_config=purchase_config,
-        copper_indexed=bool(product.is_copper_indexed),
+        copper_indexed=copper.is_indexed,
         copper_weight_declared=copper_weight is not None and copper_weight > 0,
     )
     needed |= collect_sale_fx_currencies(sale_config=sale_config)
@@ -159,6 +167,7 @@ def collect_preflight_fx_errors(
     po_currency: str,
     purchase_config: dict,
     sale_config: dict,
+    supplier=None,
 ) -> list[str]:
     """All missing FX rates for a line — standard simulation keys + chain-specific."""
     keys: set[str] = set(STANDARD_MARKET_FX_KEYS)
@@ -167,6 +176,7 @@ def collect_preflight_fx_errors(
         po_currency=po_currency,
         purchase_config=purchase_config,
         sale_config=sale_config,
+        supplier=supplier,
     ):
         if ccy.upper() != Currency.EUR.value:
             keys.add(f"fx_eur_{ccy.lower()}")

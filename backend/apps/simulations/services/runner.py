@@ -21,6 +21,7 @@ from django.utils import timezone
 
 from apps.core.models import Currency
 from apps.products.models import Product, ProductSupplier
+from apps.products.services.copper import resolve_copper
 
 from ..models import (
     RecalculationTrigger,
@@ -251,7 +252,7 @@ def _recalculate_line(
     )
 
     # Snapshot the SKU + supplier for traceability (CDC §6.9.10).
-    line.product_snapshot = _product_snapshot(product)
+    line.product_snapshot = _product_snapshot(product, supplier)
     line.supplier_snapshot = _supplier_snapshot(supplier)
 
     effective_purchase_config = build_purchase_chain_config_for_line(
@@ -268,6 +269,7 @@ def _recalculate_line(
         po_currency=supplier.po_currency if supplier else Currency.EUR.value,
         purchase_config=effective_purchase_config,
         sale_config=sale_config,
+        supplier=supplier,
     )
     purchase_incoterm = str(supplier.incoterm or "") if supplier else ""
     preflight_warnings = (
@@ -293,7 +295,7 @@ def _recalculate_line(
 
     try:
         ctx = SimulationContext(
-            product=ProductView.from_model(product),
+            product=ProductView.from_model(product, supplier),
             market_params=simulation.market_params or {},
         )
 
@@ -532,7 +534,11 @@ def _market_params_snapshot(market_params: dict) -> dict:
     }
 
 
-def _product_snapshot(p: Product) -> dict:
+def _product_snapshot(p: Product, supplier: ProductSupplier | None = None) -> dict:
+    # Le snapshot fige les valeurs cuivre **effectives** (produit surchargé par le
+    # fournisseur actif, FEEDBACK 2) : c'est ce que le moteur rejoue à l'identique.
+    # `copper_source` trace d'où vient la valeur pour l'audit du breakdown.
+    copper = resolve_copper(p, supplier)
     return {
         "sku_code": p.sku_code,
         "name": p.name,
@@ -542,10 +548,11 @@ def _product_snapshot(p: Product) -> dict:
         "family": p.family,
         "range": p.range,
         "sub_range": p.sub_range,
-        "is_copper_indexed": p.is_copper_indexed,
-        "copper_weight_kg_per_unit": str(p.copper_weight_kg_per_unit)
-        if p.copper_weight_kg_per_unit is not None
+        "is_copper_indexed": copper.is_indexed,
+        "copper_weight_kg_per_unit": str(copper.weight_kg_per_unit)
+        if copper.weight_kg_per_unit is not None
         else None,
+        "copper_source": copper.source,
         "base_unit": p.base_unit,
         "pallet_qty": p.pallet_qty,
         "unit_weight_kg": str(p.unit_weight_kg) if p.unit_weight_kg is not None else None,
@@ -563,6 +570,9 @@ def _supplier_snapshot(s: ProductSupplier | None) -> dict:
         "po_base_price": str(s.po_base_price) if s.po_base_price is not None else None,
         "po_currency": s.po_currency,
         "is_copper_indexed": s.is_copper_indexed,
+        "copper_weight_kg_per_unit": str(s.copper_weight_kg_per_unit)
+        if s.copper_weight_kg_per_unit is not None
+        else None,
         "copper_base_price": str(s.copper_base_price) if s.copper_base_price is not None else None,
         "incoterm": s.incoterm,
         "incoterm_location": s.incoterm_location,
