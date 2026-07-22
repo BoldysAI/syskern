@@ -30,13 +30,11 @@ def negative_price_errors(
         )
     if pr_eur < 0:
         errors.append(
-            f"Produit {sku_code} : prix de revient (PR) négatif ({pr_eur} EUR) — "
-            f"calcul incohérent."
+            f"Produit {sku_code} : prix de revient (PR) négatif ({pr_eur} EUR) — calcul incohérent."
         )
     if pv_eur < 0:
         errors.append(
-            f"Produit {sku_code} : prix de vente (PV) négatif ({pv_eur} EUR) — "
-            f"calcul incohérent."
+            f"Produit {sku_code} : prix de vente (PV) négatif ({pv_eur} EUR) — calcul incohérent."
         )
     return errors
 

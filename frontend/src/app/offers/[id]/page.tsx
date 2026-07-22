@@ -448,23 +448,22 @@ export default function OfferDetailPage() {
               </tr>
             ))}
           </tbody>
-          {/* Total général de l'offre (FEEDBACK 2) : somme de toutes les lignes. */}
+          {/* Total général de l'offre (FEEDBACK 2) : somme de toutes les lignes.
+              Le montant doit tomber sous la DERNIÈRE colonne — « Total » en projet,
+              « PU » en tarifaire (pas de colonne Qté/Total dans ce cas). */}
           <tfoot className="border-t-2 border-border bg-muted/40">
             <tr>
               <td
                 className="px-4 py-2.5 text-sm font-semibold text-foreground"
-                colSpan={isProject ? 3 : 1}
+                colSpan={isProject ? 3 : 2}
               >
                 Total général
               </td>
+              {/* Colonne PU laissée vide en projet : le total va sous « Total ». */}
+              {isProject && <td />}
               <td className="px-4 py-2.5 text-right font-data font-semibold text-foreground">
-                {!isProject && `${total.toFixed(2)} ${offer.currency}`}
+                {total.toFixed(2)} {offer.currency}
               </td>
-              {isProject && (
-                <td className="px-4 py-2.5 text-right font-data font-semibold text-foreground">
-                  {total.toFixed(2)} {offer.currency}
-                </td>
-              )}
             </tr>
           </tfoot>
         </table>
