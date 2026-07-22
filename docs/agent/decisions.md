@@ -1068,3 +1068,25 @@ quels (ils portaient déjà les valeurs produit). `_supplier_snapshot` gagne
 règle. `SupplierManager` : le toggle binaire devient un sélecteur **3 états** (Hériter du produit /
 Indexé / Non indexé) + champ « Poids cuivre / unité ». Onglet Commercial : colonne **Cuivre** avec
 badge `hérité` / `fournisseur`.
+
+## 2026-07-22 · [T] Recherche catalogue — full-text **+ sous-chaîne** sur les identifiants
+
+**Non-conformité CDC §4.1.1 (FEEDBACK 1)** : `?q=` ne s'appuyait que sur le `search_vector` Postgres.
+Le full-text indexe des **lexèmes entiers** — taper un fragment de référence (« U64PZ » pour
+« KCU64PZHDGRB ») ne renvoyait rien, alors que le client cherche couramment par bout de code.
+
+`ProductFilter.filter_search` OR-combine désormais le FTS **et** un `icontains` sur
+`_SUBSTRING_SEARCH_FIELDS` = `sku_code, name, item_code, parent_reference, factory_code, gtin`.
+
+- **Pas d'extension `pg_trgm`** : le catalogue tient dans quelques milliers de lignes, un
+  `ILIKE '%…%'` y est instantané. À reconsidérer si le catalogue change d'ordre de grandeur.
+- **Tri** : `sku_match_rank` (SKU exact = 2, préfixe = 1, sinon 0) → `search_rank` FTS → `sku_code`.
+  Sans ça, un match par sous-chaîne (rang FTS nul) noyait la référence exactement saisie.
+- Le tri explicite d'une colonne (`ProductOrderingFilter`) reste prioritaire, il s'applique après.
+
+**Vérifié aussi ce jour — rien à développer** : la story FEEDBACK 1 « Historique des prix
+fournisseurs (SKU, ancien/nouveau prix, date) » **est déjà livrée** — modèle
+`products.SupplierPriceHistory`, écriture depuis les 3 chemins (fiche produit, import batch PO,
+édition groupée fournisseur), endpoint `/api/suppliers/{id}/price-history/` et tiroir « Historique
+des prix » sur `/suppliers/[id]` (colonnes Date · SKU · Ancien PO · Nouveau PO · Devise · Source).
+Testé de bout en bout en local. La tâche Notion est à basculer en « To test », pas à développer.

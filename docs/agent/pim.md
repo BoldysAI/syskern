@@ -107,7 +107,7 @@ Miroir frontend : `components/AttributeRenderer.tsx` (`validateAttributeValue`,
 | Méthode | Path | Note |
 |---|---|---|
 | `GET`/`POST` | `/api/products/` | liste compacte. Chaque ligne peut inclure `attribute_values` (dict `code → valeur`) si `?attr_columns=code1,code2` (max 10 codes, prefetch ciblé). POST déclenche push Odoo async |
-| `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`), tri `SearchRank` |
+| `GET` | `/api/products/?q=…` | **recherche full-text** `tsvector` (FR `french` + EN/ES/codes `simple`) **+ sous-chaîne** sur les identifiants ; tri : SKU exact → préfixe → `SearchRank` |
 | `GET` | `/api/products/?attr_<code>=…` | filtre par attribut dynamique (**seulement** si `is_filterable=True`) |
 | `GET` | `/api/products/?is_active=true\|false` | filtre statut produit (soft-delete) ; omis = actifs + inactifs |
 | `GET` | `/api/products/?supplier=…` | produits ayant **au moins une** source fournisseur avec ce nom (active ou inactive) ; multi CSV ; `__none__` = aucune source liée |
@@ -178,7 +178,11 @@ Shell : `bg-background`, sidebar `bg-card border-r`, toolbar `bg-card`. Colonne 
 | `filters-storage.ts` | Filtres favoris (`syskern:catalog-filters:v1`) |
 | `columns.ts` | Registre colonnes export (miroir `exports.py`) |
 
-- **Recherche full-text** : champ global → param `?q=` (tsvector backend). Debounce 300 ms
+- **Recherche** : champ global → param `?q=` (backend `ProductFilter.filter_search`). Debounce 300 ms.
+  Full-text `tsvector` **+ `icontains` sur `_SUBSTRING_SEARCH_FIELDS`** (sku_code, name, item_code,
+  parent_reference, factory_code, gtin) : le FTS seul indexe des lexèmes entiers et ne retrouvait pas
+  « KCU64PZHDGRB » depuis « U64PZ » (FEEDBACK 1, non-conformité CDC §4.1.1). Tri : SKU exact d'abord,
+  puis préfixe, puis pertinence FTS
   (timer en `ref`, pas de `setState` en effet).
 - **Sidebar filtres** : hiérarchie (univers / famille / gamme / sous-gamme), marque, section
   **Fournisseur** (toute source liée + sous-filtre repliable **Fournisseur actif** pour la source

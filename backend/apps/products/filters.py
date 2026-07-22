@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import django_filters as filters
 from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import Exists, F, FloatField, OuterRef, Q
+from django.db.models import (
+    Case,
+    Exists,
+    F,
+    FloatField,
+    IntegerField,
+    OuterRef,
+    Q,
+    Value,
+    When,
+)
 from django.db.models.expressions import RawSQL
 
 from apps.attributes.models import AttributeRegistry
@@ -16,6 +26,19 @@ _ATTR_PREFIX = "attr_"
 
 # Sentinel CSV value for « no supplier » filters (must match frontend `CATALOG_NO_SUPPLIER_VALUE`).
 NO_SUPPLIER_FILTER = "__none__"
+
+# Champs identifiants sur lesquels `?q=` fait aussi une recherche par **sous-chaîne**
+# (FEEDBACK 1, CDC §4.1.1). Le full-text Postgres indexe des lexèmes entiers : il ne
+# retrouve pas « KCU64PZHDGRB » à partir du fragment « U64PZ ». Le catalogue tient dans
+# quelques milliers de lignes, un ILIKE '%…%' y est instantané.
+_SUBSTRING_SEARCH_FIELDS = (
+    "sku_code",
+    "name",
+    "item_code",
+    "parent_reference",
+    "factory_code",
+    "gtin",
+)
 
 
 class ProductFilter(filters.FilterSet):
@@ -86,21 +109,40 @@ class ProductFilter(filters.FilterSet):
         return queryset.filter(id__in=uuids)
 
     def filter_search(self, queryset, name, value: str):
-        """Multilingual full-text search over the `search_vector` column.
+        """Recherche plein texte multilingue **+ sous-chaîne** sur les identifiants.
 
         OR-combines a `french` query (FR stems) and a `simple` query (codes,
-        EN/ES) so a term matches in any indexed language. Results are ranked
-        by relevance when a query is present.
+        EN/ES) so a term matches in any indexed language.
+
+        Le full-text seul ne suffisait pas : il indexe des **lexèmes entiers**, donc
+        taper un fragment de référence (« U64PZ » pour « KCU64PZHDGRB ») ne renvoyait
+        rien — non-conformité relevée au CDC §4.1.1. On ajoute donc un `icontains`
+        sur les champs identifiants (`_SUBSTRING_SEARCH_FIELDS`).
+
+        Tri : correspondance exacte du SKU d'abord, puis préfixe, puis pertinence
+        full-text — sinon un match par sous-chaîne (rang FTS nul) noierait la
+        référence exactement saisie.
         """
         value = (value or "").strip()
         if not value:
             return queryset
         fr_query = SearchQuery(value, config="french", search_type="websearch")
         simple_query = SearchQuery(value, config="simple", search_type="websearch")
+        substring = Q()
+        for field in _SUBSTRING_SEARCH_FIELDS:
+            substring |= Q(**{f"{field}__icontains": value})
         return (
-            queryset.filter(Q(search_vector=fr_query) | Q(search_vector=simple_query))
-            .annotate(search_rank=SearchRank(F("search_vector"), fr_query))
-            .order_by("-search_rank", "sku_code")
+            queryset.filter(Q(search_vector=fr_query) | Q(search_vector=simple_query) | substring)
+            .annotate(
+                search_rank=SearchRank(F("search_vector"), fr_query),
+                sku_match_rank=Case(
+                    When(sku_code__iexact=value, then=Value(2)),
+                    When(sku_code__istartswith=value, then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("-sku_match_rank", "-search_rank", "sku_code")
         )
 
     def filter_universe(self, queryset, name, value: str):
@@ -149,9 +191,7 @@ class ProductFilter(filters.FilterSet):
             return queryset
         q = Q()
         if NO_SUPPLIER_FILTER in values:
-            q |= ~Exists(
-                ProductSupplier.objects.filter(product_id=OuterRef("pk"), is_active=True)
-            )
+            q |= ~Exists(ProductSupplier.objects.filter(product_id=OuterRef("pk"), is_active=True))
         for v in values:
             if v == NO_SUPPLIER_FILTER:
                 continue
