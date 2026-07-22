@@ -235,7 +235,8 @@ Wizard `/catalog/new` : `FormField` + `Input`/`Select`/`Switch` shadcn, sections
   `AttributeRenderer` via `AttributeSection.tsx` (un bloc par `category`).
 - **Placement des champs (arbitré en recette, FEEDBACK 2 — ne pas redéplacer sans demande)** :
   - `item_code` (« Code article ») → **juste sous le SKU** dans « Informations générales » (fiche +
-    wizard). ⚠️ non alimenté par Odoo à ce jour (en v16 `default_code` est vide).
+    wizard). **Alimenté par la sync Odoo** depuis le champ natif `item_code` de l'instance client
+    (≠ `default_code`, qui est vide et où le SKU n'est pas stocké) — cf. `odoo-adapter.md`.
   - `factory_code` (« Code usine ») → **absent** du panneau « Identifiants » : il appartient à la
     relation produit-fournisseur (onglet Commercial / module Fournisseurs). Le champ existe toujours
     en base (matching migration §8.6) et reste dans le wizard de création (dérivé auto).

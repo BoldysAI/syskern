@@ -37,6 +37,9 @@ _PRODUCT_FIELDS = [
     "id",
     "name",
     "default_code",
+    # `item_code` : référence article native de l'instance client (~8 car.),
+    # distincte du SKU. 846/876 produits la portent (FEEDBACK 2).
+    "item_code",
     "categ_id",
     "barcode",
     # The client's instance carries brand_id + gtin_code (normally v19 fields);
@@ -186,6 +189,7 @@ def _normalize_product(
         hs_code=raw.get("hs_code") or "",
         brand=_many2one_name(raw.get("brand_id")),
         dop_number=(raw.get("x_studio_num_dop_china") or raw.get("x_studio_num_dop_trkiye") or ""),
+        item_code=raw.get("item_code") or "",
         uom_name=_many2one_name(raw.get("uom_id")),
         weight_kg=_to_decimal(raw.get("weight")),
         standard_price_eur=_to_decimal(raw.get("standard_price")),
@@ -399,6 +403,7 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
         Field mapping per CDC §5.3 (writeable fields only — pricelist,
         category, brand, dynamic attributes are NOT pushed back):
           • sku_code              → default_code
+          • item_code             → item_code (uniquement si renseigné chez nous)
           • name (commercial)     → name
           • gtin                  → barcode  (v19 also writes gtin_code)
           • hs_code               → hs_code
@@ -413,6 +418,11 @@ class OdooAdapterV16(JsonRpcMixin, OdooAdapter):
             "active": product.is_active,
             "type": "product",
         }
+        # Ne jamais écraser l'item_code d'Odoo avec une valeur vide : Odoo est la
+        # source de cette référence, on ne la repousse que si elle a été saisie
+        # côté PIM (même règle que gtin/hs_code).
+        if product.item_code:
+            payload["item_code"] = product.item_code
         if product.gtin:
             payload["barcode"] = product.gtin
         if product.hs_code:

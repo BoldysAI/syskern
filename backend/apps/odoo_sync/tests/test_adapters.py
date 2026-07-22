@@ -36,6 +36,8 @@ def _make_product_raw(
         "id": odoo_id,
         "name": name,
         "default_code": False,
+        # Référence article native de l'instance client, distincte du SKU.
+        "item_code": "U0901001",
         "categ_id": [5, categ],
         "barcode": barcode,
         "weight": weight,
@@ -154,6 +156,7 @@ class TestV16ListProducts(TestCase):
         self.assertTrue(p.is_active)
         # Enrichment fields previously dropped on the floor.
         self.assertEqual(p.dop_number, "DOP-CN-001")
+        self.assertEqual(p.item_code, "U0901001")
         self.assertEqual(p.uom_name, "Units")
         self.assertEqual(p.brand, "")  # v16 has no brand_id field
 
@@ -352,6 +355,9 @@ class TestV19Parity(TestCase):
         # Enrichment: DoP + UoM on both; brand only on v19 (no brand_id in v16).
         self.assertEqual(p16.dop_number, "DOP-CN-001")
         self.assertEqual(p19.dop_number, "DOP-CN-001")
+        # `item_code` doit être lu à l'identique par les deux adapters.
+        self.assertEqual(p16.item_code, p19.item_code)
+        self.assertEqual(p16.item_code, "U0901001")
         self.assertEqual(p16.uom_name, "Units")
         self.assertEqual(p19.uom_name, "Units")
         self.assertEqual(p16.brand, "")

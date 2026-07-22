@@ -46,6 +46,8 @@ _PRODUCT_FIELDS_V19 = [
     "id",
     "name",
     "default_code",
+    # Référence article native (~8 car.), distincte du SKU (FEEDBACK 2).
+    "item_code",
     "categ_id",
     "barcode",
     "gtin_code",
@@ -104,6 +106,7 @@ def _normalize_product_v19(
         hs_code=raw.get("hs_code") or "",
         brand=_many2one_name(raw.get("brand_id")),
         dop_number=(raw.get("x_studio_num_dop_china") or raw.get("x_studio_num_dop_trkiye") or ""),
+        item_code=raw.get("item_code") or "",
         uom_name=_many2one_name(raw.get("uom_id")),
         weight_kg=_to_decimal(raw.get("weight")),
         standard_price_eur=_to_decimal(raw.get("standard_price")),
@@ -219,6 +222,10 @@ class OdooAdapterV19(JsonRpcMixin, OdooAdapter):
             "type": "consu",
             "is_storable": True,
         }
+        # Odoo reste la source de l'item_code : on ne le repousse que s'il a été
+        # saisi côté PIM, jamais vide (cf. v16).
+        if product.item_code:
+            payload["item_code"] = product.item_code
         if product.gtin:
             payload["gtin_code"] = product.gtin
             payload["barcode"] = product.gtin

@@ -95,6 +95,24 @@ class OdooPurchaseLine:
 - Tous les champs optionnels ont une valeur par défaut (chaîne vide ou `None`).
 - Ajouter un DTO → `@dataclass` dans `schemas.py`, Decimal pour les montants.
 
+### Deux références distinctes : `sku_code` vs `item_code`
+
+| Notre champ | Champ Odoo | Nature |
+|---|---|---|
+| `Product.sku_code` | `default_code`, **fallback `name`** (l'historique Syskern stocke le SKU dans `name`) | identifiant métier du catalogue |
+| `Product.item_code` | **`item_code`** (champ natif de l'instance client, `char`) | référence article ~8 car. (`U0901001`), demandée en recette (FEEDBACK 2) |
+
+- **Ne pas confondre** : `item_code` n'est **pas** `default_code`. Sur l'instance client, `default_code`
+  est vide et le SKU vit dans `name` — c'est justement pour ça que l'hypothèse « item_code =
+  default_code » était fausse.
+- **Sens de lecture** : Odoo fait foi (846/876 produits le portent en staging). Le runner n'écrit
+  que si Odoo fournit une valeur (`if op.item_code:`) — jamais d'écrasement par du vide.
+- **Sens d'écriture** : on ne repousse `item_code` que s'il est renseigné côté PIM (même règle que
+  `gtin`/`hs_code`), pour ne jamais blanchir la référence d'Odoo.
+- **Robustesse dual-version** : `_product_fields()` intersecte la liste demandée avec le
+  `fields_get` réel de l'instance — ajouter un champ à `_PRODUCT_FIELDS` ne casse donc pas un Odoo
+  qui ne le porte pas.
+
 ### Écarts v16 ↔ v19 (push produit)
 
 | Champ | v16 (`OdooAdapterV16`) | v19 (`OdooAdapterV19`) |

@@ -1124,3 +1124,24 @@ autrement. Les écarts existaient dans le code mais n'étaient **pas tracés** �
   2026-06-22 (aucun projet Supabase lié à Syskern). Le stockage documents passe par
   `default_storage` (`MEDIA_ROOT/documents/…`) et le bucket, s'il revient un jour, relève de l'infra,
   pas du code applicatif.
+
+## 2026-07-22 · [T] « Code article » = champ Odoo natif `item_code` (≠ `default_code`)
+
+Complète l'entrée du jour sur le lot FEEDBACK 2, qui laissait la source du code article **non
+déterminée**. Le client a montré le champ dans son Odoo : il s'appelle littéralement **`item_code`**
+(`char`, stocké, libellé « Item code », juste sous le nom du produit).
+
+- **Ce n'est pas `default_code`.** L'hypothèse de départ était fausse : sur l'instance client
+  `default_code` est vide et le SKU vit dans `name` — d'où la confusion. Les deux références
+  coexistent : `sku_code` (identifiant catalogue) et `item_code` (référence article ~8 car.,
+  ex. `U0901001`).
+- **Vérifié sur l'instance** (`fields_get` via notre propre adapter) : le champ existe côté v16
+  **et** v19, et **846/876 produits le portent** en staging. Le produit ouvert par le client
+  faisait partie des 30 sans valeur, d'où l'impression qu'il était vide partout.
+- **Mapping** : `item_code` ajouté à `_PRODUCT_FIELDS` (v16 + v19), à `OdooProduct`, et posé par
+  `_upsert_product` **seulement si Odoo fournit une valeur** (jamais d'écrasement par du vide).
+  Push retour uniquement si renseigné côté PIM — Odoo reste la source de cette référence.
+- **Pas de risque dual-version** : `_product_fields()` intersecte déjà la liste avec le `fields_get`
+  réel de l'instance, un Odoo dépourvu du champ ne casse pas la sync.
+- **Vérifié de bout en bout** : sync locale → **597/853 produits** enrichis, code affiché sous le SKU
+  sur la fiche produit.

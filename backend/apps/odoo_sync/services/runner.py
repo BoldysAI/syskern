@@ -241,6 +241,8 @@ def _upsert_product(
             defaults["brand"] = op.brand
         if op.dop_number:
             defaults["dop_number"] = op.dop_number
+        if op.item_code:
+            defaults["item_code"] = op.item_code
         if op.uom_name:
             # Full fidelity: keep the real Odoo unit verbatim…
             defaults["uom"] = op.uom_name

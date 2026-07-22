@@ -58,6 +58,8 @@ def test_upsert_fills_brand_dop_uom() -> None:
         name="Câble enrichi",
         brand="Boldys",
         dop_number="DOP-CN-9",
+        # Référence article native Odoo, distincte du SKU (FEEDBACK 2).
+        item_code="Z0401001",
         uom_name="KM",
         standard_price_eur=Decimal("8.5"),
     )
@@ -66,6 +68,7 @@ def test_upsert_fills_brand_dop_uom() -> None:
     p = Product.objects.get(sku_code="ENR-1")
     assert p.brand == "Boldys"
     assert p.dop_number == "DOP-CN-9"
+    assert p.item_code == "Z0401001"
     assert p.base_unit == BaseUnit.KM
     assert p.uom == "KM"  # real Odoo unit kept verbatim
 
@@ -118,6 +121,7 @@ def test_upsert_does_not_wipe_seeded_values_when_odoo_empty() -> None:
         name="Seed",
         brand="ExcelBrand",
         dop_number="DOP-SEED",
+        item_code="SEED-CODE",
         base_unit=BaseUnit.M,
     )
     op = OdooProduct(odoo_id=502, sku_code="ENR-2", name="Seed", uom_name="kg")
@@ -126,4 +130,5 @@ def test_upsert_does_not_wipe_seeded_values_when_odoo_empty() -> None:
     p = Product.objects.get(sku_code="ENR-2")
     assert p.brand == "ExcelBrand"  # not wiped
     assert p.dop_number == "DOP-SEED"  # not wiped
+    assert p.item_code == "SEED-CODE"  # not wiped
     assert p.base_unit == BaseUnit.M  # unknown UoM → kept

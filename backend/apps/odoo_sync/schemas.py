@@ -53,6 +53,10 @@ class OdooProduct:
     brand: str = ""
     dop_number: str = ""
     uom_name: str = ""
+    #   item_code  ↔ Odoo `item_code` (champ natif de l'instance client, char)
+    #   Référence article ~8 caractères, distincte du SKU (`default_code`) —
+    #   demandée par le client en recette (FEEDBACK 2).
+    item_code: str = ""
     # Packaging levels from Odoo `product.packaging` (CDC §3.2 — "issu d'Odoo").
     # Named PRIMARY / SECONDARY / TERTIARY / LOGISTIC on the client instance.
     primary_packaging_qty: int | None = None
