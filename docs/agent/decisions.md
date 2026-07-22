@@ -1145,3 +1145,27 @@ déterminée**. Le client a montré le champ dans son Odoo : il s'appelle litté
   réel de l'instance, un Odoo dépourvu du champ ne casse pas la sync.
 - **Vérifié de bout en bout** : sync locale → **597/853 produits** enrichis, code affiché sous le SKU
   sur la fiche produit.
+
+## 2026-07-22 · [T] Sync Odoo — la version d'instance vient du déploiement, jamais d'un défaut codé
+
+**Bug de configuration silencieux**, coûteux : la version d'instance Odoo était codée en dur **à deux
+endroits** — `TriggerSyncSerializer.api_version = ChoiceField(default="v19")` et
+`triggerOdooSync(scope, api_version = "v19")` côté front. Toute sync lancée depuis
+`/settings` partait donc en **v19**, quelle que soit la valeur de `ODOO_API_VERSION`.
+
+Conséquence observée en prod **et** en staging : un environnement correctement réglé sur
+`ODOO_API_VERSION=v16` échouait en `[Errno 111] Connection refused`, parce qu'il tapait en réalité
+sur l'instance d'upgrade v19. On a d'abord cru à une variable d'environnement manquante — elle était
+bien là ; c'est le littéral applicatif qui gagnait.
+
+**Correction** : `api_version` devient `required=False, allow_null=True` **sans `default`**, et le
+front ne l'envoie que s'il est explicitement fourni. Omis → `sync()` retombe sur
+`settings.ODOO["API_VERSION"]`. La surcharge explicite reste possible (sync ciblée d'une instance).
+
+**Règle à retenir** : pour tout paramètre qui désigne une **cible d'infrastructure** (instance,
+base, endpoint externe), ne jamais poser de `default` dans un serializer DRF ni dans le client front
+— le déploiement doit rester seul décideur. Un `default` y est indiscernable d'un choix utilisateur
+et rend la config muette. 4 tests ajoutés (`test_sync_trigger.py`).
+
+⚠️ `push_product_task(..., api_version: str = "v19")` porte encore le même défaut ; il n'est pas sur
+ce chemin (push produit à la création) mais mérite le même traitement au prochain passage.

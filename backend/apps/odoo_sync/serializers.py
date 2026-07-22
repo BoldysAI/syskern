@@ -16,6 +16,10 @@ class TriggerSyncSerializer(serializers.Serializer):
     scope = serializers.ChoiceField(choices=SyncScope.choices, default=SyncScope.ALL)
     api_version = serializers.ChoiceField(
         choices=["v16", "v19"],
-        default="v19",
-        help_text="Which Odoo instance to sync from.",
+        required=False,
+        allow_null=True,
+        # PAS de `default` : un défaut ici écrasait silencieusement la config du
+        # déploiement. Omis → `sync()` retombe sur `settings.ODOO["API_VERSION"]`,
+        # donc c'est l'environnement qui décide de l'instance, pas ce littéral.
+        help_text="Instance Odoo à synchroniser. Omis = ODOO_API_VERSION du déploiement.",
     )

@@ -1588,14 +1588,23 @@ export function getOdooHealth(): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>("/api/odoo/health");
 }
 
-/** Trigger an async Odoo sync (Celery task). Returns the SyncLog row. */
+/**
+ * Trigger an async Odoo sync (Celery task). Returns the SyncLog row.
+ *
+ * `api_version` est **volontairement optionnel et sans défaut** : omis, le
+ * backend applique `ODOO_API_VERSION` du déploiement. Coder « v19 » en dur ici
+ * écrasait la config serveur — un environnement configuré en v16 partait quand
+ * même sur l'instance d'upgrade v19 et échouait en `Connection refused`.
+ */
 export function triggerOdooSync(
   scope: "all" | "products" | "stock" | "clients" | "suppliers" | "purchases_sales" = "all",
-  api_version: "v16" | "v19" = "v19",
+  api_version?: "v16" | "v19",
 ): Promise<SyncLog> {
+  const body: Record<string, string> = { scope };
+  if (api_version) body.api_version = api_version;
   return dispatchAndPoll<SyncLog>(
     "/api/odoo/sync/trigger",
-    { method: "POST", body: JSON.stringify({ scope, api_version }) },
+    { method: "POST", body: JSON.stringify(body) },
     { timeoutMs: 600_000 },
   );
 }

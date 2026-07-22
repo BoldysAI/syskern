@@ -177,6 +177,17 @@ Les adapters n'utilisent que `_call(service, method, args)` et `_execute_kw(mode
 
 ---
 
+## ⚠️ Choisir l'instance : `ODOO_API_VERSION`, jamais un défaut applicatif
+
+`get_odoo_adapter()` lit `settings.ODOO["API_VERSION"]` (défaut `v19` si la variable est absente).
+**Aucun appelant ne doit imposer une version par défaut** : ni `default=` dans un serializer DRF, ni
+valeur par défaut dans le client front. Sinon la config du déploiement devient muette — c'est
+exactement ce qui a fait échouer prod et staging en `Connection refused` alors que
+`ODOO_API_VERSION=v16` était correctement posé (cf. `decisions.md` 2026-07-22).
+
+- `POST /api/odoo/sync/trigger` : `api_version` **optionnel**, omis = version du déploiement.
+- Surcharge explicite = uniquement pour cibler sciemment l'autre instance.
+
 ## Configuration (dans `settings/base.py`)
 
 ```python
