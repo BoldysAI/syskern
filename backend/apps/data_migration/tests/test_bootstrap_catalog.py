@@ -13,9 +13,9 @@ from apps.products.models import MigrationSource, Product
 pytestmark = pytest.mark.django_db
 
 
-def _run() -> str:
+def _run(*args: str) -> str:
     out = StringIO()
-    call_command("bootstrap_catalog", stdout=out)
+    call_command("bootstrap_catalog", *args, stdout=out)
     return out.getvalue()
 
 
@@ -134,3 +134,43 @@ def test_purge_without_flag_fails_on_pricing_history(tmp_path):
         pytest.raises(ProtectedError),
     ):
         call_command("bootstrap_catalog", "--purge", stdout=StringIO())
+
+
+def test_bootstrap_applies_derivations(tmp_path):
+    """`bootstrap_catalog` doit dériver les champs déductibles du SKU (CDC §8.5).
+
+    Régression réelle : les dérivations ne vivaient que dans `run_migration.py`
+    (orchestrateur one-shot), alors que c'est `bootstrap_catalog` qui tourne au
+    déploiement. Résultat en prod : `parent_reference` vide sur tout le catalogue,
+    et un champ figé à 0 % dans le widget de complétude.
+    """
+    Product.objects.create(sku_code="KCFF6A4PZHDBL5-21", name="Câble dérivable")
+
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
+        BASE_DIR=tmp_path,
+        ODOO={"SYNC_ENABLED": False},
+    ):
+        output = _run("--force")
+
+    assert "derivations" in output.lower()
+    p = Product.objects.get(sku_code="KCFF6A4PZHDBL5-21")
+    assert p.parent_reference == "KCFF6A4PZHDBL5"
+    assert p.factory_code == "21"  # suffixe -NN du SKU
+
+
+def test_derivations_never_fail_the_deploy(tmp_path, monkeypatch):
+    """Une dérivation qui explose ne doit pas faire échouer le démarrage."""
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("derivation boom")
+
+    monkeypatch.setattr("apps.data_migration.derivations.apply_derivations", _boom)
+    with override_settings(
+        MIGRATION={"LOCKED": False, "SOURCES_DIR": "/nonexistent-dir-xyz"},
+        BASE_DIR=tmp_path,
+        ODOO={"SYNC_ENABLED": False},
+    ):
+        output = _run("--force")
+    assert "derivations failed" in output.lower()
+    assert "bootstrap done" in output.lower()

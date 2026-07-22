@@ -112,16 +112,20 @@ class Command(BaseCommand):
         # to bootstrapping the catalog from the Excel (create_missing).
         odoo_synced = self._sync_odoo_first()
 
+        # Pas d'Excel ≠ rien à faire : un catalogue peut venir d'Odoo seul, et les
+        # étapes de fin (dérivations, paramètres marché, activation fournisseur)
+        # portent sur l'état de la base, pas sur les fichiers. On saute donc le
+        # chargement sans court-circuiter la suite.
         sources_dir = self._resolve_sources_dir()
         if not sources_dir:
             self.stdout.write(
                 self.style.WARNING("No sources dir with client Excel found — nothing to load.")
             )
-            return
-        self.stdout.write(f"Loading client Excel from {sources_dir}")
+        else:
+            self.stdout.write(f"Loading client Excel from {sources_dir}")
 
         loaded = 0
-        for src in _SOURCES:
+        for src in _SOURCES if sources_dir else []:
             matches = sorted(glob.glob(os.path.join(sources_dir, src["glob"])))
             if not matches:
                 self.stdout.write(self.style.WARNING(f"Source absent: {src['glob']} — skipped."))
@@ -135,6 +139,19 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Loaded {Path(file_path).name}:\n{report}"))
             except Exception as exc:  # noqa: BLE001 — a bad source must not fail the deploy
                 self.stdout.write(self.style.ERROR(f"Source {Path(file_path).name} failed: {exc}"))
+
+        # Dérivations CDC §8.5 — `factory_code` / `parent_reference` se déduisent du
+        # SKU. Elles ne vivaient que dans `run_migration.py` (orchestrateur one-shot),
+        # alors que c'est CE chemin qui tourne au déploiement : les deux champs
+        # restaient donc vides sur tout le catalogue (0 % de complétude, constaté en
+        # prod le 2026-07-22). Idempotent : ne remplit que ce qui est vide.
+        try:
+            from apps.data_migration.derivations import apply_derivations
+
+            derived = apply_derivations()
+            self.stdout.write(self.style.SUCCESS(f"Derivations: {derived} product(s) enriched"))
+        except Exception as exc:  # noqa: BLE001 — ne doit jamais faire échouer le deploy
+            self.stdout.write(self.style.ERROR(f"Derivations failed: {exc}"))
 
         # Market parameters (idempotent) — best effort.
         try:

@@ -1169,3 +1169,26 @@ et rend la config muette. 4 tests ajoutés (`test_sync_trigger.py`).
 
 ⚠️ `push_product_task(..., api_version: str = "v19")` porte encore le même défaut ; il n'est pas sur
 ce chemin (push produit à la création) mais mérite le même traitement au prochain passage.
+
+## 2026-07-22 · [T] `bootstrap_catalog` applique les dérivations CDC §8.5
+
+Les dérivations (`factory_code` / `parent_reference` déduits du SKU, `is_copper_indexed`,
+`base_unit` câble→km) ne vivaient que dans `run_migration.py`, l'orchestrateur one-shot. Or **c'est
+`bootstrap_catalog` qui tourne au déploiement** et qu'on exécute réellement. Conséquence constatée
+en prod le 2026-07-22 : `parent_reference` **vide sur les 891 produits**, donc un champ figé à 0 %
+dans le widget de complétude — un faux « trou de données » qui n'en était pas un.
+
+- `apply_derivations()` est désormais appelé en fin de `bootstrap_catalog`, en best-effort (une
+  dérivation qui explose ne doit jamais faire échouer un démarrage de conteneur). Idempotent : ne
+  remplit que les champs vides.
+- **Le `return` anticipé « no sources dir » est levé** : un catalogue peut venir d'Odoo seul, et les
+  étapes de fin (dérivations, paramètres marché, activation fournisseur) portent sur l'état de la
+  base, pas sur les fichiers Excel. Elles tournent donc même sans source.
+- **Effet réel mesuré** : `parent_reference` 0 % → **100 %**. `factory_code` reste ~0 % et **c'est
+  correct** — il se déduit d'un suffixe `-NN` du SKU (`KCFF6A4PZHDBL5-21`) que les SKU du catalogue
+  client ne portent pas.
+
+⚠️ **Reste à trancher** : `factory_code` figure dans `_CORE_FIELDS` de la complétude alors que le
+client a fait retirer ce champ de la fiche produit (FEEDBACK 2 : « il est lié au fournisseur, pas au
+produit »). Il y restera donc à 0 % en permanence, sans que ce soit un défaut de données. Le retirer
+de `_CORE_FIELDS` rendrait le pourcentage honnête — décision produit non prise à ce jour.
