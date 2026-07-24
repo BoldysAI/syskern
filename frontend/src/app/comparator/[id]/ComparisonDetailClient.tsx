@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
 import { ArrowLeft, PencilSimple, Trash } from "@phosphor-icons/react";
 import { deleteSavedComparison, getSavedComparison, type SavedComparison } from "@/lib/api";
+import { humanizeApiError } from "@/lib/humanize-errors";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useBreadcrumbOverride, type BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
 import { persistLastVisited } from "@/lib/last-visited";
@@ -70,7 +71,9 @@ export function ComparisonDetailPage({ id }: Props) {
     return (
       <div className="p-6">
         <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Comparaison introuvable."}
+          {error instanceof Error
+            ? humanizeApiError(error, "Comparaison introuvable.")
+            : "Comparaison introuvable."}
         </p>
         <Button variant="outline" className="mt-4" onClick={() => router.push("/comparator")}>
           Retour à la liste

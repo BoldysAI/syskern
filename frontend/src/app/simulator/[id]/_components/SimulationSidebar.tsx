@@ -23,13 +23,14 @@ import {
 import {
   archiveSimulation,
   deleteSimulation,
+  getSimulationComparisonImpact,
   listTransportModes,
   unarchiveSimulation,
   updateSimulation,
   type SimulationDetail,
   type TransportMode,
 } from "@/lib/api";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { FinalizeModal } from "./FinalizeModal";
 import { DuplicateModal } from "./DuplicateModal";
 import { cn } from "@/lib/utils";
@@ -252,15 +253,63 @@ export function SimulationSidebar({
           {!readOnly && (
             <button
               onClick={async () => {
+                let impactNote = "";
+                try {
+                  const impact = await getSimulationComparisonImpact(sim.id);
+                  if (impact.comparisons.length > 0) {
+                    const labels = impact.comparisons.map((c) => `« ${c.label} »`).join(", ");
+                    const willDelete = impact.comparisons.filter((c) => c.will_delete);
+                    const willUpdate = impact.comparisons.filter((c) => !c.will_delete);
+                    const parts: string[] = [
+                      `Elle figure dans ${impact.comparisons.length} comparaison${impact.comparisons.length > 1 ? "s" : ""} : ${labels}.`,
+                    ];
+                    if (willDelete.length > 0) {
+                      parts.push(
+                        willDelete.length === 1
+                          ? `La comparaison ${willDelete.map((c) => `« ${c.label} »`).join(", ")} (2 colonnes) sera également supprimée.`
+                          : `${willDelete.length} comparaisons à 2 colonnes seront également supprimées.`,
+                      );
+                    }
+                    if (willUpdate.length > 0) {
+                      parts.push(
+                        willUpdate.length === 1
+                          ? `La simulation sera retirée de « ${willUpdate[0].label} ».`
+                          : `La simulation sera retirée des ${willUpdate.length} autres comparaisons.`,
+                      );
+                    }
+                    impactNote = `\n\n${parts.join(" ")}`;
+                  }
+                } catch {
+                  // Preview failed — still allow delete; backend cleans up on destroy.
+                }
                 const ok = await confirm({
                   title: "Supprimer la simulation",
-                  description: `Supprimer la simulation « ${sim.label} » ?`,
+                  description: `Supprimer la simulation « ${sim.label} » ?${impactNote}`,
                   confirmLabel: "Supprimer",
                   destructive: true,
                 });
                 if (!ok) return;
                 runAction("delete", async () => {
-                  await deleteSimulation(sim.id);
+                  const result = await deleteSimulation(sim.id);
+                  void globalMutate(
+                    (key) => Array.isArray(key) && key[0] === "comparisons-list",
+                  );
+                  if (result?.comparisons_deleted?.length || result?.comparisons_updated?.length) {
+                    const bits: string[] = [];
+                    if (result.comparisons_deleted?.length) {
+                      bits.push(
+                        `${result.comparisons_deleted.length} comparaison${result.comparisons_deleted.length > 1 ? "s" : ""} supprimée${result.comparisons_deleted.length > 1 ? "s" : ""}`,
+                      );
+                    }
+                    if (result.comparisons_updated?.length) {
+                      bits.push(
+                        `retirée de ${result.comparisons_updated.length} comparaison${result.comparisons_updated.length > 1 ? "s" : ""}`,
+                      );
+                    }
+                    toast.success(`Simulation supprimée (${bits.join(", ")}).`);
+                  } else {
+                    toast.success("Simulation supprimée.");
+                  }
                   router.push("/simulator");
                 });
               }}

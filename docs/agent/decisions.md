@@ -1192,3 +1192,18 @@ dans le widget de complétude — un faux « trou de données » qui n'en était
 client a fait retirer ce champ de la fiche produit (FEEDBACK 2 : « il est lié au fournisseur, pas au
 produit »). Il y restera donc à 0 % en permanence, sans que ce soit un défaut de données. Le retirer
 de `_CORE_FIELDS` rendrait le pourcentage honnête — décision produit non prise à ce jour.
+
+## 2026-07-24 · [P] Suppression simulation → détache / purge les comparaisons
+
+`SavedComparison` stocke des UUID en `ArrayField` (pas de FK), donc supprimer une simulation
+laissait des IDs orphelins → `POST /compare` et l'UI renvoyaient un **400** technique
+(« Certaines simulations sont introuvables »).
+
+**Règle produit** :
+- À la suppression d'une simulation : retirer la sim (et ses recalculs) de toutes les comparaisons.
+- Si la comparaison tombe sous **2 colonnes** → la supprimer aussi ; sinon la conserver.
+- Message de confirmation front enrichi (`GET .../comparison-impact/`) + toast après delete.
+- Filet de sécurité : `GET /api/saved-comparisons/{id}/` guérit les orphelins legacy (ou 404 FR).
+
+Implémentation : `apps/simulations/services/comparisons.py` + `SimulationViewSet.destroy`.
+Pas d'écart CDC — clarification UX hors spec écrite.

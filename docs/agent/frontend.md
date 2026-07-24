@@ -710,6 +710,10 @@ Lecture seule si `status !== "draft"` (finalized/archived).
     brancher `compareSimulationsWhatIf` sur de nouveaux écrans — API legacy uniquement.
   - **API** : `compareSimulations` (calcul live) ; CRUD comparaisons ; `duplicateSimulation` / `updateSimulation` /
     `recalculateSimulation` pour l'édition depuis compare. `compare/what-if` : conservé backend, **sans UI**.
+  - **Suppression simulation** : avant confirm, `getSimulationComparisonImpact` enrichit le dialogue
+    (comparaisons qui seront mises à jour vs supprimées). `deleteSimulation` nettoie côté backend
+    (`comparisons_deleted` / `comparisons_updated`) — toast de succès. Détail comparaison :
+    message FR via `humanizeApiError` si 404 après guérison d'orphelins.
 - Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
   `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, **`stepModuleLabel`**, `productEditHref`, `MODULE_LABELS`,
   `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`, **`prChainSteps`** fallback PR). Erreurs moteur / API :

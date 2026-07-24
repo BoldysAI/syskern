@@ -1127,10 +1127,41 @@ export function updateSimulation(
   });
 }
 
-export function deleteSimulation(id: string): Promise<void> {
-  return apiFetch<void>(`/api/simulations/${encodeURIComponent(id)}/`, {
-    method: "DELETE",
-  });
+export interface SimulationComparisonImpact {
+  comparisons: Array<{
+    id: string;
+    label: string;
+    /** True when the comparison would drop below 2 columns and be deleted. */
+    will_delete: boolean;
+  }>;
+}
+
+/** Preview how deleting a simulation would affect saved comparisons. */
+export function getSimulationComparisonImpact(
+  id: string,
+): Promise<SimulationComparisonImpact> {
+  return apiFetch<SimulationComparisonImpact>(
+    `/api/simulations/${encodeURIComponent(id)}/comparison-impact/`,
+  );
+}
+
+export interface DeleteSimulationResult {
+  detail: string;
+  comparisons_deleted: Array<{ id: string; label: string }>;
+  comparisons_updated: Array<{ id: string; label: string }>;
+}
+
+/**
+ * Delete a simulation. Returns ``undefined`` on 204 (no comparisons touched),
+ * or a summary when comparisons were detached / removed.
+ */
+export async function deleteSimulation(
+  id: string,
+): Promise<DeleteSimulationResult | undefined> {
+  return apiFetch<DeleteSimulationResult | undefined>(
+    `/api/simulations/${encodeURIComponent(id)}/`,
+    { method: "DELETE" },
+  );
 }
 
 /** Attach products to a simulation (creates lines). */
