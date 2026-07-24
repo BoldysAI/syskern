@@ -710,6 +710,10 @@ Lecture seule si `status !== "draft"` (finalized/archived).
     brancher `compareSimulationsWhatIf` sur de nouveaux écrans — API legacy uniquement.
   - **API** : `compareSimulations` (calcul live) ; CRUD comparaisons ; `duplicateSimulation` / `updateSimulation` /
     `recalculateSimulation` pour l'édition depuis compare. `compare/what-if` : conservé backend, **sans UI**.
+  - **Suppression simulation** : avant confirm, `getSimulationComparisonImpact` enrichit le dialogue
+    (comparaisons qui seront mises à jour vs supprimées). `deleteSimulation` nettoie côté backend
+    (`comparisons_deleted` / `comparisons_updated`) — toast de succès. Détail comparaison :
+    message FR via `humanizeApiError` si 404 après guérison d'orphelins.
 - Helpers d'affichage partagés dans `_components/sim-format.ts` (`fmtEur`, `fmtPrice`, `decToPct`, `LINE_STATUS`,
   `lineDiagnostics`, `parseLineBreakdown`, `moduleLabel`, **`stepModuleLabel`**, `productEditHref`, `MODULE_LABELS`,
   `formatBreakdownStepDetails`, `PASSTHROUGH_REASONS`, **`prChainSteps`** fallback PR). Erreurs moteur / API :
@@ -825,6 +829,14 @@ Historique = side panel `Sheet`. Édition gardée par `canEdit`. API `lib/api.ts
 `getSupplier`, `createSupplierEntity`, `updateSupplier`, `deleteSupplier`, `getSupplierSkus`,
 `addSupplierSku`, `removeSupplierSku`, `bulkLinkSkus`, `startPoImport`, `getSupplierPriceHistory`,
 `bulkUpdatePo`). Détail → `suppliers.md`.
+
+**Aide / guide utilisateur** (`/help`) — documentation Notion embarquée :
+
+- Entrée header : `HelpPopover` (icône `?`) → popover « Aide Syskern » → CTA **Ouvrir le guide**
+  vers `/help`. Aussi dans le menu profil (sidebar) : « Guide utilisateur ».
+- Page `app/help/` : iframe Notion plein écran utile (`HelpGuideEmbed`) + lien « Ouvrir dans Notion ».
+- URL embed : `lib/help.ts` (`HELP_NOTION_EMBED_URL` / `HELP_NOTION_PUBLIC_URL`). Ne pas hardcoder
+  ailleurs.
 
 **Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
 

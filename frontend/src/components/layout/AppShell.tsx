@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { IconProps } from "@phosphor-icons/react";
 import {
+  BookOpenText,
   Books,
   ChartLineUp,
   Files,
@@ -24,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/BreadcrumbContext";
+import { HelpPopover } from "@/components/help/HelpPopover";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AppIcon } from "@/components/AppIcon";
@@ -251,6 +253,10 @@ function Sidebar({
               {user?.email}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/help" />}>
+              <BookOpenText size={16} />
+              Guide utilisateur
+            </DropdownMenuItem>
             {isAdmin(role) && (
               <DropdownMenuItem render={<Link href="/settings" />}>
                 <GearSix size={16} />
@@ -343,9 +349,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0 flex-1">
               <AppBreadcrumb />
             </div>
+
+            <HelpPopover />
           </header>
 
-          <main className="flex-1 overflow-y-auto bg-background">{children}</main>
+          <main className="min-h-0 flex-1 overflow-y-auto bg-background">{children}</main>
         </div>
       </div>
     </BreadcrumbProvider>

@@ -31,6 +31,7 @@ const SECTION_LABELS: Record<string, { label: string; href: string }> = {
   comparator: { label: "Comparaisons", href: "/comparator" },
   offers: { label: "Offres", href: "/offers" },
   library: { label: "Bibliothèque", href: "/library" },
+  help: { label: "Aide", href: "/help" },
   settings: { label: "Paramètres", href: "/settings" },
   admin: { label: "Administration", href: "/admin/users" },
 };

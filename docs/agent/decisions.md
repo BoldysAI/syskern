@@ -1192,3 +1192,35 @@ dans le widget de complétude — un faux « trou de données » qui n'en était
 client a fait retirer ce champ de la fiche produit (FEEDBACK 2 : « il est lié au fournisseur, pas au
 produit »). Il y restera donc à 0 % en permanence, sans que ce soit un défaut de données. Le retirer
 de `_CORE_FIELDS` rendrait le pourcentage honnête — décision produit non prise à ce jour.
+
+## 2026-07-24 · [P] Suppression simulation → détache / purge les comparaisons
+
+`SavedComparison` stocke des UUID en `ArrayField` (pas de FK), donc supprimer une simulation
+laissait des IDs orphelins → `POST /compare` et l'UI renvoyaient un **400** technique
+(« Certaines simulations sont introuvables »).
+
+**Règle produit** :
+- À la suppression d'une simulation : retirer la sim (et ses recalculs) de toutes les comparaisons.
+- Si la comparaison tombe sous **2 colonnes** → la supprimer aussi ; sinon la conserver.
+- Message de confirmation front enrichi (`GET .../comparison-impact/`) + toast après delete.
+- Filet de sécurité : `GET /api/saved-comparisons/{id}/` guérit les orphelins legacy (ou 404 FR).
+
+Implémentation : `apps/simulations/services/comparisons.py` + `SimulationViewSet.destroy`.
+Pas d'écart CDC — clarification UX hors spec écrite.
+
+## 2026-07-24 · [P] Documentation technique humaine (`docs/`) distincte des playbooks agents
+
+Livrable reprise projet (Boldys / Karim) : pack sous `docs/` **hors** `docs/agent/` —
+
+- `docs/README.md` (index), `docs/architecture.md`, `docs/odoo-mapping.md`
+- `docs/runbooks/` : `vps-setup`, `restore`, `migration`, `migration-reset`,
+  `odoo-sync-troubleshooting` (+ monitoring / bascule déjà présents)
+- `docs/integrations/` : gamma, deepl, openai, database
+- `docs/api/` : export OpenAPI (`openapi.yaml`) + README ; live = `/api/docs/`
+
+**Vérité ops documentée** (aligne code + décisions antérieures, pas le CDC brut) :
+Postgres classique + Coolify/Traefik sur VPS OVH ; auth users+rôles ; backup via
+`infra/backup.sh` (Postgres only, pas Storage Supabase). README racine réécrit
+pour onboarding &lt; 1 h (`make setup` → `make up` → `create_platform_user`).
+
+Playbooks `docs/agent/` restent la source pour agents IA / conventions de code.

@@ -51,6 +51,11 @@ from .serializers import (
     SimulationRecalculationSerializer,
     SimulationWriteSerializer,
 )
+from .services.comparisons import (
+    detach_simulation_from_comparisons,
+    heal_saved_comparison,
+    preview_detach_impact,
+)
 from .services.runner import (
     PRICING_AFFECTING_FIELDS,
     mark_lines_dirty_after_pricing_change,
@@ -231,7 +236,42 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        return super().destroy(request, *args, **kwargs)
+        with transaction.atomic():
+            # Detach before delete: recalculation IDs are needed and cascade with the sim.
+            detach = detach_simulation_from_comparisons(simulation)
+            simulation.delete()
+        if not detach.deleted and not detach.updated:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {
+                "detail": "Simulation supprimée.",
+                "comparisons_deleted": [
+                    {"id": str(c.id), "label": c.label} for c in detach.deleted
+                ],
+                "comparisons_updated": [
+                    {"id": str(c.id), "label": c.label} for c in detach.updated
+                ],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["get"], url_path="comparison-impact")
+    def comparison_impact(self, request, pk=None):
+        """Preview how deleting this simulation would affect saved comparisons."""
+        simulation = self.get_object()
+        impacts = preview_detach_impact(simulation)
+        return Response(
+            {
+                "comparisons": [
+                    {
+                        "id": str(c.id),
+                        "label": c.label,
+                        "will_delete": c.will_delete,
+                    }
+                    for c in impacts
+                ]
+            }
+        )
 
     # ─── /finalize (CDC §6.9.6) ───────────────────────────────────────
     @action(detail=True, methods=["post"])
@@ -985,6 +1025,22 @@ class SavedComparisonViewSet(viewsets.ModelViewSet):
         if self.action in ("update", "partial_update"):
             return SavedComparisonPatchSerializer
         return SavedComparisonSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        """Heal orphan column IDs left by past simulation deletes before returning."""
+        obj = self.get_object()
+        healed = heal_saved_comparison(obj)
+        if healed is None:
+            return Response(
+                {
+                    "detail": (
+                        "Cette comparaison n'est plus valide : trop de simulations "
+                        "associées ont été supprimées."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(SavedComparisonSerializer(healed).data)
 
     def perform_create(self, serializer):
         serializer.save()

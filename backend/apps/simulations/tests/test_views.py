@@ -2,7 +2,8 @@
 
 Coverage:
   - integrity rules: PATCH finalized/archived → 403, DELETE finalized → 403,
-    DELETE with attached offers → 409 + list, DELETE draft → 204
+    DELETE with attached offers → 409 + list, DELETE draft → 204,
+    DELETE detaches/removes saved comparisons referencing the simulation
   - creation validations: project requires a name and exactly one client
   - line status filters: has_warning / has_error
 """
@@ -194,6 +195,84 @@ class TestDeleteGuards:
         body = resp.json()
         assert any(str(offer.pk) == str(o["id"]) for o in body["offers"])
         assert Simulation.objects.filter(pk=draft.pk).exists()
+
+    def test_delete_removes_two_column_comparison(self, client: APIClient) -> None:
+        s1 = Simulation.objects.create(label="A", simulation_type=SimulationType.TARIFF)
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        comp = SavedComparison.objects.create(
+            label="Duo",
+            simulation_ids=[s1.pk, s2.pk],
+        )
+        impact = client.get(f"/api/simulations/{s1.pk}/comparison-impact/")
+        assert impact.status_code == 200
+        assert impact.json()["comparisons"] == [
+            {"id": str(comp.pk), "label": "Duo", "will_delete": True}
+        ]
+
+        resp = client.delete(f"/api/simulations/{s1.pk}/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["comparisons_deleted"] == [{"id": str(comp.pk), "label": "Duo"}]
+        assert body["comparisons_updated"] == []
+        assert not Simulation.objects.filter(pk=s1.pk).exists()
+        assert not SavedComparison.objects.filter(pk=comp.pk).exists()
+
+    def test_delete_detaches_from_three_column_comparison(self, client: APIClient) -> None:
+        s1 = Simulation.objects.create(label="A", simulation_type=SimulationType.TARIFF)
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        s3 = Simulation.objects.create(label="C", simulation_type=SimulationType.TARIFF)
+        comp = SavedComparison.objects.create(
+            label="Trio",
+            simulation_ids=[s1.pk, s2.pk, s3.pk],
+        )
+        impact = client.get(f"/api/simulations/{s1.pk}/comparison-impact/")
+        assert impact.json()["comparisons"][0]["will_delete"] is False
+
+        resp = client.delete(f"/api/simulations/{s1.pk}/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["comparisons_deleted"] == []
+        assert body["comparisons_updated"] == [{"id": str(comp.pk), "label": "Trio"}]
+        comp.refresh_from_db()
+        assert comp.simulation_ids == [s2.pk, s3.pk]
+        assert SavedComparison.objects.filter(pk=comp.pk).exists()
+
+    def test_retrieve_heals_orphan_simulation_ids(self, client: APIClient) -> None:
+        s1 = Simulation.objects.create(label="A", simulation_type=SimulationType.TARIFF)
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        ghost = uuid.uuid4()
+        # Simulate a pre-fix orphan: array still holds deleted sim + ghost UUID.
+        comp = SavedComparison.objects.create(
+            label="Stale",
+            simulation_ids=[s1.pk, s2.pk, ghost],
+        )
+        Simulation.objects.filter(pk=s1.pk).delete()
+        SavedComparison.objects.filter(pk=comp.pk).update(simulation_ids=[s1.pk, s2.pk, ghost])
+
+        detail = client.get(f"/api/saved-comparisons/{comp.pk}/")
+        assert detail.status_code == 404
+        assert "plus valide" in detail.json()["detail"]
+        assert not SavedComparison.objects.filter(pk=comp.pk).exists()
+
+    def test_retrieve_heals_orphan_keeps_valid_pair(self, client: APIClient) -> None:
+        s1 = Simulation.objects.create(label="A", simulation_type=SimulationType.TARIFF)
+        s2 = Simulation.objects.create(label="B", simulation_type=SimulationType.TARIFF)
+        s3 = Simulation.objects.create(label="C", simulation_type=SimulationType.TARIFF)
+        ghost = uuid.uuid4()
+        comp = SavedComparison.objects.create(
+            label="Almost",
+            simulation_ids=[s1.pk, s2.pk, s3.pk, ghost],
+        )
+        Simulation.objects.filter(pk=s3.pk).delete()
+        SavedComparison.objects.filter(pk=comp.pk).update(
+            simulation_ids=[s1.pk, s2.pk, s3.pk, ghost]
+        )
+
+        detail = client.get(f"/api/saved-comparisons/{comp.pk}/")
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["simulation_ids"] == [str(s1.pk), str(s2.pk)]
+        assert body["column_count"] == 2
 
 
 # ─── Creation validations (CDC §6.9.2) ──────────────────────────────────────
@@ -397,6 +476,7 @@ class TestSingleLineRecalc:
         body = resp.json()
         assert body["previous_pv_eur"] == first_pv
         assert body["pv_eur"] != first_pv
+
     def test_recalculate_single_line_finalized_blocked(self, client: APIClient) -> None:
         sim, line = _priceable_line()
         Simulation.objects.filter(pk=sim.pk).update(status=SimulationStatus.FINALIZED)
