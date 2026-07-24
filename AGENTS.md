@@ -210,6 +210,7 @@ Avant de considérer une tâche **terminée**, parcours cette checklist et mets 
 - PIM (catalogue, attributs, seeds référence) → `pim.md`
 - fournisseurs (entité Supplier, CRUD, SKU liés, import batch PO, historique prix) → `suppliers.md`
 - migration initiale one-shot (orchestrateur, loaders, reset, dérivations) → `migration.md`
+- doc technique humaine / ops (Boldys, reprise projet) → `docs/README.md` (architecture, runbooks, intégrations, OpenAPI) — **distinct** des playbooks `docs/agent/`
 - changer d'instance Odoo en prod → `docs/runbooks/bascule-odoo-prod.md`
 - offres (génération tarif/projet, Excel/Gamma, suivi) → `offers.md`
 - multilingue / traduction (DeepL, cache, couverture, langue offre) → `i18n.md`
