@@ -1207,3 +1207,20 @@ laissait des IDs orphelins → `POST /compare` et l'UI renvoyaient un **400** te
 
 Implémentation : `apps/simulations/services/comparisons.py` + `SimulationViewSet.destroy`.
 Pas d'écart CDC — clarification UX hors spec écrite.
+
+## 2026-07-24 · [P] Documentation technique humaine (`docs/`) distincte des playbooks agents
+
+Livrable reprise projet (Boldys / Karim) : pack sous `docs/` **hors** `docs/agent/` —
+
+- `docs/README.md` (index), `docs/architecture.md`, `docs/odoo-mapping.md`
+- `docs/runbooks/` : `vps-setup`, `restore`, `migration`, `migration-reset`,
+  `odoo-sync-troubleshooting` (+ monitoring / bascule déjà présents)
+- `docs/integrations/` : gamma, deepl, openai, database
+- `docs/api/` : export OpenAPI (`openapi.yaml`) + README ; live = `/api/docs/`
+
+**Vérité ops documentée** (aligne code + décisions antérieures, pas le CDC brut) :
+Postgres classique + Coolify/Traefik sur VPS OVH ; auth users+rôles ; backup via
+`infra/backup.sh` (Postgres only, pas Storage Supabase). README racine réécrit
+pour onboarding &lt; 1 h (`make setup` → `make up` → `create_platform_user`).
+
+Playbooks `docs/agent/` restent la source pour agents IA / conventions de code.
