@@ -830,6 +830,14 @@ Historique = side panel `Sheet`. Édition gardée par `canEdit`. API `lib/api.ts
 `addSupplierSku`, `removeSupplierSku`, `bulkLinkSkus`, `startPoImport`, `getSupplierPriceHistory`,
 `bulkUpdatePo`). Détail → `suppliers.md`.
 
+**Aide / guide utilisateur** (`/help`) — documentation Notion embarquée :
+
+- Entrée header : `HelpPopover` (icône `?`) → popover « Aide Syskern » → CTA **Ouvrir le guide**
+  vers `/help`. Aussi dans le menu profil (sidebar) : « Guide utilisateur ».
+- Page `app/help/` : iframe Notion plein écran utile (`HelpGuideEmbed`) + lien « Ouvrir dans Notion ».
+- URL embed : `lib/help.ts` (`HELP_NOTION_EMBED_URL` / `HELP_NOTION_PUBLIC_URL`). Ne pas hardcoder
+  ailleurs.
+
 **Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
 
 - **Données** : un seul `useSWR("dashboard-summary", getDashboardSummary)` → `GET /api/dashboard/summary` (agrégats catalogue, simulations, offres, comparaisons, bibliothèque, marché, `todo`, `recent`). Admin : `getSyncStatus` séparé dans `DashboardAdminLinks`.
