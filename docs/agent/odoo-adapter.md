@@ -188,6 +188,17 @@ exactement ce qui a fait échouer prod et staging en `Connection refused` alors 
 - `POST /api/odoo/sync/trigger` : `api_version` **optionnel**, omis = version du déploiement.
 - Surcharge explicite = uniquement pour cibler sciemment l'autre instance.
 
+## Tâches planifiées — valider les kwargs, pas seulement le code
+
+Les `PeriodicTask` sont figées **en base** par des migrations. Une valeur invalide dans leurs
+`kwargs` ne se voit ni au lint, ni au typage, ni dans les tests de la tâche elle-même : elle
+n'explose qu'au runtime, dans le worker. Et si l'exception précède la création du `SyncLog`,
+**l'UI n'en garde aucune trace** — c'est ainsi que la sync quotidienne est restée morte des
+semaines (cf. `decisions.md` 2026-07-27).
+
+Toute nouvelle tâche planifiée portant des `kwargs` doit être couverte par
+`tests/test_beat_schedules.py` : les valeurs lues en base doivent passer les constructeurs d'enum.
+
 ## Configuration (dans `settings/base.py`)
 
 ```python
