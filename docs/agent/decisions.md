@@ -1224,3 +1224,36 @@ Postgres classique + Coolify/Traefik sur VPS OVH ; auth users+rôles ; backup vi
 pour onboarding &lt; 1 h (`make setup` → `make up` → `create_platform_user`).
 
 Playbooks `docs/agent/` restent la source pour agents IA / conventions de code.
+
+## 2026-07-27 · [T] La sync Odoo quotidienne n'avait JAMAIS tourné (`sync_type` invalide)
+
+**Signalé par le client** : « aucun job cron ne tourne pour la sync Odoo ». Vérifié — c'était exact.
+
+`odoo_sync/0002_daily_sync_periodic_task` enregistrait la tâche beat avec
+`"sync_type": "scheduled"`, valeur **absente de l'enum `SyncType`**
+(`auto_daily` / `manual` / `on_demand`). `sync_task` fait `SyncType(sync_type)` →
+`ValueError: 'scheduled' is not a valid SyncType`.
+
+**Pourquoi personne ne l'a vu pendant des semaines** — c'est le vrai enseignement :
+- Beat déclenchait correctement (`Sending due task Daily Odoo full sync`), le worker recevait la
+  tâche : côté supervision, tout paraissait sain.
+- L'exception survient **avant** la création du `SyncLog` → **aucune trace dans l'historique de
+  synchronisation de l'UI**. Une panne totale y est indiscernable d'un « jamais lancé ».
+- Toutes les autres tâches beat ont des `kwargs` vides et fonctionnaient : seule celle qui portait
+  des paramètres était cassée.
+
+**Correction** : migration `odoo_sync/0004` réécrit les kwargs de la tâche existante
+(`sync_type: auto_daily`), en préservant planning et `enabled` (un opérateur a pu la désactiver
+volontairement). Idempotente. La `0002` n'est pas modifiée — une migration appliquée ne se réécrit
+pas ; sur un déploiement neuf, `0002` pose la mauvaise valeur et `0004` la corrige aussitôt.
+
+**Garde-fou** : `apps/odoo_sync/tests/test_beat_schedules.py` valide les kwargs **figés en base par
+les migrations**, pas seulement le code des tâches — c'est le raccord entre les deux qui avait cédé.
+Y compris un test bout-en-bout qui fait traverser `sync_task` aux kwargs réels.
+
+**Vérifié en local** : la tâche rejouée avec les kwargs corrigés produit
+`type=auto_daily | scope=all | statut=success | par=celery-beat`, 23 clients créés, stock à jour.
+
+⚠️ **Dette connexe non traitée** : un échec de tâche planifiée reste invisible dans l'UI tant qu'il
+survient avant la création du `SyncLog`. Créer la ligne `SyncLog` **en tête** de `sync()` (statut
+`running`, puis `failed` sur exception) rendrait toute panne future visible. À arbitrer.
