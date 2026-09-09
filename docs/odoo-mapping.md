@@ -9,6 +9,7 @@ Source de vérité runtime : adapters + schemas.
 | Adapter v16 | `backend/apps/odoo_sync/adapters/v16.py` |
 | Adapter v19 | `backend/apps/odoo_sync/adapters/v19.py` |
 | Runner upsert | `backend/apps/odoo_sync/services/runner.py` |
+| Inventaire couverture | [`agent/odoo-sync.md`](agent/odoo-sync.md) |
 | Rapport d’investigation | `backend/docs/odoo_investigation_report.md` |
 | Volumétrie brute | `backend/docs/odoo-mapping.md` |
 
@@ -20,17 +21,20 @@ la version.
 
 ## 1. Périmètre synchronisé
 
-| Modèle Odoo | Cible plateforme | Scope |
-|---|---|---|
-| `product.template` (+ packaging, supplierinfo) | `Product`, `ProductSupplier` | `products` / `all` |
-| `stock.quant` | stock + refresh PAMP | `stock` / `all` |
-| `res.partner` (clients) | `Client` | `clients` / `all` |
-| `product.supplierinfo` | liens fournisseurs | `suppliers` / `all` |
-| `purchase.order.line` | PAMP prévisionnel | `purchases_sales` |
-| Push `product.template` | create/update depuis plateforme | on-demand + retry horaire |
+Source de vérité (objets, sens, fréquence, scopes no-op) : [`agent/odoo-sync.md`](agent/odoo-sync.md).
+Ne pas déduire le périmètre des valeurs de l'enum `SyncScope`.
 
-**Hors sync push** (CDC) : attributs EAV dynamiques, PV calculés → listes de
-prix Odoo.
+| Modèle Odoo | Cible plateforme | Scope runner |
+|---|---|---|
+| `product.template` (+ packaging, supplierinfo) | `Product`, `ProductSupplier`, `Supplier` | `products` / `all` |
+| `stock.quant` | `Product.stock_quantity` | `stock` / `all` (PAMP **non** rafraîchi ici) |
+| `res.partner` (`customer_rank > 0`) | `Client` | `clients` / `all` |
+| `product.supplierinfo` | liens + entité `Supplier` | **inclus dans** `products` — scope `suppliers` = no-op |
+| `purchase.order.line` (qty non reçue) | PAMP prévisionnel **éphémère** | recalc simulation — scope `purchases_sales` = **no-op** |
+| Push `product.template` | create/update depuis plateforme | on-demand + retry horaire (pas le cron pull) |
+
+**Hors sync push** (CDC + code) : attributs EAV dynamiques, PV calculés → listes de
+prix Odoo, `standard_price`, catégorie, brand, packaging, `seller_ids`.
 
 ---
 
@@ -100,8 +104,13 @@ Champs DTO : `name`, `email`, `phone`, adresse, `preferred_language`,
 
 ## 5. Stock & PAMP
 
-`stock.quant` → quantités agrégées ; `standard_price` rafraîchit le PAMP EUR.
-Lignes PO ouvertes alimentent le PAMP prévisionnel (scope purchases).
+`stock.quant` → `Product.stock_quantity` (agrégat `quantity` des emplacements internes ;
+`available_quantity` n'est pas persisté). Le DTO stock **ne porte pas** `standard_price` :
+le PAMP courant vient de `product.template.standard_price` au **pull produits**, pas du
+scope `stock`.
+
+Lignes PO ouvertes (`get_pending_purchases`) alimentent le PAMP prévisionnel **au recalc**
+simulation — elles ne sont pas persistées et le scope `purchases_sales` ne les tire pas.
 
 ---
 
@@ -134,9 +143,11 @@ Détail pages/latences → `backend/docs/odoo-mapping.md`.
 
 | Job | Quand |
 |---|---|
-| Sync complète | 03:00 UTC (Beat) |
-| Retry pushes échoués | horaire |
-| Killswitch | `ODOO_SYNC_ENABLED` |
+| Pull `scope=all` | 03:00 UTC (Beat `odoo_sync.sync_task`) |
+| Retry pushes produits échoués | horaire (`retry_failed_product_pushes`) |
+| `ODOO_SYNC_ENABLED` | **uniquement** `bootstrap_catalog` — **pas** un killswitch Beat |
+
+Couper le cron = `PeriodicTask.enabled=False` (django-celery-beat). Détail → `agent/odoo-sync.md` §4.
 
 Troubleshooting → [`runbooks/odoo-sync-troubleshooting.md`](runbooks/odoo-sync-troubleshooting.md).
 Changement d’ERP → [`runbooks/bascule-odoo-prod.md`](runbooks/bascule-odoo-prod.md).

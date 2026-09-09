@@ -1257,3 +1257,23 @@ Y compris un test bout-en-bout qui fait traverser `sync_task` aux kwargs réels.
 ⚠️ **Dette connexe non traitée** : un échec de tâche planifiée reste invisible dans l'UI tant qu'il
 survient avant la création du `SyncLog`. Créer la ligne `SyncLog` **en tête** de `sync()` (statut
 `running`, puis `failed` sur exception) rendrait toute panne future visible. À arbitrer.
+
+## 2026-09-09 · [P] Synchro Odoo « complète » (MVP2) — non chiffrée, périmètre non défini
+
+Ticket Uplify **Core (ODOO)**, décision explicite Yassine **07/09/2026** : **non chiffré**.
+Aucune référence Boldys. Le CDC MVP1 §5 décrit une synchro PIM/pricing (produits, stock,
+clients, achats/ventes engagés pour le PAMP) ; **« complète » n'y a pas de liste d'objets
+additionnels** (stock / commandes / fournisseurs / etc.).
+
+**Décision** : ne pas inventer le delta. Inventaire de l'existant = `docs/agent/odoo-sync.md`
+(code = vérité). À noter pour le cadrage futur, sans en faire une spec :
+
+- stock, fournisseurs (`supplierinfo`) et achats engagés sont **déjà partiellement**
+  couverts, chacun dans un sens / une fréquence précis — un « complet » n'est pas
+  « ajouter stock + PO + fournisseurs from scratch » ;
+- les scopes API `suppliers` et `purchases_sales` existent dans l'enum mais le runner
+  les **no-op** (l'UI ne les propose pas) ;
+- `ODOO_SYNC_ENABLED` n'est **pas** un killswitch du cron (uniquement `bootstrap_catalog`).
+
+**Chiffrage** : seulement après définition client (objets, sens, fréquence, conflits).
+Pas de dev sur ce ticket tant que ce cadrage n'existe pas.

@@ -28,7 +28,7 @@ Frontend : `frontend/src/app/admin/migration-quarantine/` (page admin-only, calq
 
 ## Les 4 steps (ordre figé, CDC §8.4)
 
-1. `odoo_sync` — `apps.odoo_sync.services.runner.sync(scope=ALL)`. Skip si Odoo non configuré, `--skip-odoo`, ou `--dry-run`.
+1. `odoo_sync` — `apps.odoo_sync.services.runner.sync(scope=ALL)`. Skip si Odoo non configuré, `--skip-odoo`, ou `--dry-run`. Couverture du pull → `odoo-sync.md`.
 2. `excel_enrichment` — joue les entrées manifest `phase=enrich` via `LOADER_REGISTRY`.
 3. `create_non_odoo` — entrées manifest `phase=create` (produits hors-Odoo). Pas de loader par défaut (format client-spécifique).
 4. `validate_derive` — `apply_derivations()` puis `validate_products()`.

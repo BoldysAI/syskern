@@ -482,6 +482,12 @@ Onglet **Presets transport** (`?tab=transport-presets`) : `TabTransportPresets` 
 `TransportPreset` (nom unique, mode, coût, palettes, lieux ; partagés PA et PV). Aucun preset
 pré-installé — création admin ou depuis une simulation (signet).
 
+Onglet **Odoo** (`?tab=odoo`) : `TabOdoo` — santé (`GET /api/odoo/health` 30 s), trigger
+manuel (`triggerOdooSync` → 202 + poll) scopes UI **uniquement** `all` | `products` | `stock` |
+`clients`, historique `SyncLog`. Les scopes API `suppliers` / `purchases_sales` existent
+côté serializer mais **ne font rien** dans le runner — ne pas les ajouter à l'UI. Inventaire →
+`odoo-sync.md`.
+
 Onglet **Marché** : CRUD paramètres cuivre/FX via `listMarketParameters` / `createMarketParameter`
 / `updateMarketParameter` / `deleteMarketParameter` ; champ optionnel `source` (LME, BCE, manual).
 Pour récupérer le paramètre actif côté simulation : `getCurrentMarketParameter({ parameter_type, … })`

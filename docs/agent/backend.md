@@ -1,7 +1,7 @@
 # docs/agent/backend.md — Conventions backend (Django + DRF)
 
 > Lis ce fichier avant toute tâche backend. Règles d'or transverses → `/AGENTS.md`.
-> Patterns détaillés : `drf-resource.md`, `odoo-adapter.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`.
+> Patterns détaillés : `drf-resource.md`, `odoo-adapter.md`, `odoo-sync.md`, `pricing-chain.md`, `celery-task.md`, `integrations.md`.
 > Domaines : `pim.md` (catalogue produit + attributs).
 
 ## Organisation
@@ -59,7 +59,7 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 - Détail (statuts de sync, retries) → `celery-task.md`.
 
 ## Intégrations
-- **Odoo** : jamais d'accès direct. `apps.odoo_sync.adapters.factory.get_odoo_adapter[_for]`. v16/v19 derrière l'ABC `OdooAdapter`. → `odoo-adapter.md`.
+- **Odoo** : jamais d'accès direct. `apps.odoo_sync.adapters.factory.get_odoo_adapter[_for]`. v16/v19 derrière l'ABC `OdooAdapter`. Factory → `odoo-adapter.md`. **Ce qui est réellement syncé** (objets, sens, fréquence, scopes no-op) → `odoo-sync.md`.
 - **Pricing** : moteur isolé dans `apps/simulations/services/engine/` + `runner.py` (Decimal, transaction, trace `SimulationRecalculation`). Marge Syskern = **avant** transports PV (`build_sale_modules`). → `pricing-chain.md`.
 - **Paramètres marché** (`apps/market`) : CRUD `GET/POST /api/market-parameters/` ;
   paramètre actif courant `GET /api/market-parameters/current/?parameter_type=copper_price`

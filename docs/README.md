@@ -13,6 +13,7 @@ architecture, runbooks, intégrations, OpenAPI.
 | [../README.md](../README.md) | Présentation, prérequis, setup local &lt; 1 h, commandes |
 | [architecture.md](architecture.md) | Schéma global, choix techniques, liens CDC |
 | [odoo-mapping.md](odoo-mapping.md) | Mapping champs Odoo ↔ plateforme (spike ODO-1) |
+| [agent/odoo-sync.md](agent/odoo-sync.md) | Inventaire synchro actuelle (objets, sens, fréquence) |
 | [api/](api/) | OpenAPI (drf-spectacular) — live `/api/docs/` + export |
 | [integrations/database.md](integrations/database.md) | PostgreSQL local / prod |
 | [integrations/gamma.md](integrations/gamma.md) | Génération devis projet Gamma |

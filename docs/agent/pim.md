@@ -2,7 +2,7 @@
 
 > Playbook du domaine **PIM** (CDC §3.2, §4). Règles transverses → `/AGENTS.md`.
 > Mécanique : backend → `backend.md` + `drf-resource.md` · frontend → `frontend.md`.
-> Référence code : `apps/products/`, `apps/attributes/`, `frontend/src/app/catalog/`.
+> Sync Odoo du catalogue → `odoo-sync.md`. Référence code : `apps/products/`, `apps/attributes/`, `frontend/src/app/catalog/`.
 
 Le PIM = deux apps backend (`products`, `attributes`) + l'écran catalogue / fiche
 produit côté frontend. Ce fichier documente ce qui est **spécifique au domaine** ;

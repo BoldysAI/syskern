@@ -160,9 +160,12 @@ Aligné sur le design system (`frontend.md`) : tokens sémantiques, icônes Phos
 
 ## Odoo sync
 
-`apps/odoo_sync/services/runner.py::_sync_suppliers` `get_or_create` désormais le `Supplier`
-(par `name`) et pose `ProductSupplier.supplier`, en plus de `supplier_name`. Garde l'entité cohérente
-quand un fournisseur apparaît d'abord via Odoo.
+Inventaire complet (sens, fréquence, ce qui n'est **pas** syncé) → `odoo-sync.md`.
+
+`apps/odoo_sync/services/runner.py::_sync_suppliers` `get_or_create` le `Supplier`
+(par `name`) et pose `ProductSupplier.supplier`, en plus de `supplier_name`. Inclus dans le
+pull **produits** — le scope API `suppliers` est un **no-op**. Aucun push `product.supplierinfo`.
+`SupplierPriceHistory` n'est pas écrit par ce pull.
 
 ---
 

@@ -1,7 +1,7 @@
 # docs/agent/integrations.md — Clients HTTP externes (Gamma / OpenAI / DeepL)
 
 > Lis ce fichier avant de toucher à une intégration tierce **hors Odoo**.
-> Odoo a son propre pattern (factory + ABC) → `odoo-adapter.md`. Async → `celery-task.md`.
+> Odoo : factory + ABC → `odoo-adapter.md` ; couverture sync → `odoo-sync.md`. Async → `celery-task.md`.
 > Référence : `apps/offers/services/{gamma,openai_client,translation}.py`.
 
 ## Périmètre

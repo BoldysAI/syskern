@@ -17,7 +17,9 @@ API / Celery  →  get_odoo_adapter()  →  JsonRpcMixin (/jsonrpc)
 - Tâche quotidienne : `odoo_sync.sync_task`, **03:00 UTC**, scope `all`
   ( PeriodicTask en BDD via django-celery-beat ).
 - Retry pushes produits : horaire `odoo_sync.retry_failed_product_pushes`.
-- Killswitch : `ODOO_SYNC_ENABLED=false` coupe les syncs automatiques.
+- `ODOO_SYNC_ENABLED` **ne coupe pas** Beat ni le trigger manuel — il ne gate que
+  `bootstrap_catalog`. Pour arrêter le cron : `PeriodicTask.enabled=False`.
+- Inventaire de couverture → [`../agent/odoo-sync.md`](../agent/odoo-sync.md).
 
 **Ne jamais** juger le succès sur la ligne Celery seule :
 `Task … succeeded` peut masquer un `SyncLog.status=failed` (la tâche logue

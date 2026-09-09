@@ -106,8 +106,9 @@ Versions exactes → `backend/pyproject.toml` + `uv.lock` (ne pas les recopier i
 ### Sync Odoo (quotidien 03:00 UTC)
 
 Celery Beat → `odoo_sync.sync_task` (scope `all`) → adapter factory → upsert
-produits / stock / clients / suppliers. Historique dans `sync_logs`.
-Détail mapping → [`odoo-mapping.md`](odoo-mapping.md). Troubleshooting →
+produits (y compris `supplierinfo`) / stock / clients. Historique dans `sync_logs`.
+Inventaire (objets, sens, fréquence, scopes no-op) → [`agent/odoo-sync.md`](agent/odoo-sync.md).
+Mapping champs → [`odoo-mapping.md`](odoo-mapping.md). Troubleshooting →
 [`runbooks/odoo-sync-troubleshooting.md`](runbooks/odoo-sync-troubleshooting.md).
 
 ### Chaîne de pricing PA → PR → PV

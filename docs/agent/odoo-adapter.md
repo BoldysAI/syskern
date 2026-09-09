@@ -1,6 +1,7 @@
 # docs/agent/odoo-adapter.md — Adapter Odoo (factory pattern)
 
-> Lis ce fichier avant toute tâche qui touche à Odoo.
+> Lis ce fichier avant toute tâche qui touche à Odoo **au niveau adapter**.
+> Couverture réelle (objets, sens, fréquence) → `odoo-sync.md` — ne pas la déduire de l'ABC.
 > Règle transverse → `/AGENTS.md` §5 règle 3. Tâches Celery → `celery-task.md`.
 > Référence : `apps/odoo_sync/adapters/` + `apps/odoo_sync/schemas.py`.
 
