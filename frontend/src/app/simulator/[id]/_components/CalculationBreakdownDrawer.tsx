@@ -207,7 +207,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {staleSaleMargin && (
               <div className="mb-4 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
                 <p className={diagnosticTextClass}>
-                  Ce détail de calcul date d&apos;avant la correction « marge Syskern avant transport
+                  Ce détail de calcul date d&apos;avant la correction « marge vente avant transport
                   PV ». Les montants affichés peuvent être incorrects — recalculez la simulation
                   (bouton Recalculer) pour mettre à jour le PV et la chaîne PV.
                 </p>
@@ -242,7 +242,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                     <SummaryCell label="PR" value={fmtEur(line.pr_eur)} highlight />
                     <SummaryCell label="PV" value={fmtEur(line.pv_eur)} highlight />
                     <SummaryCell
-                      label="Marge Syskern eff."
+                      label="Marge vente eff."
                       value={
                         line.effective_margin_rate
                           ? `${decToPct(line.effective_margin_rate)} %`
@@ -330,7 +330,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       {saleSteps.map((s) => stepModuleLabel(s)).join(" → ")}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      La marge Syskern est appliquée sur le PR avant les transports et la douane
+                      La marge vente est appliquée sur le PR avant les transports et la douane
                       (position fixe, non déplaçable).
                     </p>
                     <p className="mt-2 text-sm tabular-nums text-foreground">
@@ -414,7 +414,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {currentStep === "sale" && (
               <div>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Chaîne de vente : du PR au PV final en EUR. La marge Syskern est appliquée en
+                  Chaîne de vente : du PR au PV final en EUR. La marge vente est appliquée en
                   premier sur le PR, puis les transports et la douane.
                   {breakdown.sale?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">

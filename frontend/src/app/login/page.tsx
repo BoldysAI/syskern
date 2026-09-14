@@ -33,7 +33,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-8">
-        <BrandLogo variant="syskern" className="max-h-12" />
+        <BrandLogo className="text-xl" />
 
         <Card className="w-full shadow-[var(--shadow-elevated)]">
           <CardHeader>
@@ -99,8 +99,6 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
-
-        <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
       </div>
     </div>
   );

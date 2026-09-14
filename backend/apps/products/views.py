@@ -483,7 +483,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return FileResponse(
             file_path.open("rb"),
             as_attachment=True,
-            filename="catalogue_syskern.xlsx",
+            filename="catalogue.xlsx",
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 

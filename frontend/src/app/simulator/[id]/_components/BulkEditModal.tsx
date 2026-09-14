@@ -200,7 +200,7 @@ export function BulkEditModal({
             <div className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Marge Syskern effective (%)</label>
+                  <label className={labelCls}>Marge vente effective (%)</label>
                   <input
                     type="number"
                     min={0}

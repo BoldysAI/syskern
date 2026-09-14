@@ -154,12 +154,8 @@ function Sidebar({
           className="flex h-full w-full items-center justify-center"
         >
           <BrandLogo
-            variant="syskern"
             compact={collapsed}
-            className={cn(
-              "h-full w-full object-contain object-center",
-              collapsed ? "max-h-9 max-w-9" : "max-h-11 max-w-full",
-            )}
+            className={collapsed ? "px-1" : "px-2"}
           />
         </Link>
       </div>

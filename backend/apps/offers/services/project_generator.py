@@ -24,6 +24,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.clients.models import Client
+from apps.core.anonymize import anonymize_json, anonymize_text
 from apps.simulations.models import Simulation
 
 from ..models import (
@@ -46,9 +47,9 @@ SNAPSHOT_DIR = Path("/tmp/syskern_exports/offers/gamma-cached")
 SECTION_TITLES = {
     "cover": {"fr": "Couverture", "en": "Cover", "es": "Portada"},
     "presentation": {
-        "fr": "Présentation Syskern",
-        "en": "About Syskern",
-        "es": "Presentación Syskern",
+        "fr": "Présentation",
+        "en": "About",
+        "es": "Presentación",
     },
     "pricing": {"fr": "Tableau de prix", "en": "Pricing", "es": "Precios"},
     "arguments": {"fr": "Argumentaires", "en": "Value proposition", "es": "Argumentario"},
@@ -157,6 +158,7 @@ def _price_table_markdown(offer: Offer, lang: str) -> str:
         total = (ln.final_price or Decimal(0)) * qty
         grand_total += total
         designation, _ = resolve_product_designation(ln.product, lang)
+        designation = anonymize_text(designation or "")
         rows.append(
             f"| {ln.product.sku_code} | {designation} | {qty:g} | "
             f"{ln.final_price:.2f} {cur} | {total:.2f} {cur} |"
@@ -178,29 +180,28 @@ def build_gamma_payload(
     sections = (offer.project_info or {}).get("sections_config") or DEFAULT_SECTIONS
     title = SECTION_TITLES
 
-    parts: list[str] = [f"# {offer.project_name}"]
+    parts: list[str] = [f"# {anonymize_text(offer.project_name)}"]
     if sections.get("cover", True):
-        parts.append(f"## {title['cover'][lang]}\n{offer.project_name}")
+        parts.append(f"## {title['cover'][lang]}\n{anonymize_text(offer.project_name)}")
     if sections.get("presentation", True):
         parts.append(
             f"## {title['presentation'][lang]}\n"
-            "Syskern (groupe Symea) — solutions de câblage réseau, fibre optique et racks."
+            "Solutions de câblage réseau, fibre optique et racks."
         )
     if sections.get("pricing", True):
         parts.append(f"## {title['pricing'][lang]}\n{_price_table_markdown(offer, lang)}")
     if sections.get("arguments", True) and arguments:
-        body = "\n\n".join(f"### {k.capitalize()}\n{v}" for k, v in arguments.items() if v)
+        scrubbed = anonymize_json(arguments)
+        body = "\n\n".join(f"### {k.capitalize()}\n{v}" for k, v in scrubbed.items() if v)
         parts.append(f"## {title['arguments'][lang]}\n{body}")
     if sections.get("conditions", True):
         validity = f" Validité : {offer.valid_to}." if offer.valid_to else ""
-        parts.append(
-            f"## {title['conditions'][lang]}\nConditions générales de vente Syskern.{validity}"
-        )
+        parts.append(f"## {title['conditions'][lang]}\nConditions générales de vente.{validity}")
 
     # Separate sections with a `---` rule: Gamma's `inputTextBreaks` splits a
     # new card on each break, so the deck maps 1:1 to our sections (a long price
     # table stays inside its own card) — deterministic count, exportable to PDF.
-    input_text = "\n\n---\n\n".join(parts)
+    input_text = anonymize_text("\n\n---\n\n".join(parts))
     num_cards = max(1, sum(1 for v in sections.values() if v))
 
     payload: dict = {
@@ -213,7 +214,7 @@ def build_gamma_payload(
         # doesn't fail with `deck_too_large` (Gamma best practice for preserve).
         "cardSplit": "inputTextBreaks",
         "numCards": num_cards,
-        "title": offer.project_name,
+        "title": anonymize_text(offer.project_name),
         "exportAs": "pdf",
         # `amount` is ignored in preserve mode (Gamma keeps our text as-is), so
         # we send only the target language.
@@ -221,7 +222,7 @@ def build_gamma_payload(
         "imageOptions": {"source": image_source},
     }
     if offer.ai_instructions:
-        payload["additionalInstructions"] = offer.ai_instructions[:5000]
+        payload["additionalInstructions"] = anonymize_text(offer.ai_instructions)[:5000]
     template_id = _resolve_gamma_template(offer)
     if template_id:
         payload["themeId"] = template_id

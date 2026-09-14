@@ -705,7 +705,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
         return FileResponse(
             file_path.open("rb"),
             as_attachment=True,
-            filename="simulation_syskern.xlsx",
+            filename="simulation.xlsx",
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 

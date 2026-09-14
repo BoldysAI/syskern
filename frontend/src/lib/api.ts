@@ -1,3 +1,5 @@
+import { anonymizeJson, anonymizeText } from "@/lib/anonymize";
+
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
   const match = document.cookie.match(/csrftoken=([^;]+)/);
@@ -18,7 +20,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${text}`);
+    throw new Error(`API ${res.status}: ${anonymizeText(text)}`);
   }
   if (res.status === 204 || res.status === 205) {
     return undefined as T;
@@ -27,7 +29,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!text.trim()) {
     return undefined as T;
   }
-  return JSON.parse(text) as T;
+  return anonymizeJson(JSON.parse(text) as T);
 }
 
 // ── Celery polling helpers ───────────────────────────────────────────────

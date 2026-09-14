@@ -174,7 +174,7 @@ export function SimulationParamsFields({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>Marge Symea (%)</label>
+              <label className={labelCls}>Marge achat (%)</label>
               <input
                 type="number"
                 min={0}
@@ -187,7 +187,7 @@ export function SimulationParamsFields({
               />
             </div>
             <div>
-              <label className={labelCls}>Marge Syskern (%)</label>
+              <label className={labelCls}>Marge vente (%)</label>
               <input
                 type="number"
                 min={0}
@@ -202,7 +202,7 @@ export function SimulationParamsFields({
           </div>
 
           <div>
-            <label className={labelCls}>Position marge Symea</label>
+            <label className={labelCls}>Position marge achat</label>
             <div className="flex gap-2">
               {(["after_transports", "before_transports"] as SymeaPosition[]).map((pos) => (
                 <button

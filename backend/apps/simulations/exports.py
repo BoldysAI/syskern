@@ -133,8 +133,8 @@ def _build_synthese(ws, simulation: Simulation, lines: list[SimulationLine]) -> 
 
     section("Paramètres globaux")
     kv("Mix stock/achat (%)", simulation.stock_purchase_mix_pct)
-    kv("Marge Symea (%)", (_num(simulation.symea_margin_rate) or 0) * 100)
-    kv("Marge Syskern (%)", (_num(simulation.syskern_margin_rate) or 0) * 100)
+    kv("Marge achat (%)", (_num(simulation.symea_margin_rate) or 0) * 100)
+    kv("Marge vente (%)", (_num(simulation.syskern_margin_rate) or 0) * 100)
     row += 1
 
     section("Paramètres marché")

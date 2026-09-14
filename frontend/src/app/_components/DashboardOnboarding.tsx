@@ -31,7 +31,7 @@ const STEPS = [
 export function DashboardOnboarding() {
   return (
     <section className="rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-card p-6 shadow-[var(--shadow-soft)]">
-      <h2 className="text-lg font-semibold text-foreground">Bienvenue sur Syskern</h2>
+      <h2 className="text-lg font-semibold text-foreground">Bienvenue</h2>
       <p className="mt-1 max-w-xl text-sm text-muted-foreground">
         Commencez par ces trois étapes pour prendre en main la plateforme de pricing.
       </p>

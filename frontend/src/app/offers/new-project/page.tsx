@@ -53,7 +53,7 @@ const LANGUAGES = [
 const STEPS = ["Client & projet", "Quantités", "Langue & validité", "Sections", "Instructions IA"];
 const SECTIONS: { key: string; label: string }[] = [
   { key: "cover", label: "1. Couverture" },
-  { key: "presentation", label: "2. Présentation Syskern" },
+  { key: "presentation", label: "2. Présentation" },
   { key: "pricing", label: "3. Tableau de prix" },
   { key: "arguments", label: "4. Argumentaires (IA)" },
   { key: "conditions", label: "5. Conditions" },

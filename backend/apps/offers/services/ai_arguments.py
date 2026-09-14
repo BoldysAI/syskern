@@ -15,6 +15,8 @@ import hashlib
 import json
 import logging
 
+from apps.core.anonymize import anonymize_json, anonymize_text
+
 from .openai_client import OpenAIClient, OpenAIError
 
 logger = logging.getLogger("apps.offers.ai_arguments")
@@ -68,11 +70,17 @@ def generate_arguments(
     """Return ``{technical, commercial, logistic}`` strings, or None on failure."""
     oai = client or OpenAIClient()
     system = (
-        "Tu es un ingénieur avant-vente Syskern (câblage réseau, fibre, racks). "
+        "Tu es un ingénieur avant-vente (câblage réseau, fibre, racks). "
         "Tu rédiges des argumentaires de devis B2B, factuels et convaincants. "
-        "Tu ne mentionnes jamais de prix."
+        "Tu ne mentionnes jamais de prix ni de nom d'entreprise."
     )
-    user = _build_user_prompt(products, client_info, project_name, user_instructions, language)
+    user = _build_user_prompt(
+        anonymize_json(products),
+        anonymize_json(client_info),
+        anonymize_text(project_name),
+        anonymize_text(user_instructions),
+        language,
+    )
     try:
         data = oai.generate_json(system=system, user=user, temperature=0.7, max_tokens=800)
     except OpenAIError as exc:
@@ -80,8 +88,8 @@ def generate_arguments(
         return None
 
     # Keep only the expected keys; coerce to str. Reject if all empty.
-    result = {k: str(data.get(k, "")).strip() for k in _KEYS}
-    if not any(result.values()):
+    result = {k: anonymize_text(str(data.get(k, "")).strip()) for k in _KEYS}
+    if not any(v and v != "—" for v in result.values()):
         logger.warning("OpenAI returned empty arguments: %s", json.dumps(data)[:200])
         return None
     return result

@@ -140,7 +140,7 @@ function RecalcEntry({
         />
         <ParamRow label="Mix stock/achat" value={`${r.stock_purchase_mix_pct} %`} />
         <ParamRow
-          label="Marges SysKern / Symea"
+          label="Marges vente / achat"
           value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`}
         />
         {chainSummary(r.calculation_chain) && (
