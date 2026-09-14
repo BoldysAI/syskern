@@ -1257,3 +1257,15 @@ Y compris un test bout-en-bout qui fait traverser `sync_task` aux kwargs réels.
 ⚠️ **Dette connexe non traitée** : un échec de tâche planifiée reste invisible dans l'UI tant qu'il
 survient avant la création du `SyncLog`. Créer la ligne `SyncLog` **en tête** de `sync()` (statut
 `running`, puis `failed` sur exception) rendrait toute panne future visible. À arbitrer.
+
+## 2026-09-14 · [P] Branche jetable — anonymisation chrome pour tournage vidéo
+Branche `cursor/anonymize-platform-demo-80db` **à ne jamais merger**. Tournage produit sans
+identité client (Syskern / Symea / Unikkern / Amplify). **Aucune écriture catalogue en base** :
+masque d'affichage uniquement (`frontend/src/lib/anonymize.ts`, `apps/core/anonymize.py` pour
+Excel/Gamma/prompts). Vocabulaire UI : « Pricing Platform », « Marge achat », « Marge vente ».
+Login : alias `@exemple.com` → user `@syskern.com` pour ne jamais taper le domaine client.
+Swagger : titre « Pricing API » + renommage des propriétés `symea_margin_rate` /
+`syskern_margin_rate` dans le schéma OpenAPI seulement (l'API live garde les clés).
+Hors scope volontaire : Django `/admin/`, JSON brut Network, docs CDC, tests moteur, clés
+`localStorage` `syskern:*`.
+

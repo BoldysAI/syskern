@@ -2,7 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { installAnonymizeFetch } from "@/lib/anonymize";
 import { getSession, loginApi, logoutApi, type AuthUser, type Role } from "@/lib/auth";
+
+installAnonymizeFetch();
 
 interface AuthContextValue {
   user: AuthUser | null;

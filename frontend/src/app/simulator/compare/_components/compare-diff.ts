@@ -185,9 +185,9 @@ const SECTIONS: { title: string; fields: FieldDef[] }[] = [
     title: "Paramètres simulation",
     fields: [
       { id: "mix", label: "Mix stock / achat", deltaUnit: "pct" },
-      { id: "margin_syskern", label: "Marge SysKern", deltaUnit: "pct" },
-      { id: "margin_symea", label: "Marge Symea", deltaUnit: "pct" },
-      { id: "symea_position", label: "Position marge Symea" },
+      { id: "margin_syskern", label: "Marge vente", deltaUnit: "pct" },
+      { id: "margin_symea", label: "Marge achat", deltaUnit: "pct" },
+      { id: "symea_position", label: "Position marge achat" },
       { id: "sale_incoterm", label: "Incoterm vente" },
       { id: "chain_modules", label: "Chaîne de calcul" },
     ],

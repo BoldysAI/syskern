@@ -1,45 +1,28 @@
-"use client";
-
-import { useState } from "react";
+import { HELP_TITLE } from "@/lib/help";
 import { cn } from "@/lib/utils";
-import { HELP_NOTION_EMBED_URL } from "@/lib/help";
 
 interface HelpGuideEmbedProps {
   className?: string;
-  /** Accessible title for the iframe. */
   title?: string;
 }
 
-/** Full-bleed Notion guide embed with a soft loading state. */
+/** Placeholder guide — the production Notion embed is client-branded. */
 export function HelpGuideEmbed({
   className,
-  title = "Guide utilisateur Syskern",
+  title = HELP_TITLE,
 }: HelpGuideEmbedProps) {
-  const [loaded, setLoaded] = useState(false);
-
   return (
-    <div className={cn("relative overflow-hidden bg-card", className)}>
-      {!loaded && (
-        <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-muted/40"
-          aria-hidden
-        >
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Chargement du guide…</p>
-        </div>
+    <div
+      className={cn(
+        "flex flex-col items-start justify-center gap-2 bg-card p-8 text-sm text-muted-foreground",
+        className,
       )}
-      <iframe
-        src={HELP_NOTION_EMBED_URL}
-        title={title}
-        className={cn(
-          "h-full w-full border-0 transition-opacity duration-300",
-          loaded ? "opacity-100" : "opacity-0",
-        )}
-        allowFullScreen
-        loading="lazy"
-        referrerPolicy="strict-origin-when-cross-origin"
-        onLoad={() => setLoaded(true)}
-      />
+    >
+      <p className="text-base font-semibold text-foreground">{title}</p>
+      <p>
+        Documentation interne : catalogue, simulations, comparaisons et offres.
+        Parcourez les écrans de la plateforme pour le parcours pricing.
+      </p>
     </div>
   );
 }

@@ -784,15 +784,18 @@ couleurs legacy (`#0F2137`, `#E07200`, `#0f2444`) — utiliser les tokens ci-des
 
 ### Logos
 
-- Assets : `public/syskern-logo.png`, `public/unnikkern-logo.png`, `public/favicon.png`.
-- Composant : `components/BrandLogo.tsx` (`variant="syskern" | "unnikkern"`).
-- Règles : largeur min 150px digital, pas de filtre CSS / recadrage / changement de couleur.
+- **Branche démo vidéo (ne pas merger)** : wordmark texte `Pricing Platform` / compact `PP`
+  (`components/BrandLogo.tsx`), favicon `public/favicon.svg`. Pas d'assets client.
+  Masque affichage : `src/lib/anonymize.ts` (valeurs API uniquement, pas la DB).
+- **main** : assets `public/syskern-logo.png`, `public/unnikkern-logo.png`, `public/favicon.png` ;
+  `BrandLogo` variants `syskern` | `unnikkern`. Largeur min 150px digital, pas de filtre CSS /
+  recadrage / changement de couleur.
 
 ### Composants métier UI
 
 | Composant | Fichier | Rôle |
 |---|---|---|
-| `BrandLogo` | `components/BrandLogo.tsx` | Logos syskern / Unikkern |
+| `BrandLogo` | `components/BrandLogo.tsx` | Wordmark démo « Pricing Platform » (main : logos client) |
 | `PageHeader` | `components/PageHeader.tsx` | Titre page + actions ; variants `default` \| `dense` \| `hero` |
 | `AppModal` | `components/AppModal.tsx` | Modale standard (Dialog + tailles sm/md/lg/xl) |
 | `EmptyState` | `components/EmptyState.tsx` | États vides |

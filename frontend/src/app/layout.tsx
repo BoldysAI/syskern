@@ -22,10 +22,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Syskern Pricing Platform",
-  description: "Plateforme de tarification Syskern",
+  title: "Pricing Platform",
+  description: "Plateforme de tarification",
   icons: {
-    icon: "/favicon.png",
+    icon: "/favicon.svg",
   },
 };
 

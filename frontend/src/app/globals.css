@@ -6,7 +6,7 @@
 @custom-variant motion-safe (@media (prefers-reduced-motion: no-preference));
 
 @theme {
-  /* Brand primitives — Unikkern guideline */
+  /* Brand primitives */
   --color-brand-navy: #162f56;
   --color-brand-navy-dark: #0f2444;
   --color-brand-green: #649e5f;

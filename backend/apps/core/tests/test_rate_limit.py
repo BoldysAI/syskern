@@ -159,3 +159,12 @@ def test_helper_client_ip_falls_back_to_remote_addr():
     rf = RequestFactory()
     req = rf.get("/", REMOTE_ADDR="198.51.100.99")
     assert rate_limit._client_ip(req) == "198.51.100.99"
+
+
+@pytest.mark.django_db
+def test_demo_login_accepts_exemple_com_alias(login_user, client):
+    """Throwaway demo: type @exemple.com so the client domain never hits the form."""
+    login_user.email = "ratelimit@syskern.com"
+    login_user.save(update_fields=["email"])
+    resp = _post(client, email="ratelimit@exemple.com", password="GoodSecret123!")
+    assert resp.status_code == status.HTTP_200_OK

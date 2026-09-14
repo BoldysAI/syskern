@@ -160,10 +160,14 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Syskern Pricing API",
-    "DESCRIPTION": "Backend API for the Syskern pricing platform (MVP1).",
+    "TITLE": "Pricing API",
+    "DESCRIPTION": "Backend API for the pricing platform (MVP1).",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.core.anonymize.spectacular_postprocess",
+    ],
 }
 
 # ─── Session ──────────────────────────────────────────────────────────────────

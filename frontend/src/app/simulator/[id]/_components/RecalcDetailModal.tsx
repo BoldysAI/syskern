@@ -72,7 +72,7 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
         <Row label="FX EUR→RMB" value={mpStr(mp, "fx_eur_rmb")} />
         <Row label="FX EUR→USD" value={mpStr(mp, "fx_eur_usd")} />
         <Row label="Mix stock/achat" value={`${r.stock_purchase_mix_pct} %`} />
-        <Row label="Marges Syskern / Symea" value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
+        <Row label="Marges vente / achat" value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
         <Row label="Incoterm vente" value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)} />
         {r.odoo_snapshot_at && (
           <Row label="Snapshot Odoo" value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")} />

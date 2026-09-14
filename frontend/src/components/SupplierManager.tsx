@@ -239,7 +239,7 @@ function SupplierFields({
             disabled={disabled}
             onChange={(e) => onChange({ supplier_name: e.target.value })}
             className={inputCls}
-            placeholder="ex. Symea Shanghai"
+            placeholder="ex. Fournisseur"
           />
         )}
       </label>

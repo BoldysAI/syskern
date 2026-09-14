@@ -121,10 +121,12 @@ dans `runner.py`. Replay historique → `ProductView.from_snapshot(snap)`.
 
 **Marges :**
 - Marge Symea : taux par défaut **6 %** (`"0.06"`), formule `price_out = price_in / (1 - rate)`.
+  Branche démo vidéo : label UI « Marge achat » (clé API `symea_margin_rate` inchangée).
 - Taux valide : `0 ≤ rate < 1`. Un taux ≥ 1 lève `ValueError`.
 - Position Symea (chaîne **PA**) : `after_transports` (défaut) ou `before_transports`. Seul déplacement
   configurable. Ne pas implémenter d'autres positions.
 - **Marge Syskern (chaîne PV) : position FIXE codée en dur, appliquée AVANT les transports/douane vente**
+  Branche démo vidéo : label UI « Marge vente » (clé API `syskern_margin_rate` inchangée).
   (CDC Feedback 1 — `build_sale_modules` place `MarginModule(syskern)` en premier). Non configurable, pas de
   toggle, pas un module drag & drop. Déviation assumée vs l'Annexe Technique (cf. `decisions.md` 2026-07-14).
   Exemple : PR 100 €, marge 20 %, transport +10 €/unité → PV **135 €** (marge puis transport), pas 137,50 €

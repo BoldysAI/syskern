@@ -1,10 +1,7 @@
 "use client";
 
-import { ArrowSquareOut } from "@phosphor-icons/react";
 import { HelpGuideEmbed } from "@/components/help/HelpGuideEmbed";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
-import { HELP_NOTION_PUBLIC_URL } from "@/lib/help";
 
 export default function HelpPage() {
   return (
@@ -14,25 +11,7 @@ export default function HelpPage() {
           variant="dense"
           className="mb-0"
           title="Guide utilisateur"
-          description="Documentation et tutoriels Syskern — catalogue, simulations, comparaisons et offres."
-          actions={
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              nativeButton={false}
-              render={
-                <a
-                  href={HELP_NOTION_PUBLIC_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                />
-              }
-            >
-              Ouvrir dans Notion
-              <ArrowSquareOut size={14} />
-            </Button>
-          }
+          description="Documentation interne — catalogue, simulations, comparaisons et offres."
         />
       </div>
 

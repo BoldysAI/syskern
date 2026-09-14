@@ -18,6 +18,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from apps.core.anonymize import anonymize_text
+
 from .offer_i18n import resolve_product_designation
 
 # ── Column registry ──────────────────────────────────────────────────────────
@@ -44,7 +46,7 @@ def _weight(line, offer, client) -> _Number | None:
 def _product_designation(line, offer, client) -> str | None:
     lang = offer.language if offer.language in {"fr", "en", "es"} else "fr"
     text, _ = resolve_product_designation(line.product, lang)
-    return text or None
+    return anonymize_text(text) if text else None
 
 
 def _market_param(key: str, *, numeric: bool = True) -> Callable:
@@ -194,11 +196,10 @@ _LABELS = {
 }
 _CONDITIONS_TEXT = {
     "fr": "Prix indicatifs hors taxes, sous réserve de disponibilité. "
-    "Les conditions générales de vente Syskern s'appliquent.",
-    "en": "Indicative prices excluding tax, subject to availability. "
-    "Syskern general terms of sale apply.",
+    "Les conditions générales de vente s'appliquent.",
+    "en": "Indicative prices excluding tax, subject to availability. General terms of sale apply.",
     "es": "Precios indicativos sin impuestos, sujetos a disponibilidad. "
-    "Se aplican las condiciones generales de venta de Syskern.",
+    "Se aplican las condiciones generales de venta.",
 }
 
 _NAVY = "0F2137"
@@ -238,15 +239,15 @@ def build_tariff_xlsx(
     ws.title = _SHEET_TITLE[lang]
 
     # ── Branded header ──
-    ws["A1"] = "SYSKERN"
+    ws["A1"] = "PRICING PLATFORM"
     ws["A1"].font = Font(bold=True, size=20, color=_NAVY)
     ws["A2"] = _TAGLINE[lang]
     ws["A2"].font = Font(size=11, color=_ORANGE)
 
     row = 4
     meta = [
-        (_LABELS["client"][lang], client.name if client else "—"),
-        (_LABELS["offer"][lang], offer.label),
+        (_LABELS["client"][lang], anonymize_text(client.name) if client else "—"),
+        (_LABELS["offer"][lang], anonymize_text(offer.label)),
         (
             _LABELS["validity"][lang],
             " → ".join(filter(None, [str(offer.valid_from or ""), str(offer.valid_to or "")]))
@@ -275,7 +276,10 @@ def build_tariff_xlsx(
     for line in lines:
         for col_idx, key in enumerate(cols, start=1):
             spec = _COLUMN_REGISTRY[key]
-            cell = ws.cell(row=r, column=col_idx, value=spec["v"](line, offer, client))
+            raw = spec["v"](line, offer, client)
+            if isinstance(raw, str):
+                raw = anonymize_text(raw)
+            cell = ws.cell(row=r, column=col_idx, value=raw)
             if spec.get("number_format"):
                 cell.number_format = spec["number_format"]
         r += 1

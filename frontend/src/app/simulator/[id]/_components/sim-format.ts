@@ -134,8 +134,8 @@ export const MODULE_LABELS: Record<string, string> = {
   currency_conversion: "Conversion devise",
   transport: "Transport",
   customs: "Douane",
-  symea_margin: "Marge Symea",
-  syskern_margin: "Marge Syskern",
+  symea_margin: "Marge achat",
+  syskern_margin: "Marge vente",
   margin: "Marge",
   predictive_pamp: "PAMP prévisionnel",
   pr_mix: "Mix stock / achat → PR",
@@ -307,9 +307,9 @@ export function formatBreakdownStepDetails(
     case "symea_margin": {
       const label =
         step.module === "syskern_margin" || meta.label === "syskern"
-          ? "Marge Syskern"
+          ? "Marge vente"
           : step.module === "symea_margin" || meta.label === "symea"
-            ? "Marge Symea"
+            ? "Marge achat"
             : "Marge";
       const pct = decToPct(String(meta.rate));
       lines.push(`${label} : ${pct} % (sur le prix de vente).`);
@@ -489,7 +489,7 @@ export function moduleLabel(module: string): string {
   return MODULE_LABELS[module] ?? module;
 }
 
-/** Step title in breakdown — distinguishes Syskern vs Symea margin modules. */
+/** Step title in breakdown — distinguishes vente vs achat margin modules. */
 export function stepModuleLabel(step: BreakdownStep): string {
   if (step.module === "syskern_margin") return MODULE_LABELS.syskern_margin;
   if (step.module === "symea_margin") return MODULE_LABELS.symea_margin;
@@ -539,7 +539,7 @@ export function recalcTriggerLabel(triggerType: string | null | undefined): stri
   return RECALC_TRIGGER[triggerType]?.label ?? "Recalcul";
 }
 
-/** True when the persisted sale breakdown still applies Syskern margin after PV transports. */
+/** True when the persisted sale breakdown still applies vente margin after PV transports. */
 export function isStaleSaleMarginBreakdown(breakdown: LineBreakdown): boolean {
   const steps = breakdown.sale?.steps ?? [];
   if (steps.length < 2) return false;

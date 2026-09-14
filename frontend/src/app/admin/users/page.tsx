@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { OptionSelect } from "@/components/OptionSelect";
 import type { Role } from "@/lib/auth";
+import { visiblePersonName } from "@/lib/anonymize";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -236,7 +237,7 @@ export default function UsersPage() {
             </div>
             <div>
               <div className="text-sm font-medium text-foreground">
-                {u.first_name || u.last_name ? `${u.first_name} ${u.last_name}`.trim() : "—"}
+                {visiblePersonName(u)}
               </div>
               <div className="text-xs text-muted-foreground">
                 Créé le {new Date(u.date_joined).toLocaleDateString("fr-FR")}

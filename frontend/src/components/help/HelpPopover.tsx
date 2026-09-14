@@ -46,11 +46,10 @@ export function HelpPopover() {
               <BookOpenText size={20} weight="duotone" />
             </div>
             <PopoverTitle className="text-base font-semibold text-foreground">
-              Aide Syskern
+              Aide
             </PopoverTitle>
             <PopoverDescription className="mt-1 text-xs leading-relaxed">
-              Guide utilisateur, parcours pricing et bonnes pratiques — documentation
-              à jour dans Notion.
+              Guide utilisateur, parcours pricing et bonnes pratiques.
             </PopoverDescription>
           </PopoverHeader>
         </div>

@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils";
 import { productUnitLabel } from "@/lib/product-units";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
-import { BrandLogo } from "@/components/BrandLogo";
 import { KpiCard } from "@/components/KpiCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,12 +133,6 @@ function KeyInfoCard({
           </StatusBadge>
         </div>
         <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
-
-        {product.brand?.toLowerCase() === "unikkern" && (
-          <div className="mb-4 flex justify-center p-3">
-            <BrandLogo variant="unnikkern" className="h-8 min-w-0" />
-          </div>
-        )}
 
         <InfoLine
           label="Arborescence"

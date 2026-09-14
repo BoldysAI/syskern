@@ -1,3 +1,5 @@
+import { anonymizeJson } from "@/lib/anonymize";
+
 export type Role = "admin" | "commercial" | "viewer";
 
 export interface AuthUser {
@@ -28,7 +30,7 @@ export async function getSession(): Promise<SessionResponse> {
       signal: controller.signal,
     });
     if (!res.ok) return { authenticated: false, user: null };
-    return res.json();
+    return anonymizeJson(await res.json());
   } catch {
     return { authenticated: false, user: null };
   } finally {
@@ -44,10 +46,10 @@ export async function loginApi(email: string, password: string): Promise<AuthUse
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
+    const data = anonymizeJson(await res.json().catch(() => ({})));
     throw new Error(data?.detail ?? "Identifiants incorrects.");
   }
-  const data = await res.json();
+  const data = anonymizeJson(await res.json());
   return data.user as AuthUser;
 }
 
