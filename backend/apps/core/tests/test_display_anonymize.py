@@ -81,9 +81,9 @@ def test_schema_keys_rewritten_for_swagger():
 def test_spectacular_hook_scrubs_descriptions():
     result = spectacular_postprocess(
         {"info": {"title": "Syskern Pricing API", "description": "Symea backend"}},
-        object(),
-        object(),
-        True,
+        generator=object(),
+        request=object(),
+        public=True,
     )
     assert "Syskern" not in result["info"]["title"]
     assert "Symea" not in result["info"]["description"]

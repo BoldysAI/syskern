@@ -71,11 +71,6 @@ def rewrite_schema_keys(value: Any) -> Any:
     return value
 
 
-def spectacular_postprocess(
-    result: dict[str, Any],
-    _generator: object,
-    _request: object,
-    _public: bool,
-) -> dict[str, Any]:
+def spectacular_postprocess(result: dict[str, Any], **_kwargs: object) -> dict[str, Any]:
     """drf-spectacular hook: hide client tokens from `/api/docs/` (do not merge)."""
     return anonymize_json(rewrite_schema_keys(result))
