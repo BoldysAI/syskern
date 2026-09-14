@@ -29,6 +29,18 @@ export function anonymizeText(value: string): string {
   return out === "" ? EMPTY : out;
 }
 
+export function visiblePersonName(user: {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+}): string {
+  const first = (user.first_name ?? "").trim();
+  const last = (user.last_name ?? "").trim();
+  const lastVisible = last && last !== EMPTY ? last : "";
+  const combined = [first, lastVisible].filter(Boolean).join(" ");
+  return combined || user.email || EMPTY;
+}
+
 export function anonymizeJson<T>(value: T): T {
   if (typeof value === "string") {
     return anonymizeText(value) as T;

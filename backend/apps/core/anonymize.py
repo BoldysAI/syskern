@@ -48,3 +48,34 @@ def anonymize_json(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: anonymize_json(nested) for key, nested in value.items()}
     return value
+
+
+# OpenAPI property names that would otherwise appear in Swagger UI.
+_SCHEMA_KEY_MAP = {
+    "symea_margin_rate": "purchase_margin_rate",
+    "syskern_margin_rate": "sale_margin_rate",
+}
+
+
+def rewrite_schema_keys(value: Any) -> Any:
+    """Rename branded OpenAPI property names (Swagger only — live API keys unchanged)."""
+    if isinstance(value, dict):
+        return {
+            _SCHEMA_KEY_MAP.get(str(key), key): rewrite_schema_keys(nested)
+            for key, nested in value.items()
+        }
+    if isinstance(value, list):
+        return [rewrite_schema_keys(item) for item in value]
+    if isinstance(value, str):
+        return _SCHEMA_KEY_MAP.get(value, value)
+    return value
+
+
+def spectacular_postprocess(
+    result: dict[str, Any],
+    _generator: object,
+    _request: object,
+    _public: bool,
+) -> dict[str, Any]:
+    """drf-spectacular hook: hide client tokens from `/api/docs/` (do not merge)."""
+    return anonymize_json(rewrite_schema_keys(result))

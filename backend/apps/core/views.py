@@ -18,6 +18,29 @@ from apps.accounts.serializers import UserInfoSerializer
 from apps.core import rate_limit
 from apps.core.dashboard import build_dashboard_summary
 
+_DEMO_EMAIL_ALIAS_DOMAIN = "@exemple.com"
+_CLIENT_EMAIL_DOMAIN = "@syskern.com"
+
+
+def resolve_login_user(email: str) -> User | None:
+    """Look up a user by email, with a demo-only @exemple.com → @syskern.com alias.
+
+    Lets the login form be filled with a generic domain so the client name is
+    never typed on camera. Does not write to the database.
+    """
+    try:
+        return User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        pass
+    lower = email.lower()
+    if lower.endswith(_DEMO_EMAIL_ALIAS_DOMAIN):
+        alt = email[: -len(_DEMO_EMAIL_ALIAS_DOMAIN)] + _CLIENT_EMAIL_DOMAIN
+        try:
+            return User.objects.get(email__iexact=alt)
+        except User.DoesNotExist:
+            return None
+    return None
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -46,9 +69,8 @@ def login_view(request: Request) -> Response:
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        user_obj = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
+    user_obj = resolve_login_user(email)
+    if user_obj is None:
         rate_limit.register_failure(request)
         return Response(
             {"detail": "Identifiants incorrects."},

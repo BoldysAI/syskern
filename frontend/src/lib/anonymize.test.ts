@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { anonymizeJson, anonymizeText } from "./anonymize.ts";
+import { anonymizeJson, anonymizeText, visiblePersonName } from "./anonymize.ts";
 
 describe("anonymizeText", () => {
   it("keeps location after Symea", () => {
@@ -32,5 +32,14 @@ describe("anonymizeJson", () => {
     assert.equal(out.syskern_margin_rate, "0.20");
     assert.equal(out.supplier_name, "Shanghai");
     assert.equal(out.brand, "—");
+  });
+});
+
+describe("visiblePersonName", () => {
+  it("drops a stripped last name", () => {
+    assert.equal(
+      visiblePersonName({ first_name: "Olivier", last_name: "—", email: "olivier@exemple.com" }),
+      "Olivier",
+    );
   });
 });

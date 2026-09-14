@@ -50,7 +50,9 @@ Pour les référentiels fixes (incoterms, transport modes, attributs minimaux) :
 - Login : `core.views.login_view` (email + password → `django.contrib.auth.authenticate`). Users = `User` Django + `apps.accounts.Profile` (rôles `admin`/`commercial`/`viewer`). CRUD users admin-only dans `apps.accounts` (perm `IsAdmin`). ⚠️ **Écart assumé au CDC §9.1** (qui prévoyait un shared-password) → `decisions.md`. Prod cible : Supabase JWT (stub, voir `production.py`).
 - Filtres globaux : `DjangoFilterBackend` + `SearchFilter` + `OrderingFilter`.
 - Pagination : `LimitOffsetPagination`, `PAGE_SIZE=50`. Pour capper : `core.pagination.DefaultLimitOffsetPagination` (default 50 / max 500).
-- Schéma : drf-spectacular (`/api/docs/`).
+- Schéma : drf-spectacular (`/api/docs/`). Branche démo : titre « Pricing API », hook
+  `apps.core.anonymize.spectacular_postprocess` (clés `symea_margin_rate` /
+  `syskern_margin_rate` masquées dans le schéma uniquement).
 - **Ajouter une ressource → suis `drf-resource.md`** (ViewSet multi-serializer, lookup UUID-ou-clé-naturelle, `@action`, hooks `perform_*`).
 
 ## Async (Celery)

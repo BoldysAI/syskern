@@ -28,6 +28,7 @@ import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/Breadcrum
 import { HelpPopover } from "@/components/help/HelpPopover";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { BrandLogo } from "@/components/BrandLogo";
+import { visiblePersonName } from "@/lib/anonymize";
 import { AppIcon } from "@/components/AppIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -131,8 +132,7 @@ function Sidebar({
   onClose?: () => void;
 }) {
   const { user, role, logout } = useAuth();
-  const displayName =
-    user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email;
+  const displayName = user ? visiblePersonName(user) : "";
 
   return (
     <div

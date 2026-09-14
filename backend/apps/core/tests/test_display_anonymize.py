@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from apps.core.anonymize import EMPTY, anonymize_json, anonymize_text
+from apps.core.anonymize import (
+    EMPTY,
+    anonymize_json,
+    anonymize_text,
+    rewrite_schema_keys,
+    spectacular_postprocess,
+)
 
 
 def test_symea_shanghai_keeps_location():
@@ -45,3 +51,40 @@ def test_nested_list():
 
 def test_empty_string_stays_empty():
     assert anonymize_text("") == ""
+
+
+def test_schema_keys_rewritten_for_swagger():
+    schema = {
+        "components": {
+            "schemas": {
+                "Simulation": {
+                    "properties": {
+                        "symea_margin_rate": {"type": "string"},
+                        "syskern_margin_rate": {"type": "string"},
+                    },
+                    "required": ["symea_margin_rate", "syskern_margin_rate"],
+                }
+            }
+        }
+    }
+    out = rewrite_schema_keys(schema)
+    props = out["components"]["schemas"]["Simulation"]["properties"]
+    assert "purchase_margin_rate" in props
+    assert "sale_margin_rate" in props
+    assert "symea_margin_rate" not in props
+    assert out["components"]["schemas"]["Simulation"]["required"] == [
+        "purchase_margin_rate",
+        "sale_margin_rate",
+    ]
+
+
+def test_spectacular_hook_scrubs_descriptions():
+    result = spectacular_postprocess(
+        {"info": {"title": "Syskern Pricing API", "description": "Symea backend"}},
+        object(),
+        object(),
+        True,
+    )
+    assert "Syskern" not in result["info"]["title"]
+    assert "Symea" not in result["info"]["description"]
+    assert result["info"]["title"] == "Pricing API"
