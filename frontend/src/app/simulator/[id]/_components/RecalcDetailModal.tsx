@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { decToPct, fmtEur, mpStr, RECALC_TRIGGER, recalcTriggerLabel } from "./sim-format";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   simId: string;
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export function RecalcDetailModal({ simId, recalcId, onClose }: Props) {
+  const t = useUiTranslate();
   const { data, isLoading } = useSWR<Recalculation>(
     recalcId ? ["recalculation", simId, recalcId] : null,
     () => getRecalculation(simId, recalcId as string)
@@ -29,7 +32,7 @@ export function RecalcDetailModal({ simId, recalcId, onClose }: Props) {
     <Dialog open={recalcId != null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col gap-0 p-0 sm:max-w-6xl">
         <DialogHeader className="border-b border-border p-5">
-          <DialogTitle>Détail du recalcul</DialogTitle>
+          <DialogTitle>{t("simulator.history.detailTitle")}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -49,7 +52,9 @@ export function RecalcDetailModal({ simId, recalcId, onClose }: Props) {
 }
 
 function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
-  const triggerLabel = recalcTriggerLabel(r.trigger_type);
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
+  const triggerLabel = recalcTriggerLabel(r.trigger_type, displayLanguage);
   const triggerBadge =
     RECALC_TRIGGER[r.trigger_type]?.badge ?? "bg-muted text-muted-foreground";
   const mp = r.market_params ?? {};
@@ -68,33 +73,33 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
       </div>
 
       <section className="grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg bg-muted p-4 text-sm text-muted-foreground sm:grid-cols-2">
-        <Row label="Cuivre base / actuel" value={`${mpStr(mp, "copper_base_price_rmb")} / ${mpStr(mp, "copper_current_price_rmb")} RMB`} />
-        <Row label="FX EUR→RMB" value={mpStr(mp, "fx_eur_rmb")} />
-        <Row label="FX EUR→USD" value={mpStr(mp, "fx_eur_usd")} />
-        <Row label="Mix stock/achat" value={`${r.stock_purchase_mix_pct} %`} />
-        <Row label="Marges Syskern / Symea" value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
-        <Row label="Incoterm vente" value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)} />
+        <Row label={t("simulator.market.copperPair")} value={`${mpStr(mp, "copper_base_price_rmb")} / ${mpStr(mp, "copper_current_price_rmb")} RMB`} />
+        <Row label={t("simulator.fx.eurToRmb")} value={mpStr(mp, "fx_eur_rmb")} />
+        <Row label={t("simulator.fx.eurToUsd")} value={mpStr(mp, "fx_eur_usd")} />
+        <Row label={t("simulator.breakdown.mixStockShort")} value={`${r.stock_purchase_mix_pct} %`} />
+        <Row label={t("simulator.history.marginsSymea")} value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
+        <Row label={t("simulator.params.saleIncotermShort")} value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)} />
         {r.odoo_snapshot_at && (
-          <Row label="Snapshot Odoo" value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")} />
+          <Row label={t("simulator.history.snapshotOdoo")} value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")} />
         )}
       </section>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Lignes" value={String(a.line_count ?? "—")} />
-        <Stat label="PA moyen" value={fmtEur(a.avg_pa_eur)} />
-        <Stat label="PR moyen" value={fmtEur(a.avg_pr_eur)} />
-        <Stat label="PV moyen" value={fmtEur(a.avg_pv_eur)} />
-        <Stat label="Marge moy." value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
-        <Stat label="PV min / max" value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
+        <Stat label={t("simulator.column.lines")} value={String(a.line_count ?? "—")} />
+        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur)} />
+        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur)} />
+        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur)} />
+        <Stat label={t("simulator.history.marginAvg")} value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
+        <Stat label={t("simulator.history.pvMinMax")} value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
       </section>
 
       {(a.warnings_count || a.errors_count) ? (
         <div className="flex gap-2 text-xs">
           {a.warnings_count ? (
-            <span className="rounded border border-warm/30 bg-warm/10 px-2 py-0.5 text-warm">{a.warnings_count} avert.</span>
+            <span className="rounded border border-warm/30 bg-warm/10 px-2 py-0.5 text-warm">{t("simulator.history.warningShort", { count: a.warnings_count })}</span>
           ) : null}
           {a.errors_count ? (
-            <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">{a.errors_count} err.</span>
+            <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">{t("simulator.history.errorShort", { count: a.errors_count })}</span>
           ) : null}
         </div>
       ) : null}
@@ -102,18 +107,18 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
       {r.note && <p className="text-xs italic text-muted-foreground">{r.note}</p>}
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-foreground">Résultats par ligne (figés)</h3>
+        <h3 className="mb-2 text-sm font-semibold text-foreground">{t("simulator.history.lineResults")}</h3>
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold">SKU</th>
-                <th className="px-3 py-2 text-left font-semibold">Désignation</th>
-                <th className="px-3 py-2 text-right font-semibold">PA</th>
-                <th className="px-3 py-2 text-right font-semibold">PR</th>
-                <th className="px-3 py-2 text-right font-semibold">PV</th>
-                <th className="px-3 py-2 text-right font-semibold">Marge</th>
-                <th className="px-3 py-2 text-right font-semibold">Mix</th>
+                <th className="px-3 py-2 text-left font-semibold">{t("simulator.column.sku")}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t("simulator.column.designation")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("simulator.column.pa")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("simulator.column.pr")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("simulator.column.pv")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("simulator.column.margin")}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t("simulator.column.mix")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -139,7 +144,7 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
               {snapshots.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
-                    Aucun détail par ligne pour ce recalcul.
+                    {t("simulator.history.noLines")}
                   </td>
                 </tr>
               )}

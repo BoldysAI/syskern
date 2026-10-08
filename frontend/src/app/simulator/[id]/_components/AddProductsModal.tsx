@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   simId: string;
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
+  const t = useUiTranslate();
   const [selected, setSelected] = useState<Map<string, SelectedSku>>(new Map());
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,11 +57,11 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
         width: 120,
         render: (product) =>
           existing.has(product.id) ? (
-            <span className="text-xs font-medium text-muted-foreground">Déjà ajouté</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("simulator.add.already")}</span>
           ) : null,
       },
     ],
-    [existing],
+    [existing, t],
   );
 
   const toggleRow = (product: Product) => {
@@ -112,7 +114,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
   const handleAdd = async () => {
     const toAdd = selectedList.filter((s) => !existing.has(s.id));
     if (toAdd.length === 0) {
-      toast.error("Sélectionnez au moins un produit qui n'est pas déjà dans la simulation.");
+      toast.error(t("simulator.add.needOne"));
       return;
     }
 
@@ -127,17 +129,19 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
       onAdded();
       handleOpenChange(false);
       toast.success(
-        added === 1 ? "1 produit ajouté à la simulation." : `${added} produits ajoutés à la simulation.`,
+        added === 1
+          ? t("simulator.add.addedOne")
+          : t("simulator.add.addedOther", { count: added }),
       );
       if (skipped > 0) {
         toast.info(
           skipped === 1
-            ? "1 produit déjà présent ignoré."
-            : `${skipped} produits déjà présents ignorés.`,
+            ? t("simulator.add.skippedOne")
+            : t("simulator.add.skippedOther", { count: skipped }),
         );
       }
     } catch (e) {
-      toast.error(humanizeApiError(e, "Ajout des produits échoué."));
+      toast.error(humanizeApiError(e, t("simulator.add.failed")));
     } finally {
       setSubmitting(false);
     }
@@ -150,10 +154,8 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
         showCloseButton={!submitting}
       >
         <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>Ajouter des produits</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Recherchez et filtrez comme dans le catalogue, puis sélectionnez les produits à ajouter.
-          </p>
+          <DialogTitle>{t("simulator.add.title")}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{t("simulator.add.help")}</p>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -172,7 +174,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
             filtersCollapsedStorageKey="syskern:sim-add-products-filters-collapsed"
             filtersWidthStorageKey="syskern:sim-add-products-filters-width"
             paginationJumpInputId="sim-add-products-page"
-            title="Catalogue"
+            title={t("simulator.catalog.title")}
             selectedIds={selectedIds}
             onToggleProduct={toggleRow}
             onTogglePageProducts={togglePageProducts}
@@ -184,15 +186,17 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
           <aside className="flex w-full shrink-0 flex-col border-t border-border md:w-56 md:border-l md:border-t-0 lg:w-64">
             <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
               <Package size={16} className="text-warm" />
-              <span className="text-sm font-semibold">Sélection</span>
+              <span className="text-sm font-semibold">{t("simulator.add.selection")}</span>
               <span className="ml-auto text-xs text-muted-foreground">
-                {selectedList.length} sélectionné{selectedList.length !== 1 ? "s" : ""}
+                {selectedList.length !== 1
+                  ? t("simulator.list.selectedOther", { count: selectedList.length })
+                  : t("simulator.list.selectedOne", { count: selectedList.length })}
               </span>
             </div>
             <ul className="max-h-48 flex-1 divide-y divide-border overflow-y-auto md:max-h-none">
               {selectedList.length === 0 ? (
                 <li className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  Aucun produit sélectionné.
+                  {t("simulator.add.none")}
                 </li>
               ) : (
                 selectedList.map((s) => (
@@ -209,7 +213,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
                         })
                       }
                     >
-                      Retirer
+                      {t("simulator.lines.removeAction")}
                     </button>
                   </li>
                 ))
@@ -224,7 +228,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
                   className="w-full text-xs"
                   onClick={() => setSelected(new Map())}
                 >
-                  Vider la sélection
+                  {t("simulator.list.clearSelection")}
                 </Button>
               </div>
             )}
@@ -233,7 +237,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
 
         <DialogFooter className="border-t border-border px-5 py-4">
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -242,7 +246,7 @@ export function AddProductsModal({ simId, open, onClose, onAdded }: Props) {
             className="gap-2"
           >
             {submitting && <CircleNotch size={15} className="animate-spin" />}
-            Ajouter{" "}
+            {t("simulator.add.action")}{" "}
             {selectedList.filter((s) => !existing.has(s.id)).length > 0
               ? `(${selectedList.filter((s) => !existing.has(s.id)).length})`
               : ""}

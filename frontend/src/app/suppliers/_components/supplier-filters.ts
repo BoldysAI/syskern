@@ -1,8 +1,11 @@
 // Supplier list filters — same multi-checkbox style as the rest of the platform
 // (catalog / offers / library). Never use dropdown FilterSelect bars for facets.
 
+import type { MessageKey } from "@/lib/i18n";
 import type { Supplier } from "@/lib/api";
 import { INCOTERMS_FALLBACK } from "@/lib/incoterms";
+
+type UiTranslate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 export interface SupplierFilters {
   q?: string;
@@ -21,14 +24,14 @@ export const CURRENCY_OPTIONS = [
 export const INCOTERM_OPTIONS = INCOTERMS_FALLBACK.map((i) => ({ value: i.code, label: i.code }));
 
 export const STATUS_OPTIONS = [
-  { value: "active", label: "Actif" },
-  { value: "inactive", label: "Inactif" },
-];
+  { value: "active", labelKey: "suppliers.status.active" },
+  { value: "inactive", labelKey: "suppliers.status.inactive" },
+] as const satisfies readonly { value: string; labelKey: MessageKey }[];
 
 export const SKUS_OPTIONS = [
-  { value: "with", label: "Avec SKU liés" },
-  { value: "without", label: "Sans SKU lié" },
-];
+  { value: "with", labelKey: "suppliers.filters.withLinkedSkus" },
+  { value: "without", labelKey: "suppliers.filters.withoutLinkedSku" },
+] as const satisfies readonly { value: string; labelKey: MessageKey }[];
 
 export function countActiveSupplierFilters(f: SupplierFilters): number {
   let n = 0;
@@ -78,17 +81,47 @@ function labelsFor(values: string[] | undefined, options: { value: string; label
   return (values ?? []).map((v) => options.find((o) => o.value === v)?.label ?? v).join(", ");
 }
 
-export function buildSupplierFilterChips(f: SupplierFilters): SupplierFilterChip[] {
+function labelsForKeys(
+  values: string[] | undefined,
+  options: readonly { value: string; labelKey: MessageKey }[],
+  t: UiTranslate,
+): string {
+  return (values ?? [])
+    .map((v) => {
+      const opt = options.find((o) => o.value === v);
+      return opt ? t(opt.labelKey) : v;
+    })
+    .join(", ");
+}
+
+export function buildSupplierFilterChips(f: SupplierFilters, t: UiTranslate): SupplierFilterChip[] {
   const chips: SupplierFilterChip[] = [];
-  if (f.q?.trim()) chips.push({ id: "q", category: "Recherche", label: f.q.trim() });
+  if (f.q?.trim())
+    chips.push({ id: "q", category: t("suppliers.filters.chip.search"), label: f.q.trim() });
   if (f.currency?.length)
-    chips.push({ id: "currency", category: "Devise", label: labelsFor(f.currency, CURRENCY_OPTIONS) });
+    chips.push({
+      id: "currency",
+      category: t("suppliers.column.currency"),
+      label: labelsFor(f.currency, CURRENCY_OPTIONS),
+    });
   if (f.incoterm?.length)
-    chips.push({ id: "incoterm", category: "Incoterm", label: labelsFor(f.incoterm, INCOTERM_OPTIONS) });
+    chips.push({
+      id: "incoterm",
+      category: t("suppliers.column.incoterm"),
+      label: labelsFor(f.incoterm, INCOTERM_OPTIONS),
+    });
   if (f.status?.length)
-    chips.push({ id: "status", category: "Statut", label: labelsFor(f.status, STATUS_OPTIONS) });
+    chips.push({
+      id: "status",
+      category: t("suppliers.column.status"),
+      label: labelsForKeys(f.status, STATUS_OPTIONS, t),
+    });
   if (f.skus?.length)
-    chips.push({ id: "skus", category: "SKU liés", label: labelsFor(f.skus, SKUS_OPTIONS) });
+    chips.push({
+      id: "skus",
+      category: t("suppliers.column.linkedSkus"),
+      label: labelsForKeys(f.skus, SKUS_OPTIONS, t),
+    });
   return chips;
 }
 

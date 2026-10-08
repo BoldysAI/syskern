@@ -18,6 +18,7 @@ from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
+from apps.accounts.ui_locale import resolve_request_locale, translate_request
 from apps.products.models import Product, ProductSupplier
 
 from .filters import SupplierFilter
@@ -97,10 +98,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
         if supplier.product_links.exists():
             return Response(
                 {
-                    "detail": (
-                        "Impossible de supprimer ce fournisseur : des SKU y sont encore "
-                        "liés. Retirez d'abord les SKU liés."
-                    )
+                    "detail": translate_request(request, "suppliers.delete_has_skus"),
                 },
                 status=status.HTTP_409_CONFLICT,
             )
@@ -124,16 +122,19 @@ class SupplierViewSet(viewsets.ModelViewSet):
             return Response(SupplierProductLinkSerializer(links, many=True).data)
 
         # POST — link an existing SKU (never creates a product).
-        ser = SupplierSkuLinkInputSerializer(data=request.data)
+        ser = SupplierSkuLinkInputSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         product = self._resolve_product(ser.validated_data)
         if product is None:
-            return Response({"detail": "SKU introuvable."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": translate_request(request, "suppliers.sku_not_found")},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         existing = ProductSupplier.objects.filter(supplier=supplier, product=product).first()
         if existing is not None:
             return Response(
-                {"detail": "Ce SKU est déjà lié à ce fournisseur."},
+                {"detail": translate_request(request, "suppliers.sku_already_linked")},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -166,7 +167,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
         unset are skipped for pct/abs; unchanged values are skipped.
         """
         supplier = self.get_object()
-        ser = SupplierBulkPoSerializer(data=request.data)
+        ser = SupplierBulkPoSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
@@ -189,7 +190,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
     def bulk_po_preview(self, request, pk=None):
         """Dry-run for the batch PO wizard — returns per-SKU old/new prices."""
         supplier = self.get_object()
-        ser = SupplierBulkPoSerializer(data=request.data)
+        ser = SupplierBulkPoSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
@@ -279,13 +280,13 @@ class SupplierViewSet(viewsets.ModelViewSet):
         upload = request.FILES.get("file")
         if upload is None:
             return Response(
-                {"detail": "Aucun fichier fourni (champ « file »)."},
+                {"detail": translate_request(request, "suppliers.file_required")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         name = (upload.name or "").lower()
         if not name.endswith(_ALLOWED_UPLOAD_SUFFIXES):
             return Response(
-                {"detail": "Format attendu : fichier Excel (.xlsx)."},
+                {"detail": translate_request(request, "suppliers.excel_expected")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -300,7 +301,9 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
         try:
             headers, sample_rows, column_count = read_excel_headers(
-                upload_path, header_row=header_row
+                upload_path,
+                header_row=header_row,
+                locale=resolve_request_locale(request),
             )
         except ValueError as exc:
             upload_path.unlink(missing_ok=True)
@@ -329,12 +332,14 @@ class SupplierViewSet(viewsets.ModelViewSet):
         path = self._upload_path_for(data["upload_token"])
         if path is None or not path.is_file():
             return Response(
-                {"detail": "Fichier d'import introuvable ou expiré. Relancez l'upload."},
+                {"detail": translate_request(request, "suppliers.import_file_missing")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         header_row = data.get("header_row", 1)
         try:
-            headers, sample_rows, column_count = read_excel_headers(path, header_row=header_row)
+            headers, sample_rows, column_count = read_excel_headers(
+                path, header_row=header_row, locale=resolve_request_locale(request)
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
@@ -357,24 +362,28 @@ class SupplierViewSet(viewsets.ModelViewSet):
         return self._dispatch_import(request, import_po_apply_task)
 
     def _dispatch_import(self, request, task):
-        ser = SupplierImportRunSerializer(data=request.data)
+        ser = SupplierImportRunSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
         path = self._upload_path_for(data["upload_token"])
         if path is None or not path.is_file():
             return Response(
-                {"detail": "Fichier d'import introuvable ou expiré. Relancez l'upload."},
+                {"detail": translate_request(request, "suppliers.import_file_missing")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         column_map = data["column_map"]  # already normalised to int indices
         header_row = data.get("header_row", 1)
         try:
-            _, _, column_count = read_excel_headers(path, header_row=header_row)
+            _, _, column_count = read_excel_headers(
+                path, header_row=header_row, locale=resolve_request_locale(request)
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        errors = validate_column_map(column_map, column_count)
+        errors = validate_column_map(
+            column_map, column_count, locale=resolve_request_locale(request)
+        )
         if errors:
             return Response({"detail": " ".join(errors)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -392,7 +401,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
         """Download the Excel rejection report produced by the apply task."""
         file_path = IMPORT_DIR / f"{task_id}_report.xlsx"
         if not file_path.is_file():
-            raise Http404("Rapport introuvable ou expiré.")
+            raise Http404(translate_request(request, "suppliers.report_missing"))
         return FileResponse(
             file_path.open("rb"),
             as_attachment=True,

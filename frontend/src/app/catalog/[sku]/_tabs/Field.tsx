@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProductDetail } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +42,7 @@ function validate(kind: FieldKind, value: unknown): boolean {
 }
 
 export function Field({ field, label, kind = "text", unit, options, readOnly }: FieldProps) {
+  const t = useUiTranslate();
   const { mode, coreValue, setCore } = useEdit();
   const value = coreValue(field);
   const editable = mode === "edit" && !readOnly;
@@ -58,7 +60,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             value ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
           )}
         >
-          {value ? "Oui" : "Non"}
+          {value ? t("common.yes") : t("common.no")}
         </span>
       );
     }
@@ -106,7 +108,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             onValueChange={(v) => emit(v)}
           >
             <SelectTrigger className="w-full text-left">
-              <SelectValue placeholder="Sélectionner…">
+              <SelectValue placeholder={t("catalog.field.select")}>
                 {options.find((o) => o.value === value)?.label}
               </SelectValue>
             </SelectTrigger>

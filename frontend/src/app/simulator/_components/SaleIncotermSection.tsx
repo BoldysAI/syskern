@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { listIncoterms } from "@/lib/api";
 import { LocationSelectField } from "@/components/LocationSelectField";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   INCOTERM_IMPACT_FR,
   INCOTERMS_FALLBACK,
@@ -39,6 +40,7 @@ export function SaleIncotermFields({
   onIncotermChange,
   onLocationChange,
 }: Props) {
+  const t = useUiTranslate();
   const { data: incoterms } = useSWR("incoterms", listIncoterms);
   const impact = INCOTERM_IMPACT_FR[incoterm];
   const incotermOptions = incoterms ?? INCOTERMS_FALLBACK;
@@ -54,11 +56,11 @@ export function SaleIncotermFields({
     <div className="flex flex-col gap-3">
       <div>
         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-          Incoterm de vente
+          {t("simulator.params.saleIncoterm")}
         </label>
         <Select.Root value={currentIncoterm} onValueChange={onIncotermChange} disabled={disabled}>
           <Select.Trigger
-            aria-label={`Incoterm de vente : ${incotermDisplay}`}
+            aria-label={t("simulator.params.saleIncotermAria", { value: incotermDisplay })}
             className={cn(
               inputCls,
               "flex items-center justify-between gap-2 text-left disabled:opacity-50"
@@ -98,13 +100,13 @@ export function SaleIncotermFields({
 
       <div>
         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-          Lieu incoterm vente
+          {t("simulator.params.saleLocation")}
         </label>
         <LocationSelectField
           value={location}
           onChange={onLocationChange}
           disabled={disabled}
-          ariaLabel="Lieu incoterm vente"
+          ariaLabel={t("simulator.params.saleLocation")}
         />
       </div>
 
@@ -133,6 +135,7 @@ export function IncotermPrefillConfirm({
   onConfirm,
   onCancel,
 }: ConfirmProps) {
+  const t = useUiTranslate();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-md">
@@ -142,10 +145,10 @@ export function IncotermPrefillConfirm({
         <p className="text-sm text-muted-foreground">{message}</p>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={onConfirm}>
-            Appliquer la structure
+            {t("simulator.params.applyStructure")}
           </Button>
         </DialogFooter>
       </DialogContent>

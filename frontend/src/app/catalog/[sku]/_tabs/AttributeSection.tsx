@@ -1,6 +1,7 @@
 "use client";
 
 import type { AttributeCategory } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { AttributeRenderer } from "@/components/AttributeRenderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEdit } from "./edit-context";
@@ -13,6 +14,7 @@ interface AttributeSectionProps {
 }
 
 export function AttributeSection({ category, title, emptyLabel }: AttributeSectionProps) {
+  const t = useUiTranslate();
   const { attrsByCategory, attrValue, setAttr, mode, lang } = useEdit();
   const attrs = attrsByCategory(category);
 
@@ -20,7 +22,7 @@ export function AttributeSection({ category, title, emptyLabel }: AttributeSecti
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          {emptyLabel ?? "Aucun attribut défini pour cette catégorie."}
+          {emptyLabel ?? t("catalog.attr.emptyCategory")}
         </CardContent>
       </Card>
     );

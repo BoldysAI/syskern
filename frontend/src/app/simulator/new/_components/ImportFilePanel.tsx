@@ -6,6 +6,7 @@ import { Table, CircleNotch, CloudArrowUp } from "@phosphor-icons/react";
 import { FilterSelect } from "@/components/FilterSelect";
 import { lookupBulkProducts } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { SelectedSku } from "./wizard-draft";
 
 interface Props {
@@ -25,6 +26,7 @@ function detectSkuColumn(headers: string[]): string | null {
 }
 
 export function ImportFilePanel({ onAdd, onNotFound }: Props) {
+  const t = useUiTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -51,7 +53,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       .filter(Boolean);
 
     if (skus.length === 0) {
-      setError("La colonne sélectionnée ne contient aucun SKU.");
+      setError(t("simulator.import.emptyColumn"));
       return;
     }
 
@@ -63,7 +65,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       onNotFound(res.not_found);
       setSummary({ found: res.found.length, notFound: res.not_found.length });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Échec de la résolution des SKU.");
+      setError(e instanceof Error ? e.message : t("simulator.import.resolveFailed"));
     } finally {
       setParsing(false);
     }
@@ -78,7 +80,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       const wb = XLSX.read(buffer);
       const sheet = wb.Sheets[wb.SheetNames[0]];
       if (!sheet) {
-        setError("Le fichier ne contient aucune feuille.");
+        setError(t("simulator.import.noSheet"));
         return;
       }
       const parsedRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
@@ -88,7 +90,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
         (XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })[0] ?? []).map(String);
 
       if (headerRow.length === 0 || parsedRows.length === 0) {
-        setError("Le fichier est vide.");
+        setError(t("simulator.import.emptyFile"));
         return;
       }
 
@@ -104,7 +106,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
         setColumn("");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Fichier illisible (format non supporté ?).");
+      setError(e instanceof Error ? e.message : t("simulator.import.unreadable"));
     } finally {
       setParsing(false);
     }
@@ -143,9 +145,9 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       >
         <CloudArrowUp size={28} className="text-warm" />
         <span className="text-sm font-semibold text-foreground">
-          Glissez un fichier ou cliquez pour sélectionner
+          {t("simulator.import.drop")}
         </span>
-        <span className="text-xs text-muted-foreground">Formats acceptés : .xlsx, .xls, .csv — colonne « sku_code »</span>
+        <span className="text-xs text-muted-foreground">{t("simulator.import.formats")}</span>
       </button>
       <input
         ref={inputRef}
@@ -167,7 +169,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
       {headers.length > 0 && !column && !parsing && (
         <div className="flex flex-col gap-2 rounded-lg border border-warm/30 bg-warm/10 p-3">
           <p className="text-sm text-foreground">
-            Colonne « sku_code » non détectée. Sélectionnez la colonne contenant les SKU :
+            {t("simulator.import.columnMissing")}
           </p>
           <FilterSelect
             value={column}
@@ -175,7 +177,7 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
               setColumn(v);
               if (v) void resolveColumn(v, rows);
             }}
-            placeholder="— Choisir une colonne —"
+            placeholder={t("simulator.import.chooseColumn")}
             options={headers.map((h) => ({ value: h, label: h }))}
           />
         </div>
@@ -189,12 +191,15 @@ export function ImportFilePanel({ onAdd, onNotFound }: Props) {
 
       {summary && (
         <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-          {summary.found} SKU trouvé{summary.found !== 1 ? "s" : ""} et ajouté
-          {summary.found !== 1 ? "s" : ""}.
+          {summary.found !== 1
+            ? t("simulator.import.foundOther", { count: summary.found })
+            : t("simulator.import.foundOne", { count: summary.found })}
           {summary.notFound > 0 && (
             <>
               {" "}
-              {summary.notFound} non trouvé{summary.notFound !== 1 ? "s" : ""} (voir la bannière d&apos;erreur ci-dessus).
+              {summary.notFound !== 1
+                ? t("simulator.import.missingOther", { count: summary.notFound })
+                : t("simulator.import.missingOne", { count: summary.notFound })}
             </>
           )}
         </div>

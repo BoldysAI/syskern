@@ -24,6 +24,7 @@ import {
   catalogFiltersToParams,
   type CatalogFilters,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
@@ -53,9 +54,9 @@ interface CatalogSidebarProps {
 }
 
 const LANG_CONTENT_FILTERS = [
-  { code: "fr", label: "Français", inKey: "lang_fr_in", outKey: "lang_fr_out" },
-  { code: "en", label: "Anglais", inKey: "lang_en_in", outKey: "lang_en_out" },
-  { code: "es", label: "Español", inKey: "lang_es_in", outKey: "lang_es_out" },
+  { code: "fr", labelKey: "catalog.lang.fr", inKey: "lang_fr_in", outKey: "lang_fr_out" },
+  { code: "en", labelKey: "catalog.lang.en", inKey: "lang_en_in", outKey: "lang_en_out" },
+  { code: "es", labelKey: "catalog.lang.es", inKey: "lang_es_in", outKey: "lang_es_out" },
 ] as const;
 
 export function CatalogSidebar({
@@ -67,6 +68,7 @@ export function CatalogSidebar({
   onDeleteFilter,
   className,
 }: CatalogSidebarProps) {
+  const t = useUiTranslate();
   const boundsFilters = useMemo(() => {
     const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, attrs: _attrs, ...rest } = filters;
     return rest;
@@ -109,15 +111,15 @@ export function CatalogSidebar({
   };
 
   const [saveName, setSaveName] = useState("");
-  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [savedFilterName, setSavedFilterName] = useState<string | null>(null);
 
   const handleSave = () => {
     const name = saveName.trim();
     if (!name || isEmptyFilter(filters)) return;
     onSaveFilter(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
-    window.setTimeout(() => setSaveFeedback(null), 4000);
+    setSavedFilterName(name);
+    window.setTimeout(() => setSavedFilterName(null), 4000);
   };
 
   const canSave = saveName.trim().length > 0 && !isEmptyFilter(filters);
@@ -160,14 +162,13 @@ export function CatalogSidebar({
           utilisé par le client, qui ne veut plus le déplier à chaque fois
           (FEEDBACK 2). */}
       <FilterSection
-        title="Arborescence produit"
+        title={t("catalog.hierarchy.title")}
         icon={TreeStructure}
         activeCount={hierarchyCount}
         defaultOpen
       >
         <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-          Cochez plusieurs valeurs par niveau (univers, famille, gamme, sous-gamme). Les niveaux
-          inférieurs restent combinables avec l&apos;ensemble des parents sélectionnés.
+          {t("catalog.hierarchy.help")}
         </p>
         <HierarchyFilterCascade
           filters={filters}
@@ -175,7 +176,7 @@ export function CatalogSidebar({
         />
       </FilterSection>
 
-      <FilterSection title="Marque" icon={Tag} activeCount={filters.brand?.length ?? 0}>
+      <FilterSection title={t("catalog.column.brand")} icon={Tag} activeCount={filters.brand?.length ?? 0}>
         <FilterCheckboxGroup
           options={brandOptions.map((b) => ({ value: b, label: b }))}
           selected={filters.brand ?? []}
@@ -185,18 +186,18 @@ export function CatalogSidebar({
       </FilterSection>
 
       <FilterSection
-        title="Fournisseur"
+        title={t("catalog.column.supplier")}
         icon={Factory}
         activeCount={(filters.supplier?.length ?? 0) + (filters.active_supplier?.length ?? 0)}
       >
         <SupplierFilterGroup filters={filters} suppliers={suppliers ?? []} onPatch={patch} />
       </FilterSection>
 
-      <FilterSection title="Statut produit" icon={Checks} activeCount={activeCount}>
+      <FilterSection title={t("catalog.product.productStatus")} icon={Checks} activeCount={activeCount}>
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="active-in" className="text-sm font-medium">
-              Actif
+              {t("catalog.column.active")}
             </Label>
             <Switch
               id="active-in"
@@ -208,7 +209,7 @@ export function CatalogSidebar({
           </div>
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="active-out" className="text-sm font-medium">
-              Non actif
+              {t("catalog.filters.inactive")}
             </Label>
             <Switch
               id="active-out"
@@ -221,9 +222,9 @@ export function CatalogSidebar({
         </div>
       </FilterSection>
 
-      <FilterSection title="Prix PAMP" icon={CurrencyEur} activeCount={pampCount}>
+      <FilterSection title={t("catalog.product.pampPrice")} icon={CurrencyEur} activeCount={pampCount}>
         <RangeFilterSlider
-          label="Fourchette PAMP"
+          label={t("catalog.filters.pampRange")}
           min={pampSlider.min}
           max={pampSlider.max}
           step={pampSlider.step}
@@ -241,12 +242,12 @@ export function CatalogSidebar({
         />
       </FilterSection>
 
-      <FilterSection title="Stock & disponibilité" icon={Package} activeCount={stockCount}>
+      <FilterSection title={t("catalog.product.stockAvailability")} icon={Package} activeCount={stockCount}>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3">
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="stock-in" className="text-sm font-medium">
-                En stock
+                {t("catalog.filters.inStock")}
               </Label>
               <Switch
                 id="stock-in"
@@ -258,7 +259,7 @@ export function CatalogSidebar({
             </div>
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="stock-out" className="text-sm font-medium">
-                Rupture
+                {t("catalog.filters.outOfStock")}
               </Label>
               <Switch
                 id="stock-out"
@@ -276,23 +277,23 @@ export function CatalogSidebar({
 
           {showStockMinSlider && (
             <RangeFilterSlider
-              label="Quantité minimale en stock"
+              label={t("catalog.filters.stockMinQty")}
               min={stockSlider.min}
               max={stockSlider.max}
               step={stockSlider.step}
               minValue={clampFilterValue(filters.stock_min, stockSlider.max)}
               onChange={(min) => patch({ stock_min: min })}
-              unit="u."
+              unit={t("catalog.stock.unit")}
             />
           )}
         </div>
       </FilterSection>
 
-      <FilterSection title="Langues" icon={Translate} activeCount={langCount}>
+      <FilterSection title={t("catalog.column.languages")} icon={Translate} activeCount={langCount}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/40 p-3">
             <Label htmlFor="lang-incomplete" className="text-sm font-medium">
-              Au moins une langue manquante
+              {t("catalog.filters.langMissing")}
             </Label>
             <Switch
               id="lang-incomplete"
@@ -307,11 +308,11 @@ export function CatalogSidebar({
               className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-3"
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {lang.label}
+                {t(lang.labelKey)}
               </p>
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor={`${lang.code}-in`} className="text-sm font-medium">
-                  Avec contenu
+                  {t("catalog.lang.withContent")}
                 </Label>
                 <Switch
                   id={`${lang.code}-in`}
@@ -326,7 +327,7 @@ export function CatalogSidebar({
               </div>
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor={`${lang.code}-out`} className="text-sm font-medium">
-                  Sans contenu
+                  {t("catalog.lang.withoutContent")}
                 </Label>
                 <Switch
                   id={`${lang.code}-out`}
@@ -345,7 +346,7 @@ export function CatalogSidebar({
       </FilterSection>
 
       {!!attributes?.length && (
-        <FilterSection title="Attributs dynamiques" icon={Faders} activeCount={attrCount}>
+        <FilterSection title={t("catalog.columns.dynamic")} icon={Faders} activeCount={attrCount}>
           <div className="flex flex-col gap-3">
             {attributes.map((attr) => (
               <CatalogAttributeFilter
@@ -360,29 +361,29 @@ export function CatalogSidebar({
         </FilterSection>
       )}
 
-      <FilterSection title="Filtres favoris" icon={Bookmark}>
+      <FilterSection title={t("catalog.filters.savedTitle")} icon={Bookmark}>
         <div className="flex flex-col gap-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Sauvegardez vos combinaisons de filtres pour les réappliquer en un clic.
+            {t("catalog.filters.savedHelp")}
           </p>
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSave && handleSave()}
-            placeholder="Nom du filtre (ex. Cuivre en stock)"
+            placeholder={t("catalog.filters.savedName")}
           />
           <Button type="button" disabled={!canSave} onClick={handleSave} className="w-full">
             <BookmarkSimple size={16} weight="duotone" />
-            Sauvegarder le filtre courant
+            {t("catalog.filters.saveCurrent")}
           </Button>
           {isEmptyFilter(filters) && (
             <p className="rounded-lg border border-muted-foreground/20 bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              Appliquez au moins un filtre avant de sauvegarder.
+              {t("catalog.filters.savedRequires")}
             </p>
           )}
-          {saveFeedback && (
+          {savedFilterName && (
             <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-              {saveFeedback}
+              {t("catalog.filters.savedFeedback", { name: savedFilterName })}
             </p>
           )}
           {savedFilters.length > 0 ? (
@@ -396,7 +397,7 @@ export function CatalogSidebar({
                     type="button"
                     onClick={() => onApplyFilter(sf)}
                     className="group flex min-w-0 flex-1 items-center gap-2 text-left"
-                    title="Appliquer ce filtre"
+                    title={t("catalog.filters.applySaved")}
                   >
                     <Star
                       size={14}
@@ -415,7 +416,7 @@ export function CatalogSidebar({
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => onDeleteFilter(sf.id)}
-                    aria-label={`Supprimer ${sf.name}`}
+                    aria-label={t("catalog.filters.deleteSaved", { name: sf.name })}
                   >
                     <Trash size={14} />
                   </Button>
@@ -424,7 +425,7 @@ export function CatalogSidebar({
             </ul>
           ) : (
             <p className="py-2 text-center text-xs text-muted-foreground">
-              Aucun filtre sauvegardé.
+              {t("catalog.filters.savedEmpty")}
             </p>
           )}
         </div>

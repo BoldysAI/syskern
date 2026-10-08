@@ -11,6 +11,7 @@ import {
   type OfferCoverage,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface OfferCoverageWarningProps {
   simulationId: string;
@@ -24,6 +25,7 @@ interface OfferCoverageWarningProps {
  * one-click auto-translation before the offer is generated.
  */
 export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarningProps) {
+  const t = useUiTranslate();
   const bodyKey = JSON.stringify(body);
   const {
     data: coverage,
@@ -53,13 +55,13 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
       while (Date.now() - start < 600_000) {
         const s = await getTaskStatus<BulkTranslateResult>(task_id);
         if (s.status === "SUCCESS") break;
-        if (s.status === "FAILURE") throw new Error(s.error || "La traduction a échoué.");
-        if (s.status === "REVOKED") throw new Error("Tâche annulée.");
+        if (s.status === "FAILURE") throw new Error(s.error || t("common.translateFailed"));
+        if (s.status === "REVOKED") throw new Error(t("common.taskRevoked"));
         await new Promise((r) => setTimeout(r, 900));
       }
       await mutate();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "La traduction automatique a échoué.");
+      setActionError(e instanceof Error ? e.message : t("common.autoTranslateFailed"));
     } finally {
       setTranslating(false);
     }
@@ -69,7 +71,7 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <CircleNotch size={14} className="animate-spin" />
-        Vérification de la couverture multilingue…
+        {t("common.checkingCoverage")}
       </div>
     );
   }
@@ -77,7 +79,7 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
   if (loadError) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-        Vérification de couverture impossible.
+        {t("common.coverageCheckFailed")}
       </div>
     );
   }
@@ -92,12 +94,15 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
         <Warning size={18} weight="duotone" className="mt-0.5 shrink-0 text-amber-600" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">
-            {coverage.products.length} produit{coverage.products.length > 1 ? "s" : ""} sans
-            contenu en {langLabel}
+            {t(
+              coverage.products.length > 1
+                ? "common.productsMissingContentOther"
+                : "common.productsMissingContentOne",
+              { count: coverage.products.length, lang: langLabel },
+            )}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Ces produits sortiront en français. Traduis-les avant de générer, ou continue avec le
-            repli FR.
+            {t("common.coverageHint")}
           </p>
           <ul className="mt-2 max-h-32 space-y-0.5 overflow-y-auto text-xs text-muted-foreground">
             {coverage.products.slice(0, 8).map((p) => (
@@ -106,7 +111,9 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
               </li>
             ))}
             {coverage.products.length > 8 && (
-              <li className="italic">… et {coverage.products.length - 8} autre(s)</li>
+              <li className="italic">
+                {t("common.coverageMore", { count: coverage.products.length - 8 })}
+              </li>
             )}
           </ul>
           {actionError && <p className="mt-2 text-xs text-destructive">{actionError}</p>}
@@ -117,7 +124,7 @@ export function OfferCoverageWarning({ simulationId, body }: OfferCoverageWarnin
               ) : (
                 <Translate size={14} weight="duotone" />
               )}
-              {translating ? "Traduction en cours…" : "Traduire automatiquement"}
+              {translating ? t("common.translating") : t("common.autoTranslate")}
             </Button>
           </div>
         </div>

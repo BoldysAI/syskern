@@ -1,3 +1,5 @@
+import type { UiLocale } from "@/lib/i18n";
+
 export type Role = "admin" | "commercial" | "viewer";
 
 export interface AuthUser {
@@ -6,11 +8,14 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   role: Role;
+  locale: string;
+  display_language: UiLocale;
 }
 
 export interface SessionResponse {
   authenticated: boolean;
   user: AuthUser | null;
+  display_language: UiLocale;
 }
 
 function getCsrfToken(): string {
@@ -27,10 +32,15 @@ export async function getSession(): Promise<SessionResponse> {
       credentials: "include",
       signal: controller.signal,
     });
-    if (!res.ok) return { authenticated: false, user: null };
-    return res.json();
+    if (!res.ok) return { authenticated: false, user: null, display_language: "fr" };
+    const data = await res.json();
+    return {
+      authenticated: Boolean(data.authenticated),
+      user: data.user ?? null,
+      display_language: data.display_language === "en" ? "en" : "fr",
+    };
   } catch {
-    return { authenticated: false, user: null };
+    return { authenticated: false, user: null, display_language: "fr" };
   } finally {
     clearTimeout(timeout);
   }

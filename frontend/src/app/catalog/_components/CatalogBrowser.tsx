@@ -21,6 +21,7 @@ import {
   type PaginatedProducts,
   type Product,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
@@ -152,6 +153,7 @@ export function CatalogBrowser({
   onRowClick,
 }: CatalogBrowserProps) {
   const confirm = useConfirm();
+  const t = useUiTranslate();
   const selectionEnabled = Boolean(selectedIds && onToggleProduct);
 
   const [filters, setFilters] = useState<CatalogFilters>(() => withDefaultFilters(initialFilters));
@@ -307,7 +309,7 @@ export function CatalogBrowser({
       applyBulkSelection(selectable, select, "filtered");
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : "Impossible de charger tous les produits filtrés.",
+        err instanceof Error ? err.message : t("catalog.browser.loadFilteredError"),
       );
     } finally {
       setSelectingFiltered(false);
@@ -340,15 +342,15 @@ export function CatalogBrowser({
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("catalog.filters.deleteSavedTitle"),
+        description: t("catalog.filters.deleteSavedDescription", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
   );
 
   const emptySavedFilters = useMemo<SavedFilter[]>(() => [], []);
@@ -415,8 +417,8 @@ export function CatalogBrowser({
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("catalog.filters.show")}
+            title={t("catalog.filters.button")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -435,17 +437,20 @@ export function CatalogBrowser({
             )}
           >
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("catalog.filters.button")}</span>
               {variant === "page" && activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {t(
+                    activeFilterCount > 1 ? "catalog.criteria.other" : "catalog.criteria.one",
+                    { count: activeFilterCount },
+                  )}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  {variant === "page" ? "Tout effacer" : "Effacer"}
+                  {variant === "page" ? t("catalog.filters.clearAll") : t("catalog.attr.clear")}
                 </Button>
               )}
               <Button
@@ -453,8 +458,8 @@ export function CatalogBrowser({
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("catalog.filters.hide")}
+                title={t("catalog.filters.hide")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -473,7 +478,7 @@ export function CatalogBrowser({
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("catalog.filters.resize")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors hover:bg-primary/20",
@@ -503,11 +508,13 @@ export function CatalogBrowser({
               <div className="min-w-0">
                 <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                   <SquaresFour size={22} weight="duotone" className="shrink-0 text-primary" />
-                  Catalogue produits
+                  {t("catalog.browser.title")}
                 </h1>
                 {!isLoading && (
                   <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                    {total.toLocaleString("fr-FR")} produit{total !== 1 ? "s" : ""}
+                    {t(total === 1 ? "catalog.productCount.one" : "catalog.productCount.other", {
+                      count: total.toLocaleString("fr-FR"),
+                    })}
                   </p>
                 )}
               </div>
@@ -515,11 +522,13 @@ export function CatalogBrowser({
               <div className="flex min-w-0 items-center gap-2">
                 <SquaresFour size={18} weight="duotone" className="shrink-0 text-primary" />
                 <span className="text-sm font-semibold text-foreground">
-                  {title ?? "Catalogue"}
+                  {title ?? t("catalog.browser.embeddedTitle")}
                 </span>
                 {!isLoading && (
                   <span className="text-xs tabular-nums text-muted-foreground">
-                    {total.toLocaleString("fr-FR")} produit{total !== 1 ? "s" : ""}
+                    {t(total === 1 ? "catalog.productCount.one" : "catalog.productCount.other", {
+                      count: total.toLocaleString("fr-FR"),
+                    })}
                   </span>
                 )}
               </div>
@@ -533,7 +542,9 @@ export function CatalogBrowser({
               value={searchInput}
               onChange={onSearchChange}
               placeholder={
-                variant === "page" ? "Recherche SKU, nom, description…" : "Recherche SKU, nom…"
+                variant === "page"
+                  ? t("catalog.browser.searchPage")
+                  : t("catalog.browser.searchEmbedded")
               }
             />
           </div>
@@ -571,7 +582,11 @@ export function CatalogBrowser({
 
         {variant === "page" && (
           <div className="border-b border-border bg-card px-4 py-3 md:hidden">
-            <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
+            <SearchInput
+              value={searchInput}
+              onChange={onSearchChange}
+              placeholder={t("catalog.browser.searchMobile")}
+            />
           </div>
         )}
 
@@ -597,7 +612,7 @@ export function CatalogBrowser({
               <EmptyState
                 className="mx-4 my-8 border-none bg-transparent shadow-none"
                 icon={<Package size={32} weight="duotone" />}
-                title="Impossible de charger les produits"
+                title={t("catalog.browser.loadError")}
                 description={error.message}
               />
             ) : undefined
@@ -606,17 +621,17 @@ export function CatalogBrowser({
             <EmptyState
               className="mx-auto max-w-sm border-none bg-transparent shadow-none"
               icon={<Package size={32} weight="duotone" />}
-              title="Aucun produit trouvé"
+              title={t("catalog.browser.emptyTitle")}
               description={
                 activeFilterCount > 0
-                  ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : "Le catalogue est vide ou les produits ne sont pas encore synchronisés."
+                  ? t("catalog.browser.emptyFiltered")
+                  : t("catalog.browser.emptyCatalog")
               }
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
                     <Sparkle size={14} weight="duotone" />
-                    Réinitialiser les filtres
+                    {t("catalog.browser.resetFilters")}
                   </Button>
                 ) : undefined
               }
@@ -639,7 +654,7 @@ export function CatalogBrowser({
                           type="button"
                           disabled={selectableProducts.length === 0 && total === 0}
                           className="inline-flex items-center gap-0.5 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                          aria-label="Choisir une sélection en masse"
+                          aria-label={t("catalog.browser.selectBulk")}
                         />
                       }
                     >
@@ -666,7 +681,7 @@ export function CatalogBrowser({
                         }
                         disabled={selectableProducts.length === 0}
                       >
-                        Toute la page
+                        {t("catalog.browser.selectPage")}
                         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                           {selectableProducts.length}
                         </span>
@@ -675,7 +690,7 @@ export function CatalogBrowser({
                         onClick={() => void selectFilteredProducts(true)}
                         disabled={selectingFiltered || total === 0}
                       >
-                        Tous les résultats filtrés
+                        {t("catalog.browser.selectFiltered")}
                         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                           {total.toLocaleString("fr-FR")}
                         </span>
@@ -695,12 +710,12 @@ export function CatalogBrowser({
                                 )
                               }
                             >
-                              Désélectionner la page
+                              {t("catalog.browser.deselectPage")}
                             </DropdownMenuItem>
                           )}
                           {selectedIds && selectedIds.size > 0 && (
                             <DropdownMenuItem onClick={() => void selectFilteredProducts(false)}>
-                              Désélectionner tous les résultats
+                              {t("catalog.browser.deselectFiltered")}
                             </DropdownMenuItem>
                           )}
                         </>
@@ -717,7 +732,7 @@ export function CatalogBrowser({
                     checked={selectedIds!.has(product.id)}
                     onCheckedChange={() => onToggleProduct!(product)}
                     disabled={disabled.has(product.id)}
-                    aria-label={`Sélectionner ${product.sku_code}`}
+                    aria-label={t("catalog.browser.selectSku", { sku: product.sku_code })}
                     onClick={(e) => e.stopPropagation()}
                   />
                 )
@@ -729,9 +744,9 @@ export function CatalogBrowser({
             totalCount: total,
             pageSize,
             onPageChange: handlePageChange,
-            itemLabel: "produit",
+            itemLabel: t("catalog.pagination.item"),
             jumpInputId: paginationJumpInputId,
-            ariaLabel: "Pagination du catalogue",
+            ariaLabel: t("catalog.pagination.aria"),
           }}
         />
       </div>

@@ -40,6 +40,8 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { SimulationParamsFields } from "@/app/simulator/_components/SimulationParamsFields";
 import { TypeStep } from "../../new/_components/TypeStep";
 import {
@@ -68,6 +70,8 @@ export function SimulationSidebar({
   onOpenParamsSheet,
   onMarketParamsChange,
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
   const [draft, setDraft] = useState<WizardDraft>(() => simulationToEditDraft(sim));
@@ -87,14 +91,14 @@ export function SimulationSidebar({
   const persist = useCallback(
     async (d: WizardDraft) => {
       if (!step1Valid(d)) {
-        throw new Error("Complétez le libellé et le contexte (projet : 1 client + nom).");
+        throw new Error(t("simulator.detail.contextIncomplete"));
       }
-      const transportErr = validateTransportChains(d);
+      const transportErr = validateTransportChains(d, displayLanguage);
       if (transportErr) throw new Error(transportErr);
       await updateSimulation(sim.id, buildSimulationPatch(d));
       onChanged();
     },
-    [sim.id, onChanged]
+    [sim.id, onChanged, t, displayLanguage]
   );
 
   const { status, error } = useAutosave(draft, persist, { delay: 1000, enabled: !readOnly });
@@ -120,7 +124,7 @@ export function SimulationSidebar({
       await fn();
       onChanged();
     } catch (e) {
-      toast.error(humanizeApiError(e, "Action échouée"));
+      toast.error(humanizeApiError(e, t("simulator.actionFailed")));
     } finally {
       setBusy(null);
     }
@@ -128,11 +132,11 @@ export function SimulationSidebar({
 
   const saveLabel =
     status === "saving"
-      ? "Enregistrement…"
+      ? t("simulator.saving")
       : status === "saved"
-        ? "Enregistré"
+        ? t("simulator.saved")
         : status === "error"
-          ? "Erreur de sauvegarde"
+          ? t("simulator.saveError")
           : "";
 
   return (
@@ -147,7 +151,7 @@ export function SimulationSidebar({
                 <button
                   onClick={() => setContextOpen(true)}
                   className="shrink-0 text-muted-foreground hover:text-warm"
-                  aria-label="Modifier le contexte"
+                  aria-label={t("simulator.detail.editContext")}
                 >
                   <PencilSimple size={14} />
                 </button>
@@ -164,10 +168,10 @@ export function SimulationSidebar({
                 }
               >
                 {sim.status === "finalized"
-                  ? "Finalisé"
+                  ? t("simulator.status.finalized")
                   : sim.status === "archived"
-                    ? "Archivé"
-                    : "Brouillon"}
+                    ? t("simulator.status.archived")
+                    : t("simulator.status.draft")}
               </StatusBadge>
               {!readOnly && saveLabel && (
                 <span
@@ -187,8 +191,8 @@ export function SimulationSidebar({
                 type="button"
                 onClick={onOpenParamsSheet}
                 className="border-r border-border p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Ouvrir les paramètres en plein écran"
-                title="Plein écran"
+                aria-label={t("simulator.detail.openParams")}
+                title={t("simulator.detail.fullscreen")}
               >
                 <ArrowsOut size={18} />
               </button>
@@ -197,8 +201,8 @@ export function SimulationSidebar({
               type="button"
               onClick={onCollapse}
               className="p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Réduire le panneau"
-              title="Réduire le panneau"
+              aria-label={t("simulator.detail.collapse")}
+              title={t("simulator.detail.collapse")}
             >
               <SidebarSimple size={18} />
             </button>
@@ -215,11 +219,11 @@ export function SimulationSidebar({
             <button
               onClick={() => setFinalizeOpen(true)}
               disabled={busy !== null || sim.is_dirty || sim.line_count === 0}
-              title={sim.is_dirty ? "Recalculez avant de finaliser" : undefined}
+              title={sim.is_dirty ? t("simulator.detail.finalizeFirst") : undefined}
               className="flex items-center gap-1.5 rounded-lg border border-green-300 px-2.5 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle size={13} />
-              Finaliser
+              {t("simulator.detail.finalize")}
             </button>
           )}
           {sim.status === "finalized" && (
@@ -229,7 +233,7 @@ export function SimulationSidebar({
               className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
             >
               <Archive size={13} />
-              Archiver
+              {t("simulator.detail.archive")}
             </button>
           )}
           {sim.status === "archived" && (
@@ -239,7 +243,7 @@ export function SimulationSidebar({
               className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
             >
               <ArrowCounterClockwise size={13} />
-              Désarchiver
+              {t("simulator.detail.unarchive")}
             </button>
           )}
           <button
@@ -248,7 +252,7 @@ export function SimulationSidebar({
             className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
           >
             <Copy size={13} />
-            Dupliquer
+            {t("simulator.detail.duplicate")}
           </button>
           {!readOnly && (
             <button
@@ -257,24 +261,38 @@ export function SimulationSidebar({
                 try {
                   const impact = await getSimulationComparisonImpact(sim.id);
                   if (impact.comparisons.length > 0) {
-                    const labels = impact.comparisons.map((c) => `« ${c.label} »`).join(", ");
+                    const labels = impact.comparisons
+                      .map((c) => t("simulator.detail.quote", { name: c.label }))
+                      .join(", ");
                     const willDelete = impact.comparisons.filter((c) => c.will_delete);
                     const willUpdate = impact.comparisons.filter((c) => !c.will_delete);
                     const parts: string[] = [
-                      `Elle figure dans ${impact.comparisons.length} comparaison${impact.comparisons.length > 1 ? "s" : ""} : ${labels}.`,
+                      impact.comparisons.length > 1
+                        ? t("simulator.detail.inComparisonsOther", {
+                            count: impact.comparisons.length,
+                            labels,
+                          })
+                        : t("simulator.detail.inComparisonsOne", {
+                            count: impact.comparisons.length,
+                            labels,
+                          }),
                     ];
                     if (willDelete.length > 0) {
                       parts.push(
                         willDelete.length === 1
-                          ? `La comparaison ${willDelete.map((c) => `« ${c.label} »`).join(", ")} (2 colonnes) sera également supprimée.`
-                          : `${willDelete.length} comparaisons à 2 colonnes seront également supprimées.`,
+                          ? t("simulator.detail.alsoDeleteOne", {
+                              labels: willDelete
+                                .map((c) => t("simulator.detail.quote", { name: c.label }))
+                                .join(", "),
+                            })
+                          : t("simulator.detail.alsoDeleteOther", { count: willDelete.length }),
                       );
                     }
                     if (willUpdate.length > 0) {
                       parts.push(
                         willUpdate.length === 1
-                          ? `La simulation sera retirée de « ${willUpdate[0].label} ».`
-                          : `La simulation sera retirée des ${willUpdate.length} autres comparaisons.`,
+                          ? t("simulator.detail.removedFromOne", { name: willUpdate[0].label })
+                          : t("simulator.detail.removedFromOther", { count: willUpdate.length }),
                       );
                     }
                     impactNote = `\n\n${parts.join(" ")}`;
@@ -283,9 +301,12 @@ export function SimulationSidebar({
                   // Preview failed — still allow delete; backend cleans up on destroy.
                 }
                 const ok = await confirm({
-                  title: "Supprimer la simulation",
-                  description: `Supprimer la simulation « ${sim.label} » ?${impactNote}`,
-                  confirmLabel: "Supprimer",
+                  title: t("simulator.detail.deleteTitle"),
+                  description: t("simulator.detail.deleteDescription", {
+                    name: sim.label,
+                    note: impactNote,
+                  }),
+                  confirmLabel: t("common.delete"),
                   destructive: true,
                 });
                 if (!ok) return;
@@ -298,17 +319,29 @@ export function SimulationSidebar({
                     const bits: string[] = [];
                     if (result.comparisons_deleted?.length) {
                       bits.push(
-                        `${result.comparisons_deleted.length} comparaison${result.comparisons_deleted.length > 1 ? "s" : ""} supprimée${result.comparisons_deleted.length > 1 ? "s" : ""}`,
+                        result.comparisons_deleted.length > 1
+                          ? t("simulator.detail.deletedComparisonsOther", {
+                              count: result.comparisons_deleted.length,
+                            })
+                          : t("simulator.detail.deletedComparisonsOne", {
+                              count: result.comparisons_deleted.length,
+                            }),
                       );
                     }
                     if (result.comparisons_updated?.length) {
                       bits.push(
-                        `retirée de ${result.comparisons_updated.length} comparaison${result.comparisons_updated.length > 1 ? "s" : ""}`,
+                        result.comparisons_updated.length > 1
+                          ? t("simulator.detail.removedFromCountOther", {
+                              count: result.comparisons_updated.length,
+                            })
+                          : t("simulator.detail.removedFromCountOne", {
+                              count: result.comparisons_updated.length,
+                            }),
                       );
                     }
-                    toast.success(`Simulation supprimée (${bits.join(", ")}).`);
+                    toast.success(t("simulator.detail.deletedBits", { bits: bits.join(", ") }));
                   } else {
-                    toast.success("Simulation supprimée.");
+                    toast.success(t("simulator.detail.deleted"));
                   }
                   router.push("/simulator");
                 });
@@ -317,7 +350,7 @@ export function SimulationSidebar({
               className="flex items-center gap-1.5 rounded-lg border border-destructive/30 px-2.5 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
               <Trash size={13} />
-              Supprimer
+              {t("common.delete")}
             </button>
           )}
         </div>
@@ -355,7 +388,7 @@ export function SimulationSidebar({
       <Dialog open={contextOpen} onOpenChange={setContextOpen}>
         <DialogContent className="max-w-lg gap-0 p-0">
           <DialogHeader className="border-b border-border p-5">
-            <DialogTitle>Contexte de la simulation</DialogTitle>
+            <DialogTitle>{t("simulator.detail.contextTitle")}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto p-5">
             <TypeStep
@@ -371,7 +404,7 @@ export function SimulationSidebar({
           </div>
           <DialogFooter>
             <Button type="button" onClick={() => setContextOpen(false)}>
-              Fermer
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -380,7 +413,7 @@ export function SimulationSidebar({
       {busy && (
         <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-foreground/90 px-3 py-2 text-sm text-background">
           <CircleNotch size={14} className="animate-spin" />
-          Traitement…
+          {t("simulator.processing")}
         </div>
       )}
     </div>

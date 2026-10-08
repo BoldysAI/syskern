@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
 import { createSavedComparison, getSimulations, type Simulation } from "@/lib/api";
 import useSWR from "swr";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -24,14 +25,15 @@ import {
 } from "./_components/wizard-draft";
 
 const STEPS = [
-  { id: 1, label: "Nom" },
-  { id: 2, label: "Simulations" },
-  { id: 3, label: "Aperçu" },
+  { id: 1, labelKey: "comparator.name" },
+  { id: 2, labelKey: "comparator.simulations" },
+  { id: 3, labelKey: "comparator.new.stepPreview" },
 ] as const;
 
 function NewComparisonWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useUiTranslate();
   const prefill = useMemo(
     () =>
       draftFromSearchParams({
@@ -74,7 +76,7 @@ function NewComparisonWizard() {
       clearDraft();
       router.push(`/comparator/${saved.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Création de la comparaison échouée.");
+      setError(e instanceof Error ? e.message : t("comparator.new.createError"));
       setSaving(false);
     }
   };
@@ -105,10 +107,10 @@ function NewComparisonWizard() {
           className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <CaretLeft size={16} />
-          Retour aux comparaisons
+          {t("comparator.backToList")}
         </Link>
 
-        {step !== 2 && <PageHeader title="Nouvelle comparaison" className="mb-6" />}
+        {step !== 2 && <PageHeader title={t("comparator.new.title")} className="mb-6" />}
 
         <ol className={cn("flex items-center gap-2", step === 2 ? "mb-0" : "mb-8")}>
           {STEPS.map((s, i) => {
@@ -144,7 +146,7 @@ function NewComparisonWizard() {
                       active ? "text-foreground" : "text-muted-foreground",
                     )}
                   >
-                    {s.label}
+                    {t(s.labelKey)}
                   </span>
                 </button>
                 {i < STEPS.length - 1 && <span className="hidden h-px flex-1 bg-border sm:block" />}
@@ -173,7 +175,7 @@ function NewComparisonWizard() {
               simulationIds={draft.simulationIds}
               recalculationIds={draft.recalculationIds}
               compareReturnHref={`/comparator/new?sims=${draft.simulationIds.join(",")}${draft.recalculationIds.length ? `&recalc=${draft.recalculationIds.join(",")}` : ""}`}
-              compareReturnLabel="Nouvelle comparaison"
+              compareReturnLabel={t("comparator.new.title")}
               onSimulationIdsChange={(ids) => update({ simulationIds: ids })}
             />
           </div>
@@ -194,7 +196,7 @@ function NewComparisonWizard() {
       >
         <Button type="button" variant="outline" onClick={goBack} disabled={step === 1 || saving}>
           <CaretLeft size={16} />
-          Précédent
+          {t("comparator.new.previous")}
         </Button>
         <Button
           type="button"
@@ -209,11 +211,11 @@ function NewComparisonWizard() {
           {saving && <CircleNotch size={16} className="animate-spin" />}
           {step < 3 ? (
             <>
-              Suivant
+              {t("comparator.new.next")}
               <CaretRight size={16} />
             </>
           ) : (
-            "Créer la comparaison"
+            t("comparator.new.create")
           )}
         </Button>
       </div>
@@ -222,8 +224,9 @@ function NewComparisonWizard() {
 }
 
 export default function NewComparisonPage() {
+  const t = useUiTranslate();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <NewComparisonWizard />
     </Suspense>
   );

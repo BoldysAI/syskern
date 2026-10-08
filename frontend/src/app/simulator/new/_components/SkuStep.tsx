@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Table, ListChecks } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { SimulationType } from "@/lib/api";
 import { WizardCatalogPicker } from "./WizardCatalogPicker";
 import { ImportFilePanel } from "./ImportFilePanel";
@@ -32,6 +33,7 @@ export function SkuStep({
   onNotFoundChange,
   className,
 }: Props) {
+  const t = useUiTranslate();
   const selectedIds = useMemo(() => new Set(selectedSkus.map((s) => s.id)), [selectedSkus]);
 
   const handleAdd = (skus: SelectedSku[]) => {
@@ -61,11 +63,11 @@ export function SkuStep({
         <Tabs.List className="flex shrink-0 items-center gap-1 border-b border-border">
           <Tabs.Trigger value="catalogue" className={TAB_TRIGGER}>
             <ListChecks size={16} />
-            Depuis le catalogue
+            {t("simulator.sku.catalogTab")}
           </Tabs.Trigger>
           <Tabs.Trigger value="import" className={TAB_TRIGGER}>
             <Table size={16} />
-            Par fichier
+            {t("simulator.sku.fileTab")}
           </Tabs.Trigger>
         </Tabs.List>
 

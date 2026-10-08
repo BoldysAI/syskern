@@ -30,6 +30,8 @@ import type { DataTableColumnDef, DataTableSortState } from "@/components/data-t
 import { SuppliersFiltersSidebar } from "./SuppliersFiltersSidebar";
 import { applySupplierFilters, type SupplierFilters } from "./supplier-filters";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 import {
   analyzePoImport,
   applyPoImport,
@@ -67,37 +69,55 @@ function columnLetter(index: number): string {
   return label;
 }
 
+type UiTranslate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+function mappedColumnLabel(t: UiTranslate, index: number, header: string | undefined): string {
+  const letter = columnLetter(index);
+  if (header) return t("suppliers.poImport.columnWithHeader", { letter, header });
+  return t("suppliers.poImport.column", { letter });
+}
+
 const FIELD_CONFIG: {
   key: ImportMappableField;
-  label: string;
+  labelKey: MessageKey;
   required: boolean;
-  hint?: string;
+  hintKey?: MessageKey;
 }[] = [
-  { key: "sku", label: "SKU", required: true, hint: "Référence produit (obligatoire)" },
-  { key: "po", label: "PO (prix d'achat)", required: true, hint: "Nouveau prix d'achat (obligatoire)" },
+  {
+    key: "sku",
+    labelKey: "suppliers.poImport.field.sku",
+    required: true,
+    hintKey: "suppliers.poImport.field.skuHint",
+  },
+  {
+    key: "po",
+    labelKey: "suppliers.poImport.field.po",
+    required: true,
+    hintKey: "suppliers.poImport.field.poHint",
+  },
   {
     key: "supplier",
-    label: "Fournisseur",
+    labelKey: "suppliers.column.supplier",
     required: false,
-    hint: "Pour un fichier multi-fournisseurs — prime sur le fournisseur choisi",
+    hintKey: "suppliers.poImport.field.supplierHint",
   },
-  { key: "po_currency", label: "Devise PO", required: false },
-  { key: "factory_code", label: "Code usine", required: false },
-  { key: "incoterm", label: "Incoterm", required: false },
+  { key: "po_currency", labelKey: "suppliers.poImport.field.currency", required: false },
+  { key: "factory_code", labelKey: "suppliers.detail.factoryCode", required: false },
+  { key: "incoterm", labelKey: "suppliers.column.incoterm", required: false },
 ];
 
 const STATUS_META: Record<
   PoImportRowStatus,
-  { label: string; variant: StatusBadgeProps["variant"] }
+  { labelKey: MessageKey; variant: StatusBadgeProps["variant"] }
 > = {
-  will_update: { label: "Sera mis à jour", variant: "success" },
-  will_create_link: { label: "Lien créé + PO", variant: "info" },
-  unchanged: { label: "Inchangé", variant: "draft" },
-  sku_not_found: { label: "SKU introuvable", variant: "warning" },
-  supplier_not_found: { label: "Fournisseur introuvable", variant: "failed" },
-  invalid_po: { label: "PO invalide", variant: "warning" },
-  no_supplier: { label: "Aucun fournisseur", variant: "warning" },
-  missing_sku: { label: "SKU manquant", variant: "warning" },
+  will_update: { labelKey: "suppliers.status.willUpdate", variant: "success" },
+  will_create_link: { labelKey: "suppliers.poImport.status.willCreateLink", variant: "info" },
+  unchanged: { labelKey: "suppliers.poImport.status.unchanged", variant: "draft" },
+  sku_not_found: { labelKey: "suppliers.poImport.status.skuNotFound", variant: "warning" },
+  supplier_not_found: { labelKey: "suppliers.poImport.status.supplierNotFound", variant: "failed" },
+  invalid_po: { labelKey: "suppliers.poImport.status.invalidPo", variant: "warning" },
+  no_supplier: { labelKey: "suppliers.poImport.status.noSupplier", variant: "warning" },
+  missing_sku: { labelKey: "suppliers.poImport.status.missingSku", variant: "warning" },
 };
 
 const STATUS_ORDER: PoImportRowStatus[] = [
@@ -132,6 +152,7 @@ export function PoImportWizard({
   initialSupplier?: Supplier;
 }) {
   const { mutate } = useSWRConfig();
+  const t = useUiTranslate();
 
   const [step, setStep] = useState<Step>(initialSupplier ? "upload" : "supplier");
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier ?? null);
@@ -188,7 +209,7 @@ export function PoImportWizard({
     () => [
       {
         key: "name",
-        label: "Fournisseur",
+        label: t("suppliers.column.supplier"),
         width: 260,
         render: (s) => (
           <div>
@@ -199,13 +220,13 @@ export function PoImportWizard({
       },
       {
         key: "currency_default",
-        label: "Devise",
+        label: t("suppliers.column.currency"),
         width: 90,
         render: (s) => <span className="font-data text-sm text-foreground">{s.currency_default}</span>,
       },
       {
         key: "incoterm_default",
-        label: "Incoterm",
+        label: t("suppliers.column.incoterm"),
         width: 110,
         render: (s) => (
           <span className="text-sm text-muted-foreground">{s.incoterm_default || "—"}</span>
@@ -213,7 +234,7 @@ export function PoImportWizard({
       },
       {
         key: "linked_skus_count",
-        label: "SKU liés",
+        label: t("suppliers.column.linkedSkus"),
         width: 100,
         align: "right",
         render: (s) => (
@@ -221,7 +242,7 @@ export function PoImportWizard({
         ),
       },
     ],
-    [],
+    [t],
   );
 
   const requiredOk = columnMap.sku != null && columnMap.po != null;
@@ -261,7 +282,7 @@ export function PoImportWizard({
   const pickFile = (f: File | null) => {
     if (!f) return;
     if (!/\.(xlsx|xlsm)$/i.test(f.name)) {
-      setError("Format attendu : fichier Excel (.xlsx).");
+      setError(t("suppliers.poImport.badFormat"));
       return;
     }
     setError(null);
@@ -281,7 +302,7 @@ export function PoImportWizard({
       setColumnMap((prev) => (Object.keys(prev).length ? prev : autoMap(res.headers)));
       setStep("mapping");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'analyse du fichier.");
+      setError(err instanceof Error ? err.message : t("suppliers.poImport.analyzeError"));
     } finally {
       setAnalyzing(false);
     }
@@ -306,7 +327,7 @@ export function PoImportWizard({
         return next;
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur lors de la relecture du fichier.");
+      setError(err instanceof Error ? err.message : t("suppliers.poImport.rereadError"));
     } finally {
       setInspecting(false);
     }
@@ -337,7 +358,7 @@ export function PoImportWizard({
         setHeaderRowInput(String(res.header_row));
         columnCount = res.column_count;
       } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : "Erreur");
+        toast.error(err instanceof Error ? err.message : t("common.error"));
         setInspecting(false);
         return;
       }
@@ -349,17 +370,17 @@ export function PoImportWizard({
       if (typeof v === "number" && v >= 0 && v < columnCount) next[k as ImportMappableField] = v;
     }
     setColumnMap(next);
-    toast.success(`Mapping « ${m.name} » chargé.`);
+    toast.success(t("suppliers.poImport.mappingLoaded", { name: m.name }));
   };
 
   const saveMapping = async () => {
     const name = mappingName.trim();
     if (!name) {
-      toast.error("Donnez un nom au mapping.");
+      toast.error(t("suppliers.poImport.mappingNameRequired"));
       return;
     }
     if (!requiredOk) {
-      toast.error("Mappez au moins SKU et PO avant d'enregistrer.");
+      toast.error(t("suppliers.poImport.mappingRequiredFields"));
       return;
     }
     setSavingMapping(true);
@@ -370,11 +391,11 @@ export function PoImportWizard({
         column_map: columnMap,
         header_row: headerRow,
       });
-      toast.success("Mapping enregistré.");
+      toast.success(t("suppliers.poImport.mappingSaved"));
       setMappingName("");
       await mutateMappings();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSavingMapping(false);
     }
@@ -383,10 +404,10 @@ export function PoImportWizard({
   const removeMapping = async (m: SupplierImportMapping) => {
     try {
       await deleteImportMapping(m.id);
-      toast.success("Mapping supprimé.");
+      toast.success(t("suppliers.poImport.mappingDeleted"));
       await mutateMappings();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     }
   };
 
@@ -399,10 +420,10 @@ export function PoImportWizard({
       const s = await getTaskStatus<T>(taskId);
       if (s.progress) onProgress(s.progress);
       if (s.status === "SUCCESS") return s.result as T;
-      if (s.status === "FAILURE") throw new Error(s.error || "La tâche a échoué.");
+      if (s.status === "FAILURE") throw new Error(s.error || t("suppliers.poImport.taskFailed"));
       await new Promise((r) => setTimeout(r, 800));
     }
-    throw new Error("Délai d'attente dépassé.");
+    throw new Error(t("suppliers.poImport.timeout"));
   };
 
   const runPreview = async () => {
@@ -424,7 +445,7 @@ export function PoImportWizard({
       setPreview(res);
       setPreviewPhase("done");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setPreviewPhase("error");
     }
   };
@@ -445,7 +466,7 @@ export function PoImportWizard({
       setApplyPhase("done");
       await mutate("suppliers");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setApplyPhase("error");
     }
   };
@@ -458,10 +479,10 @@ export function PoImportWizard({
   };
 
   const stepTitles: Record<Step, string> = {
-    supplier: "1 · Choisir le fournisseur",
-    upload: "2 · Importer le fichier Excel",
-    mapping: "3 · Associer les colonnes",
-    review: "4 · Synthèse",
+    supplier: t("suppliers.wizard.chooseSupplier"),
+    upload: t("suppliers.poImport.stepUpload"),
+    mapping: t("suppliers.poImport.stepMapping"),
+    review: t("suppliers.poImport.stepReview"),
   };
 
   const willApplyCount = preview
@@ -472,13 +493,13 @@ export function PoImportWizard({
     <AppModal
       open={open}
       onOpenChange={(v) => !v && onClose()}
-      title="Importer des PO fournisseurs"
+      title={t("suppliers.poImport.title")}
       description={
         supplier
           ? supplier.name
           : ignoreSupplier
-            ? "Fichier multi-fournisseurs"
-            : "Assistant d'import"
+            ? t("suppliers.poImport.multiSupplierFile")
+            : t("suppliers.poImport.assistant")
       }
       size="full"
     >
@@ -512,7 +533,7 @@ export function PoImportWizard({
                     className="flex-1"
                     value={supplierSearch}
                     onChange={setSupplierSearch}
-                    placeholder="Rechercher un fournisseur…"
+                    placeholder={t("suppliers.wizard.searchSupplier")}
                   />
                   <Button
                     variant="outline"
@@ -522,7 +543,7 @@ export function PoImportWizard({
                       setStep("upload");
                     }}
                   >
-                    Ignorer (fichier multi-fournisseurs)
+                    {t("suppliers.poImport.ignoreMulti")}
                   </Button>
                 </div>
                 <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
@@ -544,7 +565,7 @@ export function PoImportWizard({
                       <EmptyState
                         className="border-none bg-transparent shadow-none"
                         icon={<AppIcon icon={Truck} size="lg" />}
-                        title="Aucun fournisseur"
+                        title={t("suppliers.list.empty")}
                       />
                     }
                   />
@@ -582,9 +603,9 @@ export function PoImportWizard({
                 ) : (
                   <>
                     <span className="text-sm font-medium text-foreground">
-                      Glissez un fichier ici ou cliquez pour choisir
+                      {t("suppliers.poImport.drop")}
                     </span>
-                    <span className="text-xs text-muted-foreground">Formats acceptés : .xlsx</span>
+                    <span className="text-xs text-muted-foreground">{t("suppliers.poImport.formats")}</span>
                   </>
                 )}
                 <input
@@ -596,8 +617,7 @@ export function PoImportWizard({
                 />
               </button>
               <p className="text-sm text-muted-foreground">
-                Peu importe la structure du fichier : vous associerez les colonnes à l&apos;étape
-                suivante.
+                {t("suppliers.poImport.anyStructure")}
               </p>
             </div>
           )}
@@ -608,7 +628,7 @@ export function PoImportWizard({
               <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/20 p-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-muted-foreground">
-                    Ligne d&apos;en-tête
+                    {t("suppliers.poImport.headerRow")}
                   </label>
                   <Input
                     type="text"
@@ -629,9 +649,8 @@ export function PoImportWizard({
                   />
                 </div>
                 <p className="flex-1 text-xs text-muted-foreground">
-                  Indiquez la ligne du fichier qui contient les noms de colonnes. Les colonnes sans nom
-                  restent sélectionnables (« Colonne A », « Colonne B »…).
-                  {inspecting && " Relecture…"}
+                  {t("suppliers.poImport.headerHint")}
+                  {inspecting && t("suppliers.poImport.rereading")}
                 </p>
               </div>
 
@@ -644,27 +663,27 @@ export function PoImportWizard({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {FIELD_CONFIG.map((f) => {
                   const options = [
-                    { value: NONE, label: "— Ne pas mapper —" },
+                    { value: NONE, label: t("suppliers.poImport.doNotMap") },
                     ...Array.from({ length: analysis.column_count }, (_, i) => ({
                       value: String(i),
-                      label: analysis.headers[i]
-                        ? `${columnLetter(i)} · ${analysis.headers[i]}`
-                        : `Colonne ${columnLetter(i)}`,
+                      label: mappedColumnLabel(t, i, analysis.headers[i]),
                     })),
                   ];
                   return (
                     <div key={f.key} className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-foreground">
-                        {f.label}
+                        {t(f.labelKey)}
                         {f.required && <span className="ml-1 text-destructive">*</span>}
                       </label>
                       <OptionSelect
                         value={columnMap[f.key] != null ? String(columnMap[f.key]) : NONE}
                         onValueChange={(v) => setField(f.key, v)}
                         options={options}
-                        placeholder="— Ne pas mapper —"
+                        placeholder={t("suppliers.poImport.doNotMap")}
                       />
-                      {f.hint && <span className="text-xs text-muted-foreground">{f.hint}</span>}
+                      {f.hintKey && (
+                        <span className="text-xs text-muted-foreground">{t(f.hintKey)}</span>
+                      )}
                     </div>
                   );
                 })}
@@ -673,10 +692,7 @@ export function PoImportWizard({
               {!supplierResolvable && (
                 <div className="flex items-start gap-2 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
                   <Warning size={18} className="mt-0.5 shrink-0 text-warm" weight="fill" />
-                  <p>
-                    Aucun fournisseur sélectionné et aucune colonne fournisseur mappée. Revenez
-                    choisir un fournisseur ou mappez la colonne « Fournisseur ».
-                  </p>
+                  <p>{t("suppliers.poImport.noSupplierMapped")}</p>
                 </div>
               )}
 
@@ -689,12 +705,12 @@ export function PoImportWizard({
               <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex-1">
                   <label className="mb-1 block text-xs font-semibold text-muted-foreground">
-                    Enregistrer ce mapping pour réutilisation
+                    {t("suppliers.poImport.saveMappingLabel")}
                   </label>
                   <Input
                     value={mappingName}
                     onChange={(e) => setMappingName(e.target.value)}
-                    placeholder="Nom du mapping (ex. Structure fournisseur X)"
+                    placeholder={t("suppliers.poImport.mappingNamePlaceholder")}
                   />
                 </div>
                 <Button
@@ -703,7 +719,7 @@ export function PoImportWizard({
                   disabled={savingMapping || !mappingName.trim() || !requiredOk}
                 >
                   <AppIcon icon={FloppyDisk} size="sm" />
-                  Enregistrer
+                  {t("common.save")}
                 </Button>
               </div>
             </div>
@@ -724,46 +740,47 @@ export function PoImportWizard({
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Analyse des lignes…</p>
+                  <p className="text-xs text-muted-foreground">{t("suppliers.poImport.analyzingLines")}</p>
                 </div>
               )}
 
               {previewPhase === "done" && preview && (
                 <>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-                    <SummaryStat label="Total" value={preview.summary.total} />
-                    <SummaryStat label="Mis à jour" value={preview.summary.will_update} highlight />
-                    <SummaryStat label="Liens créés" value={preview.summary.will_create_link} highlight />
-                    <SummaryStat label="Inchangés" value={preview.summary.unchanged} />
-                    <SummaryStat label="SKU inconnus" value={preview.summary.sku_not_found} />
-                    <SummaryStat label="Rejetés" value={preview.summary.rejected} />
+                    <SummaryStat label={t("suppliers.poImport.total")} value={preview.summary.total} />
+                    <SummaryStat label={t("suppliers.summary.updated")} value={preview.summary.will_update} highlight />
+                    <SummaryStat label={t("suppliers.poImport.linksCreated")} value={preview.summary.will_create_link} highlight />
+                    <SummaryStat label={t("suppliers.summary.unchanged")} value={preview.summary.unchanged} />
+                    <SummaryStat label={t("suppliers.poImport.unknownSkus")} value={preview.summary.sku_not_found} />
+                    <SummaryStat label={t("suppliers.poImport.rejected")} value={preview.summary.rejected} />
                   </div>
 
                   {willApplyCount === 0 && (
                     <div className="flex items-start gap-2 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
                       <Warning size={18} className="mt-0.5 shrink-0 text-warm" weight="fill" />
-                      <p>Aucune ligne ne sera appliquée avec ce mapping. Vérifiez l&apos;association des colonnes.</p>
+                      <p>{t("suppliers.poImport.noneApplied")}</p>
                     </div>
                   )}
 
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
                     <div className="shrink-0 border-b border-border bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Détail par ligne ({previewLines.length}
                       {preview.summary.total > previewLines.length
-                        ? ` sur ${preview.summary.total}`
-                        : ""}
-                      )
+                        ? t("suppliers.poImport.detailCountOf", {
+                            count: previewLines.length,
+                            total: preview.summary.total,
+                          })
+                        : t("suppliers.poImport.detailCount", { count: previewLines.length })}
                     </div>
                     <div className="min-h-0 flex-1 overflow-auto">
                       <table className="w-full min-w-[720px] text-sm">
                         <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-sm">
                           <tr>
-                            <th className="px-4 py-2.5 text-left font-semibold">Ligne</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">SKU</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">Fournisseur</th>
-                            <th className="px-4 py-2.5 text-right font-semibold">Ancien PO</th>
-                            <th className="px-4 py-2.5 text-right font-semibold">Nouveau PO</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">Statut</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.line")}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.sku")}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.supplier")}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">{t("suppliers.column.oldPo")}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">{t("suppliers.column.newPo")}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.status")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -795,23 +812,23 @@ export function PoImportWizard({
               }}
             >
               <AppIcon icon={ArrowLeft} size="sm" />
-              Retour
+              {t("common.back")}
             </Button>
 
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={onClose} disabled={applyPhase === "running"}>
-                Annuler
+                {t("common.cancel")}
               </Button>
 
               {step === "upload" && (
                 <Button onClick={runAnalyze} disabled={!file || analyzing}>
-                  {analyzing ? "Analyse…" : "Continuer"}
+                  {analyzing ? t("suppliers.poImport.analyzing") : t("suppliers.wizard.continue")}
                   <AppIcon icon={ArrowRight} size="sm" />
                 </Button>
               )}
               {step === "mapping" && (
                 <Button onClick={runPreview} disabled={!mappingValid}>
-                  Voir la synthèse
+                  {t("suppliers.poImport.seeSummary")}
                   <AppIcon icon={ArrowRight} size="sm" />
                 </Button>
               )}
@@ -823,8 +840,8 @@ export function PoImportWizard({
                   }
                 >
                   {applyPhase === "running"
-                    ? "Application…"
-                    : `Confirmer (${willApplyCount})`}
+                    ? t("suppliers.wizard.applying")
+                    : t("suppliers.poImport.confirmCount", { count: willApplyCount })}
                 </Button>
               )}
             </div>
@@ -853,6 +870,7 @@ function autoMap(headers: string[]): ImportColumnMap {
 }
 
 function PreviewRow({ line }: { line: PoImportPreviewLine }) {
+  const t = useUiTranslate();
   const meta = STATUS_META[line.status];
   const actionable = line.status === "will_update" || line.status === "will_create_link";
   return (
@@ -870,7 +888,7 @@ function PreviewRow({ line }: { line: PoImportPreviewLine }) {
       </td>
       <td className="px-4 py-2.5">
         <StatusBadge variant={meta.variant} title={line.reason || undefined}>
-          {meta.label}
+          {t(meta.labelKey)}
         </StatusBadge>
       </td>
     </tr>
@@ -886,10 +904,13 @@ function MappingTemplates({
   onApply: (m: SupplierImportMapping) => void;
   onRemove: (m: SupplierImportMapping) => void;
 }) {
+  const t = useUiTranslate();
   if (mappings.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/20 p-3">
-      <span className="text-xs font-semibold text-muted-foreground">Mappings enregistrés :</span>
+      <span className="text-xs font-semibold text-muted-foreground">
+        {t("suppliers.poImport.savedMappings")}
+      </span>
       {mappings.map((m) => (
         <span
           key={m.id}
@@ -905,7 +926,7 @@ function MappingTemplates({
           <button
             type="button"
             className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
-            title="Supprimer ce mapping"
+            title={t("suppliers.poImport.deleteMapping")}
             onClick={() => onRemove(m)}
           >
             <Trash size={14} />
@@ -925,13 +946,16 @@ function SamplePreview({
   rows: string[][];
   headerRowNumber: number;
 }) {
+  const t = useUiTranslate();
   const [expanded, setExpanded] = useState(false);
   if (rows.length === 0) return null;
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/40 px-4 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Aperçu du fichier ({rows.length} ligne{rows.length !== 1 ? "s" : ""})
+          {rows.length === 1
+            ? t("suppliers.poImport.sampleOne", { count: rows.length })
+            : t("suppliers.poImport.sampleOther", { count: rows.length })}
         </span>
         <Button
           variant="ghost"
@@ -940,7 +964,7 @@ function SamplePreview({
           onClick={() => setExpanded((v) => !v)}
         >
           <AppIcon icon={expanded ? ArrowsInSimple : ArrowsOutSimple} size="sm" />
-          {expanded ? "Réduire" : "Agrandir"}
+          {expanded ? t("suppliers.poImport.collapse") : t("suppliers.poImport.expand")}
         </Button>
       </div>
       <div className={cn("overflow-auto", expanded ? "max-h-[65vh]" : "max-h-80")}>
@@ -948,11 +972,11 @@ function SamplePreview({
           <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-sm">
             <tr>
               <th className="sticky left-0 z-20 w-14 bg-card px-3 py-2 text-right font-semibold">
-                Ligne
+                {t("suppliers.column.line")}
               </th>
               {headers.map((h, i) => (
                 <th key={i} className="whitespace-nowrap px-3 py-2 text-left font-semibold">
-                  {h ? `${columnLetter(i)} · ${h}` : `Colonne ${columnLetter(i)}`}
+                  {mappedColumnLabel(t, i, h)}
                 </th>
               ))}
             </tr>
@@ -988,42 +1012,51 @@ function ApplyResultView({
   onReset: () => void;
   onClose: () => void;
 }) {
+  const t = useUiTranslate();
   return (
     <div className="flex flex-col gap-5 py-4">
       <div className="flex flex-col items-center gap-3 text-center">
         <AppIcon icon={CheckCircle} size="lg" weight="duotone" className="text-brand-green" />
         <div>
-          <p className="text-base font-semibold text-foreground">Import terminé</p>
+          <p className="text-base font-semibold text-foreground">{t("suppliers.poImport.done")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {result.updated} mis à jour · {result.created} lien(s) créé(s)
-            {result.rejected > 0 ? ` · ${result.rejected} rejeté(s)` : ""}.
+            {result.rejected > 0
+              ? t("suppliers.poImport.resultRejected", {
+                  updated: result.updated,
+                  created: result.created,
+                  rejected: result.rejected,
+                })
+              : t("suppliers.poImport.result", {
+                  updated: result.updated,
+                  created: result.created,
+                })}
           </p>
         </div>
       </div>
 
       <div className="mx-auto grid w-full max-w-2xl grid-cols-3 gap-3">
-        <SummaryStat label="Mis à jour" value={result.updated} highlight />
-        <SummaryStat label="Liens créés" value={result.created} highlight />
-        <SummaryStat label="Rejetés" value={result.rejected} />
+        <SummaryStat label={t("suppliers.summary.updated")} value={result.updated} highlight />
+        <SummaryStat label={t("suppliers.poImport.linksCreated")} value={result.created} highlight />
+        <SummaryStat label={t("suppliers.poImport.rejected")} value={result.rejected} />
       </div>
 
       {result.rejected > 0 && result.report_url && (
         <div className="mx-auto w-full max-w-2xl rounded-lg border border-border bg-muted/40 p-3 text-center">
           <p className="text-sm text-muted-foreground">
-            {result.rejected} ligne(s) rejetée(s) (SKU/fournisseur introuvable, PO invalide).
+            {t("suppliers.poImport.rejectedLines", { count: result.rejected })}
           </p>
           <Button variant="outline" size="sm" className="mt-2" onClick={onDownload}>
             <AppIcon icon={DownloadSimple} size="sm" />
-            Télécharger le rapport
+            {t("suppliers.poImport.downloadReport")}
           </Button>
         </div>
       )}
 
       <div className="flex justify-center gap-3">
         <Button variant="outline" onClick={onReset}>
-          Nouvel import
+          {t("suppliers.poImport.newImport")}
         </Button>
-        <Button onClick={onClose}>Fermer</Button>
+        <Button onClick={onClose}>{t("common.close")}</Button>
       </div>
     </div>
   );

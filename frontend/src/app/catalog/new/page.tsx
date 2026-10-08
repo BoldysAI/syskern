@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   AttributeRenderer,
   isAttributeValueEmpty,
@@ -52,24 +53,24 @@ import { DRAFT_KEY, loadDraft, type Core, type WizardDraft } from "./draft";
 const SKU_RE = /^[A-Z0-9-]+$/;
 
 const STEPS = [
-  { id: "identification", label: "Identification" },
-  { id: "technical", label: "Technique" },
-  { id: "logistics", label: "Logistique" },
-  { id: "suppliers", label: "Fournisseur(s)" },
-  { id: "review", label: "Validation" },
+  { id: "identification", labelKey: "catalog.new.step.identification" },
+  { id: "technical", labelKey: "catalog.tab.technical" },
+  { id: "logistics", labelKey: "catalog.tab.logistics" },
+  { id: "suppliers", labelKey: "catalog.new.step.suppliers" },
+  { id: "review", labelKey: "catalog.new.step.review" },
 ] as const;
 
 const BASE_UNIT_OPTIONS = [
-  { value: "unit", label: "Unité" },
-  { value: "km", label: "Kilomètre" },
-  { value: "m", label: "Mètre" },
-];
+  { value: "unit", labelKey: "catalog.unit.unit" },
+  { value: "km", labelKey: "catalog.unit.km" },
+  { value: "m", labelKey: "catalog.unit.m" },
+] as const;
 
 const SUPPLY_POLICY_OPTIONS = [
-  { value: "buy", label: "Achat & stock" },
-  { value: "dropship", label: "Dropship" },
-  { value: "mixed", label: "Mixte" },
-];
+  { value: "buy", labelKey: "catalog.supply.buy" },
+  { value: "dropship", labelKey: "catalog.supply.dropship" },
+  { value: "mixed", labelKey: "catalog.supply.mixed" },
+] as const;
 
 const WIZARD_ATTR_CATEGORIES: Record<string, AttributeCategory[]> = {
   identification: ["structural", "marketing"],
@@ -194,6 +195,7 @@ function SelectField({
   disabled?: boolean;
   placeholder?: string;
 }) {
+  const t = useUiTranslate();
   const selectedLabel = options.find((o) => o.value === value)?.label;
 
   return (
@@ -204,7 +206,7 @@ function SelectField({
         disabled={disabled}
       >
         <SelectTrigger className="w-full bg-background">
-          <SelectValue placeholder={placeholder ?? "Sélectionner…"}>{selectedLabel}</SelectValue>
+          <SelectValue placeholder={placeholder ?? t("catalog.field.select")}>{selectedLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (
@@ -251,6 +253,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 export default function NewProductPage() {
   const router = useRouter();
   const { role, isLoading: authLoading } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
   const [initial] = useState(loadDraft);
@@ -336,23 +339,23 @@ export default function NewProductPage() {
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
     const sku = str("sku_code").trim();
-    if (!sku) e.sku_code = "Le SKU est requis.";
-    else if (!SKU_RE.test(sku)) e.sku_code = "Majuscules, chiffres et tirets uniquement.";
-    if (!str("name").trim()) e.name = "Le nom est requis.";
-    if (!desc("fr").trim()) e.description_fr = "La description marketing FR est requise.";
+    if (!sku) e.sku_code = t("catalog.new.skuRequired");
+    else if (!SKU_RE.test(sku)) e.sku_code = t("catalog.new.skuFormat");
+    if (!str("name").trim()) e.name = t("catalog.new.nameRequired");
+    if (!desc("fr").trim()) e.description_fr = t("catalog.new.descRequired");
     if (core.is_copper_indexed === true) {
       const w = Number(core.copper_weight_kg_per_unit);
       if (!core.copper_weight_kg_per_unit || !Number.isFinite(w) || w <= 0)
-        e.copper_weight_kg_per_unit = "Poids cuivre requis et > 0 si indexé cuivre.";
+        e.copper_weight_kg_per_unit = t("catalog.new.copperRequired");
     }
     for (const a of allAttrs ?? []) {
-      if (attrValidity[a.id] === false) e[`attr:${a.id}`] = "Valeur invalide.";
+      if (attrValidity[a.id] === false) e[`attr:${a.id}`] = t("catalog.new.invalidValue");
       if (a.is_required && isAttributeValueEmpty(attrValue(a))) {
-        e[`attr:${a.id}`] = "Ce champ est obligatoire.";
+        e[`attr:${a.id}`] = t("catalog.new.requiredField");
       }
     }
     return e;
-  }, [str, desc, core, allAttrs, attrValidity, attrValue]);
+  }, [str, desc, core, allAttrs, attrValidity, attrValue, t]);
 
   const attrIdsForStep = useCallback(
     (stepId: string) =>
@@ -546,7 +549,7 @@ export default function NewProductPage() {
     } catch (e) {
       // Local creation failing here means the product itself was rejected
       // (validation). Odoo sync is server-side and never blocks creation.
-      setSubmitError(e instanceof Error ? e.message : "Échec de la création du produit.");
+      setSubmitError(e instanceof Error ? e.message : t("catalog.new.createFailed"));
       setSubmitting(false);
     }
   };
@@ -586,10 +589,10 @@ export default function NewProductPage() {
 
   const renderIdentification = () => (
     <div className="flex flex-col gap-6">
-      <SectionCard title="Identification">
+      <SectionCard title={t("catalog.new.step.identification")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField
-            label="SKU"
+            label={t("catalog.column.sku")}
             value={str("sku_code")}
             onChange={(v) => set("sku_code", v.toUpperCase())}
             onBlur={handleSkuBlur}
@@ -597,16 +600,16 @@ export default function NewProductPage() {
             mono
             invalid={showErrors && !!errors.sku_code}
             error={errors.sku_code}
-            placeholder="ex. KCFF6A4PZHDBL5-21"
+            placeholder={t("catalog.new.skuPlaceholder")}
           />
           {/* Code article juste sous le SKU, comme sur la fiche produit (FEEDBACK 2). */}
           <TextField
-            label="Code article"
+            label={t("catalog.field.itemCode")}
             value={str("item_code")}
             onChange={(v) => set("item_code", v)}
           />
           <TextField
-            label="Nom"
+            label={t("catalog.field.name")}
             value={str("name")}
             onChange={(v) => set("name", v)}
             required
@@ -614,7 +617,7 @@ export default function NewProductPage() {
             error={errors.name}
           />
           <TextField
-            label="Référence parent (auto)"
+            label={t("catalog.new.parentRefAuto")}
             value={str("parent_reference")}
             onChange={(v) => {
               touchedRef.current.parent = true;
@@ -622,21 +625,21 @@ export default function NewProductPage() {
             }}
           />
           <TextField
-            label="Code usine (auto)"
+            label={t("catalog.new.factoryAuto")}
             value={str("factory_code")}
             onChange={(v) => {
               touchedRef.current.factory = true;
               set("factory_code", v);
             }}
           />
-          <TextField label="Marque" value={str("brand")} onChange={(v) => set("brand", v)} />
+          <TextField label={t("catalog.column.brand")} value={str("brand")} onChange={(v) => set("brand", v)} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Arborescence">
+      <SectionCard title={t("catalog.field.hierarchy")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
-            label="Univers"
+            label={t("catalog.column.universe")}
             value={str("universe")}
             options={toHierarchyOptions(universeOptions)}
             onChange={(v) =>
@@ -644,36 +647,38 @@ export default function NewProductPage() {
             }
           />
           <SelectField
-            label="Famille"
+            label={t("catalog.column.family")}
             value={str("family")}
             options={toHierarchyOptions(familyOptions)}
             disabled={!universe}
-            placeholder={universe ? "Sélectionner…" : "Choisir un univers d'abord"}
+            placeholder={
+              universe ? t("catalog.field.select") : t("catalog.new.chooseUniverseFirst")
+            }
             onChange={(v) => setCoreState((c) => ({ ...c, family: v, range: "", sub_range: "" }))}
           />
           <SelectField
-            label="Gamme"
+            label={t("catalog.column.range")}
             value={str("range")}
             options={toHierarchyOptions(rangeOptions)}
             disabled={!family}
-            placeholder={family ? "Sélectionner…" : "Choisir une famille d'abord"}
+            placeholder={family ? t("catalog.field.select") : t("catalog.new.chooseFamilyFirst")}
             onChange={(v) => setCoreState((c) => ({ ...c, range: v, sub_range: "" }))}
           />
           <SelectField
-            label="Sous-gamme"
+            label={t("catalog.column.subRange")}
             value={str("sub_range")}
             options={toHierarchyOptions(subRangeOptions)}
             disabled={!rangeVal}
-            placeholder={rangeVal ? "Sélectionner…" : "Choisir une gamme d'abord"}
+            placeholder={rangeVal ? t("catalog.field.select") : t("catalog.new.chooseRangeFirst")}
             onChange={(v) => set("sub_range", v)}
           />
         </div>
       </SectionCard>
 
-      <SectionCard title="Descriptions multilingues">
+      <SectionCard title={t("catalog.general.descriptions")}>
         <div className="flex flex-col gap-4">
           <AreaField
-            label="Description marketing (FR)"
+            label={t("catalog.new.descFr")}
             value={desc("fr")}
             onChange={(v) => setDesc("fr", v)}
             required
@@ -681,24 +686,24 @@ export default function NewProductPage() {
             error={errors.description_fr}
           />
           <AreaField
-            label="Description marketing (EN)"
+            label={t("catalog.new.descEn")}
             value={desc("en")}
             onChange={(v) => setDesc("en", v)}
           />
           <AreaField
-            label="Description marketing (ES)"
+            label={t("catalog.new.descEs")}
             value={desc("es")}
             onChange={(v) => setDesc("es", v)}
           />
         </div>
       </SectionCard>
 
-      <SectionCard title="Identifiants">
+      <SectionCard title={t("catalog.field.identifiers")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TextField label="GTIN" value={str("gtin")} onChange={(v) => set("gtin", v)} />
-          <TextField label="Code HS" value={str("hs_code")} onChange={(v) => set("hs_code", v)} />
+          <TextField label={t("catalog.field.gtin")} value={str("gtin")} onChange={(v) => set("gtin", v)} />
+          <TextField label={t("catalog.field.hsCode")} value={str("hs_code")} onChange={(v) => set("hs_code", v)} />
           <TextField
-            label="N° DOP"
+            label={t("catalog.field.dop")}
             value={str("dop_number")}
             onChange={(v) => set("dop_number", v)}
           />
@@ -707,8 +712,8 @@ export default function NewProductPage() {
 
       {renderAttributeSection(
         "identification",
-        "Attributs (structure & marketing)",
-        "Aucun attribut structurel ou marketing défini dans le registre.",
+        t("catalog.new.attrsMixed"),
+        t("catalog.new.noStructuralMarketing"),
       )}
     </div>
   );
@@ -716,62 +721,62 @@ export default function NewProductPage() {
   const renderTechnical = () =>
     renderAttributeSection(
       "technical",
-      "Caractéristiques techniques",
-      "Aucun attribut technique défini dans le registre.",
+      t("catalog.new.technicalTitle"),
+      t("catalog.new.noTechnical"),
     );
 
   const renderLogistics = () => (
     <div className="flex flex-col gap-6">
-      <SectionCard title="Poids & unité">
+      <SectionCard title={t("catalog.new.weightUnit")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField
-            label="Poids unitaire"
+            label={t("catalog.field.unitWeight")}
             value={str("unit_weight_kg")}
             onChange={(v) => set("unit_weight_kg", v)}
             unit="kg"
           />
           <SelectField
-            label="Unité de base"
+            label={t("catalog.field.baseUnit")}
             value={str("base_unit")}
-            options={BASE_UNIT_OPTIONS}
+            options={BASE_UNIT_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
             onChange={(v) => set("base_unit", v)}
           />
           <SelectField
-            label="Approvisionnement"
+            label={t("catalog.field.supply")}
             value={str("supply_policy")}
-            options={SUPPLY_POLICY_OPTIONS}
+            options={SUPPLY_POLICY_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
             onChange={(v) => set("supply_policy", v)}
           />
           <ToggleField
-            label="Stockable"
+            label={t("catalog.field.stockable")}
             value={core.is_stockable === true}
             onChange={(v) => set("is_stockable", v)}
           />
         </div>
       </SectionCard>
 
-      <SectionCard title="Conditionnement">
+      <SectionCard title={t("catalog.logistics.packaging")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField
-            label="Qté colisage primaire"
+            label={t("catalog.field.packPrimary")}
             value={str("primary_packaging_qty")}
             onChange={(v) => set("primary_packaging_qty", v)}
             integer
           />
           <NumberField
-            label="Qté colisage secondaire"
+            label={t("catalog.field.packSecondary")}
             value={str("secondary_packaging_qty")}
             onChange={(v) => set("secondary_packaging_qty", v)}
             integer
           />
           <NumberField
-            label="Qté colisage tertiaire"
+            label={t("catalog.field.packTertiary")}
             value={str("tertiary_packaging_qty")}
             onChange={(v) => set("tertiary_packaging_qty", v)}
             integer
           />
           <NumberField
-            label="Qté palette"
+            label={t("catalog.field.pallet")}
             value={str("pallet_qty")}
             onChange={(v) => set("pallet_qty", v)}
             integer
@@ -779,17 +784,17 @@ export default function NewProductPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Indexation cuivre">
+      <SectionCard title={t("catalog.new.copperSection")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <ToggleField
-            label="Indexé cuivre"
+            label={t("catalog.column.copperIndexed")}
             value={core.is_copper_indexed === true}
             onChange={(v) => set("is_copper_indexed", v)}
           />
           {core.is_copper_indexed === true && (
             <div>
               <NumberField
-                label="Poids cuivre / unité"
+                label={t("catalog.new.copperWeight")}
                 value={str("copper_weight_kg_per_unit")}
                 onChange={(v) => set("copper_weight_kg_per_unit", v)}
                 unit="kg"
@@ -804,8 +809,8 @@ export default function NewProductPage() {
 
       {renderAttributeSection(
         "logistics",
-        "Attributs logistiques",
-        "Aucun attribut logistique défini dans le registre.",
+        t("catalog.logistics.attrs"),
+        t("catalog.new.noLogistics"),
       )}
     </div>
   );
@@ -814,14 +819,11 @@ export default function NewProductPage() {
     <div className="flex flex-col gap-6">
       {renderAttributeSection(
         "suppliers",
-        "Attributs commerciaux",
-        "Aucun attribut commercial défini dans le registre.",
+        t("catalog.commercial.attrs"),
+        t("catalog.new.noCommercial"),
       )}
-      <SectionCard title="Fournisseur(s)">
-        <p className="mb-4 text-sm text-muted-foreground">
-          Ajoutez le premier fournisseur du produit. La source active fournit les paramètres de
-          calcul lors des simulations.
-        </p>
+      <SectionCard title={t("catalog.new.step.suppliers")}>
+        <p className="mb-4 text-sm text-muted-foreground">{t("catalog.new.supplierHelp")}</p>
         <SupplierManager
           suppliers={suppliers}
           onCreate={supplierCreate}
@@ -837,26 +839,25 @@ export default function NewProductPage() {
     const activeSupplier = suppliers.find((s) => s.is_active) ?? suppliers[0];
     const filledAttrs = (allAttrs ?? []).filter((a) => !isAttributeValueEmpty(attrValue(a))).length;
     return (
-      <SectionCard title="Récapitulatif">
+      <SectionCard title={t("catalog.new.recap")}>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <Recap label="SKU" value={str("sku_code")} mono />
-          <Recap label="Nom" value={str("name")} />
-          <Recap label="Référence parent" value={str("parent_reference")} />
-          <Recap label="Code usine" value={str("factory_code")} />
-          <Recap label="Marque" value={str("brand")} />
+          <Recap label={t("catalog.column.sku")} value={str("sku_code")} mono />
+          <Recap label={t("catalog.field.name")} value={str("name")} />
+          <Recap label={t("catalog.field.parentRef")} value={str("parent_reference")} />
+          <Recap label={t("catalog.column.factoryCode")} value={str("factory_code")} />
+          <Recap label={t("catalog.column.brand")} value={str("brand")} />
           <Recap
-            label="Arborescence"
+            label={t("catalog.field.hierarchy")}
             value={[str("universe"), str("family"), str("range"), str("sub_range")]
               .filter(Boolean)
               .join(" › ")}
           />
-          <Recap label="Attributs renseignés" value={String(filledAttrs)} />
-          <Recap label="Fournisseurs" value={String(suppliers.length)} />
-          <Recap label="Fournisseur actif" value={activeSupplier?.supplier_name ?? "—"} />
+          <Recap label={t("catalog.field.filledAttrs")} value={String(filledAttrs)} />
+          <Recap label={t("catalog.commercial.suppliers")} value={String(suppliers.length)} />
+          <Recap label={t("catalog.column.activeSupplier")} value={activeSupplier?.supplier_name ?? "—"} />
         </dl>
         <p className="mt-4 text-xs text-muted-foreground">
-          La synchronisation vers Odoo est déclenchée automatiquement après la création et
-          n&apos;empêche pas la création locale en cas d&apos;indisponibilité.
+          {t("catalog.new.odooNote")}
         </p>
       </SectionCard>
     );
@@ -884,15 +885,13 @@ export default function NewProductPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
         <WarningCircle size={40} weight="duotone" className="text-warm" />
-        <p className="font-medium text-foreground">Accès restreint</p>
-        <p className="text-sm">
-          La création de produit est réservée aux rôles admin et commercial.
-        </p>
+        <p className="font-medium text-foreground">{t("catalog.new.restricted")}</p>
+        <p className="text-sm">{t("catalog.new.restrictedHelp")}</p>
         <Link
           href="/catalog"
           className="text-sm font-medium text-brand-green hover:text-accent-foreground"
         >
-          Retour au catalogue
+          {t("catalog.product.backToCatalog")}
         </Link>
       </div>
     );
@@ -903,19 +902,19 @@ export default function NewProductPage() {
       {/* Breadcrumb */}
       <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/catalog" className="transition-colors hover:text-foreground">
-          Catalogue
+          {t("catalog.browser.embeddedTitle")}
         </Link>
         <CaretRight size={14} />
-        <span className="font-medium text-foreground">Nouveau produit</span>
+        <span className="font-medium text-foreground">{t("catalog.action.newProduct")}</span>
       </nav>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Package size={20} weight="duotone" className="text-brand-green" />
-          <h1 className="text-xl font-semibold text-foreground">Créer un produit</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t("catalog.action.createProduct")}</h1>
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-          <span>Formulaire complet</span>
+          <span>{t("catalog.new.fullForm")}</span>
           <Switch checked={fullForm} onCheckedChange={setFullForm} />
         </label>
       </div>
@@ -924,7 +923,7 @@ export default function NewProductPage() {
       {!fullForm && (
         <WizardStepper
           steps={STEPS.map((s, idx) => ({
-            label: s.label,
+            label: t(s.labelKey),
             hasError: showErrors && stepHasError(idx),
           }))}
           current={step}
@@ -938,7 +937,7 @@ export default function NewProductPage() {
           {STEPS.filter((s) => s.id !== "review").map((s, idx) => (
             <section key={s.id}>
               <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">
-                {idx + 1}. {s.label}
+                {idx + 1}. {t(s.labelKey)}
               </h2>
               {renderStep(STEPS.findIndex((x) => x.id === s.id))}
             </section>
@@ -960,23 +959,23 @@ export default function NewProductPage() {
         {!fullForm && step > 0 ? (
           <Button type="button" variant="outline" onClick={goPrev}>
             <ArrowLeft size={15} />
-            Précédent
+            {t("catalog.action.previous")}
           </Button>
         ) : (
           <Button nativeButton={false} variant="outline" render={<Link href="/catalog" />}>
             <ArrowLeft size={15} />
-            Annuler
+            {t("common.cancel")}
           </Button>
         )}
 
         {fullForm || step === STEPS.length - 1 ? (
           <Button type="button" onClick={handleSubmit} disabled={submitting}>
             {submitting && <CircleNotch size={15} className="animate-spin" />}
-            {submitting ? "Création…" : "Créer et synchroniser vers Odoo"}
+            {submitting ? t("catalog.new.creating") : t("catalog.new.submit")}
           </Button>
         ) : (
           <Button type="button" onClick={goNext}>
-            Suivant
+            {t("catalog.action.next")}
             <ArrowRight size={15} />
           </Button>
         )}

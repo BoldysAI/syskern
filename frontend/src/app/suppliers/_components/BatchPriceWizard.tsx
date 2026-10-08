@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CatalogBrowser } from "@/app/catalog/_components/CatalogBrowser";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 import {
   bulkUpdatePo,
   listSuppliers,
@@ -26,10 +28,22 @@ import {
   type Supplier,
 } from "@/lib/api";
 
-const MODE_OPTIONS: { value: BulkPoMode; label: string; hint: string }[] = [
-  { value: "set", label: "Définir une valeur", hint: "Fixe le même PO pour les SKU sélectionnés" },
-  { value: "pct", label: "Ajustement en %", hint: "ex. 5 = +5 %, -5 = −5 %" },
-  { value: "abs", label: "Ajustement en montant", hint: "ex. 1.5 = +1.5, -1.5 = −1.5" },
+const MODE_OPTIONS: { value: BulkPoMode; labelKey: MessageKey; hintKey: MessageKey }[] = [
+  {
+    value: "set",
+    labelKey: "suppliers.batch.modeSet",
+    hintKey: "suppliers.batch.modeSetHint",
+  },
+  {
+    value: "pct",
+    labelKey: "suppliers.batch.modePct",
+    hintKey: "suppliers.batch.modePctHint",
+  },
+  {
+    value: "abs",
+    labelKey: "suppliers.batch.modeAbs",
+    hintKey: "suppliers.batch.modeAbsHint",
+  },
 ];
 
 type Step = "supplier" | "skus" | "change" | "review";
@@ -42,21 +56,28 @@ function formatPoAmount(amount: string | null | undefined, currency?: string): s
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
-function describeBulkPoOperation(mode: BulkPoMode, numValue: number): string {
+function describeBulkPoOperation(
+  mode: BulkPoMode,
+  numValue: number,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): string {
   const v = numValue.toLocaleString("fr-FR", { maximumFractionDigits: 4 });
-  if (mode === "set") return `Fixer le PO base à ${v}`;
-  if (mode === "pct") return `Ajuster le PO de ${v} %`;
-  return `Ajuster le PO de ${v} (montant signé)`;
+  if (mode === "set") return t("suppliers.batch.opSet", { value: v });
+  if (mode === "pct") return t("suppliers.batch.opPct", { value: v });
+  return t("suppliers.batch.opAbs", { value: v });
 }
 
-function previewStatusLabel(status: BulkPoPreviewLine["status"]): string {
+function previewStatusLabel(
+  status: BulkPoPreviewLine["status"],
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): string {
   switch (status) {
     case "will_update":
-      return "Sera mis à jour";
+      return t("suppliers.status.willUpdate");
     case "skip_no_po":
-      return "Ignoré — PO absent";
+      return t("suppliers.batch.skipNoPo");
     case "skip_unchanged":
-      return "Ignoré — inchangé";
+      return t("suppliers.batch.skipUnchanged");
     default:
       return status;
   }
@@ -93,6 +114,7 @@ export function BatchPriceWizard({
   onApplied?: () => void | Promise<void>;
 }) {
   const { mutate } = useSWRConfig();
+  const t = useUiTranslate();
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier ?? null);
   const [step, setStep] = useState<Step>(initialSupplier ? "skus" : "supplier");
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -211,25 +233,25 @@ export function BatchPriceWizard({
       ]);
       await onApplied?.();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setApplying(false);
     }
   };
 
   const stepTitles: Record<Step, string> = {
-    supplier: "1 · Choisir le fournisseur",
-    skus: "2 · Sélectionner les SKU",
-    change: "3 · Définir le changement",
-    review: "4 · Récapitulatif",
+    supplier: t("suppliers.wizard.chooseSupplier"),
+    skus: t("suppliers.batch.stepSkus"),
+    change: t("suppliers.batch.stepChange"),
+    review: t("suppliers.batch.stepReview"),
   };
 
   return (
     <AppModal
       open={open}
       onOpenChange={(v) => !v && onClose()}
-      title="Modifier les prix en batch"
-      description={supplier ? supplier.name : "Assistant de mise à jour des PO"}
+      title={t("suppliers.batch.title")}
+      description={supplier ? supplier.name : t("suppliers.batch.assistant")}
       size="full"
     >
       {result ? (
@@ -237,10 +259,14 @@ export function BatchPriceWizard({
           <div className="flex flex-col items-center gap-3 text-center">
             <AppIcon icon={CheckCircle} size="lg" weight="duotone" className="text-brand-green" />
             <div>
-              <p className="text-base font-semibold text-foreground">Prix mis à jour</p>
+              <p className="text-base font-semibold text-foreground">{t("suppliers.batch.updatedTitle")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {result.updated} SKU mis à jour
-                {result.skipped > 0 ? ` · ${result.skipped} ignoré(s)` : ""}.
+                {result.skipped > 0
+                  ? t("suppliers.batch.resultSkipped", {
+                      updated: result.updated,
+                      skipped: result.skipped,
+                    })
+                  : t("suppliers.batch.result", { updated: result.updated })}
               </p>
             </div>
           </div>
@@ -248,23 +274,23 @@ export function BatchPriceWizard({
           {appliedPreview && (
             <div className="mx-auto w-full max-w-3xl space-y-4">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <SummaryStat label="Mis à jour" value={appliedPreview.summary.will_update} highlight />
-                <SummaryStat label="PO absent" value={appliedPreview.summary.skip_no_po} />
-                <SummaryStat label="Inchangés" value={appliedPreview.summary.skip_unchanged} />
-                <SummaryStat label="Sélection" value={appliedPreview.summary.selected} />
+                <SummaryStat label={t("suppliers.summary.updated")} value={appliedPreview.summary.will_update} highlight />
+                <SummaryStat label={t("suppliers.batch.missingPo")} value={appliedPreview.summary.skip_no_po} />
+                <SummaryStat label={t("suppliers.summary.unchanged")} value={appliedPreview.summary.skip_unchanged} />
+                <SummaryStat label={t("suppliers.selection")} value={appliedPreview.summary.selected} />
               </div>
               {appliedPreview.lines.filter((l) => l.status === "will_update").length > 0 && (
                 <div className="overflow-hidden rounded-lg border border-border">
                   <div className="border-b border-border bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Changements appliqués
+                    {t("suppliers.batch.appliedChanges")}
                   </div>
                   <div className="max-h-56 overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
                         <tr>
-                          <th className="px-4 py-2 text-left font-semibold">SKU</th>
-                          <th className="px-4 py-2 text-right font-semibold">Ancien PO</th>
-                          <th className="px-4 py-2 text-right font-semibold">Nouveau PO</th>
+                          <th className="px-4 py-2 text-left font-semibold">{t("suppliers.column.sku")}</th>
+                          <th className="px-4 py-2 text-right font-semibold">{t("suppliers.column.oldPo")}</th>
+                          <th className="px-4 py-2 text-right font-semibold">{t("suppliers.column.newPo")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -291,9 +317,9 @@ export function BatchPriceWizard({
 
           <div className="flex justify-center gap-3">
             <Button variant="outline" onClick={reset}>
-              Nouveau lot
+              {t("suppliers.batch.newBatch")}
             </Button>
-            <Button onClick={onClose}>Fermer</Button>
+            <Button onClick={onClose}>{t("common.close")}</Button>
           </div>
         </div>
       ) : (
@@ -305,14 +331,14 @@ export function BatchPriceWizard({
               <SearchInput
                 value={supplierSearch}
                 onChange={setSupplierSearch}
-                placeholder="Rechercher un fournisseur…"
+                placeholder={t("suppliers.wizard.searchSupplier")}
               />
               <div className="max-h-80 overflow-y-auto rounded-lg border border-border">
                 {filteredSuppliers.length === 0 ? (
                   <EmptyState
                     className="border-none bg-transparent shadow-none"
                     icon={<AppIcon icon={Truck} size="lg" />}
-                    title="Aucun fournisseur"
+                    title={t("suppliers.list.empty")}
                   />
                 ) : (
                   filteredSuppliers.map((s) => (
@@ -328,7 +354,7 @@ export function BatchPriceWizard({
                     >
                       <span className="text-sm font-medium text-foreground">{s.name}</span>
                       <span className="font-data text-xs text-muted-foreground">
-                        {s.linked_skus_count ?? 0} SKU
+                        {t("suppliers.batch.skuCount", { count: s.linked_skus_count ?? 0 })}
                       </span>
                     </button>
                   ))
@@ -341,10 +367,12 @@ export function BatchPriceWizard({
             <div className="flex min-h-0 flex-1 flex-col gap-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Filtrez comme dans le catalogue, puis cochez les SKU à repricer.
+                  {t("suppliers.batch.filterHint")}
                 </p>
                 <span className="text-sm font-medium text-foreground">
-                  {selected.size} sélectionné{selected.size !== 1 ? "s" : ""}
+                  {selected.size === 1
+                    ? t("suppliers.batch.selectedOne", { count: selected.size })
+                    : t("suppliers.batch.selectedOther", { count: selected.size })}
                 </span>
               </div>
               <div className="flex min-h-0 flex-1">
@@ -356,7 +384,7 @@ export function BatchPriceWizard({
                   density="compact"
                   skuAsLink={false}
                   enableSavedFilters={false}
-                  title="SKU du fournisseur"
+                  title={t("suppliers.detail.skuTitle")}
                   initialFilters={{ supplier: [supplier.name] }}
                   filtersCollapsedStorageKey="syskern:batch-wizard-filters-collapsed"
                   filtersWidthStorageKey="syskern:batch-wizard-filters-width"
@@ -385,25 +413,34 @@ export function BatchPriceWizard({
                         : "border-border hover:bg-muted/50",
                     )}
                   >
-                    <div className="text-sm font-medium text-foreground">{opt.label}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{opt.hint}</div>
+                    <div className="text-sm font-medium text-foreground">{t(opt.labelKey)}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{t(opt.hintKey)}</div>
                   </button>
                 ))}
               </div>
               <div className="flex-1">
                 <label className="mb-1.5 block text-sm font-semibold text-foreground">
-                  {mode === "set" ? "Nouveau PO" : mode === "pct" ? "Pourcentage" : "Montant"}
+                  {mode === "set"
+                    ? t("suppliers.column.newPo")
+                    : mode === "pct"
+                      ? t("suppliers.batch.percent")
+                      : t("suppliers.batch.amount")}
                 </label>
                 <Input
                   inputMode="decimal"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  placeholder={mode === "pct" ? "ex. 5 ou -5" : "ex. 12.50"}
+                  placeholder={
+                    mode === "pct"
+                      ? t("suppliers.batch.percentPlaceholder")
+                      : t("suppliers.batch.amountPlaceholder")
+                  }
                 />
               </div>
               <p className="text-sm text-muted-foreground">
-                {selected.size} SKU sélectionné{selected.size !== 1 ? "s" : ""}. Les SKU sans PO seront
-                ignorés pour les ajustements % / montant.
+                {selected.size === 1
+                  ? t("suppliers.batch.selectedSkuOne", { count: selected.size })
+                  : t("suppliers.batch.selectedSkuOther", { count: selected.size })}
               </p>
             </div>
           )}
@@ -414,13 +451,13 @@ export function BatchPriceWizard({
                 <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Fournisseur
+                      {t("suppliers.column.supplier")}
                     </dt>
                     <dd className="mt-0.5 font-medium text-foreground">{supplier.name}</dd>
                   </div>
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Devise par défaut
+                      {t("suppliers.modal.currencyDefault")}
                     </dt>
                     <dd className="mt-0.5 font-data text-foreground">
                       {supplier.currency_default || "—"}
@@ -428,9 +465,9 @@ export function BatchPriceWizard({
                   </div>
                   <div className="sm:col-span-2">
                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Opération
+                      {t("suppliers.batch.operation")}
                     </dt>
-                    <dd className="mt-0.5 text-foreground">{describeBulkPoOperation(mode, numValue)}</dd>
+                    <dd className="mt-0.5 text-foreground">{describeBulkPoOperation(mode, numValue, t)}</dd>
                   </div>
                 </dl>
               </div>
@@ -443,47 +480,44 @@ export function BatchPriceWizard({
                 </div>
               ) : previewError ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  Impossible de charger l&apos;aperçu. Revenez à l&apos;étape précédente puis réessayez.
+                  {t("suppliers.batch.previewError")}
                 </div>
               ) : preview ? (
                 <>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <SummaryStat label="Seront mis à jour" value={preview.summary.will_update} highlight />
-                    <SummaryStat label="PO absent" value={preview.summary.skip_no_po} />
-                    <SummaryStat label="Inchangés" value={preview.summary.skip_unchanged} />
-                    <SummaryStat label="Sélectionnés" value={preview.summary.selected} />
+                    <SummaryStat label={t("suppliers.batch.willUpdateCount")} value={preview.summary.will_update} highlight />
+                    <SummaryStat label={t("suppliers.batch.missingPo")} value={preview.summary.skip_no_po} />
+                    <SummaryStat label={t("suppliers.summary.unchanged")} value={preview.summary.skip_unchanged} />
+                    <SummaryStat label={t("suppliers.batch.selectedCount")} value={preview.summary.selected} />
                   </div>
 
                   {preview.summary.will_update === 0 && (
                     <div className="flex items-start gap-2 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
                       <Warning size={18} className="mt-0.5 shrink-0 text-warm" weight="fill" />
-                      <p>
-                        Aucun SKU ne sera modifié avec ces paramètres. Ajustez la sélection ou
-                        l&apos;opération avant d&apos;appliquer.
-                      </p>
+                      <p>{t("suppliers.batch.noneUpdated")}</p>
                     </div>
                   )}
 
                   {preview.summary.not_linked > 0 && (
                     <p className="text-sm text-warm">
-                      {preview.summary.not_linked} SKU sélectionné(s) sans lien fournisseur — ignorés.
+                      {t("suppliers.batch.notLinked", { count: preview.summary.not_linked })}
                     </p>
                   )}
 
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
                     <div className="shrink-0 border-b border-border bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Détail par SKU ({previewLines.length})
+                      {t("suppliers.batch.detailBySku", { count: previewLines.length })}
                     </div>
                     <div className="min-h-0 flex-1 overflow-auto">
                       <table className="w-full min-w-[640px] text-sm">
                         <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-sm">
                           <tr>
-                            <th className="px-4 py-2.5 text-left font-semibold">SKU</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">Désignation</th>
-                            <th className="px-4 py-2.5 text-right font-semibold">Ancien PO</th>
-                            <th className="px-4 py-2.5 text-right font-semibold">Nouveau PO</th>
-                            <th className="px-4 py-2.5 text-right font-semibold">Écart</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">Statut</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.sku")}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.designation")}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">{t("suppliers.column.oldPo")}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">{t("suppliers.column.newPo")}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">{t("suppliers.column.delta")}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{t("suppliers.column.status")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -526,7 +560,7 @@ export function BatchPriceWizard({
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <StatusBadge variant={previewStatusVariant(line.status)}>
-                                    {previewStatusLabel(line.status)}
+                                    {previewStatusLabel(line.status, t)}
                                   </StatusBadge>
                                 </td>
                               </tr>
@@ -553,18 +587,18 @@ export function BatchPriceWizard({
               }}
             >
               <AppIcon icon={ArrowLeft} size="sm" />
-              Retour
+              {t("common.back")}
             </Button>
 
             {step === "skus" && (
               <Button disabled={selected.size === 0} onClick={() => setStep("change")}>
-                Continuer
+                {t("suppliers.wizard.continue")}
                 <AppIcon icon={ArrowRight} size="sm" />
               </Button>
             )}
             {step === "change" && (
               <Button disabled={!valueValid} onClick={() => setStep("review")}>
-                Continuer
+                {t("suppliers.wizard.continue")}
                 <AppIcon icon={ArrowRight} size="sm" />
               </Button>
             )}
@@ -576,10 +610,10 @@ export function BatchPriceWizard({
                 onClick={apply}
               >
                 {applying
-                  ? "Application…"
+                  ? t("suppliers.wizard.applying")
                   : preview
-                    ? `Appliquer à ${preview.summary.will_update} SKU`
-                    : "Appliquer"}
+                    ? t("suppliers.batch.applyTo", { count: preview.summary.will_update })
+                    : t("suppliers.batch.apply")}
               </Button>
             )}
           </div>

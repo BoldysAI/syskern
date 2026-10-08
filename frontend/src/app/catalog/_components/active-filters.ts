@@ -1,14 +1,16 @@
-import {
-  CATALOG_NO_SUPPLIER_LABEL,
-  CATALOG_NO_SUPPLIER_VALUE,
-  type CatalogFilters,
-} from "@/lib/api";
+import { CATALOG_NO_SUPPLIER_VALUE, type CatalogFilters } from "@/lib/api";
+import type { MessageKey } from "@/lib/i18n";
 
 export interface FilterChip {
   /** Stable id for React keys and removal. */
   id: string;
-  label: string;
-  category: string;
+  /** Product or user content (search text, brand, hierarchy value, attribute value). */
+  label?: string;
+  labelKey?: MessageKey;
+  labelVars?: Record<string, string | number>;
+  /** Attribute label (registry content) when `categoryKey` is absent. */
+  category?: string;
+  categoryKey?: MessageKey;
 }
 
 /** Count individual active criteria (each selected value = 1). */
@@ -55,19 +57,15 @@ const ARRAY_KEYS = [
 
 type ArrayFilterKey = (typeof ARRAY_KEYS)[number];
 
-const ARRAY_LABELS: Record<ArrayFilterKey, string> = {
-  universe: "Univers",
-  family: "Famille",
-  range: "Gamme",
-  sub_range: "Sous-gamme",
-  brand: "Marque",
-  supplier: "Fournisseur",
-  active_supplier: "Fournisseur actif",
+const ARRAY_LABELS: Record<ArrayFilterKey, MessageKey> = {
+  universe: "catalog.column.universe",
+  family: "catalog.column.family",
+  range: "catalog.column.range",
+  sub_range: "catalog.column.subRange",
+  brand: "catalog.column.brand",
+  supplier: "catalog.column.supplier",
+  active_supplier: "catalog.column.activeSupplier",
 };
-
-function supplierFilterChipLabel(value: string): string {
-  return value === CATALOG_NO_SUPPLIER_VALUE ? CATALOG_NO_SUPPLIER_LABEL : value;
-}
 
 /** Build removable chips for the active filter bar. */
 export function buildFilterChips(
@@ -77,82 +75,127 @@ export function buildFilterChips(
   const chips: FilterChip[] = [];
 
   if (filters.q?.trim()) {
-    chips.push({ id: "q", label: filters.q.trim(), category: "Recherche" });
+    chips.push({ id: "q", label: filters.q.trim(), categoryKey: "catalog.filters.search" });
   }
 
   for (const key of ARRAY_KEYS) {
     const values = filters[key];
     if (!values?.length) continue;
-    const category = ARRAY_LABELS[key];
+    const categoryKey = ARRAY_LABELS[key];
     for (const v of values) {
+      const noSupplier =
+        (key === "supplier" || key === "active_supplier") && v === CATALOG_NO_SUPPLIER_VALUE;
       chips.push({
         id: `${key}:${v}`,
-        label: key === "supplier" || key === "active_supplier" ? supplierFilterChipLabel(v) : v,
-        category,
+        ...(noSupplier ? { labelKey: "catalog.supplier.none" as const } : { label: v }),
+        categoryKey,
       });
     }
   }
 
   if (filters.active_in) {
-    chips.push({ id: "active_in", label: "Actif", category: "Statut" });
+    chips.push({
+      id: "active_in",
+      labelKey: "catalog.column.active",
+      categoryKey: "catalog.filters.status",
+    });
   }
   if (filters.active_out) {
-    chips.push({ id: "active_out", label: "Non actif", category: "Statut" });
+    chips.push({
+      id: "active_out",
+      labelKey: "catalog.filters.inactive",
+      categoryKey: "catalog.filters.status",
+    });
   }
 
   if (filters.stock_in) {
-    chips.push({ id: "stock_in", label: "En stock", category: "Stock" });
+    chips.push({
+      id: "stock_in",
+      labelKey: "catalog.filters.inStock",
+      categoryKey: "catalog.column.stock",
+    });
   }
   if (filters.stock_out) {
-    chips.push({ id: "stock_out", label: "Rupture", category: "Stock" });
+    chips.push({
+      id: "stock_out",
+      labelKey: "catalog.filters.outOfStock",
+      categoryKey: "catalog.column.stock",
+    });
   }
   if (!filters.stock_out && filters.stock_min != null && filters.stock_min > 0) {
     chips.push({
       id: "stock_min",
-      label: `Stock ≥ ${filters.stock_min}`,
-      category: "Stock",
+      labelKey: "catalog.filters.stockMin",
+      labelVars: { min: filters.stock_min },
+      categoryKey: "catalog.column.stock",
     });
   }
 
   if (filters.pamp_min != null && filters.pamp_min > 0) {
     chips.push({
       id: "pamp_min",
-      label: `PAMP ≥ ${filters.pamp_min} €`,
-      category: "PAMP",
+      labelKey: "catalog.filters.pampMin",
+      labelVars: { min: filters.pamp_min },
+      categoryKey: "catalog.column.pamp",
     });
   }
   if (filters.pamp_max != null && filters.pamp_max > 0) {
     chips.push({
       id: "pamp_max",
-      label: `PAMP ≤ ${filters.pamp_max} €`,
-      category: "PAMP",
+      labelKey: "catalog.filters.pampMax",
+      labelVars: { max: filters.pamp_max },
+      categoryKey: "catalog.column.pamp",
     });
   }
 
   if (filters.i18n_incomplete) {
     chips.push({
       id: "i18n_incomplete",
-      label: "Au moins une langue manquante",
-      category: "Langues",
+      labelKey: "catalog.filters.langMissing",
+      categoryKey: "catalog.column.languages",
     });
   }
   if (filters.lang_fr_in) {
-    chips.push({ id: "lang_fr_in", label: "Français : avec contenu", category: "Langues" });
+    chips.push({
+      id: "lang_fr_in",
+      labelKey: "catalog.filters.langFrIn",
+      categoryKey: "catalog.column.languages",
+    });
   }
   if (filters.lang_fr_out) {
-    chips.push({ id: "lang_fr_out", label: "Français : sans contenu", category: "Langues" });
+    chips.push({
+      id: "lang_fr_out",
+      labelKey: "catalog.filters.langFrOut",
+      categoryKey: "catalog.column.languages",
+    });
   }
   if (filters.lang_en_in) {
-    chips.push({ id: "lang_en_in", label: "Anglais : avec contenu", category: "Langues" });
+    chips.push({
+      id: "lang_en_in",
+      labelKey: "catalog.filters.langEnIn",
+      categoryKey: "catalog.column.languages",
+    });
   }
   if (filters.lang_en_out) {
-    chips.push({ id: "lang_en_out", label: "Anglais : sans contenu", category: "Langues" });
+    chips.push({
+      id: "lang_en_out",
+      labelKey: "catalog.filters.langEnOut",
+      categoryKey: "catalog.column.languages",
+    });
   }
   if (filters.lang_es_in) {
-    chips.push({ id: "lang_es_in", label: "Español : avec contenu", category: "Langues" });
+    chips.push({
+      id: "lang_es_in",
+      labelKey: "catalog.filters.langEsIn",
+      categoryKey: "catalog.column.languages",
+    });
   }
   if (filters.lang_es_out) {
-    chips.push({ id: "lang_es_out", label: "Español : sans contenu", category: "Langues" });
+    chips.push({
+      id: "lang_es_out",
+      labelKey: "catalog.filters.langEsOut",
+      categoryKey: "catalog.column.languages",
+    });
   }
 
   for (const [code, raw] of Object.entries(filters.attrs ?? {})) {

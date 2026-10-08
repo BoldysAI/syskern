@@ -57,17 +57,18 @@ import {
   type SyncStatus,
   type OfferAlertSettings,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
 const MARKET_CURRENCIES = [
-  { value: "EUR", label: "EUR — Euro" },
-  { value: "USD", label: "USD — Dollar US" },
-  { value: "RMB", label: "RMB — Renminbi" },
+  { value: "EUR", labelKey: "settings.currency.eur" },
+  { value: "USD", labelKey: "settings.currency.usd" },
+  { value: "RMB", labelKey: "settings.currency.rmb" },
 ] as const;
 
 const COPPER_UNITS = [
-  { value: "tonne", label: "Tonne" },
-  { value: "kg", label: "Kilogramme" },
+  { value: "tonne", labelKey: "settings.market.unitTonne" },
+  { value: "kg", labelKey: "settings.market.unitKg" },
 ] as const;
 
 function normalizeCopperUnit(unit?: string | null): string {
@@ -101,20 +102,56 @@ function formatMarketParamUpdatedAt(value?: string | null): string {
 }
 
 const COPPER_MARKETS = [
-  { value: "LME", label: "LME (London)" },
-  { value: "SHE", label: "SHE (Shanghai)" },
+  { value: "LME", labelKey: "settings.market.lme" },
+  { value: "SHE", labelKey: "settings.market.she" },
 ] as const;
 
 const TRANSPORT_CATEGORIES = [
-  { value: "maritime", label: "Maritime" },
-  { value: "road", label: "Route" },
-  { value: "air", label: "Aérien" },
-  { value: "rail", label: "Ferroviaire" },
+  { value: "maritime", labelKey: "settings.transport.category.maritime" },
+  { value: "road", labelKey: "settings.transport.category.road" },
+  { value: "air", labelKey: "settings.transport.category.air" },
+  { value: "rail", labelKey: "settings.transport.category.rail" },
 ] as const;
 
-function copperUnitLabel(unit?: string | null): string {
+const MARKET_COLUMN_KEYS = [
+  "settings.type",
+  "settings.market.column.detail",
+  "settings.market.column.validFrom",
+  "settings.market.column.to",
+  "settings.market.column.updated",
+  "settings.active",
+  "",
+] as const;
+
+const TRANSPORT_COLUMN_KEYS = [
+  "settings.code",
+  "settings.label",
+  "settings.category",
+  "settings.transport.column.capacity",
+  "settings.active",
+  "",
+] as const;
+
+const ODOO_COLUMN_KEYS = [
+  "settings.odoo.column.date",
+  "settings.type",
+  "settings.odoo.column.scope",
+  "settings.odoo.column.status",
+  "settings.odoo.column.created",
+  "settings.odoo.column.updated",
+  "settings.odoo.column.failed",
+  "settings.odoo.column.triggeredBy",
+] as const;
+
+function copperUnitLabel(unit: string | null | undefined, t: ReturnType<typeof useUiTranslate>): string {
   const normalized = normalizeCopperUnit(unit);
-  return COPPER_UNITS.find((u) => u.value === normalized)?.label ?? normalized;
+  const match = COPPER_UNITS.find((u) => u.value === normalized);
+  return match ? t(match.labelKey) : normalized;
+}
+
+function transportCategoryLabel(category: string, t: ReturnType<typeof useUiTranslate>): string {
+  const match = TRANSPORT_CATEGORIES.find((c) => c.value === category);
+  return match ? t(match.labelKey) : category;
 }
 
 function todayIso(): string {
@@ -122,7 +159,12 @@ function todayIso(): string {
 }
 
 function ActiveBadge({ active }: { active: boolean }) {
-  return <StatusBadge variant={active ? "success" : "draft"}>{active ? "Oui" : "Non"}</StatusBadge>;
+  const t = useUiTranslate();
+  return (
+    <StatusBadge variant={active ? "success" : "draft"}>
+      {active ? t("common.yes") : t("common.no")}
+    </StatusBadge>
+  );
 }
 
 // ── Tab : Marché (Market parameters) ─────────────────────────────────────
@@ -143,6 +185,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useUiTranslate();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,13 +206,13 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
       payload.copper_unit = copperUnit;
     } else {
       if (fxFrom === fxTo) {
-        setError("Les devises « De » et « Vers » doivent être différentes.");
+        setError(t("settings.market.fxSame"));
         setSaving(false);
         return;
       }
       const parsedRate = parseFloat(fxRate);
       if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
-        setError("Indiquez un taux de change valide (max. 2 décimales).");
+        setError(t("settings.market.fxInvalid"));
         setSaving(false);
         return;
       }
@@ -183,7 +226,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
       await globalMutate("market-params");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setSaving(false);
     }
   };
@@ -192,7 +235,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
     <AppModal
       open
       onOpenChange={(open) => !open && onClose()}
-      title={param ? "Modifier le paramètre marché" : "Nouveau paramètre marché"}
+      title={param ? t("settings.market.editTitle") : t("settings.market.createTitle")}
       size="lg"
     >
       {error && (
@@ -201,18 +244,18 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <FormField label="Type">
+        <FormField label={t("settings.type")}>
           <div className="flex gap-2">
-            {(["copper_price", "fx_rate"] as MarketParameterType[]).map((t) => (
+            {(["copper_price", "fx_rate"] as MarketParameterType[]).map((kind) => (
               <Button
                 type="button"
-                key={t}
-                variant={type === t ? "default" : "outline"}
+                key={kind}
+                variant={type === kind ? "default" : "outline"}
                 className="flex-1"
-                onClick={() => setType(t)}
+                onClick={() => setType(kind)}
                 disabled={!!param}
               >
-                {t === "copper_price" ? "Prix cuivre" : "Taux de change"}
+                {kind === "copper_price" ? t("settings.market.copperPrice") : t("settings.market.fxRate")}
               </Button>
             ))}
           </div>
@@ -221,23 +264,23 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
         {type === "copper_price" ? (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Marché">
+              <FormField label={t("settings.market.market")}>
                 <OptionSelect
                   value={copperMarket ?? "LME"}
                   onValueChange={(v) => setCopperMarket(v as "LME" | "SHE")}
-                  options={COPPER_MARKETS}
+                  options={COPPER_MARKETS.map((m) => ({ value: m.value, label: t(m.labelKey) }))}
                 />
               </FormField>
-              <FormField label="Devise">
+              <FormField label={t("settings.currency")}>
                 <OptionSelect
                   value={copperCurrency ?? "USD"}
                   onValueChange={setCopperCurrency}
-                  options={MARKET_CURRENCIES}
+                  options={MARKET_CURRENCIES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
                 />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Prix" required>
+              <FormField label={t("settings.market.price")} required>
                 <Input
                   value={copperPrice ?? ""}
                   onChange={(e) => setCopperPrice(e.target.value)}
@@ -246,46 +289,46 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
                   step="0.0001"
                 />
               </FormField>
-              <FormField label="Unité">
+              <FormField label={t("settings.market.unit")}>
                 <OptionSelect
                   value={copperUnit}
                   onValueChange={setCopperUnit}
-                  options={COPPER_UNITS}
+                  options={COPPER_UNITS.map((u) => ({ value: u.value, label: t(u.labelKey) }))}
                 />
               </FormField>
             </div>
           </>
         ) : (
           <div className="grid grid-cols-3 gap-3">
-            <FormField label="De" required>
+            <FormField label={t("settings.market.from")} required>
               <OptionSelect
                 value={fxFrom ?? "EUR"}
                 onValueChange={setFxFrom}
-                options={MARKET_CURRENCIES}
+                options={MARKET_CURRENCIES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
               />
             </FormField>
-            <FormField label="Vers" required>
+            <FormField label={t("settings.market.to")} required>
               <OptionSelect
                 value={fxTo ?? "USD"}
                 onValueChange={setFxTo}
-                options={MARKET_CURRENCIES}
+                options={MARKET_CURRENCIES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
               />
             </FormField>
-            <FormField label="Taux" required>
+            <FormField label={t("settings.market.rate")} required>
               <Input
                 value={fxRate ?? ""}
                 onChange={(e) => setFxRate((prev) => sanitizeFxRateInput(e.target.value, prev))}
                 required
                 type="text"
                 inputMode="decimal"
-                placeholder="0,00"
+                placeholder={t("settings.market.ratePlaceholder")}
               />
             </FormField>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Valide à partir du" required>
+          <FormField label={t("settings.market.validFrom")} required>
             <Input
               value={validFrom}
               onChange={(e) => setValidFrom(e.target.value)}
@@ -293,7 +336,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
               type="date"
             />
           </FormField>
-          <FormField label="Jusqu'au (optionnel)">
+          <FormField label={t("settings.market.validTo")}>
             <Input value={validTo ?? ""} onChange={(e) => setValidTo(e.target.value)} type="date" />
           </FormField>
         </div>
@@ -305,29 +348,29 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
             onCheckedChange={(v) => setIsActive(v === true)}
           />
           <Label htmlFor="market-param-active" className="text-sm font-normal">
-            Actif
+            {t("settings.active")}
           </Label>
         </div>
 
-        <FormField label="Source (optionnel)">
+        <FormField label={t("settings.market.source")}>
           <Input
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            placeholder="LME, BCE, manual…"
+            placeholder={t("settings.market.sourcePlaceholder")}
           />
         </FormField>
 
-        <FormField label="Notes">
+        <FormField label={t("settings.notes")}>
           <Textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2} />
         </FormField>
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={saving} className="flex-1">
             {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-            {param ? "Mettre à jour" : "Créer"}
+            {param ? t("settings.update") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -336,6 +379,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
 }
 
 function TabMarche() {
+  const t = useUiTranslate();
   const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<MarketParameter[]>("market-params", () =>
     listMarketParameters(),
@@ -344,9 +388,9 @@ function TabMarche() {
 
   const handleDelete = async (p: MarketParameter) => {
     const ok = await confirm({
-      title: "Supprimer le paramètre",
-      description: "Supprimer ce paramètre ?",
-      confirmLabel: "Supprimer",
+      title: t("settings.market.deleteTitle"),
+      description: t("settings.market.deleteDescription"),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -354,62 +398,57 @@ function TabMarche() {
       await deleteMarketParameter(p.id);
       await globalMutate("market-params");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Suppression échouée");
+      toast.error(e instanceof Error ? e.message : t("settings.deleteFailed"));
     }
   };
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Historique versionné des prix cuivre (LME/SHE) et taux de change. Les simulations fixent
-          les valeurs au moment du calcul.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.market.intro")}</p>
         <Button onClick={() => setEditing("new")}>
           <AppIcon icon={Plus} size="sm" />
-          Nouveau paramètre
+          {t("settings.market.new")}
         </Button>
       </div>
 
       <Card className="overflow-hidden py-0">
         {error ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
-            Impossible de charger les paramètres.
+            {t("settings.market.loadError")}
           </div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : !data?.length ? (
           <div className="py-12 text-center text-muted-foreground">
             <AppIcon icon={Coins} size="xl" className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">
-              Aucun paramètre marché. Ajoutez un prix cuivre ou un taux de change.
-            </p>
+            <p className="text-sm">{t("settings.market.empty")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                {["Type", "Détail", "Valide du", "Au", "Dernière modification", "Actif", ""].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {MARKET_COLUMN_KEYS.map((key, i) => (
+                  <th
+                    key={key || i}
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {key ? t(key) : ""}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {data.map((p) => (
                 <tr key={p.id} className="hover:bg-muted/30">
                   <td className="px-4 py-2.5 text-sm font-medium text-foreground">
-                    {p.parameter_type === "copper_price" ? "Cuivre" : "Change"}
+                    {p.parameter_type === "copper_price"
+                      ? t("settings.market.copper")
+                      : t("settings.market.fx")}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {p.parameter_type === "copper_price"
-                      ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${copperUnitLabel(p.copper_unit)}`
+                      ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${copperUnitLabel(p.copper_unit, t)}`
                       : `1 ${p.fx_from_currency} = ${formatFxRateDisplay(p.fx_rate)} ${p.fx_to_currency}`}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_from}</td>
@@ -426,7 +465,7 @@ function TabMarche() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => setEditing(p)}
-                        title="Modifier"
+                        title={t("common.edit")}
                       >
                         <AppIcon icon={PencilSimple} size="sm" />
                       </Button>
@@ -434,7 +473,7 @@ function TabMarche() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(p)}
-                        title="Supprimer"
+                        title={t("common.delete")}
                       >
                         <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
                       </Button>
@@ -466,6 +505,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
   const [isActive, setIsActive] = useState(mode?.is_active ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useUiTranslate();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -484,7 +524,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
       await globalMutate("transport-modes");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setSaving(false);
     }
   };
@@ -493,7 +533,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
     <AppModal
       open
       onOpenChange={(open) => !open && onClose()}
-      title={mode ? "Modifier le mode de transport" : "Nouveau mode de transport"}
+      title={mode ? t("settings.transport.editTitle") : t("settings.transport.createTitle")}
       size="lg"
     >
       {error && (
@@ -503,32 +543,32 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Code" required>
+          <FormField label={t("settings.code")} required>
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               required
               maxLength={32}
-              placeholder="MARITIME_FCL"
+              placeholder={t("settings.transport.codePlaceholder")}
             />
           </FormField>
-          <FormField label="Catégorie" required>
+          <FormField label={t("settings.category")} required>
             <OptionSelect
               value={category}
               onValueChange={(v) => setCategory(v as TransportMode["category"])}
-              options={TRANSPORT_CATEGORIES}
+              options={TRANSPORT_CATEGORIES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
             />
           </FormField>
         </div>
-        <FormField label="Libellé (français)" required>
+        <FormField label={t("settings.transport.labelFr")} required>
           <Input
             value={labelFr}
             onChange={(e) => setLabelFr(e.target.value)}
             required
-            placeholder="Maritime conteneur complet"
+            placeholder={t("settings.transport.labelPlaceholder")}
           />
         </FormField>
-        <FormField label="Capacité palette par défaut">
+        <FormField label={t("settings.transport.capacity")}>
           <Input
             value={capacity}
             onChange={(e) => setCapacity(e.target.value)}
@@ -543,16 +583,16 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
             onCheckedChange={(v) => setIsActive(v === true)}
           />
           <Label htmlFor="transport-mode-active" className="text-sm font-normal">
-            Actif
+            {t("settings.active")}
           </Label>
         </div>
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={saving} className="flex-1">
             {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-            {mode ? "Mettre à jour" : "Créer"}
+            {mode ? t("settings.update") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -561,6 +601,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
 }
 
 function TabTransport() {
+  const t = useUiTranslate();
   const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<TransportMode[]>("transport-modes", () =>
     listTransportModes(),
@@ -569,9 +610,9 @@ function TabTransport() {
 
   const handleDelete = async (m: TransportMode) => {
     const ok = await confirm({
-      title: "Supprimer le mode de transport",
-      description: `Supprimer le mode « ${m.code} » ?`,
-      confirmLabel: "Supprimer",
+      title: t("settings.transport.deleteTitle"),
+      description: t("settings.transport.deleteDescription", { code: m.code }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -579,44 +620,42 @@ function TabTransport() {
       await deleteTransportMode(m.id);
       await globalMutate("transport-modes");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Suppression échouée");
+      toast.error(e instanceof Error ? e.message : t("settings.deleteFailed"));
     }
   };
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Modes de transport utilisables dans les chaînes de calcul des simulations.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.transport.intro")}</p>
         <Button onClick={() => setEditing("new")}>
           <AppIcon icon={Plus} size="sm" />
-          Nouveau mode
+          {t("settings.transport.new")}
         </Button>
       </div>
 
       <Card className="overflow-hidden py-0">
         {error ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
-            Impossible de charger.
+            {t("settings.loadFailed")}
           </div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : !data?.length ? (
           <div className="py-12 text-center text-muted-foreground">
             <AppIcon icon={Truck} size="xl" className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Aucun mode de transport. Ajoutez-en un.</p>
+            <p className="text-sm">{t("settings.transport.empty")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                {["Code", "Libellé", "Catégorie", "Capacité palette", "Actif", ""].map((h) => (
+                {TRANSPORT_COLUMN_KEYS.map((key, i) => (
                   <th
-                    key={h}
+                    key={key || i}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {h}
+                    {key ? t(key) : ""}
                   </th>
                 ))}
               </tr>
@@ -631,7 +670,7 @@ function TabTransport() {
                     {m.label?.fr ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
-                    {TRANSPORT_CATEGORIES.find((c) => c.value === m.category)?.label ?? m.category}
+                    {transportCategoryLabel(m.category, t)}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {m.default_pallet_capacity ?? "—"}
@@ -645,7 +684,7 @@ function TabTransport() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => setEditing(m)}
-                        title="Modifier"
+                        title={t("common.edit")}
                       >
                         <AppIcon icon={PencilSimple} size="sm" />
                       </Button>
@@ -653,7 +692,7 @@ function TabTransport() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(m)}
-                        title="Supprimer"
+                        title={t("common.delete")}
                       >
                         <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
                       </Button>
@@ -678,23 +717,28 @@ function TabTransport() {
 
 // ── Tab : Odoo sync ──────────────────────────────────────────────────────
 const SYNC_SCOPES = [
-  { id: "all", label: "Tout (catalogue + stock + clients)" },
-  { id: "products", label: "Produits uniquement" },
-  { id: "stock", label: "Stock + PAMP" },
-  { id: "clients", label: "Clients" },
+  { id: "all", labelKey: "settings.odoo.scope.all" },
+  { id: "products", labelKey: "settings.odoo.scope.products" },
+  { id: "stock", labelKey: "settings.odoo.scope.stock" },
+  { id: "clients", labelKey: "settings.odoo.scope.clients" },
 ] as const;
 
 function syncStatusBadge(s: SyncLog["status"]) {
   const map = {
-    success: { Icon: CheckCircle, variant: "success" as const, label: "Succès" },
-    failed: { Icon: XCircle, variant: "failed" as const, label: "Échec" },
-    partial_failure: { Icon: Warning, variant: "warning" as const, label: "Partiel" },
-    running: { Icon: CircleDashed, variant: "running" as const, label: "En cours" },
+    success: { Icon: CheckCircle, variant: "success" as const, labelKey: "settings.odoo.status.success" as const },
+    failed: { Icon: XCircle, variant: "failed" as const, labelKey: "settings.odoo.status.failed" as const },
+    partial_failure: {
+      Icon: Warning,
+      variant: "warning" as const,
+      labelKey: "settings.odoo.status.partial" as const,
+    },
+    running: { Icon: CircleDashed, variant: "running" as const, labelKey: "settings.odoo.status.running" as const },
   } as const;
   return map[s] ?? map.running;
 }
 
 function TabOdoo() {
+  const t = useUiTranslate();
   const { data: health } = useSWR<{ ok: boolean }>("odoo-health", getOdooHealth, {
     refreshInterval: 30_000,
   });
@@ -720,7 +764,7 @@ function TabOdoo() {
         globalMutate("odoo-health"),
       ]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sync échouée");
+      setError(e instanceof Error ? e.message : t("settings.odoo.syncFailed"));
     } finally {
       setSyncing(false);
     }
@@ -732,7 +776,7 @@ function TabOdoo() {
         <Card className="p-5">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Santé Odoo
+              {t("settings.odoo.health")}
             </span>
             <AppIcon icon={Pulse} size="sm" className="text-muted-foreground" />
           </div>
@@ -742,22 +786,22 @@ function TabOdoo() {
             ) : health.ok ? (
               <>
                 <AppIcon icon={CheckCircle} size="md" className="text-brand-green" />
-                <span className="text-base font-semibold text-brand-green">Connecté</span>
+                <span className="text-base font-semibold text-brand-green">{t("settings.odoo.connected")}</span>
               </>
             ) : (
               <>
                 <AppIcon icon={XCircle} size="md" className="text-destructive" />
-                <span className="text-base font-semibold text-destructive">Hors ligne</span>
+                <span className="text-base font-semibold text-destructive">{t("settings.odoo.offline")}</span>
               </>
             )}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Test toutes les 30 s</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t("settings.odoo.healthHint")}</p>
         </Card>
 
         <Card className="p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Synchronisation manuelle
+              {t("settings.odoo.manual")}
             </span>
             <AppIcon icon={Database} size="sm" className="text-muted-foreground" />
           </div>
@@ -772,7 +816,7 @@ function TabOdoo() {
               onValueChange={(v) => setScope(v as typeof scope)}
               disabled={syncing}
               className="min-w-[260px] flex-1"
-              options={SYNC_SCOPES.map((s) => ({ value: s.id, label: s.label }))}
+              options={SYNC_SCOPES.map((s) => ({ value: s.id, label: t(s.labelKey) }))}
             />
             <Button onClick={handleTrigger} disabled={syncing}>
               {syncing ? (
@@ -780,13 +824,15 @@ function TabOdoo() {
               ) : (
                 <AppIcon icon={ArrowsClockwise} size="sm" />
               )}
-              {syncing ? "Sync en cours…" : "Lancer la synchronisation"}
+              {syncing ? t("settings.odoo.syncing") : t("settings.odoo.start")}
             </Button>
           </div>
           {status?.running && (
             <p className="mt-3 text-xs text-brand-blue">
-              Sync en cours (scope: {status.running.scope}) démarré le{" "}
-              {new Date(status.running.started_at).toLocaleString("fr-FR")}.
+              {t("settings.odoo.running", {
+                scope: status.running.scope,
+                date: new Date(status.running.started_at).toLocaleString("fr-FR"),
+              })}
             </p>
           )}
         </Card>
@@ -794,35 +840,26 @@ function TabOdoo() {
 
       <Card className="overflow-hidden py-0">
         <div className="border-b border-border px-5 py-3">
-          <h3 className="text-sm font-semibold text-foreground">Historique des synchronisations</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t("settings.odoo.history")}</h3>
         </div>
         {!logs ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : logs.length === 0 ? (
           <div className="py-10 text-center text-muted-foreground">
             <AppIcon icon={Database} size="lg" className="mx-auto mb-2 opacity-30" />
-            <p className="text-sm">Aucune synchronisation enregistrée.</p>
+            <p className="text-sm">{t("settings.odoo.empty")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
-                  {[
-                    "Date",
-                    "Type",
-                    "Scope",
-                    "Statut",
-                    "Créés",
-                    "MAJ",
-                    "Échecs",
-                    "Déclenché par",
-                  ].map((h) => (
+                  {ODOO_COLUMN_KEYS.map((key) => (
                     <th
-                      key={h}
+                      key={key}
                       className="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                     >
-                      {h}
+                      {t(key)}
                     </th>
                   ))}
                 </tr>
@@ -842,7 +879,7 @@ function TabOdoo() {
                       <td className="px-4 py-2">
                         <StatusBadge variant={b.variant} className="gap-1">
                           <AppIcon icon={b.Icon} size="sm" />
-                          {b.label}
+                          {t(b.labelKey)}
                         </StatusBadge>
                       </td>
                       <td className="px-4 py-2 text-sm text-muted-foreground">{l.items_created}</td>
@@ -872,6 +909,7 @@ function TabOdoo() {
 
 // ── Tab : Alertes offres (J-7 expiration recipients) ─────────────────────
 function TabAlerts() {
+  const t = useUiTranslate();
   const { data, isLoading } = useSWR<OfferAlertSettings>(
     "offer-alert-settings",
     getOfferAlertSettings,
@@ -897,7 +935,7 @@ function TabAlerts() {
       setDraft(null);
       setSaved(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Enregistrement échoué");
+      setError(e instanceof Error ? e.message : t("settings.alerts.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -905,11 +943,7 @@ function TabAlerts() {
 
   return (
     <div className="max-w-2xl">
-      <p className="mb-5 text-sm text-muted-foreground">
-        Destinataires de l&apos;alerte quotidienne « offres arrivant à expiration sous 7 jours ».
-        L&apos;envoi tourne chaque matin (08:00 UTC). Sans destinataire, aucune alerte n&apos;est
-        envoyée.
-      </p>
+      <p className="mb-5 text-sm text-muted-foreground">{t("settings.alerts.intro")}</p>
 
       <Card className="p-5">
         {error && (
@@ -918,15 +952,13 @@ function TabAlerts() {
           </div>
         )}
         {isLoading ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : (
           <>
-            <FormField label="Adresses e-mail">
+            <FormField label={t("settings.alerts.emails")}>
               <div className="flex flex-col gap-2">
                 {recipients.length === 0 && (
-                  <p className="py-2 text-sm text-muted-foreground">
-                    Aucun destinataire. Ajoutez une adresse pour activer les alertes.
-                  </p>
+                  <p className="py-2 text-sm text-muted-foreground">{t("settings.alerts.empty")}</p>
                 )}
                 {recipients.map((addr, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -937,14 +969,14 @@ function TabAlerts() {
                       onChange={(e) =>
                         edit(recipients.map((r, idx) => (idx === i ? e.target.value : r)))
                       }
-                      placeholder="prenom@exemple.com"
+                      placeholder={t("settings.alerts.emailPlaceholder")}
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => edit(recipients.filter((_, idx) => idx !== i))}
-                      title="Retirer"
+                      title={t("settings.alerts.remove")}
                     >
                       <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
                     </Button>
@@ -961,15 +993,15 @@ function TabAlerts() {
               onClick={() => edit([...recipients, ""])}
             >
               <AppIcon icon={Plus} size="sm" />
-              Ajouter une adresse
+              {t("settings.alerts.add")}
             </Button>
 
             <div className="mt-5 flex items-center gap-3 border-t border-border pt-4">
               <Button onClick={save} disabled={saving}>
                 {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-                Enregistrer
+                {t("common.save")}
               </Button>
-              {saved && <span className="text-sm text-brand-green">Enregistré ✓</span>}
+              {saved && <span className="text-sm text-brand-green">{t("settings.alerts.saved")}</span>}
             </div>
           </>
         )}
@@ -1002,12 +1034,13 @@ function SettingsContent() {
 }
 
 export default function SettingsPage() {
+  const t = useUiTranslate();
   const { isLoading, allowed, denied } = useRequireAdmin();
 
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
       </div>
     );
   }
@@ -1015,9 +1048,7 @@ export default function SettingsPage() {
   if (denied) {
     return (
       <div className="p-6">
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          Accès réservé aux administrateurs.
-        </div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t("settings.adminOnly")}</div>
       </div>
     );
   }
@@ -1029,17 +1060,15 @@ export default function SettingsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-foreground">Paramètres</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Configuration de la plateforme — réservé aux administrateurs.
-        </p>
+        <h1 className="text-xl font-semibold text-foreground">{t("settings.title")}</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <Suspense
         fallback={
           <>
             <SettingsNavFallback />
-            <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
           </>
         }
       >

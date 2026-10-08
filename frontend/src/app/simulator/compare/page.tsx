@@ -21,14 +21,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { CompareWorkspace } from "@/app/comparator/_components/CompareWorkspace";
 import { SaveComparisonModal } from "./_components/SaveComparisonModal";
 import { SavedComparisonsPanel } from "./_components/SavedComparisonsPanel";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 const MAX_COLUMNS = 4;
 
 type AsideTab = "pick" | "saved";
 
 function CompareSimulationsPage() {
+  const t = useUiTranslate();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <CompareWithKey />
     </Suspense>
   );
@@ -56,6 +58,7 @@ function buildCompareUrl(item: {
 }
 
 function CompareContent() {
+  const t = useUiTranslate();
   const router = useRouter();
   const searchParams = useSearchParams();
   const simsParam = searchParams.get("sims") ?? "";
@@ -140,11 +143,11 @@ function CompareContent() {
           className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-warm"
         >
           <ArrowLeft size={14} />
-          Retour aux simulations
+          {t("simulator.wizard.backToList")}
         </Link>
         <PageHeader
-          title="Comparer des simulations"
-          description="Vue synthétique, paramètres détaillés et comparaisons enregistrées."
+          title={t("simulator.compare.title")}
+          description={t("simulator.compare.description")}
           className="mb-0"
           actions={
             canSave ? (
@@ -154,7 +157,7 @@ function CompareContent() {
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <FloppyDisk size={16} />
-                Enregistrer
+                {t("common.save")}
               </button>
             ) : undefined
           }
@@ -167,12 +170,12 @@ function CompareContent() {
             <AsideTabBtn
               active={asideTab === "pick"}
               onClick={() => setAsideTab("pick")}
-              label="Sélection"
+              label={t("simulator.compare.selection")}
             />
             <AsideTabBtn
               active={asideTab === "saved"}
               onClick={() => setAsideTab("saved")}
-              label="Enregistrées"
+              label={t("simulator.compare.savedTab")}
               icon={<Bookmark size={13} />}
             />
           </div>
@@ -186,19 +189,25 @@ function CompareContent() {
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Rechercher…"
+                      placeholder={t("simulator.list.searchShort")}
                       className="w-full rounded-lg border border-border py-2 pl-8 pr-3 text-sm focus:border-primary focus:outline-none"
                     />
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {columnCount}/{MAX_COLUMNS} colonne{columnCount !== 1 ? "s" : ""}
+                    {columnCount !== 1
+                      ? t("simulator.compare.columnsOther", { count: columnCount, max: MAX_COLUMNS })
+                      : t("simulator.compare.columnsOne", { count: columnCount, max: MAX_COLUMNS })}
                   </p>
                 </div>
               )}
               {recalcIds.length > 0 ? (
                 <div className="border-b border-border p-3 text-xs text-muted-foreground">
-                  Mode snapshot : {selected.length} simulation{selected.length !== 1 ? "s" : ""} +{" "}
-                  {recalcIds.length} recalcul{recalcIds.length !== 1 ? "s" : ""}.
+                  {t("simulator.compare.snapshotMode", {
+                    sims: selected.length,
+                    simSuffix: selected.length !== 1 ? "s" : "",
+                    recalcs: recalcIds.length,
+                    recalcSuffix: recalcIds.length !== 1 ? "s" : "",
+                  })}
                 </div>
               ) : (
                 <ul className="flex-1 overflow-y-auto p-2">
@@ -225,8 +234,10 @@ function CompareContent() {
                               {s.label}
                             </span>
                             <span className="block text-xs text-muted-foreground">
-                              {s.simulation_type === "tariff" ? "Tarif" : "Projet"} ·{" "}
-                              {s.line_count} lignes
+                              {s.simulation_type === "tariff"
+                                ? t("simulator.type.tariff")
+                                : t("simulator.type.project")}{" "}
+                              · {t("simulator.compare.lineCount", { count: s.line_count })}
                             </span>
                           </span>
                         </label>
@@ -244,29 +255,27 @@ function CompareContent() {
         <main className="min-w-0 flex-1 overflow-auto p-6">
           {recalcIds.length > 0 && (
             <div className="mb-4 rounded-lg bg-accent px-4 py-2.5 text-sm text-accent-foreground">
-              Comparaison incluant un ou plusieurs snapshots de recalcul historique.
+              {t("simulator.compare.historical")}
             </div>
           )}
           {activeSavedId && (
             <div className="mb-4 flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-800">
               <Bookmark size={15} />
-              Comparaison enregistrée chargée
+              {t("simulator.compare.loaded")}
             </div>
           )}
           {columnCount < 2 ? (
             <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
               <GitDiff size={36} className="mb-3 text-muted-foreground/40" />
-              <p className="text-sm">Sélectionnez au moins 2 colonnes à comparer.</p>
-              <p className="mt-1 text-xs">
-                Ou choisissez une comparaison dans l&apos;onglet « Enregistrées ».
-              </p>
+              <p className="text-sm">{t("simulator.compare.needTwo")}</p>
+              <p className="mt-1 text-xs">{t("simulator.compare.orSaved")}</p>
             </div>
           ) : (
             <CompareWorkspace
               simulationIds={selected}
               recalculationIds={recalcIds}
               compareReturnHref={compareReturnHref}
-              compareReturnLabel="Comparaison"
+              compareReturnLabel={t("simulator.compare.returnLabel")}
               onSimulationIdsChange={(ids) => {
                 setSelected(ids);
                 router.replace(

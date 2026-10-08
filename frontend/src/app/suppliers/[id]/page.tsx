@@ -15,6 +15,8 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -50,19 +52,24 @@ import { SupplierModal } from "../_components/SupplierModal";
 import { BatchPriceWizard } from "../_components/BatchPriceWizard";
 import { AddSkusDialog } from "../_components/AddSkusDialog";
 
-const SOURCE_LABELS: Record<string, string> = {
-  import: "Import",
-  manual: "Manuel",
-  odoo: "Odoo",
-};
-
 const HISTORY_SORT: DataTableSortState = { field: "date", dir: "desc" };
+
+function sourceLabel(
+  source: string,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): string {
+  if (source === "import") return t("suppliers.source.import");
+  if (source === "manual") return t("suppliers.source.manual");
+  if (source === "odoo") return t("suppliers.source.odoo");
+  return source;
+}
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { mutate } = useSWRConfig();
   const confirm = useConfirm();
   const { role } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -96,9 +103,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     useMemo(
       () =>
         supplier
-          ? [{ label: "Fournisseurs", href: "/suppliers" }, { label: supplier.name }]
+          ? [{ label: t("suppliers.title"), href: "/suppliers" }, { label: supplier.name }]
           : null,
-      [supplier],
+      [supplier, t],
     ),
     Boolean(supplier),
   );
@@ -138,18 +145,18 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
   const handleRemoveSku = async (link: SupplierProductLink) => {
     const ok = await confirm({
-      title: "Retirer le SKU",
-      description: `Retirer « ${link.product_sku} » de ce fournisseur ?`,
-      confirmLabel: "Retirer",
+      title: t("suppliers.detail.removeSkuTitle"),
+      description: t("suppliers.detail.removeSkuDescription", { sku: link.product_sku }),
+      confirmLabel: t("suppliers.detail.remove"),
       destructive: true,
     });
     if (!ok) return;
     try {
       await removeSupplierSku(id, link.id);
-      toast.success("SKU retiré.");
+      toast.success(t("suppliers.detail.removed"));
       await refreshLinks();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     }
   };
 
@@ -157,7 +164,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const supplierPoColumn = useMemo<DataTableColumnDef<Product>>(
     () => ({
       key: "supplier_po",
-      label: "PO base",
+      label: t("suppliers.column.poBase"),
       width: 130,
       align: "right",
       render: (p) => {
@@ -170,7 +177,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         );
       },
     }),
-    [linkByProduct],
+    [linkByProduct, t],
   );
 
   const supplierTrailingColumns = useMemo<DataTableColumnDef<Product>[]>(() => {
@@ -187,7 +194,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <Button
               variant="ghost"
               size="icon-sm"
-              title="Retirer du fournisseur"
+              title={t("suppliers.detail.removeFromSupplier")}
               onClick={(e) => {
                 e.stopPropagation();
                 void handleRemoveSku(link);
@@ -200,13 +207,13 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkByProduct, userCanEdit]);
+  }, [linkByProduct, userCanEdit, t]);
 
   const historyColumns = useMemo<DataTableColumnDef<SupplierPriceHistoryEntry>[]>(
     () => [
       {
         key: "date",
-        label: "Date",
+        label: t("suppliers.column.date"),
         width: 150,
         sortField: "date",
         render: (h) => (
@@ -223,14 +230,14 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       },
       {
         key: "sku",
-        label: "SKU",
+        label: t("suppliers.column.sku"),
         width: 160,
         sortField: "sku",
         render: (h) => <span className="font-data text-foreground">{h.product_sku}</span>,
       },
       {
         key: "old",
-        label: "Ancien PO",
+        label: t("suppliers.column.oldPo"),
         width: 110,
         align: "right",
         render: (h) => (
@@ -239,25 +246,27 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       },
       {
         key: "new",
-        label: "Nouveau PO",
+        label: t("suppliers.column.newPo"),
         width: 110,
         align: "right",
         render: (h) => <span className="font-data text-foreground">{h.new_po_base_price ?? "—"}</span>,
       },
       {
         key: "currency",
-        label: "Devise",
+        label: t("suppliers.column.currency"),
         width: 90,
         render: (h) => <span className="font-data text-muted-foreground">{h.po_currency}</span>,
       },
       {
         key: "source",
-        label: "Source",
+        label: t("suppliers.column.source"),
         width: 110,
-        render: (h) => <StatusBadge variant="info">{SOURCE_LABELS[h.source] ?? h.source}</StatusBadge>,
+        render: (h) => (
+          <StatusBadge variant="info">{sourceLabel(h.source, t)}</StatusBadge>
+        ),
       },
     ],
-    [],
+    [t],
   );
 
   const sortedHistory = useMemo(() => {
@@ -273,18 +282,18 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   }, [history, historySort]);
 
   if (isLoading) {
-    return <div className="flex h-full items-center p-6 text-sm text-muted-foreground">Chargement…</div>;
+    return <div className="flex h-full items-center p-6 text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
   if (error || !supplier) {
     return (
       <div className="flex h-full items-center p-6">
         <EmptyState
           icon={<AppIcon icon={Truck} size="lg" />}
-          title="Fournisseur introuvable"
+          title={t("suppliers.detail.notFound")}
           action={
             <Button render={<Link href="/suppliers" />} variant="outline">
               <AppIcon icon={ArrowLeft} size="sm" />
-              Retour
+              {t("common.back")}
             </Button>
           }
         />
@@ -297,27 +306,27 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <div className="shrink-0 space-y-4 p-6 pb-4">
         <PageHeader
           title={supplier.name}
-          description={`Code ${supplier.code}`}
+          description={t("suppliers.detail.code", { code: supplier.code })}
           meta={
             <StatusBadge variant={supplier.is_active ? "success" : "draft"}>
-              {supplier.is_active ? "Actif" : "Inactif"}
+              {supplier.is_active ? t("suppliers.status.active") : t("suppliers.status.inactive")}
             </StatusBadge>
           }
           actions={
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setHistoryOpen(true)}>
                 <AppIcon icon={ClockCounterClockwise} size="sm" />
-                Historique des prix
+                {t("suppliers.detail.priceHistory")}
               </Button>
               {userCanEdit && (
                 <>
                   <Button variant="outline" onClick={() => setWizardOpen(true)}>
                     <AppIcon icon={CurrencyDollar} size="sm" />
-                    Modifier les prix
+                    {t("suppliers.detail.editPrices")}
                   </Button>
                   <Button variant="outline" onClick={() => setEditOpen(true)}>
                     <AppIcon icon={PencilSimple} size="sm" />
-                    Modifier
+                    {t("common.edit")}
                   </Button>
                 </>
               )}
@@ -326,12 +335,12 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         />
 
         <Card className="p-5">
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Paramètres par défaut</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">{t("suppliers.detail.defaults")}</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-            <Field label="Devise" value={supplier.currency_default} mono />
-            <Field label="Incoterm" value={supplier.incoterm_default || "—"} />
-            <Field label="Code usine" value={supplier.factory_code_default || "—"} />
-            <Field label="Localisation" value={supplier.location || "—"} />
+            <Field label={t("suppliers.column.currency")} value={supplier.currency_default} mono />
+            <Field label={t("suppliers.column.incoterm")} value={supplier.incoterm_default || "—"} />
+            <Field label={t("suppliers.detail.factoryCode")} value={supplier.factory_code_default || "—"} />
+            <Field label={t("suppliers.column.location")} value={supplier.location || "—"} />
           </dl>
           {supplier.notes && (
             <p className="mt-4 whitespace-pre-line text-sm text-muted-foreground">{supplier.notes}</p>
@@ -343,12 +352,13 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
           <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
             <h2 className="text-sm font-semibold text-foreground">
-              SKU liés <span className="font-normal text-muted-foreground">({skus?.length ?? 0})</span>
+              {t("suppliers.column.linkedSkus")}{" "}
+              <span className="font-normal text-muted-foreground">({skus?.length ?? 0})</span>
             </h2>
             {userCanEdit && (
               <Button onClick={() => setAddOpen(true)}>
                 <AppIcon icon={Plus} size="sm" />
-                Lier des SKU
+                {t("suppliers.detail.linkSkus")}
               </Button>
             )}
           </div>
@@ -359,7 +369,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             pageSize={50}
             density="compact"
             enableSavedFilters={false}
-            title="SKU du fournisseur"
+            title={t("suppliers.detail.skuTitle")}
             initialFilters={{ supplier: [supplier.name] }}
             productNavigationContext={productNavigationContext}
             filtersCollapsedStorageKey="syskern:supplier-skus-filters-collapsed"
@@ -382,7 +392,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau d'historique"
+            aria-label={t("suppliers.detail.resizeHistory")}
             onMouseDown={startHistoryResize}
             className={cn(
               "absolute left-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -394,9 +404,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           </div>
 
           <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12">
-            <SheetTitle>Historique des prix</SheetTitle>
+            <SheetTitle>{t("suppliers.detail.priceHistory")}</SheetTitle>
             <SheetDescription>
-              Changements de PO base pour les SKU de {supplier.name}.
+              {t("suppliers.detail.historyDescription", { name: supplier.name })}
             </SheetDescription>
           </SheetHeader>
 
@@ -415,7 +425,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                 <EmptyState
                   className="border-none bg-transparent shadow-none"
                   icon={<AppIcon icon={ClockCounterClockwise} size="lg" />}
-                  title="Aucun changement de prix enregistré"
+                  title={t("suppliers.detail.historyEmpty")}
                 />
               }
             />

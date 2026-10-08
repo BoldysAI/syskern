@@ -1,6 +1,7 @@
 "use client";
 
 import { Faders, X } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export function ComparisonFilterSheet({
   onApplyFilter,
   onDeleteFilter,
 }: ComparisonFilterSheetProps) {
+  const t = useUiTranslate();
   const active = countActiveComparisonFilters(filters);
 
   return (
@@ -55,10 +57,12 @@ export function ComparisonFilterSheet({
                 <AppIcon icon={Faders} weight="duotone" size="md" />
               </span>
               <div>
-                <SheetTitle className="text-base">Filtres comparaisons</SheetTitle>
+                <SheetTitle className="text-base">{t("comparator.filters.sheetTitle")}</SheetTitle>
                 {active > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {active} critère{active > 1 ? "s" : ""} actif{active > 1 ? "s" : ""}
+                    {active === 1
+                      ? t("comparator.filters.criterionOne", { count: active })
+                      : t("comparator.filters.criterionOther", { count: active })}
                   </p>
                 )}
               </div>
@@ -66,12 +70,12 @@ export function ComparisonFilterSheet({
             <div className="flex items-center gap-1">
               {active > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={onReset}>
-                  Effacer
+                  {t("comparator.filters.clear")}
                 </Button>
               )}
               <SheetClose
                 render={
-                  <Button type="button" variant="ghost" size="icon" aria-label="Fermer">
+                  <Button type="button" variant="ghost" size="icon" aria-label={t("common.close")}>
                     <X size={18} />
                   </Button>
                 }
@@ -96,7 +100,7 @@ export function ComparisonFilterSheet({
 
         <SheetFooter className="border-t border-border bg-muted/30 p-4">
           <Button type="button" className="w-full" onClick={() => onOpenChange(false)}>
-            Voir les résultats
+            {t("comparator.filters.viewResults")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -111,6 +115,7 @@ export function ComparisonFilterTrigger({
   activeCount: number;
   onClick: () => void;
 }) {
+  const t = useUiTranslate();
   return (
     <Button
       type="button"
@@ -120,7 +125,7 @@ export function ComparisonFilterTrigger({
       className={cn("lg:hidden", activeCount > 0 && "border-primary/30 bg-primary/5 text-primary")}
     >
       <Faders size={16} weight="duotone" />
-      Filtres
+      {t("comparator.filters.title")}
       {activeCount > 0 && (
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {activeCount}

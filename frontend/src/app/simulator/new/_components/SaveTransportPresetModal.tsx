@@ -13,6 +13,7 @@ import {
 } from "@/lib/transport-presets";
 import type { TransportDraft } from "./wizard-draft";
 import { toast } from "sonner";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   open: boolean;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function SaveTransportPresetModal({ open, transport, isPurchase, onClose }: Props) {
+  const t = useUiTranslate();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function SaveTransportPresetModal({ open, transport, isPurchase, onClose 
     if (!transport) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Indiquez un nom pour ce preset.");
+      setError(t("simulator.preset.nameRequired"));
       return;
     }
 
@@ -57,12 +59,12 @@ export function SaveTransportPresetModal({ open, transport, isPurchase, onClose 
         undefined,
         { revalidate: true },
       );
-      toast.success("Preset transport enregistré.");
+      toast.success(t("simulator.preset.saved"));
       setName("");
       setError(null);
       onClose();
     } catch (err) {
-      const msg = humanizeApiError(err, "Enregistrement échoué.");
+      const msg = humanizeApiError(err, t("simulator.saveFailed"));
       setError(msg);
       toast.error(msg);
     } finally {
@@ -74,19 +76,19 @@ export function SaveTransportPresetModal({ open, transport, isPurchase, onClose 
     <AppModal
       open={open}
       onOpenChange={(v) => !v && handleClose()}
-      title="Enregistrer comme preset"
+      title={t("simulator.preset.save")}
       size="md"
     >
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Ce transport sera disponible dans la liste des presets pour toutes les chaînes PA et PV.
+          {t("simulator.preset.help")}
         </p>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-muted-foreground">Nom</label>
+          <label className="mb-1 block text-xs font-semibold text-muted-foreground">{t("simulator.preset.name")}</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="ex. Conteneur 40′ — import Chine"
+            placeholder={t("simulator.preset.namePlaceholder")}
             autoFocus
             required
           />
@@ -98,16 +100,16 @@ export function SaveTransportPresetModal({ open, transport, isPurchase, onClose 
         )}
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose} disabled={saving}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" className="flex-1" disabled={saving || !transport}>
             {saving ? (
               <>
                 <CircleNotch size={16} className="animate-spin" />
-                Enregistrement…
+                {t("simulator.saving")}
               </>
             ) : (
-              "Enregistrer"
+              t("common.save")
             )}
           </Button>
         </div>

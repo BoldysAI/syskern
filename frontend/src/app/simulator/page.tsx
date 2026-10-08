@@ -22,6 +22,7 @@ import {
   type SimulationFilters,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -64,10 +65,11 @@ function SimulationStatusCell({
   status: Simulation["status"];
   dirty?: boolean;
 }) {
+  const t = useUiTranslate();
   const config = {
-    finalized: { label: "Finalisé", variant: "success" as const, Icon: SealCheck },
-    archived: { label: "Archivé", variant: "draft" as const, Icon: Archive },
-    draft: { label: "Brouillon", variant: "warning" as const, Icon: Clock },
+    finalized: { label: t("simulator.status.finalized"), variant: "success" as const, Icon: SealCheck },
+    archived: { label: t("simulator.status.archived"), variant: "draft" as const, Icon: Archive },
+    draft: { label: t("simulator.status.draft"), variant: "warning" as const, Icon: Clock },
   };
   const { label, variant, Icon } = config[status] ?? config.draft;
 
@@ -78,7 +80,7 @@ function SimulationStatusCell({
         {label}
       </StatusBadge>
       {dirty && status === "draft" && (
-        <span className="inline-flex h-2 w-2 rounded-full bg-warm" title="Recalcul nécessaire" />
+        <span className="inline-flex h-2 w-2 rounded-full bg-warm" title={t("simulator.status.dirty")} />
       )}
     </span>
   );
@@ -88,6 +90,7 @@ export default function SimulatorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
+  const t = useUiTranslate();
 
   // Deep-link `?is_dirty=true` is applied once at mount via the lazy initializer
   // (no effect → avoids the set-state-in-effect cascade).
@@ -155,7 +158,7 @@ export default function SimulatorPage() {
     () => [
       {
         key: "label",
-        label: "Nom",
+        label: t("simulator.column.name"),
         sortField: "label",
         width: 240,
         render: (sim) => (
@@ -169,18 +172,18 @@ export default function SimulatorPage() {
       },
       {
         key: "type",
-        label: "Type",
+        label: t("simulator.column.type"),
         sortField: "simulation_type",
         width: 100,
         render: (sim) => (
           <span className="text-sm text-muted-foreground">
-            {sim.simulation_type === "tariff" ? "Tarif" : "Projet"}
+            {sim.simulation_type === "tariff" ? t("simulator.type.tariff") : t("simulator.type.project")}
           </span>
         ),
       },
       {
         key: "lines",
-        label: "Lignes",
+        label: t("simulator.column.lines"),
         sortField: "line_count",
         width: 80,
         align: "right",
@@ -190,14 +193,14 @@ export default function SimulatorPage() {
       },
       {
         key: "status",
-        label: "Statut",
+        label: t("simulator.column.status"),
         sortField: "status",
         width: 150,
         render: (sim) => <SimulationStatusCell status={sim.status} dirty={sim.is_dirty} />,
       },
       {
         key: "last_calc",
-        label: "Dernier calcul",
+        label: t("simulator.column.lastCalc"),
         sortField: "last_calculated_at",
         width: 160,
         render: (sim) => (
@@ -216,7 +219,7 @@ export default function SimulatorPage() {
       },
       {
         key: "updated",
-        label: "Modifié",
+        label: t("simulator.column.updated"),
         sortField: "updated_at",
         width: 120,
         render: (sim) => (
@@ -226,7 +229,7 @@ export default function SimulatorPage() {
         ),
       },
     ],
-    [],
+    [t],
   );
 
   const handleSort = useCallback((field: string) => {
@@ -289,15 +292,15 @@ export default function SimulatorPage() {
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("simulator.list.deleteFilterTitle"),
+        description: t("simulator.list.deleteFilterDescription", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
   );
 
   const handlePageChange = useCallback((nextPage: number) => {
@@ -315,8 +318,8 @@ export default function SimulatorPage() {
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("simulator.filters.show")}
+            title={t("simulator.filters.title")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -333,17 +336,19 @@ export default function SimulatorPage() {
         >
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("simulator.filters.title")}</span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {activeFilterCount > 1
+                    ? t("simulator.filters.activeOther", { count: activeFilterCount })
+                    : t("simulator.filters.activeOne", { count: activeFilterCount })}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  Tout effacer
+                  {t("simulator.filters.clearAll")}
                 </Button>
               )}
               <Button
@@ -351,8 +356,8 @@ export default function SimulatorPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("simulator.filters.hide")}
+                title={t("simulator.filters.hide")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -371,7 +376,7 @@ export default function SimulatorPage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("simulator.filters.resize")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -394,11 +399,13 @@ export default function SimulatorPage() {
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 <Calculator size={22} weight="duotone" className="shrink-0 text-primary" />
-                Simulations
+                {t("simulator.list.title")}
               </h1>
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                  {total.toLocaleString("fr-FR")} simulation{total !== 1 ? "s" : ""}
+                  {total !== 1
+                    ? t("simulator.list.countOther", { count: total.toLocaleString("fr-FR") })
+                    : t("simulator.list.countOne", { count: total.toLocaleString("fr-FR") })}
                 </p>
               )}
             </div>
@@ -406,17 +413,17 @@ export default function SimulatorPage() {
               className="ml-2 hidden w-72 lg:block lg:w-80"
               value={searchInput}
               onChange={onSearchChange}
-              placeholder="Recherche nom, projet…"
+              placeholder={t("simulator.list.search")}
             />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" onClick={() => router.push("/comparator")}>
               <GitDiff size={16} />
-              <span className="hidden sm:inline">Comparaisons</span>
+              <span className="hidden sm:inline">{t("simulator.list.comparisons")}</span>
             </Button>
             <Button onClick={() => router.push("/simulator/new")}>
               <Plus size={16} />
-              <span className="hidden sm:inline">Nouvelle simulation</span>
+              <span className="hidden sm:inline">{t("simulator.list.new")}</span>
             </Button>
           </div>
         </div>
@@ -440,13 +447,15 @@ export default function SimulatorPage() {
         />
 
         <div className="border-b border-border bg-card px-4 py-3 md:hidden">
-          <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
+          <SearchInput value={searchInput} onChange={onSearchChange} placeholder={t("simulator.list.searchShort")} />
         </div>
 
         {selected.size > 0 && (
           <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-2.5 sm:px-6">
             <span className="text-sm font-semibold text-foreground">
-              {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+              {selected.size > 1
+                ? t("simulator.list.selectedOther", { count: selected.size })
+                : t("simulator.list.selectedOne", { count: selected.size })}
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -454,22 +463,22 @@ export default function SimulatorPage() {
                 disabled={!canCompare}
                 title={
                   selected.size > MAX_COMPARE
-                    ? `Sélectionnez au maximum ${MAX_COMPARE} simulations`
+                    ? t("simulator.list.compareMax", { max: MAX_COMPARE })
                     : selected.size < 2
-                      ? "Sélectionnez au moins 2 simulations"
+                      ? t("simulator.list.compareMin")
                       : undefined
                 }
                 onClick={compareSelection}
               >
                 <GitDiff size={15} />
-                Comparer la sélection
+                {t("simulator.list.compareSelection")}
               </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setSelected(new Set())}
-                title="Vider la sélection"
-                aria-label="Vider la sélection"
+                title={t("simulator.list.clearSelection")}
+                aria-label={t("simulator.list.clearSelection")}
               >
                 <X size={16} weight="bold" />
               </Button>
@@ -495,14 +504,14 @@ export default function SimulatorPage() {
             <Checkbox
               checked={allPageSelected}
               onCheckedChange={() => toggleSelectPage()}
-              aria-label="Tout sélectionner sur la page"
+              aria-label={t("simulator.list.selectPage")}
             />
           )}
           renderLeadingCell={(sim) => (
             <Checkbox
               checked={selected.has(sim.id)}
               onCheckedChange={() => toggleRow(sim.id)}
-              aria-label={`Sélectionner ${sim.label}`}
+              aria-label={t("simulator.list.selectRow", { name: sim.label })}
               onClick={(e) => e.stopPropagation()}
             />
           )}
@@ -511,7 +520,7 @@ export default function SimulatorPage() {
               <EmptyState
                 className="mx-4 my-8 border-none bg-transparent shadow-none"
                 icon={<Calculator size={32} weight="duotone" />}
-                title="Impossible de charger les simulations"
+                title={t("simulator.list.loadError")}
                 description={error.message}
               />
             ) : undefined
@@ -520,22 +529,22 @@ export default function SimulatorPage() {
             <EmptyState
               className="mx-auto max-w-sm border-none bg-transparent shadow-none"
               icon={<Calculator size={32} weight="duotone" />}
-              title="Aucune simulation trouvée"
+              title={t("simulator.list.emptyTitle")}
               description={
                 activeFilterCount > 0
-                  ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : "Créez votre première simulation en cliquant sur « Nouvelle simulation »."
+                  ? t("simulator.list.emptyFiltered")
+                  : t("simulator.list.emptyDefault")
               }
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
                     <Sparkle size={14} weight="duotone" />
-                    Réinitialiser les filtres
+                    {t("simulator.list.resetFilters")}
                   </Button>
                 ) : (
                   <Button onClick={() => router.push("/simulator/new")}>
                     <Plus size={16} />
-                    Nouvelle simulation
+                    {t("simulator.list.new")}
                   </Button>
                 )
               }
@@ -547,9 +556,9 @@ export default function SimulatorPage() {
             totalCount: total,
             pageSize: PAGE_SIZE,
             onPageChange: handlePageChange,
-            itemLabel: "simulation",
+            itemLabel: t("simulator.list.itemLabel"),
             jumpInputId: "simulations-page-jump",
-            ariaLabel: "Pagination des simulations",
+            ariaLabel: t("simulator.list.pagination"),
           }}
         />
       </div>

@@ -14,6 +14,9 @@ import {
   YAxis,
 } from "recharts";
 import type { CompareCell, CompareColumn, CompareProduct } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { translate, type MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { decToPct, fmtEur } from "@/app/simulator/[id]/_components/sim-format";
 import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
@@ -34,12 +37,20 @@ type ViewMode = "heatmap" | "chart" | "detail";
 
 type MetricKey = "pa_net_eur" | "pr_eur" | "pv_eur" | "effective_margin_rate" | "effective_mix_pct";
 
-const METRICS: { key: MetricKey; label: string }[] = [
-  { key: "pa_net_eur", label: "PA" },
-  { key: "pr_eur", label: "PR" },
-  { key: "pv_eur", label: "PV" },
-  { key: "effective_margin_rate", label: "Marge" },
-  { key: "effective_mix_pct", label: "Mix" },
+const METRICS: { key: MetricKey; label: MessageKey }[] = [
+  { key: "pa_net_eur", label: "simulator.column.pa" },
+  { key: "pr_eur", label: "simulator.column.pr" },
+  { key: "pv_eur", label: "simulator.column.pv" },
+  { key: "effective_margin_rate", label: "simulator.column.margin" },
+  { key: "effective_mix_pct", label: "simulator.column.mix" },
+];
+
+const PV_BANDS: { key: MessageKey; cls: string }[] = [
+  { key: "simulator.compare.band1", cls: "bg-emerald-100" },
+  { key: "simulator.compare.band2", cls: "bg-emerald-200" },
+  { key: "simulator.compare.band3", cls: "bg-amber-200" },
+  { key: "simulator.compare.band4", cls: "bg-orange-200" },
+  { key: "simulator.compare.band5", cls: "bg-red-200" },
 ];
 
 function metricRaw(c: CompareCell | undefined, key: MetricKey): string {
@@ -69,7 +80,8 @@ function metricNumeric(
 function metricDeltaRaw(
   cell: CompareCell | undefined,
   baseCell: CompareCell | undefined,
-  key: MetricKey
+  key: MetricKey,
+  locale: string,
 ): string | null {
   const r = metricNumeric(baseCell, key);
   const v = metricNumeric(cell, key);
@@ -78,11 +90,15 @@ function metricDeltaRaw(
   if (key === "effective_margin_rate") {
     const pts = d * 100;
     const sign = pts >= 0 ? "+" : "−";
-    return `${sign}${Math.abs(pts).toFixed(2)} pts`;
+    return translate("simulator.compare.deltaPts", locale, {
+      value: `${sign}${Math.abs(pts).toFixed(2)}`,
+    });
   }
   if (key === "effective_mix_pct") {
     const sign = d >= 0 ? "+" : "−";
-    return `${sign}${Math.abs(d).toFixed(0)} pts`;
+    return translate("simulator.compare.deltaPts", locale, {
+      value: `${sign}${Math.abs(d).toFixed(0)}`,
+    });
   }
   const sign = d >= 0 ? "+" : "−";
   return `${sign}${fmtEur(Math.abs(d).toFixed(4))}`;
@@ -119,6 +135,8 @@ export function CompareSkuTable({
   onToggleCommon,
   simulationNavContext = { kind: "default" },
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
     () => columnVisuals(columns.map((c) => c.label), columns.map((c) => c.key)),
@@ -170,7 +188,7 @@ export function CompareSkuTable({
               onChange={onToggleCommon}
               className="h-4 w-4 rounded border-border accent-primary"
             />
-            Lignes communes
+            {t("simulator.compare.commonLines")}
           </label>
           <button
             type="button"
@@ -182,30 +200,26 @@ export function CompareSkuTable({
                 : "border-border text-muted-foreground hover:bg-muted"
             )}
           >
-            {sortByDelta ? "Tri : écart PV ↓" : "Trier par écart PV"}
+            {sortByDelta ? t("simulator.compare.sortDeltaOn") : t("simulator.compare.sortDeltaOff")}
           </button>
-          <span className="text-xs text-muted-foreground">{rows.length} lignes</span>
+          <span className="text-xs text-muted-foreground">
+            {t("simulator.compare.lineCount", { count: rows.length })}
+          </span>
         </div>
         <div className="flex rounded-lg border border-border bg-card p-0.5">
-          <ViewBtn active={viewMode === "heatmap"} onClick={() => setViewMode("heatmap")} icon={<SquaresFour size={14} />} label="Heatmap" />
-          <ViewBtn active={viewMode === "chart"} onClick={() => setViewMode("chart")} icon={<ChartBar size={14} />} label="Graphique" />
-          <ViewBtn active={viewMode === "detail"} onClick={() => setViewMode("detail")} icon={<Table size={14} />} label="Détail" />
+          <ViewBtn active={viewMode === "heatmap"} onClick={() => setViewMode("heatmap")} icon={<SquaresFour size={14} />} label={t("simulator.compare.heatmap")} />
+          <ViewBtn active={viewMode === "chart"} onClick={() => setViewMode("chart")} icon={<ChartBar size={14} />} label={t("simulator.compare.chart")} />
+          <ViewBtn active={viewMode === "detail"} onClick={() => setViewMode("detail")} icon={<Table size={14} />} label={t("simulator.compare.detail")} />
         </div>
       </div>
 
       {(viewMode === "heatmap" || viewMode === "detail") && (
         <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="font-semibold">Écart PV :</span>
-          {[
-            { label: "< 0,5 %", cls: "bg-emerald-100" },
-            { label: "0,5–2 %", cls: "bg-emerald-200" },
-            { label: "2–5 %", cls: "bg-amber-200" },
-            { label: "5–10 %", cls: "bg-orange-200" },
-            { label: "> 10 %", cls: "bg-red-200" },
-          ].map((l) => (
-            <span key={l.label} className="inline-flex items-center gap-1">
+          <span className="font-semibold">{t("simulator.compare.deltaPv")}</span>
+          {PV_BANDS.map((l) => (
+            <span key={l.key} className="inline-flex items-center gap-1">
               <span className={cn("h-3 w-6 rounded", l.cls)} />
-              {l.label}
+              {t(l.key)}
             </span>
           ))}
         </div>
@@ -213,7 +227,9 @@ export function CompareSkuTable({
 
       {viewMode === "chart" && chartRows.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">PV par SKU (top {chartRows.length})</h3>
+          <h3 className="mb-3 text-sm font-semibold text-foreground">
+            {t("simulator.compare.pvBySku", { count: chartRows.length })}
+          </h3>
           <ResponsiveContainer width="100%" height={Math.max(280, chartRows.length * 36)}>
             <BarChart data={chartRows} layout="vertical" margin={{ left: 8, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
@@ -235,7 +251,7 @@ export function CompareSkuTable({
             <thead>
               <tr className="border-b border-border bg-background">
                 <th className="sticky left-0 z-10 bg-background px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  SKU
+                  {t("simulator.column.sku")}
                 </th>
                 {visuals.map((v, i) => (
                   <th key={v.key} className="min-w-[8rem] px-3 py-3 text-center">
@@ -286,7 +302,7 @@ export function CompareSkuTable({
                                 const val = metricRaw(cell, m.key);
                                 const changed =
                                   i > 0 && metricChanged(cell, baseCell, m.key);
-                                const delta = changed ? metricDeltaRaw(cell, baseCell, m.key) : null;
+                                const delta = changed ? metricDeltaRaw(cell, baseCell, m.key, displayLanguage) : null;
                                 return (
                                   <div
                                     key={m.key}
@@ -296,7 +312,7 @@ export function CompareSkuTable({
                                       changed && m.key !== "pv_eur" && "bg-warm/10"
                                     )}
                                   >
-                                    <span className="font-medium text-muted-foreground">{m.label}</span>
+                                    <span className="font-medium text-muted-foreground">{t(m.label)}</span>
                                     <span className="font-semibold text-foreground">
                                       {val}
                                       {delta && <span className="ml-1 text-warm">{delta}</span>}
@@ -333,7 +349,7 @@ export function CompareSkuTable({
                               </span>
                             )}
                             <div className="mt-1.5 text-[9px] text-muted-foreground">
-                              PR {fmtEur(cell?.pr_eur)}
+                              {t("simulator.compare.prPrefix", { value: fmtEur(cell?.pr_eur) })}
                             </div>
                           </div>
                         </td>
@@ -345,7 +361,7 @@ export function CompareSkuTable({
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={columns.length + 1} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    Aucune ligne à comparer.
+                    {t("simulator.compare.noRows")}
                   </td>
                 </tr>
               )}

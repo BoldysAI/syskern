@@ -1,5 +1,6 @@
 import type { CompareColumn } from "@/lib/api";
 import { decToPct, fmtEur, mpStr, recalcTriggerLabel } from "@/app/simulator/[id]/_components/sim-format";
+import { translate, type MessageKey } from "@/lib/i18n";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 export type DiffKind = "same" | "changed" | "added" | "missing";
@@ -53,7 +54,12 @@ export function parseNum(v: string): number | null {
 }
 
 /** Format numeric delta for display (EUR or %). */
-export function fmtDelta(ref: string, val: string, unit: "eur" | "pct" | "raw" = "raw"): string | null {
+export function fmtDelta(
+  ref: string,
+  val: string,
+  unit: "eur" | "pct" | "raw" = "raw",
+  locale = "fr",
+): string | null {
   const r = parseNum(ref);
   const v = parseNum(val);
   if (r == null || v == null || r === v) return null;
@@ -64,26 +70,28 @@ export function fmtDelta(ref: string, val: string, unit: "eur" | "pct" | "raw" =
   }
   if (unit === "pct") {
     const sign = d >= 0 ? "+" : "−";
-    return `${sign}${Math.abs(d).toFixed(2)} pts`;
+    return translate("simulator.compare.deltaPts", locale, {
+      value: `${sign}${Math.abs(d).toFixed(2)}`,
+    });
   }
   const sign = d >= 0 ? "+" : "−";
   return `${sign}${Math.abs(d).toLocaleString("fr-FR", { maximumFractionDigits: 4 })}`;
 }
 
-const SYMEA_POS: Record<string, string> = {
-  after_transports: "Après transports",
-  before_transports: "Avant transports",
+const SYMEA_POS: Record<string, MessageKey> = {
+  after_transports: "simulator.position.after",
+  before_transports: "simulator.position.before",
 };
 
-const SIM_TYPE: Record<string, string> = {
-  tariff: "Tarif",
-  project: "Projet",
+const SIM_TYPE: Record<string, MessageKey> = {
+  tariff: "simulator.type.tariff",
+  project: "simulator.type.project",
 };
 
-const STATUS: Record<string, string> = {
-  draft: "Brouillon",
-  finalized: "Finalisée",
-  archived: "Archivée",
+const STATUS: Record<string, MessageKey> = {
+  draft: "simulator.status.draft",
+  finalized: "simulator.status.finalizedFem",
+  archived: "simulator.status.archivedFem",
 };
 
 function fmtDate(iso: string | null | undefined): string {
@@ -91,7 +99,7 @@ function fmtDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleString("fr-FR");
 }
 
-function colContextValue(col: CompareColumn, fieldId: string): string {
+function colContextValue(col: CompareColumn, fieldId: string, locale: string): string {
   const ctx = col.context;
   const mp = ctx.market_params;
   const agg = col.aggregates;
@@ -99,16 +107,22 @@ function colContextValue(col: CompareColumn, fieldId: string): string {
   switch (fieldId) {
     case "type":
       return col.type === "recalculation"
-        ? "Snapshot recalcul"
-        : SIM_TYPE[ctx.simulation_type ?? ""] ?? "—";
+        ? translate("simulator.compare.snapshotRecalc", locale)
+        : SIM_TYPE[ctx.simulation_type ?? ""]
+          ? translate(SIM_TYPE[ctx.simulation_type ?? ""], locale)
+          : "—";
     case "status":
-      return col.status ? (STATUS[col.status] ?? "—") : "—";
+      return col.status
+        ? STATUS[col.status]
+          ? translate(STATUS[col.status], locale)
+          : "—"
+        : "—";
     case "calculated_at":
       return fmtDate(ctx.calculated_at);
     case "odoo_snapshot_at":
       return fmtDate(ctx.odoo_snapshot_at);
     case "trigger":
-      return recalcTriggerLabel(ctx.trigger_type);
+      return recalcTriggerLabel(ctx.trigger_type, locale);
     case "copper_base":
       return mpStr(mp, "copper_base_price_rmb");
     case "copper_current":
@@ -124,11 +138,21 @@ function colContextValue(col: CompareColumn, fieldId: string): string {
     case "margin_symea":
       return decToPct(ctx.symea_margin_rate) ? `${decToPct(ctx.symea_margin_rate)} %` : "—";
     case "symea_position":
-      return SYMEA_POS[ctx.symea_margin_position] ?? "—";
+      return SYMEA_POS[ctx.symea_margin_position]
+        ? translate(SYMEA_POS[ctx.symea_margin_position], locale)
+        : "—";
     case "sale_incoterm":
       return formatIncotermDisplay(ctx.sale_incoterm ?? "EXW", ctx.sale_incoterm_location);
     case "chain_modules":
-      return ctx.chain_module_count > 0 ? `${ctx.chain_module_count} module${ctx.chain_module_count > 1 ? "s" : ""}` : "—";
+      return ctx.chain_module_count > 0
+        ? translate(
+            ctx.chain_module_count > 1
+              ? "simulator.compare.moduleOther"
+              : "simulator.compare.moduleOne",
+            locale,
+            { count: ctx.chain_module_count },
+          )
+        : "—";
     case "note":
       return ctx.note ?? "—";
     case "agg_lines":
@@ -156,72 +180,81 @@ function colContextValue(col: CompareColumn, fieldId: string): string {
 
 interface FieldDef {
   id: string;
-  label: string;
+  label: MessageKey;
   deltaUnit?: "eur" | "pct" | "raw";
 }
 
-const SECTIONS: { title: string; fields: FieldDef[] }[] = [
+const SECTIONS: { title: MessageKey; fields: FieldDef[] }[] = [
   {
-    title: "Identité & dates",
+    title: "simulator.compare.identity",
     fields: [
-      { id: "type", label: "Type" },
-      { id: "status", label: "Statut" },
-      { id: "calculated_at", label: "Dernier calcul" },
-      { id: "odoo_snapshot_at", label: "Snapshot Odoo" },
-      { id: "trigger", label: "Déclencheur" },
-      { id: "note", label: "Note" },
+      { id: "type", label: "simulator.column.type" },
+      { id: "status", label: "simulator.column.status" },
+      { id: "calculated_at", label: "simulator.column.lastCalc" },
+      { id: "odoo_snapshot_at", label: "simulator.history.snapshotOdoo" },
+      { id: "trigger", label: "simulator.compare.trigger" },
+      { id: "note", label: "simulator.compare.noteField" },
     ],
   },
   {
-    title: "Paramètres marché",
+    title: "simulator.compare.marketSection",
     fields: [
-      { id: "copper_base", label: "Cuivre base (RMB)", deltaUnit: "raw" },
-      { id: "copper_current", label: "Cuivre actuel (RMB)", deltaUnit: "raw" },
-      { id: "fx_eur_rmb", label: "FX EUR → RMB", deltaUnit: "raw" },
-      { id: "fx_eur_usd", label: "FX EUR → USD", deltaUnit: "raw" },
+      { id: "copper_base", label: "simulator.market.copperBaseRmb", deltaUnit: "raw" },
+      { id: "copper_current", label: "simulator.market.copperCurrentRmb", deltaUnit: "raw" },
+      { id: "fx_eur_rmb", label: "simulator.fx.eurToRmbSpaced", deltaUnit: "raw" },
+      { id: "fx_eur_usd", label: "simulator.fx.eurToUsdSpaced", deltaUnit: "raw" },
     ],
   },
   {
-    title: "Paramètres simulation",
+    title: "simulator.compare.simSection",
     fields: [
-      { id: "mix", label: "Mix stock / achat", deltaUnit: "pct" },
-      { id: "margin_syskern", label: "Marge SysKern", deltaUnit: "pct" },
-      { id: "margin_symea", label: "Marge Symea", deltaUnit: "pct" },
-      { id: "symea_position", label: "Position marge Symea" },
-      { id: "sale_incoterm", label: "Incoterm vente" },
-      { id: "chain_modules", label: "Chaîne de calcul" },
+      { id: "mix", label: "simulator.compare.mixStock", deltaUnit: "pct" },
+      { id: "margin_syskern", label: "simulator.compare.marginSyskern", deltaUnit: "pct" },
+      { id: "margin_symea", label: "simulator.compare.marginSymea", deltaUnit: "pct" },
+      { id: "symea_position", label: "simulator.compare.symeaPosition" },
+      { id: "sale_incoterm", label: "simulator.params.saleIncotermShort" },
+      { id: "chain_modules", label: "simulator.compare.chain" },
     ],
   },
   {
-    title: "Agrégats résultats",
+    title: "simulator.compare.aggregates",
     fields: [
-      { id: "agg_lines", label: "Lignes" },
-      { id: "agg_avg_pa", label: "PA moyen", deltaUnit: "eur" },
-      { id: "agg_avg_pr", label: "PR moyen", deltaUnit: "eur" },
-      { id: "agg_avg_pv", label: "PV moyen", deltaUnit: "eur" },
-      { id: "agg_avg_margin", label: "Marge moyenne", deltaUnit: "pct" },
-      { id: "agg_min_pv", label: "PV minimum", deltaUnit: "eur" },
-      { id: "agg_max_pv", label: "PV maximum", deltaUnit: "eur" },
-      { id: "agg_warnings", label: "Avertissements" },
-      { id: "agg_errors", label: "Erreurs" },
+      { id: "agg_lines", label: "simulator.column.lines" },
+      { id: "agg_avg_pa", label: "simulator.history.paAvg", deltaUnit: "eur" },
+      { id: "agg_avg_pr", label: "simulator.history.prAvg", deltaUnit: "eur" },
+      { id: "agg_avg_pv", label: "simulator.history.pvAvg", deltaUnit: "eur" },
+      { id: "agg_avg_margin", label: "simulator.compare.marginAverage", deltaUnit: "pct" },
+      { id: "agg_min_pv", label: "simulator.history.pvMin", deltaUnit: "eur" },
+      { id: "agg_max_pv", label: "simulator.history.pvMax", deltaUnit: "eur" },
+      { id: "agg_warnings", label: "simulator.status.warnings" },
+      { id: "agg_errors", label: "simulator.status.errors" },
     ],
   },
 ];
 
-export function buildDiffSections(columns: CompareColumn[]): { title: string; rows: DiffRow[] }[] {
+export function buildDiffSections(
+  columns: CompareColumn[],
+  locale = "fr",
+): { title: string; rows: DiffRow[] }[] {
   const baseKey = columns[0]?.key;
   return SECTIONS.map((section) => ({
-    title: section.title,
+    title: translate(section.title, locale),
     rows: section.fields.map((field) => {
       const values: Record<string, string> = {};
       for (const col of columns) {
-        values[col.key] = colContextValue(col, field.id);
+        values[col.key] = colContextValue(col, field.id, locale);
       }
       const ref = baseKey ? values[baseKey] : "";
       const hasDiff = columns.some(
         (c) => c.key !== baseKey && diffKind(ref, values[c.key]) !== "same"
       );
-      return { id: field.id, label: field.label, values, hasDiff, deltaUnit: field.deltaUnit };
+      return {
+        id: field.id,
+        label: translate(field.label, locale),
+        values,
+        hasDiff,
+        deltaUnit: field.deltaUnit,
+      };
     }),
   }));
 }

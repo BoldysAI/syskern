@@ -182,6 +182,11 @@ Props : `{ value, onChange, mode, kind, label, requiredSource, rows }`. Utilisé
 `DescriptionsEditor` (fiche produit) et `AttributeFormModal` (label + valeur par défaut). Domaine i18n complet
 (couverture catalogue, bulk translate, langue offre) → `docs/agent/i18n.md`.
 
+Libellés d'interface : catalogues `lib/i18n/catalogs/`, assemblés par `lib/i18n.ts`.
+Dans un composant client, `useUiTranslate()` (`lib/use-ui-translate.ts`). `displayLanguage` vient
+de la session (`AuthContext`). Une clé anglaise manquante affiche le français de cette clé.
+Ne pas y mettre les contenus produit. Détail → `i18n.md` § Langue d'interface.
+
 ## `AttributeRenderer` (attributs dynamiques)
 
 Référence : `components/AttributeRenderer.tsx` — rendu typé selon `data_type` (text, number,

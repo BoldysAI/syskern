@@ -10,6 +10,7 @@ import {
   type Simulation,
   type SimulationFilters,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { EmptyState } from "@/components/EmptyState";
 import { SearchInput } from "@/components/SearchInput";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -38,6 +39,7 @@ interface SimulationPickerModalProps {
  */
 export function SimulationPickerModal({ open, onClose }: SimulationPickerModalProps) {
   const router = useRouter();
+  const t = useUiTranslate();
 
   const [filters, setFilters] = useState<SimulationFilters>({});
   const [searchInput, setSearchInput] = useState("");
@@ -90,7 +92,7 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
     () => [
       {
         key: "label",
-        label: "Simulation",
+        label: t("offers.picker.column.simulation"),
         sortField: "label",
         width: 260,
         render: (sim) => (
@@ -104,18 +106,20 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
       },
       {
         key: "type",
-        label: "Type",
+        label: t("offers.field.type"),
         sortField: "simulation_type",
         width: 100,
         render: (sim) => (
           <StatusBadge variant={sim.simulation_type === "project" ? "info" : "running"}>
-            {sim.simulation_type === "project" ? "Projet" : "Tarif"}
+            {sim.simulation_type === "project"
+              ? t("offers.type.project")
+              : t("offers.type.tariff")}
           </StatusBadge>
         ),
       },
       {
         key: "lines",
-        label: "Lignes",
+        label: t("offers.picker.column.lines"),
         sortField: "line_count",
         width: 80,
         align: "right",
@@ -125,7 +129,7 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
       },
       {
         key: "last_calc",
-        label: "Dernier calcul",
+        label: t("offers.picker.column.lastCalc"),
         sortField: "last_calculated_at",
         width: 150,
         render: (sim) => (
@@ -137,17 +141,15 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
         ),
       },
     ],
-    [],
+    [t],
   );
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="flex max-h-[92vh] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>Nouvelle offre</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Choisissez une simulation finalisée. Son type (tarif / projet) détermine le format.
-          </p>
+          <DialogTitle>{t("offers.list.new")}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{t("offers.picker.hint")}</p>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -168,7 +170,7 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
               <SearchInput
                 value={searchInput}
                 onChange={onSearchChange}
-                placeholder="Rechercher une simulation…"
+                placeholder={t("offers.picker.search")}
               />
             </div>
 
@@ -190,7 +192,7 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
                   <EmptyState
                     className="border-none bg-transparent py-12 shadow-none"
                     icon={<FileText size={28} weight="duotone" />}
-                    title="Impossible de charger les simulations"
+                    title={t("offers.picker.loadError")}
                   />
                 ) : undefined
               }
@@ -198,8 +200,8 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
                 <EmptyState
                   className="border-none bg-transparent py-12 shadow-none"
                   icon={<FileText size={28} weight="duotone" />}
-                  title="Aucune simulation finalisée"
-                  description="Finalisez une simulation avant de générer une offre."
+                  title={t("offers.picker.empty")}
+                  description={t("offers.picker.emptyHint")}
                 />
               }
               pagination={
@@ -210,9 +212,9 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
                       totalCount: total,
                       pageSize: PAGE_SIZE,
                       onPageChange: setPage,
-                      itemLabel: "simulation",
+                      itemLabel: t("offers.picker.itemLabel"),
                       jumpInputId: "offer-sim-picker-page",
-                      ariaLabel: "Pagination des simulations",
+                      ariaLabel: t("offers.picker.pagination"),
                     }
                   : undefined
               }

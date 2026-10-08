@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import openpyxl
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.products.models import Currency, Incoterm, PriceChangeSource, Product, ProductSupplier
 
 from .models import Supplier
@@ -49,12 +50,12 @@ _REJECTED_STATUSES = {
     MISSING_SKU,
 }
 
-_STATUS_REASONS = {
-    SKU_NOT_FOUND: "SKU introuvable en base",
-    SUPPLIER_NOT_FOUND: "Fournisseur introuvable en base",
-    INVALID_PO: "PO manquant ou invalide",
-    NO_SUPPLIER: "Aucun fournisseur (ni colonne ni sélection)",
-    MISSING_SKU: "SKU manquant",
+_STATUS_REASON_KEYS = {
+    SKU_NOT_FOUND: "suppliers.reason_sku_not_found",
+    SUPPLIER_NOT_FOUND: "suppliers.reason_supplier_not_found",
+    INVALID_PO: "suppliers.reason_invalid_po",
+    NO_SUPPLIER: "suppliers.reason_no_supplier",
+    MISSING_SKU: "suppliers.reason_missing_sku",
 }
 
 # Logical fields the wizard can map. ``required`` gates the mapping step.
@@ -68,8 +69,20 @@ def _pad(rows: list[list], width: int) -> list[list]:
     return [list(r) + [""] * (width - len(r)) for r in rows]
 
 
+def _ui(key: str, locale: str | None = None, **kwargs: object) -> str:
+    """Catalog string. No locale (Celery) uses the deployment default."""
+    text = translate(key, locale if locale is not None else resolve_ui_locale(None))
+    if not kwargs:
+        return text
+    # Values may contain braces (openpyxl errors). Escape them so format stays literal.
+    safe = {
+        name: str(value).replace("{", "{{").replace("}", "}}") for name, value in kwargs.items()
+    }
+    return text.format(**safe)
+
+
 def read_excel_headers(
-    path: str | Path, *, header_row: int = 1, sample: int = 20
+    path: str | Path, *, header_row: int = 1, sample: int = 20, locale: str | None = None
 ) -> tuple[list[str], list[list], int]:
     """Return ``(headers, sample_rows, column_count)`` with a **bounded** read.
 
@@ -83,7 +96,7 @@ def read_excel_headers(
     try:
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"Fichier Excel illisible : {exc}") from exc
+        raise ValueError(_ui("suppliers.excel_unreadable", locale, reason=exc)) from exc
 
     ws = wb.active
     headers: list[str] = []
@@ -102,9 +115,7 @@ def read_excel_headers(
     wb.close()
 
     if not found:
-        raise ValueError(
-            "Ligne d'en-tête introuvable (fichier vide ou en-tête au-delà du fichier)."
-        )
+        raise ValueError(_ui("suppliers.header_row_missing", locale))
 
     column_count = max([len(headers), *(len(r) for r in sample_rows)])
     headers = list(headers) + [""] * (column_count - len(headers))
@@ -126,15 +137,18 @@ def _resolve_indices(column_map: dict, column_count: int) -> dict[str, int]:
     return resolved
 
 
-def validate_column_map(column_map: dict, column_count: int) -> list[str]:
-    """Return a list of FR error messages for an invalid mapping (empty = ok)."""
+def validate_column_map(
+    column_map: dict, column_count: int, *, locale: str | None = None
+) -> list[str]:
+    """Return catalog error messages for an invalid mapping (empty = ok)."""
     errors: list[str] = []
     indices = _resolve_indices(column_map, column_count)
     for field in REQUIRED_FIELDS:
+        label = field.upper()
         if column_map.get(field) in (None, ""):
-            errors.append(f"Le champ « {field.upper()} » doit être mappé.")
+            errors.append(_ui("suppliers.field_must_be_mapped", locale, field=label))
         elif field not in indices:
-            errors.append(f"Colonne invalide dans le fichier pour « {field.upper()} ».")
+            errors.append(_ui("suppliers.column_out_of_file", locale, field=label))
     return errors
 
 
@@ -175,7 +189,7 @@ def _iter_data_rows(path: str | Path, *, header_row: int = 1) -> tuple[list[list
     try:
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"Fichier Excel illisible : {exc}") from exc
+        raise ValueError(_ui("suppliers.excel_unreadable", reason=exc)) from exc
     ws = wb.active
     header_len = 0
     data_rows: list[list] = []
@@ -190,9 +204,7 @@ def _iter_data_rows(path: str | Path, *, header_row: int = 1) -> tuple[list[list
         data_rows.append(list(raw_row))
     wb.close()
     if not found:
-        raise ValueError(
-            "Ligne d'en-tête introuvable (fichier vide ou en-tête au-delà du fichier)."
-        )
+        raise ValueError(_ui("suppliers.header_row_missing"))
     column_count = max([header_len, *(len(r) for r in data_rows)])
     return data_rows, column_count
 
@@ -220,7 +232,7 @@ def _build_line(
         "supplier": supplier_label,
         "po": "" if po_raw is None else str(po_raw),
         "status": status,
-        "reason": _STATUS_REASONS.get(status, ""),
+        "reason": _ui(_STATUS_REASON_KEYS[status]) if status in _STATUS_REASON_KEYS else "",
         "old_po_base_price": str(old_price) if old_price is not None else None,
         "new_po_base_price": str(new_price) if new_price is not None else None,
         "po_currency": po_currency,

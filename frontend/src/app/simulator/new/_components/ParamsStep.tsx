@@ -1,6 +1,7 @@
 "use client";
 
 import { SimulationParamsFields } from "@/app/simulator/_components/SimulationParamsFields";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   type ChainDraft,
   type MarketParamsDraft,
@@ -51,9 +52,11 @@ export function ParamsStep({
   onSymeaPosition,
   onSaleIncoterm,
   onSaleIncotermLocation,
-  introText = "Configurez les paramètres marché et les chaînes de calcul. Les résultats seront calculés après création (clic sur « Recalculer »).",
+  introText,
   issues = [],
 }: Props) {
+  const t = useUiTranslate();
+  const intro = introText ?? t("simulator.params.intro");
   const draft = {
     label: "",
     type: "tariff" as const,
@@ -89,7 +92,7 @@ export function ParamsStep({
       draft={draft}
       onChange={onChange}
       issues={issues}
-      introText={introText}
+      introText={intro}
       showImportPreset
     />
   );

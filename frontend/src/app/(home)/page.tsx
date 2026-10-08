@@ -25,9 +25,11 @@ import { DashboardResumeCard } from "@/app/_components/DashboardResumeCard";
 import { DashboardOnboarding } from "@/app/_components/DashboardOnboarding";
 import { DashboardAdminLinks } from "@/app/_components/DashboardAdminLinks";
 import { DashboardCompletenessCard } from "@/app/_components/DashboardCompletenessCard";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(user?.role);
   const userIsAdmin = isAdmin(user?.role);
 
@@ -35,19 +37,21 @@ export default function HomePage() {
 
   const greeting = useMemo(() => {
     const name = user?.first_name?.trim();
-    return name ? `Bonjour, ${name}` : "Bonjour";
-  }, [user?.first_name]);
+    return name ? t("dashboard.greetingName", { name }) : t("dashboard.greeting");
+  }, [user?.first_name, t]);
 
   const subtitle = useMemo(() => {
-    if (!data) return "Vue d'ensemble de votre activité pricing.";
+    if (!data) return t("dashboard.subtitleOverview");
     if (data.todo.length > 0) {
-      return `${data.todo.length} élément${data.todo.length > 1 ? "s" : ""} à traiter`;
+      return t(data.todo.length > 1 ? "dashboard.todoCountOther" : "dashboard.todoCountOne", {
+        count: data.todo.length,
+      });
     }
     if (data.simulations.total === 0 && Object.keys(data.offers.status_counts).length === 0) {
-      return "Commencez par explorer le catalogue et créer votre première simulation.";
+      return t("dashboard.subtitleStart");
     }
-    return "Tout est à jour.";
-  }, [data]);
+    return t("dashboard.subtitleUpToDate");
+  }, [data, t]);
 
   const showOnboarding =
     data &&
@@ -61,30 +65,50 @@ export default function HomePage() {
   const kpiItems = data
     ? [
         {
-          label: "Catalogue",
+          label: t("nav.catalog"),
           value: data.catalog.product_count.toLocaleString("fr-FR"),
-          subValue: `${data.catalog.universe_count} univers`,
+          subValue: t("dashboard.kpiUnivers", { count: data.catalog.universe_count }),
           href: "/catalog",
           icon: SquaresFour,
           tone: "navy" as const,
         },
         {
-          label: "Simulations",
+          label: t("nav.simulations"),
           value: data.simulations.total,
-          subValue: `${data.simulations.draft} brouillon${data.simulations.draft !== 1 ? "s" : ""} · ${data.simulations.finalized} finalisée${data.simulations.finalized !== 1 ? "s" : ""} · ${data.simulations.dirty} à recalculer`,
+          subValue: [
+            t(data.simulations.draft !== 1 ? "dashboard.simDraftOther" : "dashboard.simDraftOne", {
+              count: data.simulations.draft,
+            }),
+            t(
+              data.simulations.finalized !== 1
+                ? "dashboard.simFinalizedOther"
+                : "dashboard.simFinalizedOne",
+              { count: data.simulations.finalized },
+            ),
+            t("dashboard.simDirty", { count: data.simulations.dirty }),
+          ].join(" · "),
           href: "/simulator",
           icon: ChartLineUp,
           tone: "primary" as const,
         },
         {
-          label: "Offres",
+          label: t("nav.offers"),
           value: offerActive,
           subValue: [
-            `${data.offers.tariff_active} tarif${data.offers.tariff_active !== 1 ? "s" : ""} actif${data.offers.tariff_active !== 1 ? "s" : ""}`,
+            t(
+              data.offers.tariff_active !== 1
+                ? "dashboard.tariffActiveOther"
+                : "dashboard.tariffActiveOne",
+              { count: data.offers.tariff_active },
+            ),
             data.offers.project_conversion_pct != null
-              ? `${data.offers.project_conversion_pct.toFixed(0)} % conversion projets`
+              ? t("dashboard.projectConversion", {
+                  pct: data.offers.project_conversion_pct.toFixed(0),
+                })
               : null,
-            data.offers.won_total ? fmtEur(data.offers.won_total) + " gagnés" : null,
+            data.offers.won_total
+              ? t("dashboard.wonAmount", { amount: fmtEur(data.offers.won_total) })
+              : null,
           ]
             .filter(Boolean)
             .join(" · "),
@@ -93,17 +117,17 @@ export default function HomePage() {
           tone: "warm" as const,
         },
         {
-          label: "Comparaisons",
+          label: t("nav.comparisons"),
           value: data.comparisons.total,
-          subValue: "Analyses côte à côte",
+          subValue: t("dashboard.kpiAnalyses"),
           href: "/comparator",
           icon: GitDiff,
           tone: "blue" as const,
         },
         {
-          label: "Bibliothèque",
+          label: t("nav.library"),
           value: data.library.document_count.toLocaleString("fr-FR"),
-          subValue: "Documents partagés",
+          subValue: t("dashboard.kpiDocuments"),
           href: "/library",
           icon: Books,
           tone: "navy" as const,
@@ -113,28 +137,28 @@ export default function HomePage() {
 
   const quickActions = [
     {
-      label: "Nouvelle simulation",
-      description: "Lancer un calcul de pricing sur une sélection de SKU.",
+      label: t("nav.newSimulation"),
+      description: t("dashboard.newSimulationDesc"),
       href: "/simulator/new",
       icon: Plus,
     },
     {
-      label: "Nouvelle comparaison",
-      description: "Comparer plusieurs simulations avec aperçu des SKU communs.",
+      label: t("nav.newComparison"),
+      description: t("dashboard.newComparisonDesc"),
       href: "/comparator/new",
       icon: Columns,
     },
     {
-      label: "Nouvelle offre",
-      description: "Générer une offre tarif ou projet.",
+      label: t("nav.newOffer"),
+      description: t("dashboard.newOfferDesc"),
       href: "/offers",
       icon: FilePlus,
     },
     ...(userCanEdit
       ? [
           {
-            label: "Nouveau produit",
-            description: "Ajouter un produit au catalogue PIM.",
+            label: t("nav.newProduct"),
+            description: t("dashboard.newProductDesc"),
             href: "/catalog/new",
             icon: SquaresFour,
           },
@@ -163,7 +187,7 @@ export default function HomePage() {
           {!showOnboarding && (
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Briques métier
+                {t("dashboard.businessBlocks")}
               </h2>
               <DashboardKpiGrid items={kpiItems} loading={isLoading} />
             </section>
@@ -176,7 +200,7 @@ export default function HomePage() {
           {userCanEdit && (
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Raccourcis
+                {t("dashboard.shortcuts")}
               </h2>
               <DashboardQuickActions items={quickActions} loading={isLoading} />
             </section>

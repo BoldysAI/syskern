@@ -13,6 +13,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
+from apps.accounts.ui_locale import translate_request
 from apps.clients.models import Client
 from apps.core.pagination import DefaultLimitOffsetPagination
 from apps.offers.models import Offer
@@ -201,9 +202,11 @@ class SimulationViewSet(viewsets.ModelViewSet):
     # ─── Mutation guards (CDC §6.9.10) ────────────────────────────────
     def _ensure_writable(self, simulation: Simulation) -> None:
         if simulation.status == SimulationStatus.FINALIZED:
-            raise PermissionDenied("Une simulation finalisée est en lecture seule.")
+            raise PermissionDenied(
+                translate_request(self.request, "simulations.finalized_readonly")
+            )
         if simulation.status == SimulationStatus.ARCHIVED:
-            raise PermissionDenied("Une simulation archivée est en lecture seule.")
+            raise PermissionDenied(translate_request(self.request, "simulations.archived_readonly"))
 
     def update(self, request, *args, **kwargs):
         self._ensure_writable(self.get_object())
@@ -223,13 +226,11 @@ class SimulationViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         simulation = self.get_object()
         if simulation.status == SimulationStatus.FINALIZED:
-            raise PermissionDenied(
-                "Une simulation finalisée ne peut pas être supprimée ; archivez-la."
-            )
+            raise PermissionDenied(translate_request(request, "simulations.finalized_no_delete"))
         if Offer.objects.filter(simulation=simulation).exists():
             return Response(
                 {
-                    "detail": "Des offres sont rattachées à cette simulation ; archivez-la.",
+                    "detail": translate_request(request, "simulations.delete_has_offers"),
                     "offers": list(
                         Offer.objects.filter(simulation=simulation).values("id", "label")
                     ),
@@ -244,7 +245,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response(
             {
-                "detail": "Simulation supprimée.",
+                "detail": translate_request(request, "simulations.deleted"),
                 "comparisons_deleted": [
                     {"id": str(c.id), "label": c.label} for c in detach.deleted
                 ],
@@ -286,19 +287,17 @@ class SimulationViewSet(viewsets.ModelViewSet):
         simulation = self.get_object()
         if simulation.status == SimulationStatus.FINALIZED:
             return Response(
-                {"detail": "Simulation déjà finalisée."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": translate_request(request, "simulations.already_finalized")},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         if simulation.status == SimulationStatus.ARCHIVED:
             return Response(
-                {"detail": "Une simulation archivée ne peut pas être finalisée."},
+                {"detail": translate_request(request, "simulations.archived_no_finalize")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if simulation.last_calculated_at is None:
             return Response(
-                {
-                    "detail": "Impossible de finaliser une simulation jamais calculée — "
-                    "lancez un recalcul d'abord."
-                },
+                {"detail": translate_request(request, "simulations.never_calculated")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         error_skus = list(
@@ -307,7 +306,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
         if error_skus:
             return Response(
                 {
-                    "detail": "Des lignes sont en erreur — corrigez-les avant de finaliser.",
+                    "detail": translate_request(request, "simulations.lines_in_error"),
                     "errors": error_skus,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -316,7 +315,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
         simulation.refresh_from_db(fields=["is_dirty", "updated_at"])
         if simulation.is_dirty:
             return Response(
-                {"detail": "Recalculez la simulation avant de finaliser."},
+                {"detail": translate_request(request, "simulations.recalculate_before_finalize")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -336,11 +335,11 @@ class SimulationViewSet(viewsets.ModelViewSet):
         """
         simulation = self.get_object()
         if simulation.status != SimulationStatus.FINALIZED:
-            raise ValidationError("La simulation doit être finalisée.")
+            raise ValidationError(translate_request(request, "simulations.must_be_finalized"))
         if simulation.simulation_type != SimulationType.TARIFF:
-            raise ValidationError("Génération tarifaire réservée aux simulations de type tarif.")
+            raise ValidationError(translate_request(request, "simulations.tariff_generation_only"))
 
-        ser = GenerateTariffOffersSerializer(data=request.data)
+        ser = GenerateTariffOffersSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         # Make the payload JSON-serializable for Celery.
@@ -373,11 +372,11 @@ class SimulationViewSet(viewsets.ModelViewSet):
         """
         simulation = self.get_object()
         if simulation.status != SimulationStatus.FINALIZED:
-            raise ValidationError("La simulation doit être finalisée.")
+            raise ValidationError(translate_request(request, "simulations.must_be_finalized"))
         if simulation.simulation_type != SimulationType.PROJECT:
-            raise ValidationError("Génération projet réservée aux simulations de type projet.")
+            raise ValidationError(translate_request(request, "simulations.project_generation_only"))
 
-        ser = GenerateProjectOfferSerializer(data=request.data)
+        ser = GenerateProjectOfferSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         payload = {
@@ -455,7 +454,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
     def archive(self, request, pk=None):
         simulation = self.get_object()
         if simulation.status != SimulationStatus.FINALIZED:
-            raise ValidationError("Seules les simulations finalisées peuvent être archivées.")
+            raise ValidationError(translate_request(request, "simulations.archive_finalized_only"))
         simulation.status = SimulationStatus.ARCHIVED
         simulation.save(update_fields=["status", "updated_at"])
         return Response(SimulationDetailSerializer(simulation).data)
@@ -464,7 +463,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
     def unarchive(self, request, pk=None):
         simulation = self.get_object()
         if simulation.status != SimulationStatus.ARCHIVED:
-            raise ValidationError("Cette simulation n'est pas archivée.")
+            raise ValidationError(translate_request(request, "simulations.not_archived"))
         simulation.status = SimulationStatus.FINALIZED
         simulation.save(update_fields=["status", "updated_at"])
         return Response(SimulationDetailSerializer(simulation).data)
@@ -482,7 +481,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
         src = self.get_object()
         ser = DuplicateSerializer(data=request.data or {})
         ser.is_valid(raise_exception=True)
-        label = ser.validated_data.get("label") or f"{src.label} (copie)"
+        label = ser.validated_data.get("label") or translate_request(
+            request, "simulations.duplicate_label", label=src.label
+        )
 
         copy = Simulation.objects.create(
             label=label,
@@ -532,7 +533,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
     def add_lines(self, request, pk=None):
         simulation = self.get_object()
         self._ensure_writable(simulation)
-        ser = AddLinesSerializer(data=request.data)
+        ser = AddLinesSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         items = data.get("items")
@@ -701,7 +702,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
         """Stream the Excel produced by `export_simulation_task` (by task_id)."""
         file_path = EXPORT_DIR / f"{task_id}.xlsx"
         if not file_path.is_file():
-            raise Http404("Export introuvable ou expiré.")
+            raise Http404(translate_request(request, "exports.not_found"))
         return FileResponse(
             file_path.open("rb"),
             as_attachment=True,
@@ -753,7 +754,7 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         line: SimulationLine = serializer.instance
         if line.simulation.status in {SimulationStatus.FINALIZED, SimulationStatus.ARCHIVED}:
-            raise PermissionDenied("Simulation non modifiable — édition des lignes interdite.")
+            raise PermissionDenied(translate_request(self.request, "simulations.line_edit_locked"))
         super().perform_update(serializer)
         line.status = "dirty"
         line.save(update_fields=["status", "updated_at"])
@@ -761,7 +762,9 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         if instance.simulation.status in {SimulationStatus.FINALIZED, SimulationStatus.ARCHIVED}:
-            raise PermissionDenied("Simulation non modifiable — suppression de ligne interdite.")
+            raise PermissionDenied(
+                translate_request(self.request, "simulations.line_delete_locked")
+            )
         sim_id = instance.simulation_id
         super().perform_destroy(instance)
         sync_simulation_dirty_flag(sim_id)
@@ -776,7 +779,9 @@ class SimulationLineViewSet(viewsets.ModelViewSet):
         """
         line = self.get_object()
         if line.simulation.status in {SimulationStatus.FINALIZED, SimulationStatus.ARCHIVED}:
-            raise PermissionDenied("Simulation non modifiable — recalcul de ligne interdit.")
+            raise PermissionDenied(
+                translate_request(self.request, "simulations.line_recalc_locked")
+            )
         recalculate_single_line(line)
         line.refresh_from_db()
         return Response(SimulationLineSerializer(line).data)
@@ -879,7 +884,7 @@ class CompareSimulationsView(viewsets.ViewSet):
     """
 
     def create(self, request):
-        ser = CompareSerializer(data=request.data)
+        ser = CompareSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         sim_ids = [str(x) for x in ser.validated_data.get("simulation_ids") or []]
         recalc_ids = [str(x) for x in ser.validated_data.get("recalculation_ids") or []]
@@ -895,7 +900,7 @@ class CompareSimulationsView(viewsets.ViewSet):
         the source simulations (which stay finalized/immutable). Recalculation
         snapshot columns stay frozen.
         """
-        ser = CompareWhatIfSerializer(data=request.data)
+        ser = CompareWhatIfSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         sim_ids = [str(x) for x in ser.validated_data.get("simulation_ids") or []]
         recalc_ids = [str(x) for x in ser.validated_data.get("recalculation_ids") or []]
@@ -911,7 +916,7 @@ class CompareSimulationsView(viewsets.ViewSet):
     ) -> dict:
         sims = {str(s.id): s for s in Simulation.objects.filter(id__in=sim_ids)}
         if len(sims) != len(set(sim_ids)):
-            raise ValidationError("Certaines simulations sont introuvables.")
+            raise ValidationError(translate_request(self.request, "simulations.sims_not_found"))
         recalcs = {
             str(r.id): r
             for r in SimulationRecalculation.objects.filter(id__in=recalc_ids).select_related(
@@ -919,7 +924,7 @@ class CompareSimulationsView(viewsets.ViewSet):
             )
         }
         if len(recalcs) != len(set(recalc_ids)):
-            raise ValidationError("Certains recalculs sont introuvables.")
+            raise ValidationError(translate_request(self.request, "simulations.recalcs_not_found"))
 
         columns: list[dict] = []
         matrix: dict = {}
@@ -990,7 +995,11 @@ class CompareSimulationsView(viewsets.ViewSet):
                     "type": "recalculation",
                     "id": rid,
                     "simulation_id": str(r.simulation_id),
-                    "label": f"Recalcul du {r.calculated_at:%d/%m/%Y %H:%M}",
+                    "label": translate_request(
+                        self.request,
+                        "simulations.recalc_label",
+                        when=f"{r.calculated_at:%d/%m/%Y %H:%M}",
+                    ),
                     "status": None,
                     "aggregates": r.aggregates,
                     "context": _recalc_column_context(r),
@@ -1032,31 +1041,28 @@ class SavedComparisonViewSet(viewsets.ModelViewSet):
         healed = heal_saved_comparison(obj)
         if healed is None:
             return Response(
-                {
-                    "detail": (
-                        "Cette comparaison n'est plus valide : trop de simulations "
-                        "associées ont été supprimées."
-                    )
-                },
+                {"detail": translate_request(request, "simulations.comparison_invalid")},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        return Response(SavedComparisonSerializer(healed).data)
+        return Response(SavedComparisonSerializer(healed, context={"request": request}).data)
 
     def perform_create(self, serializer):
         serializer.save()
 
     def create(self, request, *args, **kwargs):
-        write = SavedComparisonWriteSerializer(data=request.data)
+        write = SavedComparisonWriteSerializer(data=request.data, context={"request": request})
         write.is_valid(raise_exception=True)
         obj = SavedComparison.objects.create(**write.validated_data)
         return Response(
-            SavedComparisonSerializer(obj).data,
+            SavedComparisonSerializer(obj, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
 
     def partial_update(self, request, *args, **kwargs):
         obj = self.get_object()
-        ser = SavedComparisonPatchSerializer(obj, data=request.data, partial=True)
+        ser = SavedComparisonPatchSerializer(
+            obj, data=request.data, partial=True, context={"request": request}
+        )
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(SavedComparisonSerializer(obj).data)
+        return Response(SavedComparisonSerializer(obj, context={"request": request}).data)

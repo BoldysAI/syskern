@@ -10,6 +10,7 @@ import {
   type PaginatedComparisons,
   type SavedComparison,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
@@ -49,6 +50,7 @@ const COLUMN_WIDTHS_KEY = "syskern:comparisons-list-col-widths:v1";
 export default function ComparisonsPage() {
   const router = useRouter();
   const confirm = useConfirm();
+  const t = useUiTranslate();
 
   const [filters, setFilters] = useState<ComparisonFilters>({});
   const [searchInput, setSearchInput] = useState("");
@@ -135,15 +137,15 @@ export default function ComparisonsPage() {
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("comparator.list.deleteFilterTitle"),
+        description: t("comparator.list.deleteFilterDescription", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
   );
 
   const pageIds = comparisons.map((c) => c.id);
@@ -171,9 +173,12 @@ export default function ComparisonsPage() {
     if (selected.size === 0 || bulkDeleting) return;
     const count = selected.size;
     const ok = await confirm({
-      title: "Supprimer les comparaisons",
-      description: `Supprimer ${count} comparaison${count !== 1 ? "s" : ""} ? Cette action est irréversible.`,
-      confirmLabel: "Supprimer",
+      title: t("comparator.list.bulkDeleteTitle"),
+      description:
+        count === 1
+          ? t("comparator.list.bulkDeleteOne", { count })
+          : t("comparator.list.bulkDeleteOther", { count }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -186,13 +191,13 @@ export default function ComparisonsPage() {
     } finally {
       setBulkDeleting(false);
     }
-  }, [bulkDeleting, confirm, mutate, selected.size, selectedIds]);
+  }, [bulkDeleting, confirm, mutate, selected.size, selectedIds, t]);
 
   const columns = useMemo<DataTableColumnDef<SavedComparison>[]>(
     () => [
       {
         key: "label",
-        label: "Nom",
+        label: t("comparator.name"),
         sortField: "label",
         width: 280,
         render: (item) => (
@@ -208,7 +213,7 @@ export default function ComparisonsPage() {
       },
       {
         key: "columns",
-        label: "Simulations",
+        label: t("comparator.simulations"),
         width: 320,
         render: (item) => (
           <div className="flex flex-wrap gap-1">
@@ -218,7 +223,7 @@ export default function ComparisonsPage() {
                 className="max-w-[120px] truncate rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
                 title={col.label}
               >
-                {i === 0 && col.type === "simulation" ? "Réf. · " : ""}
+                {i === 0 && col.type === "simulation" ? t("comparator.refPrefix") : ""}
                 {col.label}
               </span>
             ))}
@@ -227,7 +232,7 @@ export default function ComparisonsPage() {
       },
       {
         key: "column_count",
-        label: "Colonnes",
+        label: t("comparator.list.columnColumns"),
         width: 90,
         align: "right",
         render: (item) => (
@@ -236,7 +241,7 @@ export default function ComparisonsPage() {
       },
       {
         key: "created_at",
-        label: "Créée",
+        label: t("comparator.list.columnCreated"),
         sortField: "created_at",
         width: 120,
         render: (item) => (
@@ -247,7 +252,7 @@ export default function ComparisonsPage() {
       },
       {
         key: "updated_at",
-        label: "Modifiée",
+        label: t("comparator.list.columnUpdated"),
         sortField: "updated_at",
         width: 120,
         render: (item) => (
@@ -257,7 +262,7 @@ export default function ComparisonsPage() {
         ),
       },
     ],
-    [],
+    [t],
   );
 
   const handleSort = useCallback((field: string) => {
@@ -278,8 +283,8 @@ export default function ComparisonsPage() {
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("comparator.list.showFilters")}
+            title={t("comparator.filters.title")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -296,17 +301,19 @@ export default function ComparisonsPage() {
         >
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("comparator.filters.title")}</span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {activeFilterCount === 1
+                    ? t("comparator.filters.criterionOne", { count: activeFilterCount })
+                    : t("comparator.filters.criterionOther", { count: activeFilterCount })}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  Tout effacer
+                  {t("comparator.filters.clearAll")}
                 </Button>
               )}
               <Button
@@ -314,8 +321,8 @@ export default function ComparisonsPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("comparator.list.hideFilters")}
+                title={t("comparator.list.hideFilters")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -334,7 +341,7 @@ export default function ComparisonsPage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("comparator.list.resizeFilters")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -357,11 +364,13 @@ export default function ComparisonsPage() {
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 <GitDiff size={22} weight="duotone" className="shrink-0 text-primary" />
-                Comparaisons
+                {t("comparator.list.title")}
               </h1>
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                  {total.toLocaleString("fr-FR")} comparaison{total !== 1 ? "s" : ""}
+                  {total === 1
+                    ? t("comparator.list.countOne", { count: total.toLocaleString("fr-FR") })
+                    : t("comparator.list.countOther", { count: total.toLocaleString("fr-FR") })}
                 </p>
               )}
             </div>
@@ -369,12 +378,12 @@ export default function ComparisonsPage() {
               className="ml-2 hidden w-72 lg:block lg:w-80"
               value={searchInput}
               onChange={onSearchChange}
-              placeholder="Recherche nom, note…"
+              placeholder={t("comparator.list.searchPlaceholder")}
             />
           </div>
           <Button onClick={() => router.push("/comparator/new")}>
             <Plus size={16} />
-            <span className="hidden sm:inline">Nouvelle comparaison</span>
+            <span className="hidden sm:inline">{t("comparator.new.title")}</span>
           </Button>
         </div>
 
@@ -397,13 +406,19 @@ export default function ComparisonsPage() {
         />
 
         <div className="border-b border-border bg-card px-4 py-3 md:hidden">
-          <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
+          <SearchInput
+            value={searchInput}
+            onChange={onSearchChange}
+            placeholder={t("comparator.list.searchMobile")}
+          />
         </div>
 
         {selected.size > 0 && (
           <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-2.5 sm:px-6">
             <span className="text-sm font-semibold text-foreground">
-              {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+              {selected.size === 1
+                ? t("comparator.list.selectedOne", { count: selected.size })
+                : t("comparator.list.selectedOther", { count: selected.size })}
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -413,14 +428,14 @@ export default function ComparisonsPage() {
                 onClick={() => void handleBulkDelete()}
               >
                 <Trash size={15} />
-                Supprimer la sélection
+                {t("comparator.list.deleteSelection")}
               </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setSelected(new Set())}
-                title="Vider la sélection"
-                aria-label="Vider la sélection"
+                title={t("comparator.list.clearSelection")}
+                aria-label={t("comparator.list.clearSelection")}
               >
                 <X size={16} weight="bold" />
               </Button>
@@ -446,14 +461,14 @@ export default function ComparisonsPage() {
             <Checkbox
               checked={allPageSelected}
               onCheckedChange={() => toggleSelectPage()}
-              aria-label="Tout sélectionner sur la page"
+              aria-label={t("comparator.list.selectPage")}
             />
           )}
           renderLeadingCell={(item) => (
             <Checkbox
               checked={selected.has(item.id)}
               onCheckedChange={() => toggleRow(item.id)}
-              aria-label={`Sélectionner ${item.label}`}
+              aria-label={t("comparator.list.selectRow", { name: item.label })}
               onClick={(e) => e.stopPropagation()}
             />
           )}
@@ -462,7 +477,7 @@ export default function ComparisonsPage() {
               <EmptyState
                 className="mx-4 my-8 border-none bg-transparent shadow-none"
                 icon={<GitDiff size={32} weight="duotone" />}
-                title="Impossible de charger les comparaisons"
+                title={t("comparator.list.loadError")}
                 description={error.message}
               />
             ) : undefined
@@ -471,21 +486,21 @@ export default function ComparisonsPage() {
             <EmptyState
               className="mx-auto max-w-sm border-none bg-transparent shadow-none"
               icon={<GitDiff size={32} weight="duotone" />}
-              title="Aucune comparaison"
+              title={t("comparator.list.empty")}
               description={
                 activeFilterCount > 0
-                  ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : "Créez votre première comparaison pour analyser plusieurs simulations côte à côte."
+                  ? t("comparator.list.emptyFiltered")
+                  : t("comparator.list.emptyHint")
               }
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Réinitialiser les filtres
+                    {t("comparator.list.resetFilters")}
                   </Button>
                 ) : (
                   <Button onClick={() => router.push("/comparator/new")}>
                     <Plus size={16} />
-                    Nouvelle comparaison
+                    {t("comparator.new.title")}
                   </Button>
                 )
               }
@@ -497,9 +512,9 @@ export default function ComparisonsPage() {
             totalCount: total,
             pageSize: PAGE_SIZE,
             onPageChange: handlePageChange,
-            itemLabel: "comparaison",
+            itemLabel: t("comparator.list.item"),
             jumpInputId: "comparisons-page-jump",
-            ariaLabel: "Pagination des comparaisons",
+            ariaLabel: t("comparator.list.pagination"),
           }}
         />
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ export function CatalogAttributeFilter({
   onChange,
   numberBounds,
 }: CatalogAttributeFilterProps) {
+  const t = useUiTranslate();
   const label = localize(attribute.label);
 
   if (attribute.data_type === "boolean") {
@@ -33,9 +35,9 @@ export function CatalogAttributeFilter({
         <p className="mb-2 text-xs font-semibold text-foreground">{label}</p>
         <div className="flex gap-1.5">
           {[
-            { v: "", l: "Tous" },
-            { v: "true", l: "Oui" },
-            { v: "false", l: "Non" },
+            { v: "", l: t("catalog.attr.all") },
+            { v: "true", l: t("common.yes") },
+            { v: "false", l: t("common.no") },
           ].map((opt) => (
             <button
               key={opt.v || "all"}
@@ -73,7 +75,7 @@ export function CatalogAttributeFilter({
               onClick={() => onChange("")}
               className="text-[11px] font-semibold text-primary hover:text-primary/80"
             >
-              Effacer
+              {t("catalog.attr.clear")}
             </button>
           )}
         </div>
@@ -143,7 +145,7 @@ export function CatalogAttributeFilter({
         value={(value as string) ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className="h-9"
-        placeholder="Contient…"
+        placeholder={t("catalog.attr.contains")}
       />
     </div>
   );

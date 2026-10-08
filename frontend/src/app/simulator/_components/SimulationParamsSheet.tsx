@@ -24,6 +24,8 @@ import {
   type TransportMode,
 } from "@/lib/api";
 import { humanizeApiError } from "@/lib/humanize-errors";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { toast } from "sonner";
 
 interface Props {
@@ -65,11 +67,14 @@ export function SimulationParamsSheet({
   open,
   onClose,
   onSaved,
-  duplicateLabelSuffix = "(copie)",
+  duplicateLabelSuffix,
   finalizedForkDescription,
   finalizedBanner,
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const confirm = useConfirm();
+  const labelSuffix = duplicateLabelSuffix ?? t("simulator.params.copySuffix");
   const [draft, setDraft] = useState<WizardDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +103,7 @@ export function SimulationParamsSheet({
     if (!simulationId || !draft || !sim) return;
     setError(null);
 
-    const transportErr = validateTransportChains(draft);
+    const transportErr = validateTransportChains(draft, displayLanguage);
     if (transportErr) {
       setError(transportErr);
       return;
@@ -106,11 +111,11 @@ export function SimulationParamsSheet({
 
     if (isFinalized) {
       const ok = await confirm({
-        title: "Créer une copie brouillon",
+        title: t("simulator.params.forkTitle"),
         description:
           finalizedForkDescription ??
-          `La simulation « ${simulationLabel} » est finalisée et ne peut pas être modifiée directement. Enregistrer créera une nouvelle simulation en mode brouillon avec les paramètres saisis. L'original reste inchangé.`,
-        confirmLabel: "Créer et recalculer",
+          t("simulator.params.forkDescription", { name: simulationLabel }),
+        confirmLabel: t("simulator.params.forkConfirm"),
       });
       if (!ok) return;
     }
@@ -121,9 +126,7 @@ export function SimulationParamsSheet({
       let contextSim: SimulationDetail = sim;
 
       if (isFinalized) {
-        const suffix = duplicateLabelSuffix.startsWith(" ")
-          ? duplicateLabelSuffix
-          : ` ${duplicateLabelSuffix}`;
+        const suffix = labelSuffix.startsWith(" ") ? labelSuffix : ` ${labelSuffix}`;
         const copyLabel = `${sim.label}${suffix}`;
         const copied = await duplicateSimulation(simulationId, copyLabel);
         targetId = copied.id;
@@ -139,13 +142,13 @@ export function SimulationParamsSheet({
       void globalMutate("simulations");
       toast.success(
         isFinalized
-          ? "Nouvelle simulation brouillon créée et recalculée."
-          : "Paramètres enregistrés et simulation recalculée.",
+          ? t("simulator.params.forkCreated")
+          : t("simulator.params.savedRecalculated"),
       );
       onSaved({ sourceId: simulationId, effectiveId: targetId });
       onClose();
     } catch (e) {
-      const msg = humanizeApiError(e, "Enregistrement échoué.");
+      const msg = humanizeApiError(e, t("simulator.saveFailed"));
       setError(msg);
       toast.error(msg);
     } finally {
@@ -161,14 +164,19 @@ export function SimulationParamsSheet({
   const defaultFinalizedBanner =
     simulationStatus === "archived" ? (
       <>
-        Cette simulation est <strong>archivée</strong>. Toute modification créera une{" "}
-        <strong>nouvelle simulation en brouillon</strong>. L&apos;original reste intact.
+        {t("simulator.params.archivedLead")}
+        <strong>{t("simulator.params.archivedInline")}</strong>
+        {t("simulator.params.archivedMid")}
+        <strong>{t("simulator.params.newDraft")}</strong>
+        {t("simulator.params.archivedEnd")}
       </>
     ) : (
       <>
-        Cette simulation est <strong>finalisée</strong>. Toute modification créera une{" "}
-        <strong>nouvelle simulation en brouillon</strong> à partir de vos paramètres.
-        L&apos;original reste intact.
+        {t("simulator.params.archivedLead")}
+        <strong>{t("simulator.params.finalizedInline")}</strong>
+        {t("simulator.params.finalizedMid")}
+        <strong>{t("simulator.params.newDraft")}</strong>
+        {t("simulator.params.finalizedEnd")}
       </>
     );
 
@@ -176,13 +184,13 @@ export function SimulationParamsSheet({
     <AppModal
       open={open}
       onOpenChange={(v) => !v && !busy && onClose()}
-      title={`Paramètres — ${simulationLabel}`}
+      title={t("simulator.params.title", { name: simulationLabel })}
       size="full"
     >
       {isLoading || !draft ? (
         <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
           <CircleNotch size={20} className="mr-2 animate-spin" />
-          Chargement…
+          {t("common.loading")}
         </div>
       ) : (
         <div className="flex min-h-0 flex-col gap-4">
@@ -198,7 +206,7 @@ export function SimulationParamsSheet({
             onChange={update}
             supplierLines={supplierLines}
             transportModes={transportModes ?? []}
-            introText="Modifiez les paramètres de calcul de cette simulation. Les changements seront enregistrés et un recalcul sera lancé."
+            introText={t("simulator.params.editIntro")}
             nestedMarketModal
           />
 
@@ -210,16 +218,16 @@ export function SimulationParamsSheet({
 
           <div className="sticky bottom-0 flex gap-3 border-t border-border bg-card pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={busy}>
-              Annuler
+              {t("common.cancel")}
             </Button>
             <Button type="button" className="flex-1" onClick={() => void handleSaveAndRecalculate()} disabled={busy}>
               {busy ? (
                 <>
                   <CircleNotch size={16} className="animate-spin" />
-                  Enregistrement…
+                  {t("simulator.saving")}
                 </>
               ) : (
-                "Enregistrer et recalculer"
+                t("simulator.params.saveAndRecalc")
               )}
             </Button>
           </div>

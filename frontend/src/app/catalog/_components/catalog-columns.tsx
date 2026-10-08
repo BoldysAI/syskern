@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { ProductNavigationContext } from "@/lib/product-navigation";
 import { buildProductHref } from "@/lib/product-navigation";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,7 @@ function CompletenessCell({ pct }: { pct?: number | null }) {
 }
 
 function CoverageBadge({ product }: { product: Product }) {
+  const t = useUiTranslate();
   const coverage = product.i18n_coverage;
   if (!coverage || coverage.languages.length === 0) {
     return <span className="text-muted-foreground/50">—</span>;
@@ -53,7 +56,7 @@ function CoverageBadge({ product }: { product: Product }) {
   return (
     <span
       className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium tabular-nums"
-      title={`${coverage.percent}% des langues renseignées`}
+      title={t("catalog.coverage.title", { percent: coverage.percent })}
     >
       <span
         aria-hidden
@@ -87,12 +90,13 @@ function buildCoreColumnDef(
   key: string,
   skuAsLink: boolean,
   productNavigationContext: ProductNavigationContext,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
 ): DataTableColumnDef<Product> | null {
   switch (key) {
     case "sku_code":
       return {
         key: "sku_code",
-        label: "SKU",
+        label: t("catalog.column.sku"),
         sortField: "sku_code",
         width: 160,
         render: (product) =>
@@ -113,7 +117,7 @@ function buildCoreColumnDef(
     case "name":
       return {
         key: "name",
-        label: "Désignation",
+        label: t("catalog.column.designation"),
         sortField: "name",
         width: 280,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -122,7 +126,7 @@ function buildCoreColumnDef(
     case "universe":
       return {
         key: "universe",
-        label: "Univers",
+        label: t("catalog.column.universe"),
         sortField: "universe",
         width: 160,
         render: (product) => <UniverseBadge universe={product.universe} />,
@@ -130,7 +134,7 @@ function buildCoreColumnDef(
     case "family":
       return {
         key: "family",
-        label: "Famille",
+        label: t("catalog.column.family"),
         sortField: "family",
         width: 150,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -139,7 +143,7 @@ function buildCoreColumnDef(
     case "range":
       return {
         key: "range",
-        label: "Gamme",
+        label: t("catalog.column.range"),
         sortField: "range",
         width: 140,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -148,7 +152,7 @@ function buildCoreColumnDef(
     case "sub_range":
       return {
         key: "sub_range",
-        label: "Sous-gamme",
+        label: t("catalog.column.subRange"),
         sortField: "sub_range",
         width: 140,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -157,7 +161,7 @@ function buildCoreColumnDef(
     case "brand":
       return {
         key: "brand",
-        label: "Marque",
+        label: t("catalog.column.brand"),
         sortField: "brand",
         width: 130,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -166,7 +170,7 @@ function buildCoreColumnDef(
     case "active_supplier":
       return {
         key: "active_supplier",
-        label: "Fournisseur actif",
+        label: t("catalog.column.activeSupplier"),
         sortField: "active_supplier",
         width: 170,
         cellClassName: "text-sm text-muted-foreground truncate",
@@ -175,7 +179,7 @@ function buildCoreColumnDef(
     case "pamp_eur":
       return {
         key: "pamp_eur",
-        label: "PAMP",
+        label: t("catalog.column.pamp"),
         sortField: "pamp_eur",
         width: 120,
         align: "right",
@@ -190,7 +194,7 @@ function buildCoreColumnDef(
     case "catalog_pv":
       return {
         key: "catalog_pv",
-        label: "PV",
+        label: t("catalog.column.pv"),
         width: 148,
         align: "right",
         cellClassName: "align-top py-2.5",
@@ -199,7 +203,7 @@ function buildCoreColumnDef(
     case "stock_quantity":
       return {
         key: "stock_quantity",
-        label: "Stock",
+        label: t("catalog.column.stock"),
         sortField: "stock_quantity",
         width: 100,
         render: (product) => {
@@ -225,31 +229,31 @@ function buildCoreColumnDef(
     case "is_copper_indexed":
       return {
         key: "is_copper_indexed",
-        label: "Indexé cuivre",
+        label: t("catalog.column.copperIndexed"),
         sortField: "is_copper_indexed",
         width: 110,
         render: (product) => (
           <StatusBadge variant={product.is_copper_indexed ? "success" : "draft"}>
-            {product.is_copper_indexed ? "Oui" : "Non"}
+            {product.is_copper_indexed ? t("common.yes") : t("common.no")}
           </StatusBadge>
         ),
       };
     case "is_active":
       return {
         key: "is_active",
-        label: "Actif",
+        label: t("catalog.column.active"),
         sortField: "is_active",
         width: 80,
         render: (product) => (
           <StatusBadge variant={product.is_active ? "success" : "draft"}>
-            {product.is_active ? "Oui" : "Non"}
+            {product.is_active ? t("common.yes") : t("common.no")}
           </StatusBadge>
         ),
       };
     case "lang_coverage":
       return {
         key: "lang_coverage",
-        label: "Langues",
+        label: t("catalog.column.languages"),
         width: 80,
         cellClassName: "!px-2",
         render: (product) => <CoverageBadge product={product} />,
@@ -257,7 +261,7 @@ function buildCoreColumnDef(
     case "completeness_pct":
       return {
         key: "completeness_pct",
-        label: "Complétude",
+        label: t("catalog.column.completeness"),
         sortField: "completeness_pct",
         width: 130,
         render: (product) => <CompletenessCell pct={product.completeness_pct} />,
@@ -277,6 +281,7 @@ export function useCatalogColumns({
   visibleColumnKeys,
   attributeColumns = [],
 }: UseCatalogColumnsOptions = {}) {
+  const t = useUiTranslate();
   return useMemo<DataTableColumnDef<Product>[]>(() => {
     const attrByCode = new Map(attributeColumns.map((a) => [a.code, a]));
     const attrKeys = attributeColumns
@@ -288,7 +293,7 @@ export function useCatalogColumns({
       visibleColumnKeys && visibleColumnKeys.length > 0
         ? visibleColumnKeys.filter((k) => {
             if (k.startsWith("attr:")) return attrByCode.has(k.slice(5));
-            return buildCoreColumnDef(k, skuAsLink, productNavigationContext) != null;
+            return buildCoreColumnDef(k, skuAsLink, productNavigationContext, t) != null;
           })
         : [...CATALOG_COLUMN_ORDER.filter((k) => k !== "lang_coverage"), ...attrKeys];
 
@@ -314,7 +319,7 @@ export function useCatalogColumns({
         });
         continue;
       }
-      const core = buildCoreColumnDef(key, skuAsLink, productNavigationContext);
+      const core = buildCoreColumnDef(key, skuAsLink, productNavigationContext, t);
       if (core) cols.push(core);
     }
 
@@ -334,6 +339,7 @@ export function useCatalogColumns({
     productNavigationContext,
     visibleColumnKeys,
     attributeColumns,
+    t,
   ]);
 }
 

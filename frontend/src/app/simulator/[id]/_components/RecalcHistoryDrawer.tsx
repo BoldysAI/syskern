@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { decToPct, fmtEur, mpStr, RECALC_TRIGGER, recalcTriggerLabel } from "./sim-format";
+import { useAuth } from "@/contexts/AuthContext";
+import { translate } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 import { RecalcDetailModal } from "./RecalcDetailModal";
 
@@ -31,6 +34,8 @@ interface Props {
 const PAGE = 10;
 
 export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const [limit, setLimit] = useState(PAGE);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -51,7 +56,7 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
           <SheetHeader className="border-b border-border p-5">
             <SheetTitle className="flex items-center gap-2">
               <ClockCounterClockwise size={18} className="text-warm" />
-              Historique des recalculs
+              {t("simulator.history.title")}
             </SheetTitle>
           </SheetHeader>
 
@@ -64,7 +69,7 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
               </div>
             ) : !traces.length ? (
               <div className="py-10 text-center text-sm text-muted-foreground">
-                Aucun recalcul global enregistré.
+                {t("simulator.history.empty")}
               </div>
             ) : (
               <>
@@ -74,6 +79,7 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
                       key={r.id}
                       recalc={r}
                       onDetail={() => setDetailId(r.id)}
+                      locale={displayLanguage}
                       onCompare={() =>
                         router.push(`/comparator/new?sims=${simId}&recalc=${r.id}`)
                       }
@@ -86,8 +92,10 @@ export function RecalcHistoryDrawer({ simId, open, onClose }: Props) {
                     onClick={() => setLimit((l) => l + PAGE)}
                     className="mt-4 w-full"
                   >
-                    Charger plus ({total - traces.length} restant
-                    {total - traces.length !== 1 ? "s" : ""})
+                    {t("simulator.history.loadMore", {
+                      count: total - traces.length,
+                      suffix: total - traces.length !== 1 ? "s" : "",
+                    })}
                   </Button>
                 )}
               </>
@@ -105,12 +113,15 @@ function RecalcEntry({
   recalc: r,
   onDetail,
   onCompare,
+  locale,
 }: {
   recalc: Recalculation;
   onDetail: () => void;
   onCompare: () => void;
+  locale: string;
 }) {
-  const triggerLabel = recalcTriggerLabel(r.trigger_type);
+  const t = useUiTranslate();
+  const triggerLabel = recalcTriggerLabel(r.trigger_type, locale);
   const triggerBadge =
     RECALC_TRIGGER[r.trigger_type]?.badge ?? "bg-muted text-muted-foreground";
   const mp = r.market_params ?? {};
@@ -129,49 +140,49 @@ function RecalcEntry({
 
       <div className="mt-3 space-y-2 rounded-lg bg-muted px-3 py-2.5 text-xs text-muted-foreground">
         <ParamRow
-          label="Cuivre (base / actuel)"
+          label={t("simulator.market.copperPairParen")}
           value={`${mpStr(mp, "copper_base_price_rmb")} / ${mpStr(mp, "copper_current_price_rmb")} RMB`}
         />
-        <ParamRow label="FX EUR→RMB" value={mpStr(mp, "fx_eur_rmb")} />
-        <ParamRow label="FX EUR→USD" value={mpStr(mp, "fx_eur_usd")} />
+        <ParamRow label={t("simulator.fx.eurToRmb")} value={mpStr(mp, "fx_eur_rmb")} />
+        <ParamRow label={t("simulator.fx.eurToUsd")} value={mpStr(mp, "fx_eur_usd")} />
         <ParamRow
-          label="Incoterm vente"
+          label={t("simulator.params.saleIncotermShort")}
           value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)}
         />
-        <ParamRow label="Mix stock/achat" value={`${r.stock_purchase_mix_pct} %`} />
+        <ParamRow label={t("simulator.breakdown.mixStockShort")} value={`${r.stock_purchase_mix_pct} %`} />
         <ParamRow
-          label="Marges SysKern / Symea"
+          label={t("simulator.history.marginsSyskern")}
           value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`}
         />
-        {chainSummary(r.calculation_chain) && (
-          <ParamRow label="Chaîne PA / PV" value={chainSummary(r.calculation_chain)!} />
+        {chainSummary(r.calculation_chain, locale) && (
+          <ParamRow label={t("simulator.history.chain")} value={chainSummary(r.calculation_chain, locale)!} />
         )}
         {r.odoo_snapshot_at && (
           <ParamRow
-            label="Snapshot Odoo"
+            label={t("simulator.history.snapshotOdoo")}
             value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")}
           />
         )}
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-        <Stat label="Lignes" value={String(a.line_count ?? "—")} />
-        <Stat label="PA moyen" value={fmtEur(a.avg_pa_eur)} />
-        <Stat label="PR moyen" value={fmtEur(a.avg_pr_eur)} />
-        <Stat label="PV moyen" value={fmtEur(a.avg_pv_eur)} />
-        <Stat label="Marge moy." value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
-        <Stat label="PV min/max" value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
+        <Stat label={t("simulator.column.lines")} value={String(a.line_count ?? "—")} />
+        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur)} />
+        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur)} />
+        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur)} />
+        <Stat label={t("simulator.history.marginAvg")} value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
+        <Stat label={t("simulator.history.pvMinMaxTight")} value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
       </div>
       {(a.warnings_count || a.errors_count) ? (
         <div className="mt-2 flex gap-2 text-xs">
           {a.warnings_count ? (
             <span className="rounded border border-warm/30 bg-warm/10 px-2 py-0.5 text-warm">
-              {a.warnings_count} avert.
+              {t("simulator.history.warningShort", { count: a.warnings_count })}
             </span>
           ) : null}
           {a.errors_count ? (
             <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">
-              {a.errors_count} err.
+              {t("simulator.history.errorShort", { count: a.errors_count })}
             </span>
           ) : null}
         </div>
@@ -181,18 +192,18 @@ function RecalcEntry({
       <div className="mt-3 flex gap-2">
         <Button variant="outline" size="sm" onClick={onDetail} className="flex-1 gap-1.5">
           <Eye size={13} />
-          Voir détail
+          {t("simulator.history.detail")}
         </Button>
         <Button variant="outline" size="sm" onClick={onCompare} className="flex-1 gap-1.5">
           <GitDiff size={13} />
-          Comparer avec actuel
+          {t("simulator.history.compareCurrent")}
         </Button>
       </div>
     </li>
   );
 }
 
-function chainSummary(chain: Record<string, unknown> | undefined): string | null {
+function chainSummary(chain: Record<string, unknown> | undefined, locale: string): string | null {
   if (!chain) return null;
   let n = 0;
   for (const side of ["purchase_chain", "sale_chain"]) {
@@ -204,7 +215,11 @@ function chainSummary(chain: Record<string, unknown> | undefined): string | null
     }
     if (cfg.symea_margin || cfg.syskern_margin) n += 1;
   }
-  return n > 0 ? `${n} module${n > 1 ? "s" : ""}` : null;
+  return n > 0
+    ? translate(n > 1 ? "simulator.history.modulesOther" : "simulator.history.modulesOne", locale, {
+        count: n,
+      })
+    : null;
 }
 
 function ParamRow({ label, value }: { label: string; value: string }) {

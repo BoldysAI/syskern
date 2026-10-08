@@ -9,6 +9,7 @@ import {
   type SavedComparison,
   type Simulation,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { AppModal } from "@/components/AppModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Props) {
+  const t = useUiTranslate();
   const [tab, setTab] = useState<"meta" | "sims">("meta");
   const [draft, setDraft] = useState<ComparisonWizardDraft>(() => ({
     label: comparison.label,
@@ -58,7 +60,7 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
       onSaved(updated);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Mise à jour échouée.");
+      setError(e instanceof Error ? e.message : t("comparator.edit.error"));
     } finally {
       setSaving(false);
     }
@@ -70,17 +72,17 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
       onOpenChange={(o) => {
         if (!o && !saving) onClose();
       }}
-      title="Modifier la comparaison"
-      description="Nom, note et sélection des simulations comparées."
+      title={t("comparator.edit.title")}
+      description={t("comparator.edit.description")}
       size="full"
       footer={
         <div className="flex w-full justify-end gap-3 border-t border-border px-5 py-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={() => void handleSave()} disabled={!canSave || saving}>
             <PencilSimple size={16} />
-            Enregistrer
+            {t("common.save")}
           </Button>
         </div>
       }
@@ -97,7 +99,7 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            Nom et note
+            {t("comparator.edit.tabMeta")}
           </button>
           <button
             type="button"
@@ -109,7 +111,7 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            Simulations
+            {t("comparator.simulations")}
           </button>
         </div>
 
@@ -121,7 +123,7 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
                   htmlFor="edit-label"
                   className="mb-1.5 block text-xs font-semibold text-muted-foreground"
                 >
-                  Nom
+                  {t("comparator.name")}
                 </label>
                 <Input
                   id="edit-label"
@@ -135,7 +137,7 @@ export function ComparisonEditDialog({ comparison, open, onClose, onSaved }: Pro
                   htmlFor="edit-note"
                   className="mb-1.5 block text-xs font-semibold text-muted-foreground"
                 >
-                  Note
+                  {t("comparator.note")}
                 </label>
                 <Textarea
                   id="edit-note"

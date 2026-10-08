@@ -1,25 +1,27 @@
 // Available export columns — mirror of `_COLUMN_REGISTRY` in
 // backend/apps/products/exports.py. Keep the keys in sync with the backend.
 
+import type { MessageKey } from "@/lib/i18n";
+
 export interface ExportColumn {
   key: string;
-  label: string;
+  labelKey: MessageKey;
 }
 
 export const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: "sku_code", label: "SKU" },
-  { key: "name", label: "Nom" },
-  { key: "universe", label: "Univers" },
-  { key: "family", label: "Famille" },
-  { key: "range", label: "Gamme" },
-  { key: "sub_range", label: "Sous-gamme" },
-  { key: "brand", label: "Marque" },
-  { key: "active_supplier", label: "Fournisseur actif" },
-  { key: "factory_code", label: "Code usine" },
-  { key: "stock_quantity", label: "Stock (unités)" },
-  { key: "pamp_eur", label: "PAMP (EUR)" },
-  { key: "is_copper_indexed", label: "Indexé cuivre" },
-  { key: "is_active", label: "Actif" },
+  { key: "sku_code", labelKey: "catalog.column.sku" },
+  { key: "name", labelKey: "catalog.field.name" },
+  { key: "universe", labelKey: "catalog.column.universe" },
+  { key: "family", labelKey: "catalog.column.family" },
+  { key: "range", labelKey: "catalog.column.range" },
+  { key: "sub_range", labelKey: "catalog.column.subRange" },
+  { key: "brand", labelKey: "catalog.column.brand" },
+  { key: "active_supplier", labelKey: "catalog.column.activeSupplier" },
+  { key: "factory_code", labelKey: "catalog.column.factoryCode" },
+  { key: "stock_quantity", labelKey: "catalog.column.stockUnits" },
+  { key: "pamp_eur", labelKey: "catalog.column.pampEur" },
+  { key: "is_copper_indexed", labelKey: "catalog.column.copperIndexed" },
+  { key: "is_active", labelKey: "catalog.column.active" },
 ];
 
 export const DEFAULT_EXPORT_COLUMNS: string[] = [

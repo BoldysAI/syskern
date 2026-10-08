@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,8 @@ export function QuarantineActiveFilterBar({
   onChange,
   onClearAll,
 }: QuarantineActiveFilterBarProps) {
-  const chips = buildQuarantineFilterChips(filters);
+  const t = useUiTranslate();
+  const chips = buildQuarantineFilterChips(filters, t);
   const total = countActiveQuarantineFilters(filters);
 
   if (total === 0) return null;
@@ -30,7 +32,7 @@ export function QuarantineActiveFilterBar({
     <div className="flex-shrink-0 border-b border-border bg-muted/30 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Filtres actifs
+          {t("admin.quarantine.activeFilters")}
           <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] tabular-nums">
             {total}
           </Badge>
@@ -41,7 +43,10 @@ export function QuarantineActiveFilterBar({
             type="button"
             onClick={() => onChange(removeQuarantineFilterChip(filters, chip.id))}
             className="group inline-flex max-w-[280px] items-center gap-1 rounded-full border border-border bg-card py-1 pr-1 pl-2.5 text-xs shadow-[var(--shadow-soft)] transition-colors hover:border-primary/30 hover:bg-primary/5"
-            title={`Retirer : ${chip.category} — ${chip.label}`}
+            title={t("admin.quarantine.removeChip", {
+              category: chip.category,
+              label: chip.label,
+            })}
           >
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-primary/80">
               {chip.category}
@@ -59,7 +64,7 @@ export function QuarantineActiveFilterBar({
           onClick={onClearAll}
           className="ml-auto text-primary"
         >
-          Tout effacer
+          {t("admin.quarantine.clearAll")}
         </Button>
       </div>
     </div>

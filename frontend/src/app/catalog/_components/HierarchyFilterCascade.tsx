@@ -12,6 +12,8 @@ import {
   TreeStructure,
 } from "@phosphor-icons/react";
 import type { CatalogFilters } from "@/lib/api";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { AppIcon } from "@/components/AppIcon";
@@ -24,29 +26,29 @@ import {
 const LEVELS = [
   {
     key: "universe" as const,
-    label: "Univers",
-    hint: "Sélection multiple possible — affinez ensuite famille, gamme et sous-gamme.",
+    labelKey: "catalog.column.universe" as const satisfies MessageKey,
+    hintKey: "catalog.hierarchy.universeHint" as const satisfies MessageKey,
     icon: TreeStructure,
     parentKeys: [] as const,
   },
   {
     key: "family" as const,
-    label: "Famille",
-    hint: "Sélectionnez au moins un univers pour affiner les familles disponibles.",
+    labelKey: "catalog.column.family" as const satisfies MessageKey,
+    hintKey: "catalog.hierarchy.familyHint" as const satisfies MessageKey,
     icon: Folder,
     parentKeys: ["universe"] as const,
   },
   {
     key: "range" as const,
-    label: "Gamme",
-    hint: "Affinez par gamme une fois l'univers ou la famille choisi.",
+    labelKey: "catalog.column.range" as const satisfies MessageKey,
+    hintKey: "catalog.hierarchy.rangeHint" as const satisfies MessageKey,
     icon: FolderOpen,
     parentKeys: ["universe", "family"] as const,
   },
   {
     key: "sub_range" as const,
-    label: "Sous-gamme",
-    hint: "Niveau le plus fin de l'arborescence produit.",
+    labelKey: "catalog.column.subRange" as const satisfies MessageKey,
+    hintKey: "catalog.hierarchy.subRangeHint" as const satisfies MessageKey,
     icon: Package,
     parentKeys: ["universe", "family", "range"] as const,
   },
@@ -74,6 +76,7 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
   parentMissing,
   onSetLevel,
 }: LevelStepProps) {
+  const t = useUiTranslate();
   const hasSelection = selected.length > 0;
   const [open, setOpen] = useState(false);
 
@@ -117,13 +120,16 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
               <AppIcon icon={level.icon} size="sm" weight="duotone" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-foreground">{level.label}</p>
+              <p className="text-xs font-semibold text-foreground">{t(level.labelKey)}</p>
               {hasSelection ? (
                 <p className="text-[11px] text-muted-foreground">
-                  {selected.length} sélectionné{selected.length > 1 ? "s" : ""}
+                  {t(
+                    selected.length > 1 ? "catalog.selection.other" : "catalog.selection.one",
+                    { count: selected.length },
+                  )}
                 </p>
               ) : (
-                <p className="text-[11px] text-muted-foreground">Cliquer pour développer</p>
+                <p className="text-[11px] text-muted-foreground">{t("catalog.hierarchy.expand")}</p>
               )}
             </div>
             <CaretDown
@@ -141,17 +147,17 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
           onPointerDown={(e) => e.stopPropagation()}
         >
           {parentMissing && level.key !== "universe" && (
-            <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{level.hint}</p>
+            <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{t(level.hintKey)}</p>
           )}
 
           {isLoading && !options?.length ? (
             <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
               <CircleNotch size={14} className="animate-spin" />
-              Chargement…
+              {t("common.loading")}
             </div>
           ) : optionList.length === 0 ? (
             <p className="py-4 text-center text-xs text-muted-foreground">
-              Aucune valeur disponible
+              {t("catalog.hierarchy.empty")}
             </p>
           ) : (
             <FilterCheckboxGroup
@@ -170,6 +176,7 @@ const HierarchyLevelStep = memo(function HierarchyLevelStep({
 });
 
 export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCascadeProps) {
+  const t = useUiTranslate();
   const parents = useMemo(
     () => ({
       universe: filters.universe,
@@ -207,15 +214,26 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
   };
 
   const selectedPath = [
-    filters.universe?.length ? `${filters.universe.length} univers` : null,
+    filters.universe?.length
+      ? t("catalog.hierarchy.universeCount", { count: filters.universe.length })
+      : null,
     filters.family?.length
-      ? `${filters.family.length} famille${filters.family.length > 1 ? "s" : ""}`
+      ? t(filters.family.length > 1 ? "catalog.hierarchy.familyOther" : "catalog.hierarchy.familyOne", {
+          count: filters.family.length,
+        })
       : null,
     filters.range?.length
-      ? `${filters.range.length} gamme${filters.range.length > 1 ? "s" : ""}`
+      ? t(filters.range.length > 1 ? "catalog.hierarchy.rangeOther" : "catalog.hierarchy.rangeOne", {
+          count: filters.range.length,
+        })
       : null,
     filters.sub_range?.length
-      ? `${filters.sub_range.length} sous-gamme${filters.sub_range.length > 1 ? "s" : ""}`
+      ? t(
+          filters.sub_range.length > 1
+            ? "catalog.hierarchy.subRangeOther"
+            : "catalog.hierarchy.subRangeOne",
+          { count: filters.sub_range.length },
+        )
       : null,
   ].filter(Boolean);
 
@@ -224,7 +242,7 @@ export function HierarchyFilterCascade({ filters, onChange }: HierarchyFilterCas
       {selectedPath.length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
-            Sélection
+            {t("catalog.hierarchy.selection")}
           </p>
           <p className="mt-0.5 text-xs text-foreground">{selectedPath.join(" · ")}</p>
         </div>

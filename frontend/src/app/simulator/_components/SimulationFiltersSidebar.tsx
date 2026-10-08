@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   Bookmark,
   BookmarkSimple,
@@ -20,8 +22,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   isEmptySimulationFilter,
-  SIMULATION_STATUS_OPTIONS,
-  SIMULATION_TYPE_OPTIONS,
+  simulationStatusOptions,
+  simulationTypeOptions,
 } from "./simulation-filters";
 import type { SavedSimulationFilter } from "./filters-storage";
 
@@ -51,6 +53,8 @@ export function SimulationFiltersSidebar({
   hideSaved = false,
   className,
 }: SimulationFiltersSidebarProps) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const patch = (p: Partial<SimulationFilters>) => onChange({ ...filters, ...p });
 
   const [saveName, setSaveName] = useState("");
@@ -61,7 +65,7 @@ export function SimulationFiltersSidebar({
     if (!name || isEmptySimulationFilter(filters)) return;
     onSaveFilter?.(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
+    setSaveFeedback(t("simulator.filters.savedFeedback", { name }));
     window.setTimeout(() => setSaveFeedback(null), 4000);
   };
 
@@ -69,9 +73,9 @@ export function SimulationFiltersSidebar({
 
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
-      <FilterSection title="Type" icon={Calculator}>
+      <FilterSection title={t("simulator.filters.type")} icon={Calculator}>
         <FilterCheckboxGroup
-          options={SIMULATION_TYPE_OPTIONS}
+          options={simulationTypeOptions(displayLanguage)}
           selected={filters.simulation_type ?? []}
           onChange={(simulation_type) =>
             patch({
@@ -84,9 +88,9 @@ export function SimulationFiltersSidebar({
       </FilterSection>
 
       {!hideStatus && (
-        <FilterSection title="Statut" icon={SealCheck}>
+        <FilterSection title={t("simulator.filters.status")} icon={SealCheck}>
           <FilterCheckboxGroup
-            options={SIMULATION_STATUS_OPTIONS}
+            options={simulationStatusOptions(displayLanguage)}
             selected={filters.status ?? []}
             onChange={(status) =>
               patch({
@@ -98,10 +102,10 @@ export function SimulationFiltersSidebar({
       )}
 
       {!hideDirty && (
-        <FilterSection title="État du calcul" icon={Clock}>
+        <FilterSection title={t("simulator.filters.calcState")} icon={Clock}>
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
             <Label htmlFor="filter-dirty-only" className="text-sm font-normal text-foreground">
-              Recalcul nécessaire
+              {t("simulator.status.dirty")}
             </Label>
             <Switch
               id="filter-dirty-only"
@@ -115,10 +119,10 @@ export function SimulationFiltersSidebar({
       )}
 
       {!hideSaved && (
-        <FilterSection title="Filtres enregistrés" icon={Bookmark}>
+        <FilterSection title={t("simulator.filters.saved")} icon={Bookmark}>
           {savedFilters.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Enregistrez une combinaison de filtres pour la réutiliser rapidement.
+              {t("simulator.filters.savedEmpty")}
             </p>
           ) : (
             <ul className="space-y-1">
@@ -140,7 +144,7 @@ export function SimulationFiltersSidebar({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => onDeleteFilter?.(sf.id)}
-                    aria-label={`Supprimer ${sf.name}`}
+                    aria-label={t("simulator.filters.deleteSaved", { name: sf.name })}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <Trash size={14} />
@@ -154,7 +158,7 @@ export function SimulationFiltersSidebar({
             <Input
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
-              placeholder="Nom du filtre…"
+              placeholder={t("simulator.filters.namePlaceholder")}
               className="h-9 text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && canSave) handleSave();
@@ -168,7 +172,7 @@ export function SimulationFiltersSidebar({
               onClick={handleSave}
             >
               <Faders size={14} />
-              Enregistrer les filtres actifs
+              {t("simulator.filters.saveActive")}
             </Button>
             {saveFeedback && <p className="text-center text-xs text-brand-green">{saveFeedback}</p>}
           </div>

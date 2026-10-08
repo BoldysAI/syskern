@@ -33,7 +33,7 @@ class MigrationUnmatchedViewSet(viewsets.ModelViewSet):
     def resolve(self, request, pk=None):
         """Resolve a row with an executed action (ignore / create / delete)."""
         row = self.get_object()
-        ser = ResolveSerializer(data=request.data)
+        ser = ResolveSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 

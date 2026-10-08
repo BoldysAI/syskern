@@ -11,6 +11,7 @@ import {
   isPresetSaleIncotermLocation,
   resolveSaleIncotermLocationUi,
 } from "@/lib/incoterms";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 const selectItemCls =
   "flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
@@ -32,10 +33,12 @@ export function LocationSelectField({
   onChange,
   disabled,
   ariaLabel,
-  emptyLabel = "Choisir un lieu…",
+  emptyLabel,
   inputClassName,
   customInputClassName,
 }: Props) {
+  const t = useUiTranslate();
+  const resolvedEmpty = emptyLabel ?? t("common.choosePlace");
   const triggerCls =
     inputClassName ??
     "w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
@@ -50,7 +53,7 @@ export function LocationSelectField({
     selectValue: locationSelect,
     showCustom: showCustomLocation,
     displayLabel: locationLabel,
-  } = resolveSaleIncotermLocationUi(value, otherExplicit, emptyLabel);
+  } = resolveSaleIncotermLocationUi(value, otherExplicit, resolvedEmpty);
 
   const handleSelect = (selected: string) => {
     if (selected === SALE_INCOTERM_LOCATION_NONE) {
@@ -73,7 +76,7 @@ export function LocationSelectField({
     <div className="flex flex-col gap-1">
       <Select.Root value={locationSelect} onValueChange={handleSelect} disabled={disabled}>
         <Select.Trigger
-          aria-label={`${ariaLabel} : ${locationLabel}`}
+          aria-label={t("common.ariaLabelValue", { label: ariaLabel, value: locationLabel })}
           className={cn(
             triggerCls,
             "flex items-center justify-between gap-2 text-left disabled:opacity-50",
@@ -99,7 +102,7 @@ export function LocationSelectField({
           >
             <Select.Viewport className="p-1">
               <Select.Item value={SALE_INCOTERM_LOCATION_NONE} className={selectItemCls}>
-                <Select.ItemText>— Non renseigné —</Select.ItemText>
+                <Select.ItemText>{t("common.notSet")}</Select.ItemText>
                 <Select.ItemIndicator>
                   <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
@@ -113,7 +116,7 @@ export function LocationSelectField({
                 </Select.Item>
               ))}
               <Select.Item value={SALE_INCOTERM_LOCATION_OTHER} className={selectItemCls}>
-                <Select.ItemText>Autre…</Select.ItemText>
+                <Select.ItemText>{t("common.otherEllipsis")}</Select.ItemText>
                 <Select.ItemIndicator>
                   <Check size={14} className="text-brand-green" />
                 </Select.ItemIndicator>
@@ -128,8 +131,8 @@ export function LocationSelectField({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           className={customCls}
-          placeholder="Précisez le lieu…"
-          aria-label={`${ariaLabel} (saisie libre)`}
+          placeholder={t("common.specifyPlace")}
+          aria-label={t("common.freeText", { label: ariaLabel })}
         />
       )}
     </div>

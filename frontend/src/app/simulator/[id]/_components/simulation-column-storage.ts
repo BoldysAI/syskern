@@ -1,31 +1,55 @@
 /** Registry + persistence of simulation table column visibility (FEEDBACK 2). */
 
+import { translate, type MessageKey } from "@/lib/i18n";
+
 export interface SimulationColumnMeta {
   key: string;
-  label: string;
   /** Cannot be hidden (SKU). */
   locked?: boolean;
   /** Only shown for project simulations. */
   projectOnly?: boolean;
 }
 
+const COLUMN_LABEL_KEYS: Record<string, MessageKey> = {
+  product_sku: "simulator.column.sku",
+  designation: "simulator.column.designation",
+  product_range: "simulator.column.range",
+  product_stock: "simulator.column.stock",
+  product_pamp_eur: "simulator.column.pamp",
+  pamp_predictive_eur: "simulator.column.pampPredictiveShort",
+  quantity: "simulator.column.quantity",
+  mix: "simulator.column.mixEffective",
+  pa_net_eur: "simulator.column.paNet",
+  pr_eur: "simulator.column.pr",
+  margin: "simulator.column.marginEffective",
+  previous_pv_eur: "simulator.column.previousPv",
+  pv_eur: "simulator.column.pv",
+  pv_total_eur: "simulator.column.totalPrice",
+  status: "simulator.column.status",
+};
+
+export function simulationColumnLabel(key: string, locale: string): string {
+  const messageKey = COLUMN_LABEL_KEYS[key];
+  return messageKey ? translate(messageKey, locale) : key;
+}
+
 /** All toggleable simulation line columns (display order). */
 export const SIMULATION_COLUMN_META: SimulationColumnMeta[] = [
-  { key: "product_sku", label: "SKU", locked: true },
-  { key: "designation", label: "Désignation" },
-  { key: "product_range", label: "Gamme" },
-  { key: "product_stock", label: "Stock" },
-  { key: "product_pamp_eur", label: "PAMP" },
-  { key: "pamp_predictive_eur", label: "PAMP prév." },
-  { key: "quantity", label: "Quantité", projectOnly: true },
-  { key: "mix", label: "Mix eff." },
-  { key: "pa_net_eur", label: "PA net" },
-  { key: "pr_eur", label: "PR" },
-  { key: "margin", label: "Marge eff." },
-  { key: "previous_pv_eur", label: "Dernier PV" },
-  { key: "pv_eur", label: "PV" },
-  { key: "pv_total_eur", label: "Prix total", projectOnly: true },
-  { key: "status", label: "Statut" },
+  { key: "product_sku", locked: true },
+  { key: "designation" },
+  { key: "product_range" },
+  { key: "product_stock" },
+  { key: "product_pamp_eur" },
+  { key: "pamp_predictive_eur" },
+  { key: "quantity", projectOnly: true },
+  { key: "mix" },
+  { key: "pa_net_eur" },
+  { key: "pr_eur" },
+  { key: "margin" },
+  { key: "previous_pv_eur" },
+  { key: "pv_eur" },
+  { key: "pv_total_eur", projectOnly: true },
+  { key: "status" },
 ];
 
 export const SIMULATION_COLUMN_ORDER: string[] = SIMULATION_COLUMN_META.map((c) => c.key);

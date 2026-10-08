@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   activeId?: string | null;
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
+  const t = useUiTranslate();
   const router = useRouter();
   const confirm = useConfirm();
   const { data, isLoading, mutate } = useSWR(
@@ -33,9 +35,9 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
-      title: "Supprimer la comparaison",
-      description: "Supprimer cette comparaison enregistrée ?",
-      confirmLabel: "Supprimer",
+      title: t("simulator.compare.deleteTitle"),
+      description: t("simulator.compare.deleteDescription"),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -49,7 +51,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
   };
 
   if (isLoading) {
-    return <div className="p-4 text-center text-xs text-muted-foreground">Chargement…</div>;
+    return <div className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</div>;
   }
 
   const items = data?.results ?? [];
@@ -58,9 +60,9 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
     return (
       <div className="flex flex-col items-center px-4 py-10 text-center text-muted-foreground">
         <Bookmark size={28} className="mb-2 text-muted-foreground/40" />
-        <p className="text-xs">Aucune comparaison enregistrée.</p>
+        <p className="text-xs">{t("simulator.compare.noneSaved")}</p>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Lancez une comparaison puis cliquez sur « Enregistrer ».
+          {t("simulator.compare.noneSavedHint")}
         </p>
       </div>
     );
@@ -90,7 +92,10 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
                   {item.label}
                 </span>
                 <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                  {item.column_count} colonne{item.column_count !== 1 ? "s" : ""} ·{" "}
+                  {item.column_count !== 1
+                    ? t("simulator.compare.columnOther", { count: item.column_count })
+                    : t("simulator.compare.columnOne", { count: item.column_count })}
+                  {" · "}
                   {new Date(item.created_at).toLocaleDateString("fr-FR")}
                 </span>
               </div>
@@ -118,7 +123,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
               onClick={() => handleDelete(item.id)}
               disabled={deletingId === item.id}
               className="absolute right-2 top-2 rounded p-1 text-muted-foreground/60 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 disabled:opacity-50"
-              aria-label="Supprimer"
+              aria-label={t("common.delete")}
             >
               {deletingId === item.id ? (
                 <CircleNotch size={14} className="animate-spin" />

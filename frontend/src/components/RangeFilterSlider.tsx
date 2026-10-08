@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function RangeFilterSlider({
   unit,
   className,
 }: RangeFilterSliderProps) {
+  const t = useUiTranslate();
   const effectiveMin = minValue ?? min;
   const effectiveMax = maxValue ?? max;
 
@@ -46,7 +48,7 @@ export function RangeFilterSlider({
 
   const summary = useMemo(() => {
     const fmt = (n: number) => `${formatValue(n)}${unit ? ` ${unit}` : ""}`;
-    if (!isActive) return "Toutes les valeurs";
+    if (!isActive) return t("common.allValues");
     if (dual) {
       if (effectiveMin > min && effectiveMax < max) {
         return `${fmt(effectiveMin)} — ${fmt(effectiveMax)}`;
@@ -55,7 +57,7 @@ export function RangeFilterSlider({
       return `≤ ${fmt(effectiveMax)}`;
     }
     return `≥ ${fmt(effectiveMin)}`;
-  }, [dual, effectiveMin, effectiveMax, formatValue, isActive, min, max, unit]);
+  }, [dual, effectiveMin, effectiveMax, formatValue, isActive, min, max, unit, t]);
 
   const handleSlider = (val: number | readonly number[]) => {
     const values = Array.isArray(val) ? [...val] : [val];
@@ -82,7 +84,7 @@ export function RangeFilterSlider({
         </div>
         {isActive && (
           <Button type="button" variant="ghost" size="xs" onClick={reset}>
-            Réinitialiser
+            {t("common.reset")}
           </Button>
         )}
       </div>

@@ -6,20 +6,23 @@ import type { DashboardRecentItem } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
+import { useAuth } from "@/contexts/AuthContext";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { formatRelative } from "./dashboard-utils";
 
-const OFFER_STATUS: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
-  draft: { label: "Brouillon", variant: "draft" },
-  sent: { label: "Envoyée", variant: "info" },
-  won: { label: "Gagnée", variant: "success" },
-  lost: { label: "Perdue", variant: "failed" },
-  expired: { label: "Expirée", variant: "warning" },
+const OFFER_STATUS: Record<string, { labelKey: MessageKey; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
+  draft: { labelKey: "dashboard.statusDraft", variant: "draft" },
+  sent: { labelKey: "dashboard.statusSent", variant: "info" },
+  won: { labelKey: "dashboard.statusWon", variant: "success" },
+  lost: { labelKey: "dashboard.statusLost", variant: "failed" },
+  expired: { labelKey: "dashboard.statusExpired", variant: "warning" },
 };
 
-const SIM_STATUS: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
-  draft: { label: "Brouillon", variant: "warning" },
-  finalized: { label: "Finalisé", variant: "success" },
-  archived: { label: "Archivé", variant: "draft" },
+const SIM_STATUS: Record<string, { labelKey: MessageKey; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
+  draft: { labelKey: "dashboard.statusDraft", variant: "warning" },
+  finalized: { labelKey: "dashboard.statusFinalized", variant: "success" },
+  archived: { labelKey: "dashboard.statusArchived", variant: "draft" },
 };
 
 function kindIcon(kind: DashboardRecentItem["kind"]) {
@@ -33,14 +36,14 @@ function kindIcon(kind: DashboardRecentItem["kind"]) {
   }
 }
 
-function kindLabel(kind: DashboardRecentItem["kind"]) {
+function kindLabel(kind: DashboardRecentItem["kind"], t: (key: MessageKey) => string) {
   switch (kind) {
     case "simulation":
-      return "Simulation";
+      return t("nav.simulation");
     case "offer":
-      return "Offre";
+      return t("nav.offer");
     case "comparison":
-      return "Comparaison";
+      return t("nav.comparison");
   }
 }
 
@@ -50,10 +53,12 @@ interface Props {
 }
 
 export function DashboardActivityTimeline({ items, loading }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   if (loading) {
     return (
       <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Activité récente</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t("dashboard.recentActivity")}</h2>
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
@@ -65,14 +70,14 @@ export function DashboardActivityTimeline({ items, loading }: Props) {
 
   return (
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-      <h2 className="mb-3 text-sm font-semibold text-foreground">Activité récente</h2>
+      <h2 className="mb-3 text-sm font-semibold text-foreground">{t("dashboard.recentActivity")}</h2>
 
       {items.length === 0 ? (
         <EmptyState
           className="border-none bg-transparent py-8 shadow-none"
           icon={<ChartLineUp size={28} weight="duotone" />}
-          title="Aucune activité récente"
-          description="Vos simulations, offres et comparaisons apparaîtront ici."
+          title={t("dashboard.noRecentActivity")}
+          description={t("dashboard.noRecentActivityDesc")}
         />
       ) : (
         <ul className="pl-0.5">
@@ -80,10 +85,10 @@ export function DashboardActivityTimeline({ items, loading }: Props) {
             const Icon = kindIcon(item.kind);
             const st =
               item.kind === "simulation"
-                ? SIM_STATUS[item.status] ?? SIM_STATUS.draft
+                ? (SIM_STATUS[item.status] ?? SIM_STATUS.draft)
                 : item.kind === "offer"
-                  ? OFFER_STATUS[item.status] ?? { label: item.status, variant: "default" as const }
-                  : null;
+                  ? OFFER_STATUS[item.status]
+                  : undefined;
             const isLast = index === items.length - 1;
 
             return (
@@ -111,21 +116,25 @@ export function DashboardActivityTimeline({ items, loading }: Props) {
                     <div className="min-w-0">
                       <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         <Icon size={12} weight="duotone" />
-                        {kindLabel(item.kind)}
+                        {kindLabel(item.kind, t)}
                       </div>
                       <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatRelative(item.occurred_at)}
+                        {formatRelative(item.occurred_at, displayLanguage)}
                         {item.is_dirty && (
-                          <span className="ml-1.5 font-medium text-warm">· à recalculer</span>
+                          <span className="ml-1.5 font-medium text-warm">{t("dashboard.needsRecalc")}</span>
                         )}
                       </p>
                     </div>
-                    {st && (
+                    {st ? (
                       <StatusBadge variant={st.variant} className="shrink-0">
-                        {st.label}
+                        {t(st.labelKey)}
                       </StatusBadge>
-                    )}
+                    ) : item.kind === "offer" ? (
+                      <StatusBadge variant="default" className="shrink-0">
+                        {item.status}
+                      </StatusBadge>
+                    ) : null}
                   </div>
                 </Link>
               </li>

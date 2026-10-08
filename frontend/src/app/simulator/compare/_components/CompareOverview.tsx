@@ -26,6 +26,8 @@ import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/sim
 import { cn } from "@/lib/utils";
 import { buildDiffSections } from "./compare-diff";
 import { columnVisuals, deltaBg, deltaColor } from "./compare-colors";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   buildAggregateChartData,
   buildKpiCards,
@@ -46,12 +48,17 @@ export function CompareOverview({
   products,
   simulationNavContext = { kind: "default" },
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
     () => columnVisuals(columns.map((c) => c.label), columns.map((c) => c.key)),
     [columns]
   );
-  const chartData = useMemo(() => buildAggregateChartData(columns), [columns]);
+  const chartData = useMemo(
+    () => buildAggregateChartData(columns, displayLanguage),
+    [columns, displayLanguage],
+  );
   const distribution = useMemo(
     () => computePvDistribution(products, columns, baseKey),
     [products, columns, baseKey]
@@ -60,20 +67,23 @@ export function CompareOverview({
     () => buildTopMovers(products, columns, baseKey, 8),
     [products, columns, baseKey]
   );
-  const marketRows = useMemo(() => buildMarketCompare(columns), [columns]);
-  const kpiCards = useMemo(() => buildKpiCards(columns), [columns]);
+  const marketRows = useMemo(
+    () => buildMarketCompare(columns, displayLanguage),
+    [columns, displayLanguage],
+  );
+  const kpiCards = useMemo(() => buildKpiCards(columns, displayLanguage), [columns, displayLanguage]);
   const paramDiffs = useMemo(() => {
-    return buildDiffSections(columns)
+    return buildDiffSections(columns, displayLanguage)
       .flatMap((s) => s.rows.filter((r) => r.hasDiff))
       .slice(0, 12);
-  }, [columns]);
-  const paramDiffCount = countParamDiffs(columns);
+  }, [columns, displayLanguage]);
+  const paramDiffCount = countParamDiffs(columns, displayLanguage);
 
   const pieData = [
-    { name: "PV en hausse", value: distribution.up, color: "#EF4444" },
-    { name: "PV stable", value: distribution.stable, color: "#10B981" },
-    { name: "PV en baisse", value: distribution.down, color: "#3B82F6" },
-    { name: "Sans donnée", value: distribution.missing, color: "#CBD5E1" },
+    { name: t("simulator.compare.pvUp"), value: distribution.up, color: "#EF4444" },
+    { name: t("simulator.compare.pvStable"), value: distribution.stable, color: "#10B981" },
+    { name: t("simulator.compare.pvDown"), value: distribution.down, color: "#3B82F6" },
+    { name: t("simulator.compare.noData"), value: distribution.missing, color: "#CBD5E1" },
   ].filter((d) => d.value > 0);
 
   const marketDiffs = marketRows.filter((r) => r.hasDiff);
@@ -109,12 +119,12 @@ export function CompareOverview({
                   <div className="mt-1 flex flex-wrap gap-1">
                     {v.isRef && (
                       <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800">
-                        Référence
+                        {t("simulator.compare.referenceCap")}
                       </span>
                     )}
                     {col.type === "recalculation" && (
                       <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">
-                        Snapshot
+                        {t("simulator.compare.snapshot")}
                       </span>
                     )}
                   </div>
@@ -127,11 +137,11 @@ export function CompareOverview({
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <MiniStat label="Lignes" value={String(agg.line_count ?? "—")} />
-                <MiniStat label="PV moy." value={fmtEur(agg.avg_pv_eur)} />
-                <MiniStat label="Marge moy." value={agg.avg_margin ? `${decToPct(agg.avg_margin)} %` : "—"} />
+                <MiniStat label={t("simulator.column.lines")} value={String(agg.line_count ?? "—")} />
+                <MiniStat label={t("simulator.history.pvAvgShort")} value={fmtEur(agg.avg_pv_eur)} />
+                <MiniStat label={t("simulator.history.marginAvg")} value={agg.avg_margin ? `${decToPct(agg.avg_margin)} %` : "—"} />
                 <MiniStat
-                  label="Alertes"
+                  label={t("simulator.history.alerts")}
                   value={`${agg.warnings_count ?? 0} / ${agg.errors_count ?? 0}`}
                 />
               </div>
@@ -149,7 +159,7 @@ export function CompareOverview({
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Aggregate bar chart */}
-        <ChartCard title="Moyennes PA / PR / PV" subtitle="Comparaison des agrégats par colonne">
+        <ChartCard title={t("simulator.compare.avgTitle")} subtitle={t("simulator.compare.avgSubtitle")}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -168,7 +178,7 @@ export function CompareOverview({
         </ChartCard>
 
         {/* PV distribution pie */}
-        <ChartCard title="Impact PV sur les SKU" subtitle="Écart vs référence (lignes communes)">
+        <ChartCard title={t("simulator.compare.impactTitle")} subtitle={t("simulator.compare.impactSubtitle")}>
           {pieData.length > 0 ? (
             <div className="flex flex-col items-center gap-4 sm:flex-row">
               <ResponsiveContainer width="100%" height={220}>
@@ -201,7 +211,7 @@ export function CompareOverview({
               </ul>
             </div>
           ) : (
-            <p className="py-16 text-center text-sm text-muted-foreground">Pas assez de données.</p>
+            <p className="py-16 text-center text-sm text-muted-foreground">{t("simulator.compare.notEnough")}</p>
           )}
         </ChartCard>
       </div>
@@ -209,8 +219,12 @@ export function CompareOverview({
       {/* Market params - only if different */}
       {marketDiffs.length > 0 && (
         <ChartCard
-          title="Paramètres marché (écarts)"
-          subtitle={`${marketDiffs.length} indicateur${marketDiffs.length > 1 ? "s" : ""} différent${marketDiffs.length > 1 ? "s" : ""}`}
+          title={t("simulator.compare.marketDiffs")}
+          subtitle={
+            marketDiffs.length > 1
+              ? t("simulator.compare.indicatorOther", { count: marketDiffs.length })
+              : t("simulator.compare.indicatorOne", { count: marketDiffs.length })
+          }
         >
           <div className="space-y-5">
             {marketDiffs.map((row) => {
@@ -257,7 +271,7 @@ export function CompareOverview({
 
       {/* Top movers */}
       {movers.length > 0 && (
-        <ChartCard title="Plus grands écarts de PV" subtitle="Top SKU par variation % vs référence">
+        <ChartCard title={t("simulator.compare.topTitle")} subtitle={t("simulator.compare.topSubtitle")}>
           <div className="space-y-3">
             {movers.map((m) => (
               <div
@@ -270,7 +284,7 @@ export function CompareOverview({
                     <span className="ml-2 truncate text-xs text-muted-foreground">{m.name}</span>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    Réf. {fmtEur(String(m.basePv))}
+                    {t("simulator.compare.refShort", { value: fmtEur(String(m.basePv)) })}
                   </span>
                 </div>
                 <div className="space-y-1.5">
@@ -314,7 +328,9 @@ export function CompareOverview({
           <div className="mb-3 flex items-center gap-2">
             <TrendUp size={16} className="text-warm" />
             <h3 className="text-sm font-semibold text-foreground">
-              {paramDiffCount} paramètre{paramDiffCount > 1 ? "s" : ""} modifié{paramDiffCount > 1 ? "s" : ""}
+              {paramDiffCount > 1
+                ? t("simulator.compare.paramOther", { count: paramDiffCount })
+                : t("simulator.compare.paramOne", { count: paramDiffCount })}
             </h3>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -329,7 +345,9 @@ export function CompareOverview({
             ))}
             {paramDiffCount > paramDiffs.length && (
               <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
-                +{paramDiffCount - paramDiffs.length} autres
+                {t("simulator.compare.moreOthers", {
+                  count: paramDiffCount - paramDiffs.length,
+                })}
               </span>
             )}
           </div>
@@ -377,6 +395,7 @@ function KpiDeltaCard({
   visuals: ReturnType<typeof columnVisuals>;
   baseKey: string;
 }) {
+  const t = useUiTranslate();
   const nonRef = kpi.values.filter((v) => v.key !== baseKey && v.deltaPct != null);
   const worst = nonRef.reduce(
     (best, v) => (best == null || Math.abs(v.deltaPct!) > Math.abs(best.deltaPct!) ? v : best),
@@ -388,7 +407,7 @@ function KpiDeltaCard({
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{kpi.label}</div>
       <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
         {kpi.refValue != null
-          ? kpi.label.includes("Marge")
+          ? kpi.unit === "pct"
             ? `${(kpi.refValue * 100).toFixed(1)} %`
             : fmtEur(String(kpi.refValue))
           : "—"}
@@ -396,7 +415,7 @@ function KpiDeltaCard({
       {worst && (
         <div className={cn("mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold", deltaBg(worst.deltaPct!))}>
           <DeltaBadge pct={worst.deltaPct!} />
-          <span className="text-muted-foreground">max écart</span>
+          <span className="text-muted-foreground">{t("simulator.compare.maxDelta")}</span>
         </div>
       )}
       <div className="mt-3 flex gap-1">

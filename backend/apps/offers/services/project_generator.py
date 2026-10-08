@@ -23,6 +23,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.utils import timezone
 
+from apps.accounts.ui_locale import translate_request
 from apps.clients.models import Client
 from apps.simulations.models import Simulation
 
@@ -281,7 +282,7 @@ def _resolve_arguments(offer: Offer) -> tuple[dict | None, bool]:
 def _mark_generation_error(offer: Offer, message: str) -> Offer:
     """Persist a terminal ERROR state so the UI stops polling (CDC §7.6.3)."""
     offer.generation_status = GenerationStatus.ERROR
-    offer.generation_error = (message or "Erreur de génération.")[:2000]
+    offer.generation_error = (message or translate_request(None, "offers.generation_failed"))[:2000]
     offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
     return offer
 
@@ -304,7 +305,7 @@ def run_generation(offer: Offer, *, gamma_client: GammaClient | None = None) -> 
         payload = build_gamma_payload(offer, arguments=arguments)
         result = gamma.generate_and_wait(payload)
     except SoftTimeLimitExceeded:
-        _mark_generation_error(offer, "La génération a dépassé le temps imparti.")
+        _mark_generation_error(offer, translate_request(None, "offers.generation_timeout"))
         raise  # surface the timeout to Celery
     except Exception as exc:  # noqa: BLE001 — any failure must yield a terminal state
         logger.warning("Gamma generation failed for offer %s: %s", offer.id, exc)

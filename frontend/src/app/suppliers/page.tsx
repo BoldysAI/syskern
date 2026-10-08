@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { DataTable } from "@/components/data-table";
@@ -45,6 +46,7 @@ export default function SuppliersPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const { role } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
   const [modal, setModal] = useState<Supplier | "new" | null>(null);
@@ -94,7 +96,7 @@ export default function SuppliersPage() {
     () => [
       {
         key: "name",
-        label: "Fournisseur",
+        label: t("suppliers.column.supplier"),
         width: 260,
         sortField: "name",
         render: (s) => (
@@ -106,13 +108,13 @@ export default function SuppliersPage() {
       },
       {
         key: "currency_default",
-        label: "Devise",
+        label: t("suppliers.column.currency"),
         width: 100,
         render: (s) => <span className="font-data text-sm text-foreground">{s.currency_default}</span>,
       },
       {
         key: "incoterm_default",
-        label: "Incoterm",
+        label: t("suppliers.column.incoterm"),
         width: 120,
         render: (s) => (
           <span className="text-sm text-muted-foreground">{s.incoterm_default || "—"}</span>
@@ -120,13 +122,13 @@ export default function SuppliersPage() {
       },
       {
         key: "location",
-        label: "Localisation",
+        label: t("suppliers.column.location"),
         width: 200,
         render: (s) => <span className="text-sm text-muted-foreground">{s.location || "—"}</span>,
       },
       {
         key: "linked_skus_count",
-        label: "SKU liés",
+        label: t("suppliers.column.linkedSkus"),
         width: 110,
         align: "right",
         sortField: "linked_skus_count",
@@ -136,32 +138,32 @@ export default function SuppliersPage() {
       },
       {
         key: "is_active",
-        label: "Statut",
+        label: t("suppliers.column.status"),
         width: 110,
         render: (s) => (
           <StatusBadge variant={s.is_active ? "success" : "draft"}>
-            {s.is_active ? "Actif" : "Inactif"}
+            {s.is_active ? t("suppliers.status.active") : t("suppliers.status.inactive")}
           </StatusBadge>
         ),
       },
     ],
-    [],
+    [t],
   );
 
   const handleDelete = async (s: Supplier) => {
     const ok = await confirm({
-      title: "Supprimer le fournisseur",
-      description: `Supprimer « ${s.name} » ?`,
-      confirmLabel: "Supprimer",
+      title: t("suppliers.list.deleteTitle"),
+      description: t("suppliers.list.deleteDescription", { name: s.name }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
     try {
       await deleteSupplier(s.id);
-      toast.success("Fournisseur supprimé.");
+      toast.success(t("suppliers.list.deleted"));
       await mutate("suppliers");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     }
   };
 
@@ -174,8 +176,8 @@ export default function SuppliersPage() {
             type="button"
             onClick={toggleCollapsed}
             className="flex h-full w-11 flex-col items-center gap-2 py-4 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-            title="Afficher les filtres"
-            aria-label="Afficher les filtres"
+            title={t("suppliers.filters.show")}
+            aria-label={t("suppliers.filters.show")}
           >
             <Faders size={18} />
             {activeCount > 0 && (
@@ -190,7 +192,7 @@ export default function SuppliersPage() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
             <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Faders size={16} weight="duotone" className="text-primary" />
-              Filtres
+              {t("suppliers.filters.title")}
               {activeCount > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground tabular-nums">
                   {activeCount}
@@ -201,8 +203,8 @@ export default function SuppliersPage() {
               variant="ghost"
               size="icon-sm"
               onClick={toggleCollapsed}
-              title="Masquer les filtres"
-              aria-label="Masquer les filtres"
+              title={t("suppliers.filters.hide")}
+              aria-label={t("suppliers.filters.hide")}
             >
               <SidebarSimple size={18} />
             </Button>
@@ -217,32 +219,40 @@ export default function SuppliersPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">Fournisseurs</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">{t("suppliers.title")}</h1>
             <p className="text-sm text-muted-foreground">
               {isLoading
-                ? "Chargement…"
-                : `${rows.length} / ${suppliers?.length ?? 0} fournisseur${(suppliers?.length ?? 0) !== 1 ? "s" : ""}`}
+                ? t("common.loading")
+                : (suppliers?.length ?? 0) !== 1
+                  ? t("suppliers.list.countOther", {
+                      shown: rows.length,
+                      total: suppliers?.length ?? 0,
+                    })
+                  : t("suppliers.list.countOne", {
+                      shown: rows.length,
+                      total: suppliers?.length ?? 0,
+                    })}
             </p>
           </div>
           <SearchInput
             className="w-full sm:w-72"
             value={searchInput}
             onChange={onSearchChange}
-            placeholder="Rechercher (nom, code, localisation)…"
+            placeholder={t("suppliers.list.searchPlaceholder")}
           />
           {userCanEdit && (
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setWizardOpen(true)}>
                 <AppIcon icon={CurrencyDollar} size="sm" />
-                Prix en batch
+                {t("suppliers.list.batchPrices")}
               </Button>
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 <AppIcon icon={UploadSimple} size="sm" />
-                Importer des PO
+                {t("suppliers.list.importPo")}
               </Button>
               <Button onClick={() => setModal("new")}>
                 <AppIcon icon={Plus} size="sm" />
-                Nouveau fournisseur
+                {t("suppliers.list.newSupplier")}
               </Button>
             </div>
           )}
@@ -270,7 +280,7 @@ export default function SuppliersPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          title="Modifier"
+                          title={t("common.edit")}
                           onClick={(e) => {
                             e.stopPropagation();
                             setModal(s);
@@ -281,7 +291,7 @@ export default function SuppliersPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          title="Supprimer"
+                          title={t("common.delete")}
                           onClick={(e) => {
                             e.stopPropagation();
                             void handleDelete(s);
@@ -298,7 +308,7 @@ export default function SuppliersPage() {
                   <EmptyState
                     className="border-none bg-transparent shadow-none"
                     icon={<AppIcon icon={Truck} size="lg" />}
-                    title="Impossible de charger les fournisseurs"
+                    title={t("suppliers.list.loadError")}
                   />
                 ) : undefined
               }
@@ -307,18 +317,14 @@ export default function SuppliersPage() {
                   className="border-none bg-transparent shadow-none"
                   icon={<AppIcon icon={Truck} size="lg" />}
                   title={
-                    activeCount > 0 ? "Aucun fournisseur ne correspond aux filtres" : "Aucun fournisseur"
+                    activeCount > 0 ? t("suppliers.list.emptyFiltered") : t("suppliers.list.empty")
                   }
-                  description={
-                    activeCount > 0
-                      ? undefined
-                      : "Créez un fournisseur ou importez des PO pour commencer."
-                  }
+                  description={activeCount > 0 ? undefined : t("suppliers.list.emptyHint")}
                   action={
                     userCanEdit && activeCount === 0 ? (
                       <Button onClick={() => setModal("new")}>
                         <AppIcon icon={Plus} size="sm" />
-                        Nouveau fournisseur
+                        {t("suppliers.list.newSupplier")}
                       </Button>
                     ) : undefined
                   }

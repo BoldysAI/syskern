@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowSquareOut } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import type { CatalogPv } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -177,7 +178,10 @@ type HistoryPointLike = {
 };
 
 /** PV + metadata of the latest price-history point (finalized simulation). */
-export function latestPvSourceFromHistory(points: HistoryPointLike[]): CatalogPvSource | null {
+export function latestPvSourceFromHistory(
+  points: HistoryPointLike[],
+  fallbackLabel: string,
+): CatalogPvSource | null {
   const pv = latestPvFromHistory(points);
   if (!pv || !points.length) return null;
   const last = points[points.length - 1];
@@ -186,7 +190,7 @@ export function latestPvSourceFromHistory(points: HistoryPointLike[]): CatalogPv
   return {
     pv,
     simulationId,
-    simulationLabel: last.simulation_label?.trim() || "Simulation",
+    simulationLabel: last.simulation_label?.trim() || fallbackLabel,
     date: last.date ?? "",
   };
 }
@@ -220,6 +224,7 @@ export function CatalogPvSimulationSource({
   productTab = "commercial",
   className,
 }: CatalogPvSimulationSourceProps) {
+  const t = useUiTranslate();
   if (!source?.simulationId) return null;
 
   const when = formatSimulationDate(source.date);
@@ -250,7 +255,7 @@ export function CatalogPvSimulationSource({
         render={<Link href={href} />}
       >
         <ArrowSquareOut size={14} weight="duotone" />
-        Voir la simulation
+        {t("catalog.pv.viewSimulation")}
       </Button>
     </div>
   );

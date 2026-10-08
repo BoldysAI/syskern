@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Bell, BookmarkSimple, Coins, Database, Tag, Truck } from "@phosphor-icons/react";
 import type { IconProps } from "@phosphor-icons/react";
 import { AppIcon } from "@/components/AppIcon";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,28 +15,29 @@ import { cn } from "@/lib/utils";
  * `/settings/attributes`.
  */
 export const SETTINGS_NAV_ITEMS = [
-  { id: "marche", label: "Paramètres marché", href: "/settings?tab=marche", icon: Coins },
-  { id: "transport", label: "Modes de transport", href: "/settings?tab=transport", icon: Truck },
+  { id: "marche", labelKey: "settings.nav.market", href: "/settings?tab=marche", icon: Coins },
+  { id: "transport", labelKey: "settings.nav.transport", href: "/settings?tab=transport", icon: Truck },
   {
     id: "transport-presets",
-    label: "Presets transport",
+    labelKey: "settings.nav.presets",
     href: "/settings?tab=transport-presets",
     icon: BookmarkSimple,
   },
-  { id: "odoo", label: "Synchronisation Odoo", href: "/settings?tab=odoo", icon: Database },
-  { id: "alerts", label: "Alertes offres", href: "/settings?tab=alerts", icon: Bell },
-  { id: "attributes", label: "Attributs dynamiques", href: "/settings/attributes", icon: Tag },
+  { id: "odoo", labelKey: "settings.nav.odoo", href: "/settings?tab=odoo", icon: Database },
+  { id: "alerts", labelKey: "settings.nav.alerts", href: "/settings?tab=alerts", icon: Bell },
+  { id: "attributes", labelKey: "settings.nav.attributes", href: "/settings/attributes", icon: Tag },
 ] as const satisfies ReadonlyArray<{
   id: string;
-  label: string;
+  labelKey: string;
   href: string;
   icon: React.ComponentType<IconProps>;
 }>;
 
 export function SettingsNavShell({ activeId }: { activeId?: string | null }) {
+  const t = useUiTranslate();
   return (
     <div className="mb-6 flex gap-0.5 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm">
-      {SETTINGS_NAV_ITEMS.map(({ id, label, href, icon }) => {
+      {SETTINGS_NAV_ITEMS.map(({ id, labelKey, href, icon }) => {
         const active = activeId === id;
         return (
           <Link
@@ -50,7 +52,7 @@ export function SettingsNavShell({ activeId }: { activeId?: string | null }) {
             )}
           >
             <AppIcon icon={icon} size="sm" />
-            {label}
+            {t(labelKey)}
           </Link>
         );
       })}

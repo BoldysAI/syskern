@@ -29,12 +29,14 @@ import { BulkEditModal } from "./_components/BulkEditModal";
 import { AddProductsModal } from "./_components/AddProductsModal";
 import { RecalcHistoryDrawer } from "./_components/RecalcHistoryDrawer";
 import { SimulationParamsSheet } from "@/app/simulator/_components/SimulationParamsSheet";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 export default function SimulationDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = params?.id ?? "";
+  const t = useUiTranslate();
 
   const {
     data: sim,
@@ -74,8 +76,8 @@ export default function SimulationDetailPage() {
         productQ.size ? `?${productQ.toString()}` : ""
       }`;
       return [
-        { href: "/", label: "Tableau de bord" },
-        { href: "/catalog", label: "Catalogue" },
+        { href: "/", label: t("simulator.detail.dashboard") },
+        { href: "/catalog", label: t("simulator.catalog.title") },
         { href: productHref, label: productLabel || productSku },
         { label: sim.label },
       ];
@@ -87,7 +89,7 @@ export default function SimulationDetailPage() {
     }
 
     return buildSimulationBreadcrumbs({ kind: "default" }, sim.label);
-  }, [sim, searchParams]);
+  }, [sim, searchParams, t]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));
 
@@ -113,9 +115,9 @@ export default function SimulationDetailPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
         <WarningCircle size={40} weight="duotone" className="text-destructive/60" />
-        <p className="font-medium text-foreground">Simulation introuvable</p>
+        <p className="font-medium text-foreground">{t("simulator.detail.notFound")}</p>
         <Link href="/simulator" className="mt-2 text-sm font-medium text-warm hover:text-accent-foreground">
-          Retour aux simulations
+          {t("simulator.wizard.backToList")}
         </Link>
       </div>
     );
@@ -152,8 +154,8 @@ export default function SimulationDetailPage() {
               type="button"
               onClick={() => setParamsSheetOpen(true)}
               className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Ouvrir les paramètres en plein écran"
-              title="Plein écran"
+              aria-label={t("simulator.detail.openParams")}
+              title={t("simulator.detail.fullscreen")}
             >
               <ArrowsOut size={18} />
             </button>
@@ -162,8 +164,8 @@ export default function SimulationDetailPage() {
             type="button"
             onClick={() => setCollapsed(false)}
             className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher le panneau des paramètres"
-            title="Afficher le panneau"
+            aria-label={t("simulator.detail.showParams")}
+            title={t("simulator.detail.showPanel")}
           >
             <SidebarSimple size={18} />
           </button>
@@ -185,7 +187,7 @@ export default function SimulationDetailPage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des paramètres"
+            aria-label={t("simulator.detail.resizeParams")}
             onMouseDown={startResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",

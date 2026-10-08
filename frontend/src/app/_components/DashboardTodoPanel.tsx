@@ -11,34 +11,37 @@ import type { DashboardTodoItem, DashboardTodoKind } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { formatRelative } from "./dashboard-utils";
 
 const KIND_CONFIG: Record<
   DashboardTodoKind,
-  { label: string; icon: typeof Warning; className: string }
+  { labelKey: MessageKey; icon: typeof Warning; className: string }
 > = {
   simulation_dirty: {
-    label: "Recalcul nécessaire",
+    labelKey: "dashboard.todoRecalc",
     icon: Warning,
     className: "text-warm bg-warm/10",
   },
   simulation_never_calculated: {
-    label: "Jamais calculée",
+    labelKey: "dashboard.todoNeverCalculated",
     icon: Clock,
     className: "text-amber-700 bg-amber-50",
   },
   simulation_line_errors: {
-    label: "Erreurs de calcul",
+    labelKey: "dashboard.todoCalcErrors",
     icon: WarningCircle,
     className: "text-destructive bg-destructive/10",
   },
   offer_expiring: {
-    label: "Expire bientôt",
+    labelKey: "dashboard.todoExpiring",
     icon: Clock,
     className: "text-violet-700 bg-violet-50",
   },
   offer_generation_error: {
-    label: "Génération échouée",
+    labelKey: "dashboard.todoGenerationFailed",
     icon: WarningCircle,
     className: "text-destructive bg-destructive/10",
   },
@@ -50,10 +53,12 @@ interface Props {
 }
 
 export function DashboardTodoPanel({ items, loading }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   if (loading) {
     return (
       <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">À traiter</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t("dashboard.toProcess")}</h2>
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
@@ -66,10 +71,10 @@ export function DashboardTodoPanel({ items, loading }: Props) {
   return (
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">À traiter</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("dashboard.toProcess")}</h2>
         {items.length > 0 && (
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/simulator?is_dirty=true" />}>
-            Simulations à recalculer
+            {t("dashboard.simsToRecalculate")}
           </Button>
         )}
       </div>
@@ -78,8 +83,8 @@ export function DashboardTodoPanel({ items, loading }: Props) {
         <EmptyState
           className="border-none bg-transparent py-6 shadow-none"
           icon={<Calculator size={28} weight="duotone" />}
-          title="Rien en attente"
-          description="Toutes vos simulations et offres sont à jour."
+          title={t("dashboard.nothingPending")}
+          description={t("dashboard.allUpToDate")}
         />
       ) : (
         <ul className="space-y-2">
@@ -105,7 +110,7 @@ export function DashboardTodoPanel({ items, loading }: Props) {
                       {item.label}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {cfg.label} · {formatRelative(item.occurred_at)}
+                      {t(cfg.labelKey)} · {formatRelative(item.occurred_at, displayLanguage)}
                     </span>
                   </span>
                 </Link>

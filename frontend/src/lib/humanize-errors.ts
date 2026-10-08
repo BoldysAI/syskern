@@ -1,3 +1,5 @@
+import { translate } from "@/lib/i18n";
+
 /**
  * Map pricing-engine / API error strings to French, user-facing copy.
  * Mirrors backend `engine/errors.py` for legacy diagnostics already stored in DB.
@@ -12,18 +14,12 @@ const FX_PARAM_LABELS: Record<string, string> = {
 
 const MISSING_FX_RE = /^Missing FX rate `(fx_eur_\w+)` in market parameters\.$/;
 
-function missingFxRateMessage(paramKey: string): string {
+function missingFxRateMessage(paramKey: string, locale: string): string {
   const label = FX_PARAM_LABELS[paramKey];
   if (label) {
-    return (
-      `Taux de change ${label} manquant : renseignez-le dans les ` +
-      `paramètres marché de la simulation, puis relancez le recalcul.`
-    );
+    return translate("common.missingFxRate", locale, { label });
   }
-  return (
-    "Taux de change manquant dans les paramètres marché de la simulation. " +
-    "Complétez les cours de change EUR, puis relancez le recalcul."
-  );
+  return translate("common.missingFxRateGeneric", locale);
 }
 
 function looksUserFacing(msg: string): boolean {
@@ -45,27 +41,24 @@ function looksUserFacing(msg: string): boolean {
 }
 
 /** Humanize a single engine diagnostic line (error or warning). */
-export function humanizeEngineMessage(msg: string): string {
+export function humanizeEngineMessage(msg: string, locale = "fr"): string {
   const trimmed = msg.trim();
   if (!trimmed) return trimmed;
 
   const fx = MISSING_FX_RE.exec(trimmed);
-  if (fx) return missingFxRateMessage(fx[1]);
+  if (fx) return missingFxRateMessage(fx[1], locale);
 
   if (trimmed.startsWith("mix_pct must be in")) {
-    return "Mix stock/achat invalide : la valeur doit être comprise entre 0 et 100 %.";
+    return translate("common.invalidMix", locale);
   }
 
   if (looksUserFacing(trimmed)) return trimmed;
 
-  return (
-    "Le calcul n'a pas pu aboutir. Vérifiez les paramètres de la simulation " +
-    "(marché, incoterms, fournisseurs), puis relancez le recalcul."
-  );
+  return translate("common.calculationFailed", locale);
 }
 
 /** Extract `detail` from `apiFetch` errors (`API 4xx: {"detail":"..."}`). */
-export function humanizeApiError(error: unknown, fallback: string): string {
+export function humanizeApiError(error: unknown, fallback: string, locale = "fr"): string {
   if (!(error instanceof Error)) return fallback;
   // `[\s\S]` instead of the `s` (dotAll) flag, which needs an es2018+ target.
   const match = error.message.match(/^API \d+: ([\s\S]+)$/);
@@ -83,5 +76,5 @@ export function humanizeApiError(error: unknown, fallback: string): string {
   if (msg && !looksUserFacing(msg) && !msg.startsWith("API ")) {
     return fallback;
   }
-  return humanizeEngineMessage(msg) || fallback;
+  return humanizeEngineMessage(msg, locale) || fallback;
 }

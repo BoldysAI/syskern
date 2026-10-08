@@ -22,6 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Check, DotsSixVertical, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { FormField } from "@/components/FormField";
 import { WizardStepper } from "@/components/WizardStepper";
 import { Button } from "@/components/ui/button";
@@ -51,12 +52,6 @@ interface ColumnOpt {
 }
 
 const CURRENCIES = ["EUR", "USD", "RMB"] as const;
-const LANGUAGES: { code: string; label: string }[] = [
-  { code: "fr", label: "Français" },
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-];
-const STEPS = ["Clients", "Colonnes", "Devise", "Langue", "Validité"];
 const DEFAULT_COLUMNS = new Set(["sku_code", "name", "range", "unit_price", "currency"]);
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
@@ -67,9 +62,9 @@ function getCsrfToken(): string {
   return m ? m[1] : "";
 }
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, loadError: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(loadError);
   return res.json();
 }
 
@@ -87,16 +82,22 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-async function pollTask(taskId: string): Promise<number> {
+async function pollTask(
+  taskId: string,
+  loadError: string,
+  failed: string,
+  timeout: string,
+): Promise<number> {
   for (let i = 0; i < 60; i++) {
     const data = await getJson<{ status: string; result?: { count: number }; error?: string }>(
       `/api/tasks/${taskId}/`,
+      loadError,
     );
     if (data.status === "SUCCESS") return data.result?.count ?? 0;
-    if (data.status === "FAILURE") throw new Error(data.error ?? "Génération échouée.");
+    if (data.status === "FAILURE") throw new Error(data.error ?? failed);
     await new Promise((r) => setTimeout(r, 1500));
   }
-  throw new Error("Délai de génération dépassé.");
+  throw new Error(timeout);
 }
 
 // ── Sortable column row ────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ function SortableColumn({
   col: { key: string; label: string; selected: boolean };
   onToggle: () => void;
 }) {
+  const t = useUiTranslate();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: col.key,
   });
@@ -126,7 +128,7 @@ function SortableColumn({
         className="cursor-grab touch-none text-muted-foreground/50 hover:text-muted-foreground"
         {...attributes}
         {...listeners}
-        aria-label="Réordonner"
+        aria-label={t("offers.tariff.reorder")}
       >
         <DotsSixVertical size={16} />
       </button>
@@ -143,17 +145,34 @@ function SortableColumn({
 function TariffWizard() {
   const router = useRouter();
   const params = useSearchParams();
+  const t = useUiTranslate();
   const simulationId = params.get("simulation_id") ?? "";
+  const steps = [
+    t("offers.tariff.step.clients"),
+    t("offers.tariff.step.columns"),
+    t("offers.tariff.step.currency"),
+    t("offers.tariff.step.language"),
+    t("offers.tariff.step.validity"),
+  ];
+  const languages = [
+    { code: "fr" as const, label: t("offers.language.fr") },
+    { code: "en" as const, label: t("offers.language.en") },
+    { code: "es" as const, label: t("offers.language.es") },
+  ];
 
   const { data: simulation, error: simError } = useSWR<SimulationLite>(
     simulationId ? `sim:${simulationId}` : null,
-    () => getJson<SimulationLite>(`/api/simulations/${simulationId}/`),
+    () =>
+      getJson<SimulationLite>(`/api/simulations/${simulationId}/`, t("offers.errors.load")),
   );
   const { data: clientsResp } = useSWR("clients:all", () =>
-    getJson<{ results?: ClientLite[] } | ClientLite[]>("/api/clients/?limit=1000"),
+    getJson<{ results?: ClientLite[] } | ClientLite[]>(
+      "/api/clients/?limit=1000",
+      t("offers.errors.load"),
+    ),
   );
   const { data: columnOpts } = useSWR("tariff-columns", () =>
-    getJson<ColumnOpt[]>("/api/offers/tariff-columns/?lang=fr"),
+    getJson<ColumnOpt[]>("/api/offers/tariff-columns/?lang=fr", t("offers.errors.load")),
   );
 
   const clients = useMemo<ClientLite[]>(
@@ -216,18 +235,16 @@ function TariffWizard() {
   };
 
   if (!simulationId) {
-    return <Notice text="Aucune simulation indiquée (paramètre simulation_id manquant)." />;
+    return <Notice text={t("offers.tariff.missingSimulation")} />;
   }
   if (simError) {
-    return <Notice text="Simulation introuvable." />;
+    return <Notice text={t("offers.wizard.simulationNotFound")} />;
   }
   if (
     simulation &&
     (simulation.status !== "finalized" || simulation.simulation_type !== "tariff")
   ) {
-    return (
-      <Notice text="La génération tarifaire requiert une simulation finalisée de type tarif." />
-    );
+    return <Notice text={t("offers.tariff.requiresFinalized")} />;
   }
 
   const canNext =
@@ -254,11 +271,16 @@ function TariffWizard() {
           attached_document_ids: attachedDocIds,
         },
       );
-      const count = await pollTask(task_id);
+      const count = await pollTask(
+        task_id,
+        t("offers.errors.load"),
+        t("offers.errors.generationFailed"),
+        t("offers.errors.generationTimeout"),
+      );
       setGenCount(count);
       setTimeout(() => router.push(`/offers?generated=${count}`), 1200);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Échec de la génération.");
+      setError(err instanceof Error ? err.message : t("offers.errors.generateFailed"));
       setSubmitting(false);
     }
   };
@@ -270,18 +292,21 @@ function TariffWizard() {
           <>
             <CircleNotch className="mb-4 animate-spin text-brand-green" size={40} />
             <p className="font-medium text-foreground">
-              Génération de {selectedClientIds.length} offre
-              {selectedClientIds.length > 1 ? "s" : ""}…
+              {selectedClientIds.length > 1
+                ? t("offers.tariff.generatingOther", { count: selectedClientIds.length })
+                : t("offers.tariff.generatingOne", { count: selectedClientIds.length })}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Un fichier Excel par client.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("offers.tariff.perClientFile")}</p>
           </>
         ) : (
           <>
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green/10">
               <Check className="text-brand-green" size={26} weight="bold" />
             </div>
-            <p className="font-semibold text-foreground">{genCount} offre(s) générée(s)</p>
-            <p className="mt-1 text-sm text-muted-foreground">Redirection vers les offres…</p>
+            <p className="font-semibold text-foreground">
+              {t("offers.tariff.generated", { count: genCount })}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("offers.tariff.redirecting")}</p>
           </>
         )}
       </div>
@@ -290,13 +315,13 @@ function TariffWizard() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-xl font-semibold text-foreground">Nouvelle offre tarifaire</h1>
+      <h1 className="text-xl font-semibold text-foreground">{t("offers.tariff.title")}</h1>
       <p className="mb-6 mt-0.5 text-sm text-muted-foreground">
-        Depuis « {simulation?.label ?? "…"} » — un fichier Excel par client.
+        {t("offers.tariff.fromSimulation", { label: simulation?.label ?? "…" })}
       </p>
 
       <WizardStepper
-        steps={STEPS.map((label) => ({ label }))}
+        steps={steps.map((label) => ({ label }))}
         current={step}
         onStepClick={setStep}
       />
@@ -309,9 +334,9 @@ function TariffWizard() {
 
       <Card className="min-h-[280px] p-5">
         {step === 0 && (
-          <Section title="Clients destinataires" hint="Une offre sera générée par client.">
+          <Section title={t("offers.tariff.recipients")} hint={t("offers.tariff.recipientsHint")}>
             {clients.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun client disponible.</p>
+              <p className="text-sm text-muted-foreground">{t("offers.tariff.noClients")}</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {clients.map((c) => (
@@ -334,7 +359,7 @@ function TariffWizard() {
         )}
 
         {step === 1 && (
-          <Section title="Colonnes de l'Excel" hint="Cochez et glissez pour ordonner.">
+          <Section title={t("offers.tariff.columns")} hint={t("offers.tariff.columnsHint")}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext
                 items={columns.map((c) => c.key)}
@@ -355,7 +380,10 @@ function TariffWizard() {
         )}
 
         {step === 2 && (
-          <Section title="Devise de sortie" hint="Conversion via les taux figés de la simulation.">
+          <Section
+            title={t("offers.tariff.outputCurrency")}
+            hint={t("offers.tariff.outputCurrencyHint")}
+          >
             <div className="flex gap-3">
               {CURRENCIES.map((c) => (
                 <Button
@@ -372,22 +400,21 @@ function TariffWizard() {
         )}
 
         {step === 3 && (
-          <Section title="Langue de l'offre">
+          <Section title={t("offers.tariff.offerLanguage")}>
             <div className="flex flex-col gap-4">
               <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card/40 p-3">
                 <div>
                   <span className="text-sm font-medium text-foreground">
-                    Langue par client (automatique)
+                    {t("offers.tariff.languagePerClient")}
                   </span>
                   <p className="text-xs text-muted-foreground">
-                    Chaque offre utilise la langue préférée du client. Sinon, choisis une langue
-                    unique ci-dessous (repli).
+                    {t("offers.tariff.languagePerClientHint")}
                   </p>
                 </div>
                 <Switch checked={languagePerClient} onCheckedChange={setLanguagePerClient} />
               </label>
               <div className="flex gap-3">
-                {LANGUAGES.map((l) => (
+                {languages.map((l) => (
                   <Button
                     key={l.code}
                     type="button"
@@ -403,23 +430,23 @@ function TariffWizard() {
         )}
 
         {step === 4 && (
-          <Section title="Validité & libellé">
+          <Section title={t("offers.tariff.validityLabel")}>
             <div className="flex max-w-sm flex-col gap-4">
-              <FormField label="Date d'expiration" required>
+              <FormField label={t("offers.wizard.expirationDate")} required>
                 <Input
                   type="date"
                   value={expiration}
                   onChange={(e) => setExpiration(e.target.value)}
                 />
               </FormField>
-              <FormField label="Libellé (optionnel)">
+              <FormField label={t("offers.tariff.labelOptional")}>
                 <Input
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder={simulation?.label ?? ""}
                 />
               </FormField>
-              <FormField label="Documents joints (bibliothèque)">
+              <FormField label={t("offers.tariff.attachments")}>
                 <DocumentPicker selected={attachedDocIds} onChange={setAttachedDocIds} />
               </FormField>
               <OfferCoverageWarning
@@ -431,9 +458,15 @@ function TariffWizard() {
                 }
               />
               <p className="text-xs text-muted-foreground">
-                {selectedClientIds.length} offre(s) · {selectedColumnKeys.length} colonne(s) ·{" "}
-                {currency} · {language.toUpperCase()}
-                {attachedDocIds.length > 0 ? ` · ${attachedDocIds.length} doc(s) → ZIP` : ""}
+                {t("offers.tariff.summary", {
+                  offers: selectedClientIds.length,
+                  columns: selectedColumnKeys.length,
+                  currency,
+                  language: language.toUpperCase(),
+                })}
+                {attachedDocIds.length > 0
+                  ? t("offers.tariff.summaryDocs", { count: attachedDocIds.length })
+                  : ""}
               </p>
             </div>
           </Section>
@@ -447,15 +480,15 @@ function TariffWizard() {
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
         >
-          Précédent
+          {t("offers.wizard.previous")}
         </Button>
-        {step < STEPS.length - 1 ? (
+        {step < steps.length - 1 ? (
           <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
-            Suivant
+            {t("offers.wizard.next")}
           </Button>
         ) : (
           <Button type="button" onClick={submit} disabled={!canNext}>
-            Générer {selectedClientIds.length} offre(s)
+            {t("offers.tariff.generate", { count: selectedClientIds.length })}
           </Button>
         )}
       </div>
@@ -492,8 +525,9 @@ function Notice({ text }: { text: string }) {
 }
 
 export default function NewTariffOfferPage() {
+  const t = useUiTranslate();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <TariffWizard />
     </Suspense>
   );

@@ -21,6 +21,7 @@ from pathlib import Path
 import openpyxl
 from celery import shared_task
 
+from apps.accounts.ui_locale import translate_request
 from apps.suppliers.models import Supplier
 from apps.suppliers.services_import import apply_import, preview_import
 
@@ -36,7 +37,7 @@ def _load_default_supplier(supplier_id: str | None) -> Supplier | None:
         return None
     supplier = Supplier.objects.filter(pk=supplier_id).first()
     if supplier is None:
-        raise _TaskError("Fournisseur sélectionné introuvable.")
+        raise _TaskError(translate_request(None, "suppliers.selected_not_found"))
     return supplier
 
 
@@ -73,7 +74,7 @@ def import_po_preview_task(
     """Dry-run the mapped import — returns ``{summary, lines}`` (no DB writes)."""
     path = Path(upload_path)
     if not path.is_file():
-        raise _TaskError("Fichier d'import introuvable ou expiré.")
+        raise _TaskError(translate_request(None, "suppliers.import_file_expired"))
 
     default_supplier = _load_default_supplier(supplier_id)
 
@@ -99,7 +100,7 @@ def import_po_apply_task(
     """Apply the mapped import and write the rejection report."""
     path = Path(upload_path)
     if not path.is_file():
-        raise _TaskError("Fichier d'import introuvable ou expiré.")
+        raise _TaskError(translate_request(None, "suppliers.import_file_expired"))
 
     default_supplier = _load_default_supplier(supplier_id)
 

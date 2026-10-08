@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Bookmark, CircleNotch } from "@phosphor-icons/react";
 import { createSavedComparison } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { translate } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,8 +26,13 @@ interface Props {
   onSaved: (id: string) => void;
 }
 
-function defaultComparisonLabel(fallback?: string) {
-  return fallback?.trim() || `Comparaison du ${new Date().toLocaleDateString("fr-FR")}`;
+function defaultComparisonLabel(locale: string, fallback?: string) {
+  return (
+    fallback?.trim() ||
+    translate("simulator.compare.defaultLabel", locale, {
+      date: new Date().toLocaleDateString("fr-FR"),
+    })
+  );
 }
 
 export function SaveComparisonModal({
@@ -62,7 +70,9 @@ function SaveComparisonForm({
   onSaved,
   onClose,
 }: Omit<Props, "open">) {
-  const [label, setLabel] = useState(() => defaultComparisonLabel(defaultLabel));
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
+  const [label, setLabel] = useState(() => defaultComparisonLabel(displayLanguage, defaultLabel));
   const [note, setNote] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +95,7 @@ function SaveComparisonForm({
       onSaved(saved.id);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Enregistrement échoué.");
+      setError(e instanceof Error ? e.message : t("simulator.saveFailed"));
     } finally {
       setRunning(false);
     }
@@ -96,20 +106,24 @@ function SaveComparisonForm({
       <DialogHeader className="border-b border-border p-5">
         <DialogTitle className="flex items-center gap-2">
           <Bookmark size={18} className="text-warm" />
-          Enregistrer la comparaison
+          {t("simulator.compare.saveTitle")}
         </DialogTitle>
       </DialogHeader>
 
       <div className="flex flex-col gap-3 p-5">
         <p className="text-sm text-muted-foreground">
-          {simulationIds.length} simulation{simulationIds.length !== 1 ? "s" : ""}
+          {simulationIds.length !== 1
+            ? t("simulator.compare.summaryOther", { count: simulationIds.length })
+            : t("simulator.compare.summaryOne", { count: simulationIds.length })}
           {recalculationIds.length > 0 &&
-            ` · ${recalculationIds.length} snapshot${recalculationIds.length !== 1 ? "s" : ""}`}
-          {" — "}vous pourrez rouvrir cette comparaison depuis la liste enregistrée.
+            (recalculationIds.length !== 1
+              ? t("simulator.compare.snapshotsOther", { count: recalculationIds.length })
+              : t("simulator.compare.snapshotsOne", { count: recalculationIds.length }))}
+          {t("simulator.compare.reopen")}
         </p>
         <div>
           <label htmlFor="save-compare-label" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-            Nom de la comparaison
+            {t("simulator.compare.name")}
           </label>
           <Input
             id="save-compare-label"
@@ -119,13 +133,13 @@ function SaveComparisonForm({
             onKeyDown={(e) => {
               if (e.key === "Enter" && label.trim()) handleSave();
             }}
-            placeholder="Ex. Tarif Q2 vs Q3"
+            placeholder={t("simulator.compare.namePlaceholder")}
             autoComplete="off"
           />
         </div>
         <div>
           <label htmlFor="save-compare-note" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-            Note (optionnel)
+            {t("simulator.compare.note")}
           </label>
           <Textarea
             id="save-compare-note"
@@ -142,7 +156,7 @@ function SaveComparisonForm({
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={running}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button
           type="button"
@@ -151,7 +165,7 @@ function SaveComparisonForm({
           className="gap-2"
         >
           {running && <CircleNotch size={14} className="animate-spin" />}
-          Enregistrer
+          {t("common.save")}
         </Button>
       </DialogFooter>
     </DialogContent>

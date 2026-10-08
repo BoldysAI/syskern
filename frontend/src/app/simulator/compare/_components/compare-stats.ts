@@ -1,4 +1,5 @@
 import type { CompareColumn, CompareProduct } from "@/lib/api";
+import { translate, type MessageKey } from "@/lib/i18n";
 import { buildDiffSections } from "./compare-diff";
 
 export function pvNum(v: string | null | undefined): number | null {
@@ -12,14 +13,17 @@ export interface AggregateChartRow {
   [key: string]: string | number;
 }
 
-export function buildAggregateChartData(columns: CompareColumn[]): AggregateChartRow[] {
-  const metrics: { id: string; label: string; field: keyof CompareColumn["aggregates"] }[] = [
-    { id: "avg_pa", label: "PA moy.", field: "avg_pa_eur" },
-    { id: "avg_pr", label: "PR moy.", field: "avg_pr_eur" },
-    { id: "avg_pv", label: "PV moy.", field: "avg_pv_eur" },
+export function buildAggregateChartData(
+  columns: CompareColumn[],
+  locale = "fr",
+): AggregateChartRow[] {
+  const metrics: { id: string; label: MessageKey; field: keyof CompareColumn["aggregates"] }[] = [
+    { id: "avg_pa", label: "simulator.history.paAvgShort", field: "avg_pa_eur" },
+    { id: "avg_pr", label: "simulator.history.prAvgShort", field: "avg_pr_eur" },
+    { id: "avg_pv", label: "simulator.history.pvAvgShort", field: "avg_pv_eur" },
   ];
   return metrics.map((m) => {
-    const row: AggregateChartRow = { metric: m.label };
+    const row: AggregateChartRow = { metric: translate(m.label, locale) };
     for (const c of columns) {
       row[c.key] = pvNum(c.aggregates[m.field] as string) ?? 0;
     }
@@ -109,12 +113,12 @@ export interface MarketCompareRow {
   hasDiff: boolean;
 }
 
-export function buildMarketCompare(columns: CompareColumn[]): MarketCompareRow[] {
-  const fields = [
-    { field: "copper_base_price_rmb", label: "Cuivre base (RMB)" },
-    { field: "copper_current_price_rmb", label: "Cuivre actuel (RMB)" },
-    { field: "fx_eur_rmb", label: "FX EUR → RMB" },
-    { field: "fx_eur_usd", label: "FX EUR → USD" },
+export function buildMarketCompare(columns: CompareColumn[], locale = "fr"): MarketCompareRow[] {
+  const fields: { field: string; label: MessageKey }[] = [
+    { field: "copper_base_price_rmb", label: "simulator.market.copperBaseRmb" },
+    { field: "copper_current_price_rmb", label: "simulator.market.copperCurrentRmb" },
+    { field: "fx_eur_rmb", label: "simulator.fx.eurToRmbSpaced" },
+    { field: "fx_eur_usd", label: "simulator.fx.eurToUsdSpaced" },
   ];
   const baseKey = columns[0]?.key;
   return fields.map(({ field, label }) => {
@@ -125,27 +129,35 @@ export function buildMarketCompare(columns: CompareColumn[]): MarketCompareRow[]
     }
     const ref = baseKey ? values[baseKey] : 0;
     const hasDiff = columns.some((c) => c.key !== baseKey && values[c.key] !== ref);
-    return { label, field, values, hasDiff };
+    return { label: translate(label, locale), field, values, hasDiff };
   });
 }
 
-export function countParamDiffs(columns: CompareColumn[]): number {
-  return buildDiffSections(columns).reduce((n, s) => n + s.rows.filter((r) => r.hasDiff).length, 0);
+export function countParamDiffs(columns: CompareColumn[], locale = "fr"): number {
+  return buildDiffSections(columns, locale).reduce(
+    (n, s) => n + s.rows.filter((r) => r.hasDiff).length,
+    0,
+  );
 }
 
 export interface KpiCard {
   label: string;
+  unit: "eur" | "pct";
   refValue: number | null;
   values: { key: string; value: number | null; deltaPct: number | null }[];
 }
 
-export function buildKpiCards(columns: CompareColumn[]): KpiCard[] {
+export function buildKpiCards(columns: CompareColumn[], locale = "fr"): KpiCard[] {
   const baseKey = columns[0]?.key;
-  const defs: { label: string; get: (c: CompareColumn) => string | null | undefined }[] = [
-    { label: "PV moyen", get: (c) => c.aggregates.avg_pv_eur },
-    { label: "PR moyen", get: (c) => c.aggregates.avg_pr_eur },
-    { label: "PA moyen", get: (c) => c.aggregates.avg_pa_eur },
-    { label: "Marge moy.", get: (c) => c.aggregates.avg_margin },
+  const defs: {
+    label: MessageKey;
+    unit: "eur" | "pct";
+    get: (c: CompareColumn) => string | null | undefined;
+  }[] = [
+    { label: "simulator.history.pvAvg", unit: "eur", get: (c) => c.aggregates.avg_pv_eur },
+    { label: "simulator.history.prAvg", unit: "eur", get: (c) => c.aggregates.avg_pr_eur },
+    { label: "simulator.history.paAvg", unit: "eur", get: (c) => c.aggregates.avg_pa_eur },
+    { label: "simulator.history.marginAvg", unit: "pct", get: (c) => c.aggregates.avg_margin },
   ];
   return defs.map((d) => {
     const refVal = baseKey ? pvNum(d.get(columns[0])) : null;
@@ -157,6 +169,6 @@ export function buildKpiCards(columns: CompareColumn[]): KpiCard[] {
           : null;
       return { key: c.key, value: v, deltaPct };
     });
-    return { label: d.label, refValue: refVal, values };
+    return { label: translate(d.label, locale), unit: d.unit, refValue: refVal, values };
   });
 }

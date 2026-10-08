@@ -11,14 +11,15 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   isEmptyQuarantineFilter,
-  REASON_OPTIONS,
-  RESOLVED_OPTIONS,
+  reasonOptions,
+  resolvedOptions,
   type QuarantineFilters,
   type ResolvedFilter,
 } from "./quarantine-filters";
@@ -46,6 +47,7 @@ export function QuarantineFiltersSidebar({
   onDeleteFilter,
   className,
 }: QuarantineFiltersSidebarProps) {
+  const t = useUiTranslate();
   const patch = (p: Partial<QuarantineFilters>) => onChange({ ...filters, ...p });
 
   const [saveName, setSaveName] = useState("");
@@ -56,7 +58,7 @@ export function QuarantineFiltersSidebar({
     if (!name || isEmptyQuarantineFilter(filters)) return;
     onSaveFilter(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
+    setSaveFeedback(t("admin.quarantine.filterSaved", { name }));
     window.setTimeout(() => setSaveFeedback(null), 4000);
   };
 
@@ -67,7 +69,7 @@ export function QuarantineFiltersSidebar({
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
       <FilterSection
-        title="Fichier source"
+        title={t("admin.quarantine.sourceFile")}
         icon={FileText}
         activeCount={filters.source_file?.length ?? 0}
       >
@@ -77,23 +79,31 @@ export function QuarantineFiltersSidebar({
           selected={filters.source_file ?? []}
           onChange={(v) => patch({ source_file: v.length ? v : undefined })}
           searchable
-          searchPlaceholder="Filtrer les fichiers…"
+          searchPlaceholder={t("admin.quarantine.filterFiles")}
         />
       </FilterSection>
 
-      <FilterSection title="Motif" icon={Warning} activeCount={filters.reason?.length ?? 0}>
+      <FilterSection
+        title={t("admin.quarantine.motif")}
+        icon={Warning}
+        activeCount={filters.reason?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="quar-reason"
-          options={REASON_OPTIONS}
+          options={reasonOptions(t)}
           selected={filters.reason ?? []}
           onChange={(v) => patch({ reason: v.length ? v : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="Statut" icon={SealCheck} activeCount={filters.resolved ? 1 : 0}>
+      <FilterSection
+        title={t("admin.quarantine.status")}
+        icon={SealCheck}
+        activeCount={filters.resolved ? 1 : 0}
+      >
         <FilterCheckboxGroup
           idPrefix="quar-resolved"
-          options={RESOLVED_OPTIONS}
+          options={resolvedOptions(t)}
           selected={filters.resolved ? [filters.resolved] : []}
           // Single-select semantics via checkboxes: the last toggled wins,
           // unchecking clears the filter (no value → all rows).
@@ -103,11 +113,9 @@ export function QuarantineFiltersSidebar({
         />
       </FilterSection>
 
-      <FilterSection title="Filtres enregistrés" icon={Bookmark}>
+      <FilterSection title={t("admin.quarantine.savedFilters")} icon={Bookmark}>
         {savedFilters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Enregistrez une combinaison de filtres pour la réutiliser rapidement.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("admin.quarantine.savedFiltersHint")}</p>
         ) : (
           <ul className="space-y-1">
             {savedFilters.map((sf) => (
@@ -128,7 +136,7 @@ export function QuarantineFiltersSidebar({
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => onDeleteFilter(sf.id)}
-                  aria-label={`Supprimer ${sf.name}`}
+                  aria-label={t("admin.quarantine.deleteSaved", { name: sf.name })}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash size={14} />
@@ -142,7 +150,7 @@ export function QuarantineFiltersSidebar({
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Nom du filtre…"
+            placeholder={t("admin.quarantine.filterNamePlaceholder")}
             className="h-9 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) handleSave();
@@ -156,7 +164,7 @@ export function QuarantineFiltersSidebar({
             onClick={handleSave}
           >
             <Faders size={14} />
-            Enregistrer les filtres actifs
+            {t("admin.quarantine.saveActiveFilters")}
           </Button>
           {saveFeedback && <p className="text-center text-xs text-brand-green">{saveFeedback}</p>}
         </div>

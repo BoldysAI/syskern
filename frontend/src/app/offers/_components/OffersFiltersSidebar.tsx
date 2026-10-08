@@ -11,6 +11,7 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function OffersFiltersSidebar({
   onDeleteFilter,
   className,
 }: OffersFiltersSidebarProps) {
+  const t = useUiTranslate();
   const patch = (p: Partial<OfferFilters>) => onChange({ ...filters, ...p });
 
   const [saveName, setSaveName] = useState("");
@@ -56,7 +58,7 @@ export function OffersFiltersSidebar({
     if (!name || isEmptyOfferFilter(filters)) return;
     onSaveFilter(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
+    setSaveFeedback(t("offers.filters.savedFeedback", { name }));
     window.setTimeout(() => setSaveFeedback(null), 4000);
   };
 
@@ -64,32 +66,43 @@ export function OffersFiltersSidebar({
 
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
-      <FilterSection title="Type" icon={FileText} activeCount={filters.offer_type?.length ?? 0}>
+      <FilterSection
+        title={t("offers.field.type")}
+        icon={FileText}
+        activeCount={filters.offer_type?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="offer-type"
-          options={OFFER_TYPE_OPTIONS}
+          options={OFFER_TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           selected={filters.offer_type ?? []}
           onChange={(v) => patch({ offer_type: v.length ? (v as OfferType[]) : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="Statut" icon={SealCheck} activeCount={filters.status?.length ?? 0}>
+      <FilterSection
+        title={t("offers.field.status")}
+        icon={SealCheck}
+        activeCount={filters.status?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="offer-status"
-          options={OFFER_STATUS_OPTIONS}
+          options={OFFER_STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           selected={filters.status ?? []}
           onChange={(v) => patch({ status: v.length ? (v as OfferStatus[]) : undefined })}
         />
       </FilterSection>
 
       <FilterSection
-        title="Document"
+        title={t("offers.field.document")}
         icon={Sparkle}
         activeCount={filters.generation_status?.length ?? 0}
       >
         <FilterCheckboxGroup
           idPrefix="offer-generation"
-          options={OFFER_GENERATION_OPTIONS}
+          options={OFFER_GENERATION_OPTIONS.map((o) => ({
+            value: o.value,
+            label: t(o.labelKey),
+          }))}
           selected={filters.generation_status ?? []}
           onChange={(v) =>
             patch({ generation_status: v.length ? (v as OfferGeneration[]) : undefined })
@@ -97,11 +110,9 @@ export function OffersFiltersSidebar({
         />
       </FilterSection>
 
-      <FilterSection title="Filtres enregistrés" icon={Bookmark}>
+      <FilterSection title={t("offers.filters.savedTitle")} icon={Bookmark}>
         {savedFilters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Enregistrez une combinaison de filtres pour la réutiliser rapidement.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("offers.filters.savedEmpty")}</p>
         ) : (
           <ul className="space-y-1">
             {savedFilters.map((sf) => (
@@ -122,7 +133,7 @@ export function OffersFiltersSidebar({
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => onDeleteFilter(sf.id)}
-                  aria-label={`Supprimer ${sf.name}`}
+                  aria-label={t("offers.filters.deleteNamed", { name: sf.name })}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash size={14} />
@@ -136,7 +147,7 @@ export function OffersFiltersSidebar({
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Nom du filtre…"
+            placeholder={t("offers.filters.namePlaceholder")}
             className="h-9 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) handleSave();
@@ -150,7 +161,7 @@ export function OffersFiltersSidebar({
             onClick={handleSave}
           >
             <Faders size={14} />
-            Enregistrer les filtres actifs
+            {t("offers.filters.saveActive")}
           </Button>
           {saveFeedback && <p className="text-center text-xs text-brand-green">{saveFeedback}</p>}
         </div>

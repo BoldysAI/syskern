@@ -5,12 +5,14 @@ import { CatalogSidebar } from "@/app/catalog/_components/CatalogSidebar";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import type { CatalogFilters } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 
 const STATUS_OPTIONS = [
-  { value: "ok", label: "OK" },
-  { value: "warning", label: "Avertissements" },
-  { value: "error", label: "Erreurs" },
-] as const;
+  { value: "ok", label: "simulator.status.ok" },
+  { value: "warning", label: "simulator.status.warnings" },
+  { value: "error", label: "simulator.status.errors" },
+] as const satisfies readonly { value: string; label: MessageKey }[];
 
 export type LineStatusFilterKey = (typeof STATUS_OPTIONS)[number]["value"];
 
@@ -25,10 +27,11 @@ export function SimulationLineStatusFilterSection({
   statusIn,
   onStatusInChange,
 }: Pick<Props, "statusIn" | "onStatusInChange">) {
+  const t = useUiTranslate();
   return (
-    <FilterSection title="Statut calcul" icon={SealCheck} activeCount={statusIn.length}>
+    <FilterSection title={t("simulator.filters.calcStatus")} icon={SealCheck} activeCount={statusIn.length}>
       <FilterCheckboxGroup
-        options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+        options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }))}
         selected={statusIn}
         onChange={(next) => onStatusInChange(next as LineStatusFilterKey[])}
       />

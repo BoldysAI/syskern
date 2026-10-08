@@ -12,6 +12,7 @@ import {
   type ProductAttributeValue,
   type ProductDetail,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { productUnitLabel } from "@/lib/product-units";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +38,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 /** Slide-over quick view for a product (CDC §4.3, Écran 1). */
 export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: () => void }) {
   const router = useRouter();
+  const t = useUiTranslate();
   const { role } = useAuth();
   const userCanEdit = canEdit(role);
 
@@ -56,7 +58,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
   const handleDuplicate = () => {
     if (!data) return;
     seedProductDraft(buildDuplicateDraft(data, attrs ?? []));
-    toast.success("Produit dupliqué — renseignez un nouveau SKU pour l'enregistrer.");
+    toast.success(t("catalog.duplicate.toast"));
     router.push("/catalog/new");
   };
 
@@ -75,7 +77,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
               {sku}
             </Dialog.Title>
             <Dialog.Close asChild>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Fermer">
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common.close")}>
                 <X size={20} />
               </Button>
             </Dialog.Close>
@@ -83,7 +85,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
 
           <div className="flex-1 overflow-y-auto p-5">
             {error ? (
-              <p className="text-sm text-destructive">Impossible de charger le produit.</p>
+              <p className="text-sm text-destructive">{t("catalog.drawer.loadError")}</p>
             ) : isLoading || !data ? (
               <div className="space-y-3">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -95,14 +97,14 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 <Dialog.Description className="mb-4 text-base font-semibold text-foreground">
                   {data.name}
                 </Dialog.Description>
-                <Row label="Univers" value={data.universe} />
-                <Row label="Famille" value={data.family} />
-                <Row label="Gamme" value={data.range} />
-                <Row label="Sous-gamme" value={data.sub_range} />
-                <Row label="Marque" value={data.brand} />
-                <Row label="Fournisseur actif" value={activeSupplier} />
+                <Row label={t("catalog.column.universe")} value={data.universe} />
+                <Row label={t("catalog.column.family")} value={data.family} />
+                <Row label={t("catalog.column.range")} value={data.range} />
+                <Row label={t("catalog.column.subRange")} value={data.sub_range} />
+                <Row label={t("catalog.column.brand")} value={data.brand} />
+                <Row label={t("catalog.column.activeSupplier")} value={activeSupplier} />
                 <Row
-                  label="PAMP"
+                  label={t("catalog.column.pamp")}
                   value={
                     data.pamp_eur ? (
                       <span className="font-mono tabular-nums text-primary">
@@ -118,7 +120,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                   }
                 />
                 <Row
-                  label="Stock"
+                  label={t("catalog.column.stock")}
                   value={
                     data.stock_quantity != null
                       ? `${Math.round(parseFloat(data.stock_quantity))} ${productUnitLabel(data)}`
@@ -128,7 +130,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 {localize(data.description_marketing) && (
                   <div className="mt-4">
                     <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Description
+                      {t("catalog.drawer.description")}
                     </p>
                     <p className="line-clamp-6 text-sm text-muted-foreground">
                       {localize(data.description_marketing)}
@@ -146,14 +148,14 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                 render={<Link href={`/catalog/${encodeURIComponent(sku)}`} />}
                 className="flex-1"
               >
-                Ouvrir la fiche complète
+                {t("catalog.drawer.open")}
                 <ArrowUpRight size={16} />
               </Button>
             )}
             {userCanEdit && data && (
-              <Button variant="outline" onClick={handleDuplicate} title="Dupliquer ce produit">
+              <Button variant="outline" onClick={handleDuplicate} title={t("catalog.action.duplicateTitle")}>
                 <Copy size={16} />
-                Dupliquer
+                {t("catalog.action.duplicate")}
               </Button>
             )}
           </div>

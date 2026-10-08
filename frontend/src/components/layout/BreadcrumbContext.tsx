@@ -12,6 +12,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
+import { translate, type MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
 export type BreadcrumbCrumb = {
@@ -24,26 +26,32 @@ const BreadcrumbContext = createContext<{
   setCrumbs: (crumbs: BreadcrumbCrumb[] | null) => void;
 } | null>(null);
 
-const SECTION_LABELS: Record<string, { label: string; href: string }> = {
-  catalog: { label: "Catalogue", href: "/catalog" },
-  suppliers: { label: "Fournisseurs", href: "/suppliers" },
-  simulator: { label: "Simulations", href: "/simulator" },
-  comparator: { label: "Comparaisons", href: "/comparator" },
-  offers: { label: "Offres", href: "/offers" },
-  library: { label: "Bibliothèque", href: "/library" },
-  help: { label: "Aide", href: "/help" },
-  settings: { label: "Paramètres", href: "/settings" },
-  admin: { label: "Administration", href: "/admin/users" },
+const SECTION_LABELS: Record<string, { labelKey: MessageKey; href: string }> = {
+  catalog: { labelKey: "nav.catalog", href: "/catalog" },
+  suppliers: { labelKey: "nav.suppliers", href: "/suppliers" },
+  simulator: { labelKey: "nav.simulations", href: "/simulator" },
+  comparator: { labelKey: "nav.comparisons", href: "/comparator" },
+  offers: { labelKey: "nav.offers", href: "/offers" },
+  library: { labelKey: "nav.library", href: "/library" },
+  help: { labelKey: "nav.help", href: "/help" },
+  settings: { labelKey: "nav.settings", href: "/settings" },
+  admin: { labelKey: "nav.admin", href: "/admin/users" },
 };
 
-const SEGMENT_LABELS: Record<string, string> = {
-  users: "Utilisateurs",
-  compare: "Comparaison",
-  attributes: "Registre des attributs",
-  "migration-quarantine": "Quarantaine migration",
-  "new-tariff": "Nouvelle offre tarif",
-  "new-project": "Nouvelle offre projet",
+const SEGMENT_LABELS: Record<string, MessageKey> = {
+  users: "nav.users",
+  compare: "nav.comparison",
+  attributes: "nav.attributes",
+  "migration-quarantine": "nav.quarantine",
+  "new-tariff": "nav.newTariffOffer",
+  "new-project": "nav.newProjectOffer",
 };
+
+type TranslateFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+function translateFr(key: MessageKey, vars?: Record<string, string | number>) {
+  return translate(key, "fr", vars);
+}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -53,40 +61,41 @@ function isUuid(seg: string): boolean {
 }
 
 /** Human-readable fallback — never expose raw ids or internal keys in the UI. */
-function segmentLabel(seg: string, parentSeg?: string): string {
-  if (SEGMENT_LABELS[seg]) return SEGMENT_LABELS[seg];
+function segmentLabel(seg: string, t: TranslateFn, parentSeg?: string): string {
+  const staticKey = SEGMENT_LABELS[seg];
+  if (staticKey) return t(staticKey);
 
   if (seg === "new") {
-    if (parentSeg === "catalog") return "Nouveau produit";
-    if (parentSeg === "simulator") return "Nouvelle simulation";
-    if (parentSeg === "comparator") return "Nouvelle comparaison";
-    if (parentSeg === "offers") return "Nouvelle offre";
-    return "Nouveau";
+    if (parentSeg === "catalog") return t("nav.newProduct");
+    if (parentSeg === "simulator") return t("nav.newSimulation");
+    if (parentSeg === "comparator") return t("nav.newComparison");
+    if (parentSeg === "offers") return t("nav.newOffer");
+    return t("nav.new");
   }
 
   if (isUuid(seg)) {
-    if (parentSeg === "simulator") return "Simulation";
-    if (parentSeg === "offers") return "Offre";
-    if (parentSeg === "comparator") return "Comparaison";
-    return "Détail";
+    if (parentSeg === "simulator") return t("nav.simulation");
+    if (parentSeg === "offers") return t("nav.offer");
+    if (parentSeg === "comparator") return t("nav.comparison");
+    return t("nav.detail");
   }
 
-  if (parentSeg === "catalog") return "Fiche produit";
-  if (parentSeg === "simulator") return "Simulation";
-  if (parentSeg === "comparator") return "Comparaison";
-  if (parentSeg === "offers") return "Offre";
+  if (parentSeg === "catalog") return t("nav.productSheet");
+  if (parentSeg === "simulator") return t("nav.simulation");
+  if (parentSeg === "comparator") return t("nav.comparison");
+  if (parentSeg === "offers") return t("nav.offer");
 
-  return "Détail";
+  return t("nav.detail");
 }
 
 /** Build default crumbs from the URL path — every intermediate segment is clickable. */
-export function buildAutoBreadcrumbs(pathname: string): BreadcrumbCrumb[] {
+export function buildAutoBreadcrumbs(pathname: string, t: TranslateFn = translateFr): BreadcrumbCrumb[] {
   if (pathname === "/") {
-    return [{ label: "Tableau de bord" }];
+    return [{ label: t("nav.dashboard") }];
   }
 
   const segments = pathname.split("/").filter(Boolean);
-  const crumbs: BreadcrumbCrumb[] = [{ label: "Tableau de bord", href: "/" }];
+  const crumbs: BreadcrumbCrumb[] = [{ label: t("nav.dashboard"), href: "/" }];
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
@@ -96,14 +105,14 @@ export function buildAutoBreadcrumbs(pathname: string): BreadcrumbCrumb[] {
 
     if (i === 0 && SECTION_LABELS[seg]) {
       crumbs.push({
-        label: SECTION_LABELS[seg].label,
+        label: t(SECTION_LABELS[seg].labelKey),
         href: isLast ? undefined : SECTION_LABELS[seg].href,
       });
       continue;
     }
 
     crumbs.push({
-      label: segmentLabel(seg, parentSeg),
+      label: segmentLabel(seg, t, parentSeg),
       href: isLast ? undefined : pathSoFar,
     });
   }
@@ -139,10 +148,11 @@ export function useBreadcrumbOverride(crumbs: BreadcrumbCrumb[] | null, enabled 
 }
 
 export function BreadcrumbNav({ crumbs }: { crumbs: BreadcrumbCrumb[] }) {
+  const t = useUiTranslate();
   if (crumbs.length === 0) return null;
 
   return (
-    <nav aria-label="Fil d'Ariane" className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+    <nav aria-label={t("nav.breadcrumb")} className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;
         return (
@@ -173,8 +183,9 @@ export function BreadcrumbNav({ crumbs }: { crumbs: BreadcrumbCrumb[] }) {
 
 export function AppBreadcrumb() {
   const pathname = usePathname();
+  const t = useUiTranslate();
   const ctx = useContext(BreadcrumbContext);
-  const auto = useMemo(() => buildAutoBreadcrumbs(pathname), [pathname]);
+  const auto = useMemo(() => buildAutoBreadcrumbs(pathname, t), [pathname, t]);
   const crumbs = ctx?.crumbs ?? auto;
   return <BreadcrumbNav crumbs={crumbs} />;
 }
