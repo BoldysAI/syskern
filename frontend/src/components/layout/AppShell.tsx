@@ -23,6 +23,8 @@ import {
 } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/auth";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { AppBreadcrumb, BreadcrumbProvider } from "@/components/layout/BreadcrumbContext";
 import { HelpPopover } from "@/components/help/HelpPopover";
@@ -34,6 +36,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -44,40 +49,40 @@ const MAIN_SIDEBAR_COLLAPSED_KEY = "syskern:main-sidebar-collapsed";
 const SHELL_TOP_BAR_CLASS = "h-14 shrink-0";
 
 const HOME_ITEM = {
-  label: "Tableau de bord",
+  labelKey: "nav.dashboard",
   href: "/",
   icon: House,
 } as const;
 
 const NAV_ITEMS = [
-  { label: "Catalogue", href: "/catalog", icon: SquaresFour },
-  { label: "Fournisseurs", href: "/suppliers", icon: Truck },
-  { label: "Simulations", href: "/simulator", icon: ChartLineUp },
-  { label: "Comparaisons", href: "/comparator", icon: GitDiff },
-  { label: "Offres", href: "/offers", icon: Files },
-  { label: "Bibliothèque", href: "/library", icon: Books },
+  { labelKey: "nav.catalog", href: "/catalog", icon: SquaresFour },
+  { labelKey: "nav.suppliers", href: "/suppliers", icon: Truck },
+  { labelKey: "nav.simulations", href: "/simulator", icon: ChartLineUp },
+  { labelKey: "nav.comparisons", href: "/comparator", icon: GitDiff },
+  { labelKey: "nav.offers", href: "/offers", icon: Files },
+  { labelKey: "nav.library", href: "/library", icon: Books },
 ] as const;
 
 const SETTINGS_ITEM = {
-  label: "Paramètres",
+  labelKey: "nav.settings",
   href: "/settings",
   icon: GearSix,
 } as const;
 const USERS_ITEM = {
-  label: "Utilisateurs",
+  labelKey: "nav.users",
   href: "/admin/users",
   icon: Users,
 } as const;
 const QUARANTINE_ITEM = {
-  label: "Quarantaine migration",
+  labelKey: "nav.quarantine",
   href: "/admin/migration-quarantine",
   icon: Warning,
 } as const;
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  commercial: "Commercial",
-  viewer: "Lecteur",
+const ROLE_LABELS: Record<string, MessageKey> = {
+  admin: "common.roleAdmin",
+  commercial: "common.roleCommercial",
+  viewer: "common.roleViewer",
 };
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -130,7 +135,9 @@ function Sidebar({
   collapsed?: boolean;
   onClose?: () => void;
 }) {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, setLocale } = useAuth();
+  const localeValue = user?.locale === "fr" || user?.locale === "en" ? user.locale : "deployment";
+  const t = useUiTranslate();
   const displayName =
     user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email;
 
@@ -150,7 +157,7 @@ function Sidebar({
       >
         <Link
           href="/"
-          title="Tableau de bord"
+          title={t("nav.dashboard")}
           className="flex h-full w-full items-center justify-center"
         >
           <BrandLogo
@@ -168,7 +175,7 @@ function Sidebar({
         <NavItem
           href={HOME_ITEM.href}
           icon={HOME_ITEM.icon}
-          label={HOME_ITEM.label}
+          label={t(HOME_ITEM.labelKey)}
           active={isNavActive(pathname, HOME_ITEM.href)}
           collapsed={collapsed}
           onClick={onClose}
@@ -179,7 +186,7 @@ function Sidebar({
             key={item.href}
             href={item.href}
             icon={item.icon}
-            label={item.label}
+            label={t(item.labelKey)}
             active={isNavActive(pathname, item.href)}
             collapsed={collapsed}
             onClick={onClose}
@@ -191,13 +198,13 @@ function Sidebar({
             <div className="my-3 border-t border-white/10" />
 
             {!collapsed && (
-              <p className="mb-1 px-3 text-xs font-medium text-white/40">Administration</p>
+              <p className="mb-1 px-3 text-xs font-medium text-white/40">{t("nav.admin")}</p>
             )}
 
             <NavItem
               href={SETTINGS_ITEM.href}
               icon={SETTINGS_ITEM.icon}
-              label={SETTINGS_ITEM.label}
+              label={t(SETTINGS_ITEM.labelKey)}
               active={isNavActive(pathname, SETTINGS_ITEM.href)}
               collapsed={collapsed}
               onClick={onClose}
@@ -206,7 +213,7 @@ function Sidebar({
             <NavItem
               href={USERS_ITEM.href}
               icon={USERS_ITEM.icon}
-              label={USERS_ITEM.label}
+              label={t(USERS_ITEM.labelKey)}
               active={isNavActive(pathname, USERS_ITEM.href)}
               collapsed={collapsed}
               onClick={onClose}
@@ -214,7 +221,7 @@ function Sidebar({
             <NavItem
               href={QUARANTINE_ITEM.href}
               icon={QUARANTINE_ITEM.icon}
-              label={QUARANTINE_ITEM.label}
+              label={t(QUARANTINE_ITEM.labelKey)}
               active={isNavActive(pathname, QUARANTINE_ITEM.href)}
               collapsed={collapsed}
               onClick={onClose}
@@ -244,7 +251,9 @@ function Sidebar({
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-white">{displayName}</div>
-                <div className="text-xs text-white/40">{role ? ROLE_LABELS[role] : "—"}</div>
+                <div className="text-xs text-white/40">
+                  {role ? (ROLE_LABELS[role] ? t(ROLE_LABELS[role]) : null) : "—"}
+                </div>
               </div>
             )}
           </DropdownMenuTrigger>
@@ -253,19 +262,34 @@ function Sidebar({
               {user?.email}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("users.locale")}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={localeValue}
+              onValueChange={(next) => {
+                if (!next || next === localeValue) return;
+                void setLocale(next === "deployment" ? "" : next);
+              }}
+            >
+              <DropdownMenuRadioItem value="fr">{t("users.localeFr")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="en">{t("users.localeEn")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="deployment">
+                {t("users.localeDeployment")}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuItem render={<Link href="/help" />}>
               <BookOpenText size={16} />
-              Guide utilisateur
+              {t("help.title")}
             </DropdownMenuItem>
             {isAdmin(role) && (
               <DropdownMenuItem render={<Link href="/settings" />}>
                 <GearSix size={16} />
-                Paramètres
+                {t("nav.settings")}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
               <SignOut size={16} />
-              Déconnexion
+              {t("common.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -282,6 +306,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     false,
   );
   const { isLoading } = useAuth();
+  const t = useUiTranslate();
 
   if (isLoading) {
     return (
@@ -326,7 +351,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               size="icon-sm"
               className="md:hidden"
               onClick={() => setMobileOpen(true)}
-              aria-label="Ouvrir le menu"
+              aria-label={t("common.openMenu")}
             >
               <List size={20} weight="bold" />
             </Button>
@@ -336,8 +361,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               size="icon-sm"
               className="hidden md:inline-flex"
               onClick={toggleSidebarCollapsed}
-              aria-label={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-              title={sidebarCollapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+              aria-label={t(sidebarCollapsed ? "common.expandSidebar" : "common.collapseSidebar")}
+              title={t(sidebarCollapsed ? "common.expandSidebar" : "common.collapseSidebar")}
             >
               {sidebarCollapsed ? (
                 <SidebarIcon size={20} weight="bold" />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CaretDown, CircleNotch, Download } from "@phosphor-icons/react";
 import { exportProducts, type CatalogFilters } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +18,7 @@ interface ExportButtonProps {
 }
 
 export function ExportButton({ filters, selectedIds, disabled }: ExportButtonProps) {
+  const t = useUiTranslate();
   const [columns, setColumns] = useState<string[]>(DEFAULT_EXPORT_COLUMNS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
         ids: hasSelection ? selectedIds : undefined,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export échoué");
+      setError(e instanceof Error ? e.message : t("catalog.export.failed"));
     } finally {
       setBusy(false);
     }
@@ -55,11 +57,15 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
           onClick={runExport}
           disabled={disabled || busy}
           className="rounded-r-none border-r-0"
-          title={hasSelection ? "Exporter la sélection" : "Exporter le résultat filtré"}
+          title={hasSelection ? t("catalog.export.selection") : t("catalog.export.filtered")}
         >
           {busy ? <CircleNotch size={15} className="animate-spin" /> : <Download size={15} />}
           <span className="hidden sm:inline">
-            {busy ? "Export…" : hasSelection ? `Exporter (${selectedIds!.length})` : "Exporter"}
+            {busy
+              ? t("catalog.export.busy")
+              : hasSelection
+                ? t("catalog.export.withCount", { count: selectedIds!.length })
+                : t("catalog.export.button")}
           </span>
         </Button>
         <DropdownMenu.Root>
@@ -69,7 +75,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
               variant="outline"
               size="icon-sm"
               className="rounded-l-none"
-              title="Choisir les colonnes"
+              title={t("catalog.columns.choose")}
             >
               <CaretDown size={15} />
             </Button>
@@ -81,7 +87,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
               className="z-50 max-h-80 w-56 overflow-y-auto rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-md"
             >
               <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Colonnes
+                {t("catalog.columns.button")}
               </div>
               {EXPORT_COLUMNS.map((col) => (
                 <DropdownMenu.CheckboxItem
@@ -95,7 +101,7 @@ export function ExportButton({ filters, selectedIds, disabled }: ExportButtonPro
                   )}
                 >
                   <Checkbox checked={columns.includes(col.key)} tabIndex={-1} className="pointer-events-none" />
-                  {col.label}
+                  {t(col.labelKey)}
                 </DropdownMenu.CheckboxItem>
               ))}
             </DropdownMenu.Content>

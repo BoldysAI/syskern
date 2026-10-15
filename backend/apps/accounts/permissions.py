@@ -5,6 +5,7 @@ from __future__ import annotations
 from rest_framework.permissions import BasePermission
 
 from .models import Role
+from .ui_locale import translate_request
 
 
 def _get_role(request) -> str | None:
@@ -20,25 +21,28 @@ def _get_role(request) -> str | None:
 class IsAdmin(BasePermission):
     """Only admins."""
 
-    message = "Accès réservé aux administrateurs."
-
     def has_permission(self, request, view) -> bool:
-        return _get_role(request) == Role.ADMIN
+        if _get_role(request) == Role.ADMIN:
+            return True
+        self.message = translate_request(request, "users.admin_only")
+        return False
 
 
 class IsCommercialOrAbove(BasePermission):
     """Admins and commercials (not viewers)."""
 
-    message = "Accès réservé aux commerciaux et administrateurs."
-
     def has_permission(self, request, view) -> bool:
-        return _get_role(request) in (Role.ADMIN, Role.COMMERCIAL)
+        if _get_role(request) in (Role.ADMIN, Role.COMMERCIAL):
+            return True
+        self.message = translate_request(request, "users.commercial_or_admin")
+        return False
 
 
 class IsAnyRole(BasePermission):
     """Any authenticated user with a profile (admin / commercial / viewer)."""
 
-    message = "Authentification requise."
-
     def has_permission(self, request, view) -> bool:
-        return _get_role(request) is not None
+        if _get_role(request) is not None:
+            return True
+        self.message = translate_request(request, "auth.authentication_required")
+        return False

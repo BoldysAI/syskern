@@ -16,6 +16,7 @@ from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.ui_locale import translate_request
 from apps.clients.models import Client
 from apps.simulations.models import Simulation, SimulationStatus, SimulationType
 from apps.simulations.services.engine.context import fx_rate
@@ -64,9 +65,9 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
     simulation = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_id)
     # Defensive re-check (the endpoint validates too).
     if simulation.status != SimulationStatus.FINALIZED:
-        raise ValueError("La simulation doit être finalisée.")
+        raise ValueError(translate_request(None, "simulations.must_be_finalized"))
     if simulation.simulation_type != SimulationType.TARIFF:
-        raise ValueError("La simulation doit être de type tarif.")
+        raise ValueError(translate_request(None, "offers.task_tariff_type"))
 
     target = (params.get("target_currency") or "EUR").upper()
     rate = fx_rate("EUR", target, simulation.market_params)  # raises if FX missing
@@ -145,7 +146,7 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
                 lines=offer_lines,
                 columns=columns,
                 lang=lang,
-                fx_note=fx_note_for(target, simulation.market_params, rate),
+                fx_note=fx_note_for(target, simulation.market_params, rate, lang),
             )
             offer_export_path(offer.id).write_bytes(xlsx)
             offer.generated_file_url = f"/api/offers/{offer.id}/download/"
@@ -188,9 +189,9 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
     """
     simulation = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_id)
     if simulation.status != SimulationStatus.FINALIZED:
-        raise ValueError("La simulation doit être finalisée.")
+        raise ValueError(translate_request(None, "simulations.must_be_finalized"))
     if simulation.simulation_type != SimulationType.PROJECT:
-        raise ValueError("La simulation doit être de type projet.")
+        raise ValueError(translate_request(None, "offers.task_project_type"))
 
     client = Client.objects.get(pk=params["client_id"])
     expiration = params.get("expiration_date")
@@ -237,7 +238,7 @@ def reap_stuck_generations(max_age_minutes: int = 15) -> dict:
     )
     count = stuck.update(
         generation_status=GenerationStatus.ERROR,
-        generation_error=("Génération interrompue (worker indisponible). Relancez la génération."),
+        generation_error=translate_request(None, "offers.generation_interrupted"),
         updated_at=timezone.now(),
     )
     if count:

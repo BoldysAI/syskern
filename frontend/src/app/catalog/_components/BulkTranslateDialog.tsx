@@ -7,19 +7,20 @@ import {
   startBulkTranslate,
   type BulkTranslateResult,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { AppModal } from "@/components/AppModal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const TARGET_LANGS = [
-  { code: "en", label: "Anglais" },
-  { code: "es", label: "Espagnol" },
-];
+  { code: "en", labelKey: "catalog.lang.en" },
+  { code: "es", labelKey: "catalog.lang.esName" },
+] as const;
 const CONTENT_FIELDS = [
-  { code: "marketing", label: "Descriptions marketing" },
-  { code: "technical", label: "Descriptions techniques" },
-];
+  { code: "marketing", labelKey: "catalog.bulk.marketing" },
+  { code: "technical", labelKey: "catalog.bulk.technical" },
+] as const;
 
 type Phase = "config" | "running" | "done" | "error";
 
@@ -37,6 +38,7 @@ export function BulkTranslateDialog({
   onOpenChange,
   onDone,
 }: BulkTranslateDialogProps) {
+  const t = useUiTranslate();
   const [targets, setTargets] = useState<string[]>(["en", "es"]);
   const [fields, setFields] = useState<string[]>(["marketing", "technical"]);
   const [phase, setPhase] = useState<Phase>("config");
@@ -85,21 +87,21 @@ export function BulkTranslateDialog({
           return;
         }
         if (s.status === "FAILURE") {
-          setError(s.error || "La traduction a échoué.");
+          setError(s.error || t("catalog.bulk.failed"));
           setPhase("error");
           return;
         }
         if (s.status === "REVOKED") {
-          setError("Tâche annulée.");
+          setError(t("catalog.bulk.revoked"));
           setPhase("error");
           return;
         }
         await new Promise((r) => setTimeout(r, 900));
       }
-      setError("Délai d'attente dépassé.");
+      setError(t("catalog.bulk.timeout"));
       setPhase("error");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur lors de la traduction.");
+      setError(e instanceof Error ? e.message : t("catalog.bulk.error"));
       setPhase("error");
     }
   };
@@ -111,41 +113,47 @@ export function BulkTranslateDialog({
     phase === "config" ? (
       <>
         <Button variant="outline" onClick={() => close(false)}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button onClick={run} disabled={!canRun}>
-          Traduire {productIds.length} produit{productIds.length > 1 ? "s" : ""}
+          {t(
+            productIds.length > 1 ? "catalog.bulk.translateCountOther" : "catalog.bulk.translateCountOne",
+            { count: productIds.length },
+          )}
         </Button>
       </>
     ) : phase === "running" ? (
       <Button disabled>
         <CircleNotch size={16} className="animate-spin" />
-        Traduction en cours…
+        {t("catalog.bulk.running")}
       </Button>
     ) : phase === "error" ? (
       <>
         <Button variant="outline" onClick={() => close(false)}>
-          Fermer
+          {t("common.close")}
         </Button>
-        <Button onClick={run}>Réessayer</Button>
+        <Button onClick={run}>{t("catalog.action.retry")}</Button>
       </>
     ) : (
-      <Button onClick={() => close(false)}>Fermer</Button>
+      <Button onClick={() => close(false)}>{t("common.close")}</Button>
     );
 
   return (
     <AppModal
       open={open}
       onOpenChange={close}
-      title="Traduire les produits"
-      description={`${productIds.length} produit${productIds.length > 1 ? "s" : ""} sélectionné${productIds.length > 1 ? "s" : ""} — traduction depuis le français via DeepL.`}
+      title={t("catalog.bulk.title")}
+      description={t(
+        productIds.length > 1 ? "catalog.bulk.descriptionOther" : "catalog.bulk.descriptionOne",
+        { count: productIds.length },
+      )}
       size="md"
       footer={footer}
     >
       {phase === "config" && (
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">Langues cibles</Label>
+            <Label className="text-sm font-medium">{t("catalog.bulk.targetLangs")}</Label>
             <div className="flex flex-col gap-2">
               {TARGET_LANGS.map((lang) => (
                 <label
@@ -156,13 +164,13 @@ export function BulkTranslateDialog({
                     checked={targets.includes(lang.code)}
                     onCheckedChange={() => toggle(targets, setTargets, lang.code)}
                   />
-                  {lang.label}
+                  {t(lang.labelKey)}
                 </label>
               ))}
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">Champs concernés</Label>
+            <Label className="text-sm font-medium">{t("catalog.bulk.fields")}</Label>
             <div className="flex flex-col gap-2">
               {CONTENT_FIELDS.map((field) => (
                 <label
@@ -173,14 +181,13 @@ export function BulkTranslateDialog({
                     checked={fields.includes(field.code)}
                     onCheckedChange={() => toggle(fields, setFields, field.code)}
                   />
-                  {field.label}
+                  {t(field.labelKey)}
                 </label>
               ))}
             </div>
           </div>
           <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Seules les langues vides sont remplies : les traductions existantes ne sont pas
-            écrasées. Les résultats sont éditables ensuite dans chaque fiche produit.
+            {t("catalog.bulk.hint")}
           </p>
         </div>
       )}
@@ -188,7 +195,7 @@ export function BulkTranslateDialog({
       {phase === "running" && (
         <div className="flex flex-col gap-3 py-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Traduction en cours…</span>
+            <span className="text-muted-foreground">{t("catalog.bulk.running")}</span>
             <span className="font-medium tabular-nums text-foreground">
               {progress.current} / {progress.total}
             </span>
@@ -206,17 +213,24 @@ export function BulkTranslateDialog({
         <div className="flex flex-col items-center gap-3 py-4 text-center">
           <CheckCircle size={40} weight="duotone" className="text-emerald-500" />
           <div>
-            <p className="text-sm font-semibold text-foreground">Traduction terminée</p>
+            <p className="text-sm font-semibold text-foreground">{t("catalog.bulk.done")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {result.translated_fields} champ{result.translated_fields > 1 ? "s" : ""} traduit
-              {result.translated_fields > 1 ? "s" : ""} sur {result.processed} produit
-              {result.processed > 1 ? "s" : ""}.
+              {t(
+                result.translated_fields > 1
+                  ? result.processed > 1
+                    ? "catalog.bulk.summaryFieldsOtherProductsOther"
+                    : "catalog.bulk.summaryFieldsOtherProductsOne"
+                  : result.processed > 1
+                    ? "catalog.bulk.summaryFieldsOneProductsOther"
+                    : "catalog.bulk.summaryFieldsOneProductsOne",
+                { fields: result.translated_fields, products: result.processed },
+              )}
             </p>
           </div>
           {result.skipped.length > 0 && (
             <div className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left text-xs text-muted-foreground">
               <p className="mb-1 font-medium text-foreground">
-                {result.skipped.length} champ(s) ignoré(s) :
+                {t("catalog.bulk.skipped", { count: result.skipped.length })}
               </p>
               <ul className="list-inside list-disc space-y-0.5">
                 {result.skipped.slice(0, 5).map((s) => (

@@ -23,19 +23,34 @@ import {
   type TransportMode,
   type TransportPreset,
 } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { toast } from "sonner";
 
 const TRANSPORT_CATEGORIES = [
-  { value: "maritime", label: "Maritime" },
-  { value: "road", label: "Route" },
-  { value: "air", label: "Aérien" },
-  { value: "rail", label: "Ferroviaire" },
+  { value: "maritime", labelKey: "settings.transport.category.maritime" },
+  { value: "road", labelKey: "settings.transport.category.road" },
+  { value: "air", labelKey: "settings.transport.category.air" },
+  { value: "rail", labelKey: "settings.transport.category.rail" },
+] as const;
+
+const PRESET_COLUMN_KEYS = [
+  "settings.name",
+  "settings.presets.column.mode",
+  "settings.presets.pallets",
+  "settings.presets.column.cost",
+  "settings.active",
+  "",
 ] as const;
 
 const CURRENCIES = ["EUR", "USD", "RMB"] as const;
 
 function ActiveBadge({ active }: { active: boolean }) {
-  return <StatusBadge variant={active ? "success" : "draft"}>{active ? "Oui" : "Non"}</StatusBadge>;
+  const t = useUiTranslate();
+  return (
+    <StatusBadge variant={active ? "success" : "draft"}>
+      {active ? t("common.yes") : t("common.no")}
+    </StatusBadge>
+  );
 }
 
 function TransportPresetModal({
@@ -61,6 +76,7 @@ function TransportPresetModal({
   const [isActive, setIsActive] = useState(preset?.is_active ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useUiTranslate();
 
   const activeModes = transportModes.filter((m) => m.is_active);
 
@@ -102,7 +118,7 @@ function TransportPresetModal({
       );
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setSaving(false);
     }
   };
@@ -111,7 +127,7 @@ function TransportPresetModal({
     <AppModal
       open
       onOpenChange={(open) => !open && onClose()}
-      title={preset ? "Modifier le preset transport" : "Nouveau preset transport"}
+      title={preset ? t("settings.presets.editTitle") : t("settings.presets.createTitle")}
       size="lg"
     >
       {error && (
@@ -120,10 +136,10 @@ function TransportPresetModal({
         </div>
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <FormField label="Nom" required>
+        <FormField label={t("settings.name")} required>
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
         </FormField>
-        <FormField label="Ordre d'affichage">
+        <FormField label={t("settings.displayOrder")}>
           <Input
             type="number"
             value={displayOrder}
@@ -133,7 +149,7 @@ function TransportPresetModal({
           />
         </FormField>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField label="Mode de transport" required>
+          <FormField label={t("settings.presets.mode")} required>
             <OptionSelect
               value={modeCode}
               onValueChange={onModeChange}
@@ -141,37 +157,37 @@ function TransportPresetModal({
                 value: m.code,
                 label: m.label?.fr ? `${m.code} — ${m.label.fr}` : m.code,
               }))}
-              placeholder="Sélectionner…"
+              placeholder={t("settings.selectPlaceholder")}
             />
           </FormField>
-          <FormField label="Catégorie" required>
+          <FormField label={t("settings.category")} required>
             <OptionSelect
               value={category}
               onValueChange={(v) => setCategory(v as TransportPreset["category"])}
-              options={[...TRANSPORT_CATEGORIES]}
+              options={TRANSPORT_CATEGORIES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
             />
           </FormField>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <FormField label="Coût global">
+          <FormField label={t("settings.presets.globalCost")}>
             <Input value={globalCost} onChange={(e) => setGlobalCost(e.target.value)} inputMode="decimal" />
           </FormField>
-          <FormField label="Devise" required>
+          <FormField label={t("settings.currency")} required>
             <OptionSelect
               value={currency}
               onValueChange={setCurrency}
               options={CURRENCIES.map((c) => ({ value: c, label: c }))}
             />
           </FormField>
-          <FormField label="Palettes">
+          <FormField label={t("settings.presets.pallets")}>
             <Input value={palletCount} onChange={(e) => setPalletCount(e.target.value)} inputMode="numeric" />
           </FormField>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField label="Origine">
+          <FormField label={t("settings.presets.origin")}>
             <Input value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} />
           </FormField>
-          <FormField label="Destination">
+          <FormField label={t("settings.presets.destination")}>
             <Input value={toLocation} onChange={(e) => setToLocation(e.target.value)} />
           </FormField>
         </div>
@@ -182,16 +198,16 @@ function TransportPresetModal({
             onCheckedChange={(v) => setIsActive(v === true)}
           />
           <Label htmlFor="transport-preset-active" className="text-sm font-normal">
-            Actif
+            {t("settings.active")}
           </Label>
         </div>
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={saving} className="flex-1">
             {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-            {preset ? "Mettre à jour" : "Créer"}
+            {preset ? t("settings.update") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -200,6 +216,7 @@ function TransportPresetModal({
 }
 
 export default function TabTransportPresets() {
+  const t = useUiTranslate();
   const confirm = useConfirm();
   const { data: presets, isLoading, error } = useSWR<TransportPreset[]>("transport-presets", () =>
     listTransportPresets(),
@@ -211,9 +228,9 @@ export default function TabTransportPresets() {
 
   const handleDelete = async (preset: TransportPreset) => {
     const ok = await confirm({
-      title: "Supprimer le preset transport",
-      description: `Supprimer « ${preset.name} » ?`,
-      confirmLabel: "Supprimer",
+      title: t("settings.presets.deleteTitle"),
+      description: t("settings.presets.deleteDescription", { name: preset.name }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -226,42 +243,39 @@ export default function TabTransportPresets() {
         { revalidate: true },
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Suppression échouée");
+      toast.error(e instanceof Error ? e.message : t("settings.deleteFailed"));
     }
   };
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Modèles de legs transport partagés (chaînes PA et PV). Créez vos presets ici ou depuis une
-          simulation (icône signet sur un transport). Modifiables après insertion dans une chaîne.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.presets.intro")}</p>
         <Button onClick={() => setEditing("new")}>
           <AppIcon icon={Plus} size="sm" />
-          Nouveau preset
+          {t("settings.presets.new")}
         </Button>
       </div>
 
       <Card className="overflow-hidden py-0">
         {error ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Impossible de charger.</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t("settings.loadFailed")}</div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : !presets?.length ? (
           <div className="py-12 text-center text-muted-foreground">
-            <p className="text-sm">Aucun preset transport. Créez-en un pour accélérer les chaînes PA/PV.</p>
+            <p className="text-sm">{t("settings.presets.empty")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                {["Nom", "Mode", "Palettes", "Coût", "Actif", ""].map((h) => (
+                {PRESET_COLUMN_KEYS.map((key, i) => (
                   <th
-                    key={h}
+                    key={key || i}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {h}
+                    {key ? t(key) : ""}
                   </th>
                 ))}
               </tr>
@@ -282,14 +296,14 @@ export default function TabTransportPresets() {
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <Button variant="ghost" size="icon-sm" onClick={() => setEditing(p)} title="Modifier">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setEditing(p)} title={t("common.edit")}>
                         <AppIcon icon={PencilSimple} size="sm" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => void handleDelete(p)}
-                        title="Supprimer"
+                        title={t("common.delete")}
                       >
                         <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
                       </Button>

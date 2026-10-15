@@ -8,6 +8,7 @@ import { FormField } from "@/components/FormField";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 /**
  * Explicit delete confirmation (CDC §4.1.4). Shows how many
@@ -23,6 +24,7 @@ export default function DeleteAttributeDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = useUiTranslate();
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +41,13 @@ export default function DeleteAttributeDialog({
       onDeleted();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Suppression échouée.");
+      setError(err instanceof Error ? err.message : t("settings.deleteFailedDot"));
       setDeleting(false);
     }
   };
 
   return (
-    <AppModal open onOpenChange={(open) => !open && onClose()} title="Supprimer l'attribut">
+    <AppModal open onOpenChange={(open) => !open && onClose()} title={t("settings.attributes.deleteTitle")}>
       {error && (
         <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
@@ -55,20 +57,30 @@ export default function DeleteAttributeDialog({
       <div className="mb-4 flex gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
         <AppIcon icon={Warning} size="md" className="mt-0.5 shrink-0 text-destructive" />
         <div className="text-sm text-destructive">
-          <p className="font-semibold">Cette action est irréversible.</p>
+          <p className="font-semibold">{t("settings.attributes.deleteIrreversible")}</p>
           <p className="mt-1">
-            L&apos;attribut <span className="font-mono font-semibold">{attribute.code}</span> et{" "}
+            {t("settings.attributes.deleteLead")}{" "}
+            <span className="font-mono font-semibold">{attribute.code}</span>{" "}
+            {t("settings.attributes.deleteJoin")}{" "}
             <span className="font-semibold">
-              {count} valeur{count > 1 ? "s" : ""}
+              {t(
+                count > 1
+                  ? "settings.attributes.valueCountOther"
+                  : "settings.attributes.valueCountOne",
+                { count },
+              )}
             </span>{" "}
-            de produit associée{count > 1 ? "s" : ""} seront supprimée{count > 1 ? "s" : ""} en
-            cascade.
+            {t(
+              count > 1
+                ? "settings.attributes.deleteTailOther"
+                : "settings.attributes.deleteTailOne",
+            )}
           </p>
         </div>
       </div>
 
       <FormField
-        label={`Saisissez le code ${attribute.code} pour confirmer`}
+        label={t("settings.attributes.confirmCode", { code: attribute.code })}
         htmlFor="confirm-code"
       >
         <Input
@@ -83,7 +95,7 @@ export default function DeleteAttributeDialog({
 
       <div className="flex gap-3 pt-5">
         <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button
           type="button"
@@ -93,7 +105,7 @@ export default function DeleteAttributeDialog({
           disabled={!matches || deleting}
         >
           {deleting && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-          Supprimer définitivement
+          {t("settings.attributes.deleteForever")}
         </Button>
       </div>
     </AppModal>

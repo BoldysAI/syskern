@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,10 +46,11 @@ export function DataTablePagination({
   totalCount,
   pageSize,
   onPageChange,
-  itemLabel = "élément",
+  itemLabel,
   jumpInputId = "data-table-page-jump",
-  ariaLabel = "Pagination",
+  ariaLabel,
 }: DataTablePaginationProps) {
+  const t = useUiTranslate();
   const [jumpValue, setJumpValue] = useState("");
   const items = buildPageItems(page, totalPages);
   const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -68,23 +70,24 @@ export function DataTablePagination({
 
   if (totalPages <= 1) return null;
 
-  const plural = totalCount !== 1 ? "s" : "";
+  const noun = itemLabel
+    ? `${itemLabel}${totalCount !== 1 ? "s" : ""}`
+    : t(totalCount !== 1 ? "common.paginationItemOther" : "common.paginationItemOne");
 
   return (
     <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card px-6 py-3">
       <span className="text-sm tabular-nums text-muted-foreground">
-        {from}–{to} sur {totalCount} {itemLabel}
-        {plural}
+        {t("common.paginationRange", { from, to, count: totalCount, label: noun })}
       </span>
 
-      <nav className="flex items-center gap-1" aria-label={ariaLabel}>
+      <nav className="flex items-center gap-1" aria-label={ariaLabel ?? t("common.pagination")}>
         <Button
           type="button"
           variant="outline"
           size="icon-sm"
           disabled={page <= 1}
           onClick={() => goToPage(page - 1)}
-          aria-label="Page précédente"
+          aria-label={t("common.previousPage")}
         >
           <ChevronLeft size={18} />
         </Button>
@@ -119,7 +122,7 @@ export function DataTablePagination({
           size="icon-sm"
           disabled={page >= totalPages}
           onClick={() => goToPage(page + 1)}
-          aria-label="Page suivante"
+          aria-label={t("common.nextPage")}
         >
           <ChevronRight size={18} />
         </Button>
@@ -127,7 +130,7 @@ export function DataTablePagination({
 
       <form onSubmit={handleJumpSubmit} className="flex items-center gap-2">
         <label htmlFor={jumpInputId} className="whitespace-nowrap text-sm text-muted-foreground">
-          Aller à
+          {t("common.goToPage")}
         </label>
         <Input
           id={jumpInputId}

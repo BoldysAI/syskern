@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
 from apps.products.models import Incoterm, ProductSupplier, SupplierPriceHistory
 
 from .models import Supplier, SupplierImportMapping
@@ -55,7 +56,9 @@ class SupplierWriteSerializer(serializers.ModelSerializer):
 
     def validate_incoterm_default(self, value: str) -> str:
         if value and value not in Incoterm.values:
-            raise serializers.ValidationError("Incoterm inconnu.")
+            raise serializers.ValidationError(
+                translate_request(self.context.get("request"), "suppliers.incoterm_unknown")
+            )
         return value
 
 
@@ -67,7 +70,9 @@ class SupplierSkuLinkInputSerializer(serializers.Serializer):
 
     def validate(self, attrs: dict) -> dict:
         if not attrs.get("sku") and not attrs.get("product_id"):
-            raise serializers.ValidationError("Fournis un « sku » ou un « product_id ».")
+            raise serializers.ValidationError(
+                translate_request(self.context.get("request"), "suppliers.sku_or_product")
+            )
         return attrs
 
 
@@ -90,10 +95,15 @@ class SupplierBulkPoSerializer(serializers.Serializer):
     value = serializers.DecimalField(max_digits=12, decimal_places=4)
 
     def validate(self, attrs: dict) -> dict:
+        request = self.context.get("request")
         if not attrs.get("link_ids") and not attrs.get("product_ids"):
-            raise serializers.ValidationError("Fournis « link_ids » ou « product_ids ».")
+            raise serializers.ValidationError(
+                translate_request(request, "suppliers.links_or_products")
+            )
         if attrs["mode"] == "set" and attrs["value"] < 0:
-            raise serializers.ValidationError({"value": "Le PO ne peut pas être négatif."})
+            raise serializers.ValidationError(
+                {"value": translate_request(request, "suppliers.po_negative")}
+            )
         return attrs
 
 
@@ -133,14 +143,18 @@ class SupplierProductLinkSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-def _validate_index_map(value: dict) -> dict:
+def _validate_index_map(value: dict, request) -> dict:
     """Shared validation: known logical fields, required present, integer indices."""
     if not isinstance(value, dict):
-        raise serializers.ValidationError("Mapping invalide.")
+        raise serializers.ValidationError(translate_request(request, "suppliers.mapping_invalid"))
     unknown = set(value) - set(MAPPABLE_FIELDS)
     if unknown:
         raise serializers.ValidationError(
-            f"Champs inconnus dans le mapping : {', '.join(sorted(unknown))}."
+            translate_request(
+                request,
+                "suppliers.mapping_unknown_fields",
+                fields=", ".join(sorted(unknown)),
+            )
         )
     normalised: dict = {}
     for field, raw in value.items():
@@ -149,10 +163,18 @@ def _validate_index_map(value: dict) -> dict:
         try:
             normalised[field] = int(raw)
         except (TypeError, ValueError) as exc:
-            raise serializers.ValidationError({field: "Index de colonne invalide."}) from exc
+            raise serializers.ValidationError(
+                {field: translate_request(request, "suppliers.column_index_invalid")}
+            ) from exc
     missing = [f for f in REQUIRED_FIELDS if f not in normalised]
     if missing:
-        raise serializers.ValidationError(f"Champs obligatoires manquants : {', '.join(missing)}.")
+        raise serializers.ValidationError(
+            translate_request(
+                request,
+                "suppliers.mapping_missing_fields",
+                fields=", ".join(missing),
+            )
+        )
     return normalised
 
 
@@ -180,7 +202,7 @@ class SupplierImportMappingSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "supplier_name", "created_at", "updated_at")
 
     def validate_column_map(self, value: dict) -> dict:
-        return _validate_index_map(value)
+        return _validate_index_map(value, self.context.get("request"))
 
 
 class SupplierImportInspectSerializer(serializers.Serializer):
@@ -199,7 +221,7 @@ class SupplierImportRunSerializer(serializers.Serializer):
     header_row = serializers.IntegerField(required=False, default=1, min_value=1)
 
     def validate_column_map(self, value: dict) -> dict:
-        return _validate_index_map(value)
+        return _validate_index_map(value, self.context.get("request"))
 
 
 class SupplierPriceHistorySerializer(serializers.ModelSerializer):

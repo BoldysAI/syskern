@@ -3,11 +3,8 @@
 import { useState } from "react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { CaretDown, Star } from "@phosphor-icons/react";
-import {
-  CATALOG_NO_SUPPLIER_LABEL,
-  CATALOG_NO_SUPPLIER_VALUE,
-  type CatalogFilters,
-} from "@/lib/api";
+import { CATALOG_NO_SUPPLIER_VALUE, type CatalogFilters } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { AppIcon } from "@/components/AppIcon";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
@@ -19,17 +16,18 @@ interface SupplierFilterGroupProps {
 }
 
 export function SupplierFilterGroup({ filters, suppliers, onPatch }: SupplierFilterGroupProps) {
+  const t = useUiTranslate();
   const [activeOpen, setActiveOpen] = useState(false);
   const activeSelected = filters.active_supplier ?? [];
   const hasActiveSelection = activeSelected.length > 0;
-  const noSupplierOption = { value: CATALOG_NO_SUPPLIER_VALUE, label: CATALOG_NO_SUPPLIER_LABEL };
+  const noSupplierOption = { value: CATALOG_NO_SUPPLIER_VALUE, label: t("catalog.supplier.none") };
   const options = [noSupplierOption, ...suppliers.map((s) => ({ value: s, label: s }))];
 
   return (
     <div className="flex flex-col gap-3">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Toute source liée
+          {t("catalog.supplier.anySource")}
         </p>
         <FilterCheckboxGroup
           options={options}
@@ -63,14 +61,19 @@ export function SupplierFilterGroup({ filters, suppliers, onPatch }: SupplierFil
                 <AppIcon icon={Star} size="sm" weight="duotone" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-foreground">Fournisseur actif</p>
+                <p className="text-xs font-semibold text-foreground">
+                  {t("catalog.column.activeSupplier")}
+                </p>
                 {hasActiveSelection ? (
                   <p className="text-[11px] text-muted-foreground">
-                    {activeSelected.length} sélectionné{activeSelected.length > 1 ? "s" : ""}
+                    {t(
+                      activeSelected.length > 1 ? "catalog.selection.other" : "catalog.selection.one",
+                      { count: activeSelected.length },
+                    )}
                   </p>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">
-                    Source active uniquement (colonne tableau)
+                    {t("catalog.supplier.activeOnlyHint")}
                   </p>
                 )}
               </div>
@@ -89,7 +92,7 @@ export function SupplierFilterGroup({ filters, suppliers, onPatch }: SupplierFil
             onPointerDown={(e) => e.stopPropagation()}
           >
             <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
-              Affine par la source marquée active sur chaque produit.
+              {t("catalog.supplier.activeHint")}
             </p>
             <FilterCheckboxGroup
               options={options}

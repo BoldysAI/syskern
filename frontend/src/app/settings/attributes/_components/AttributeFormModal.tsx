@@ -24,8 +24,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { OptionSelect } from "@/components/OptionSelect";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
-import { CATEGORIES, CODE_REGEX, DATA_TYPES, slugifyCode } from "./constants";
+import { CATEGORIES, CODE_REGEX, DATA_TYPES, DATA_TYPE_LABELS, slugifyCode } from "./constants";
 
 interface OptionDraft {
   value: string;
@@ -50,6 +51,7 @@ export default function AttributeFormModal({
   onSaved: () => void;
 }) {
   const isEdit = !!attribute;
+  const t = useUiTranslate();
 
   const [label, setLabel] = useState<MultilingualValue>({
     fr: attribute?.label?.fr ?? "",
@@ -143,11 +145,10 @@ export default function AttributeFormModal({
     !saving;
 
   const helperCode = useMemo(() => {
-    if (isEdit) return "Le code est immuable après création.";
-    if (code && !codeValid)
-      return "Format invalide : minuscules, chiffres et underscores, commençant par une lettre.";
-    return "Généré depuis le label, modifiable. Immuable après création.";
-  }, [isEdit, code, codeValid]);
+    if (isEdit) return t("settings.attributes.codeImmutable");
+    if (code && !codeValid) return t("settings.attributes.codeInvalidHint");
+    return t("settings.attributes.codeHint");
+  }, [isEdit, code, codeValid, t]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,13 +185,13 @@ export default function AttributeFormModal({
       } else {
         await createAttribute({ ...payload, code: code.trim() });
         if (useDefaultValue && !isAttributeValueEmpty(defaultValue)) {
-          toast.info("Application de la valeur par défaut aux produits existants…");
+          toast.info(t("settings.attributes.applyingDefault"));
         }
       }
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement.");
+      setError(err instanceof Error ? err.message : t("settings.attributes.saveError"));
       setSaving(false);
     }
   };
@@ -199,7 +200,7 @@ export default function AttributeFormModal({
     <AppModal
       open
       onOpenChange={(open) => !open && onClose()}
-      title={isEdit ? "Modifier l'attribut" : "Nouvel attribut"}
+      title={isEdit ? t("settings.attributes.editTitle") : t("settings.attributes.new")}
       size="xl"
     >
       {error && (
@@ -209,19 +210,19 @@ export default function AttributeFormModal({
       )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <MultilingualField
-          label="Label"
+          label={t("settings.attributes.fieldLabel")}
           value={label}
           onChange={handleLabelChange}
           kind="input"
           requiredSource
-          placeholder="Diamètre du conducteur"
+          placeholder={t("settings.attributes.labelPlaceholder")}
         />
 
         <FormField
-          label="Code"
+          label={t("settings.code")}
           required
           hint={helperCode}
-          error={!isEdit && code && !codeValid ? "Format de code invalide." : undefined}
+          error={!isEdit && code && !codeValid ? t("settings.attributes.codeInvalid") : undefined}
         >
           <Input
             value={code}
@@ -232,19 +233,19 @@ export default function AttributeFormModal({
             disabled={isEdit}
             required
             className={cn("font-mono", !isEdit && code && !codeValid && "border-destructive")}
-            placeholder="conductor_diameter"
+            placeholder={t("settings.attributes.codePlaceholder")}
           />
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Catégorie" required>
+          <FormField label={t("settings.category")} required>
             <OptionSelect
               value={category}
               onValueChange={(v) => setCategory(v as AttributeCategory)}
-              options={CATEGORIES.map((c) => ({ value: c.id, label: c.label }))}
+              options={CATEGORIES.map((c) => ({ value: c.id, label: t(c.labelKey) }))}
             />
           </FormField>
-          <FormField label="Type" required>
+          <FormField label={t("settings.type")} required>
             <OptionSelect
               value={dataType}
               onValueChange={(v) => {
@@ -254,23 +255,23 @@ export default function AttributeFormModal({
                   setDefaultValid(true);
                 }
               }}
-              options={DATA_TYPES.map((d) => ({ value: d.id, label: d.label }))}
+              options={DATA_TYPES.map((d) => ({ value: d.id, label: t(d.labelKey) }))}
             />
           </FormField>
         </div>
 
         {dataType === "number" && (
-          <FormField label="Unité">
+          <FormField label={t("settings.market.unit")}>
             <Input
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
-              placeholder="mm, kg, A…"
+              placeholder={t("settings.attributes.unitPlaceholder")}
             />
           </FormField>
         )}
 
         {needsOptions && (
-          <FormField label="Options" required hint="Au moins une option requise.">
+          <FormField label={t("settings.attributes.options")} required hint={t("settings.attributes.optionsRequired")}>
             <div className="flex flex-col gap-2">
               {options.map((opt, idx) => (
                 <div key={idx} className="flex items-center gap-2">
@@ -282,7 +283,7 @@ export default function AttributeFormModal({
                       )
                     }
                     className="font-mono"
-                    placeholder="valeur"
+                    placeholder={t("settings.attributes.optionValuePlaceholder")}
                   />
                   <Input
                     value={opt.labelFr}
@@ -291,14 +292,14 @@ export default function AttributeFormModal({
                         prev.map((o, i) => (i === idx ? { ...o, labelFr: e.target.value } : o)),
                       )
                     }
-                    placeholder="Libellé FR"
+                    placeholder={t("settings.attributes.optionLabelPlaceholder")}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setOptions((prev) => prev.filter((_, i) => i !== idx))}
-                    aria-label="Supprimer l'option"
+                    aria-label={t("settings.attributes.deleteOption")}
                   >
                     <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
                   </Button>
@@ -313,7 +314,7 @@ export default function AttributeFormModal({
               onClick={() => setOptions((prev) => [...prev, { value: "", labelFr: "" }])}
             >
               <AppIcon icon={Plus} size="sm" />
-              Ajouter une option
+              {t("settings.attributes.addOption")}
             </Button>
           </FormField>
         )}
@@ -321,11 +322,11 @@ export default function AttributeFormModal({
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label className="text-sm font-medium">Valeur par défaut</Label>
+              <Label className="text-sm font-medium">{t("settings.attributes.defaultValue")}</Label>
               <p className="text-xs text-muted-foreground">
                 {isEdit
-                  ? "Modifiable sans réappliquer aux produits existants."
-                  : "Appliquée à tous les produits existants à la création de l'attribut."}
+                  ? t("settings.attributes.defaultEditHint")
+                  : t("settings.attributes.defaultCreateHint")}
               </p>
             </div>
             <Switch
@@ -341,15 +342,15 @@ export default function AttributeFormModal({
           </div>
           {useDefaultValue && (
             <FormField
-              label="Valeur"
-              hint={`Type attendu : ${DATA_TYPES.find((d) => d.id === dataType)?.label ?? dataType}`}
+              label={t("settings.attributes.value")}
+              hint={t("settings.attributes.expectedType", { type: t(DATA_TYPE_LABELS[dataType]) })}
               error={
                 defaultValueRequired && isAttributeValueEmpty(defaultValue)
                   ? isRequired
-                    ? "Requis pour un attribut obligatoire."
-                    : "Indiquez une valeur par défaut."
+                    ? t("settings.attributes.requiredDefault")
+                    : t("settings.attributes.defaultRequired")
                   : !defaultValid
-                    ? "Valeur invalide pour ce type."
+                    ? t("settings.attributes.invalidValue")
                     : undefined
               }
             >
@@ -369,8 +370,8 @@ export default function AttributeFormModal({
         <div className="flex flex-col gap-3 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label className="text-sm font-medium">Obligatoire</Label>
-              <p className="text-xs text-muted-foreground">Champ requis sur la fiche produit.</p>
+              <Label className="text-sm font-medium">{t("settings.attributes.required")}</Label>
+              <p className="text-xs text-muted-foreground">{t("settings.attributes.requiredHint")}</p>
             </div>
             <Switch
               checked={isRequired}
@@ -382,16 +383,16 @@ export default function AttributeFormModal({
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label className="text-sm font-medium">Recherchable</Label>
-              <p className="text-xs text-muted-foreground">Inclus dans la recherche full-text.</p>
+              <Label className="text-sm font-medium">{t("settings.attributes.searchable")}</Label>
+              <p className="text-xs text-muted-foreground">{t("settings.attributes.searchableHint")}</p>
             </div>
             <Switch checked={isSearchable} onCheckedChange={setIsSearchable} />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label className="text-sm font-medium">Filtrable</Label>
+              <Label className="text-sm font-medium">{t("settings.attributes.filterable")}</Label>
               <p className="text-xs text-muted-foreground">
-                Exposé comme filtre dans la sidebar du catalogue.
+                {t("settings.attributes.filterableHint")}
               </p>
             </div>
             <Switch checked={isFilterable} onCheckedChange={setIsFilterable} />
@@ -400,11 +401,11 @@ export default function AttributeFormModal({
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1">
             {saving && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-            {isEdit ? "Mettre à jour" : "Créer"}
+            {isEdit ? t("settings.update") : t("common.create")}
           </Button>
         </div>
       </form>

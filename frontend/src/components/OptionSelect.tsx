@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 export interface OptionSelectOption {
   value: string;
@@ -33,11 +34,12 @@ export function OptionSelect({
   value,
   onValueChange,
   options,
-  placeholder = "Sélectionner…",
+  placeholder,
   className,
   disabled,
   size = "default",
 }: OptionSelectProps) {
+  const t = useUiTranslate();
   const selectedLabel = useMemo(
     () => options.find((o) => o.value === value)?.label,
     [options, value],
@@ -50,7 +52,7 @@ export function OptionSelect({
       disabled={disabled}
     >
       <SelectTrigger size={size} className={cn("w-full min-w-0 bg-background", className)}>
-        <SelectValue placeholder={placeholder}>{selectedLabel}</SelectValue>
+        <SelectValue placeholder={placeholder ?? t("common.selectPlaceholder")}>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((opt) => (

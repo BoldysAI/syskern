@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 
 interface Props {
   simId: string;
@@ -47,6 +49,7 @@ export function BulkEditModal({
   isProject = false,
   initialFilter,
 }: Props) {
+  const t = useUiTranslate();
   const confirm = useConfirm();
   const selectionMode = Boolean(lineIds && lineIds.length > 0);
   const [action, setAction] = useState<ActionType>("set_overrides");
@@ -91,26 +94,26 @@ export function BulkEditModal({
       if (marginSet) {
         const n = parseFloat(marginPct);
         if (!Number.isFinite(n) || n < 0 || n >= 100) {
-          setError("Saisissez une marge valide (0–99 %).");
+          setError(t("simulator.bulk.invalidMargin"));
           return;
         }
       }
       if (paCoefSet && !normalizePaCoefficient(paCoef)) {
-        setError("Saisissez un coefficient PA valide (ex. 1,05).");
+        setError(t("simulator.bulk.invalidCoef"));
         return;
       }
       if (!marginSet && !applyMix && !qtySet && !paCoefSet && !(isProject && mixMode)) {
-        setError("Renseignez au moins un champ à modifier.");
+        setError(t("simulator.bulk.needField"));
         return;
       }
     }
     const ok = await confirm({
-      title: "Appliquer la modification",
+      title: t("simulator.bulk.applyTitle"),
       description:
         action === "reset"
-          ? `Réinitialiser les surcharges de ${count ?? 0} ligne(s) ?`
-          : `Appliquer les modifications à ${count ?? 0} ligne(s) ?`,
-      confirmLabel: "Appliquer",
+          ? t("simulator.bulk.resetDescription", { count: count ?? 0 })
+          : t("simulator.bulk.applyDescription", { count: count ?? 0 }),
+      confirmLabel: t("simulator.bulk.apply"),
     });
     if (!ok) return;
 
@@ -130,7 +133,7 @@ export function BulkEditModal({
       onApplied();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Application échouée.");
+      setError(e instanceof Error ? e.message : t("simulator.applyFailed"));
     } finally {
       setApplying(false);
     }
@@ -141,45 +144,46 @@ export function BulkEditModal({
       <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 p-0 sm:max-w-4xl" showCloseButton={!applying}>
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle>
-            {selectionMode ? `Modifier ${lineIds!.length} ligne(s)` : "Édition groupée"}
+            {selectionMode
+              ? t("simulator.bulk.titleSelection", { count: lineIds!.length })
+              : t("simulator.bulk.title")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
           {selectionMode ? (
             <p className="mb-4 text-sm text-muted-foreground">
-              Les actions ci-dessous s&apos;appliquent uniquement aux lignes sélectionnées dans le
-              tableau.
+              {t("simulator.bulk.selectionScope")}
             </p>
           ) : (
             <p className="mb-4 text-sm text-muted-foreground">
-              Les filtres actifs du tableau (sidebar « Filtres » à gauche des lignes) déterminent
-              quelles lignes seront modifiées. Ajustez-les avant d&apos;ouvrir cette modale si
-              besoin.
+              {t("simulator.bulk.filterScope")}
             </p>
           )}
 
           <div className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
             {previewing ? (
               <span className="flex items-center gap-2">
-                <CircleNotch size={13} className="animate-spin" /> Calcul…
+                <CircleNotch size={13} className="animate-spin" /> {t("simulator.calculating")}
               </span>
             ) : (
               <span>
-                <span className="font-bold text-accent-foreground">{count ?? 0}</span> ligne
-                {(count ?? 0) !== 1 ? "s" : ""} seront impactées
+                <span className="font-bold text-accent-foreground">{count ?? 0}</span>
+                {(count ?? 0) !== 1
+                  ? t("simulator.bulk.impactSuffixOther")
+                  : t("simulator.bulk.impactSuffixOne")}
               </span>
             )}
           </div>
 
-          <h3 className="mb-3 mt-5 text-sm font-bold text-foreground">Action</h3>
+          <h3 className="mb-3 mt-5 text-sm font-bold text-foreground">{t("simulator.bulk.action")}</h3>
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["set_overrides", "Définir marge et mix"],
-                ["reset", "Réinitialiser les surcharges"],
-              ] as [ActionType, string][]
-            ).map(([id, label]) => (
+                ["set_overrides", "simulator.bulk.setOverrides"],
+                ["reset", "simulator.bulk.resetOverrides"],
+              ] as [ActionType, MessageKey][]
+            ).map(([id, key]) => (
               <button
                 key={id}
                 type="button"
@@ -191,7 +195,7 @@ export function BulkEditModal({
                     : "border-border text-muted-foreground hover:bg-muted"
                 )}
               >
-                {label}
+                {t(key)}
               </button>
             ))}
           </div>
@@ -200,7 +204,7 @@ export function BulkEditModal({
             <div className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Marge Syskern effective (%)</label>
+                  <label className={labelCls}>{t("simulator.bulk.margin")}</label>
                   <input
                     type="number"
                     min={0}
@@ -209,12 +213,12 @@ export function BulkEditModal({
                     value={marginPct}
                     onChange={(e) => setMarginPct(e.target.value)}
                     className={inputCls}
-                    placeholder="Laisser vide = inchangé"
+                    placeholder={t("simulator.bulk.leaveBlank")}
                   />
                 </div>
                 {isProject && (
                   <div>
-                    <label className={labelCls}>Quantité</label>
+                    <label className={labelCls}>{t("simulator.bulk.quantity")}</label>
                     <input
                       type="number"
                       min={0}
@@ -222,25 +226,24 @@ export function BulkEditModal({
                       value={qty}
                       onChange={(e) => setQty(e.target.value)}
                       className={inputCls}
-                      placeholder="Laisser vide = inchangé"
+                      placeholder={t("simulator.bulk.leaveBlank")}
                     />
                   </div>
                 )}
               </div>
 
               <div>
-                <label className={labelCls}>Coefficient PA (×)</label>
+                <label className={labelCls}>{t("simulator.bulk.paCoef")}</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={paCoef}
                   onChange={(e) => setPaCoef(e.target.value)}
                   className={inputCls}
-                  placeholder="Laisser vide = inchangé (ex. 1,05)"
+                  placeholder={t("simulator.bulk.leaveBlankExample")}
                 />
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Alternative aux transports détaillés pour les lignes filtrées uniquement. Les lignes
-                  sans coefficient héritent la chaîne PA de la simulation.
+                  {t("simulator.bulk.coefHelp")}
                 </p>
               </div>
 
@@ -251,7 +254,7 @@ export function BulkEditModal({
                   onCheckedChange={(v) => setApplyMix(v === true)}
                 />
                 <Label htmlFor="bulk-apply-mix" className="text-sm font-normal">
-                  Modifier le mix stock/achat
+                  {t("simulator.bulk.editMix")}
                 </Label>
               </div>
               {applyMix && (
@@ -260,15 +263,15 @@ export function BulkEditModal({
 
               {isProject && (
                 <div>
-                  <label className={labelCls}>Mode de mix (projet)</label>
+                  <label className={labelCls}>{t("simulator.bulk.mixMode")}</label>
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
-                        ["", "Inchangé"],
-                        ["auto", "Auto (quantité)"],
-                        ["manual", "Manuel (slider)"],
-                      ] as [MixMode, string][]
-                    ).map(([mode, label]) => (
+                        ["", "simulator.bulk.unchanged"],
+                        ["auto", "simulator.bulk.autoMix"],
+                        ["manual", "simulator.bulk.manualMix"],
+                      ] as [MixMode, MessageKey][]
+                    ).map(([mode, key]) => (
                       <button
                         key={mode || "unchanged"}
                         type="button"
@@ -280,7 +283,7 @@ export function BulkEditModal({
                             : "border-border text-muted-foreground hover:bg-muted",
                         )}
                       >
-                        {label}
+                        {t(key)}
                       </button>
                     ))}
                   </div>
@@ -294,16 +297,16 @@ export function BulkEditModal({
 
         <DialogFooter className="border-t border-border p-5">
           <Button type="button" variant="outline" onClick={onClose} disabled={applying}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={() => void handleApply()} disabled={applying || previewing}>
             {applying ? (
               <>
                 <CircleNotch size={14} className="animate-spin" />
-                Application…
+                {t("simulator.applying")}
               </>
             ) : (
-              "Appliquer"
+              t("simulator.bulk.apply")
             )}
           </Button>
         </DialogFooter>

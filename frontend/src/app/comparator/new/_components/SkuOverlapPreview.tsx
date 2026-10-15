@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { CircleNotch, Intersect, Stack } from "@phosphor-icons/react";
 import type { Simulation } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import {
   computeSkuOverlap,
@@ -31,6 +32,7 @@ async function loadOverlapStats(simulationIds: string[], simulations: Simulation
 }
 
 export function SkuOverlapPreview({ simulationIds, simulations, className }: Props) {
+  const t = useUiTranslate();
   const swrKey =
     simulationIds.length > 0 ? ["sku-overlap", simulationIds.join(","), simulations.length] : null;
 
@@ -48,7 +50,7 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
           className,
         )}
       >
-        Sélectionnez au moins une simulation pour voir l&apos;aperçu des SKU.
+        {t("comparator.sku.empty")}
       </div>
     );
   }
@@ -62,7 +64,7 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
         )}
       >
         <CircleNotch size={18} className="animate-spin" />
-        Analyse des SKU en commun…
+        {t("comparator.sku.loading")}
       </div>
     );
   }
@@ -75,7 +77,7 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
           className,
         )}
       >
-        {error instanceof Error ? error.message : "Impossible de charger les SKU."}
+        {error instanceof Error ? error.message : t("comparator.sku.loadError")}
       </div>
     );
   }
@@ -90,35 +92,35 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           icon={<Stack size={18} className="text-primary" />}
-          label="SKU par simulation"
+          label={t("comparator.sku.perSimulation")}
           value={stats.perSimulation.map((s) => `${s.label}: ${s.skuCount}`).join(" · ")}
         />
         <StatCard
           icon={<Intersect size={18} className="text-brand-green" />}
-          label="SKU en commun"
-          value={`${stats.commonCount} SKU`}
+          label={t("comparator.sku.common")}
+          value={t("comparator.sku.commonCount", { count: stats.commonCount })}
           highlight={simulationIds.length >= 2}
         />
         <StatCard
-          label="Couverture"
+          label={t("comparator.sku.coverage")}
           value={
             simulationIds.length >= 2
-              ? `${overlapPct} % de recouvrement`
-              : "Sélectionnez 2 simulations minimum"
+              ? t("comparator.sku.overlap", { percent: overlapPct })
+              : t("comparator.sku.needTwo")
           }
         />
       </div>
 
       {simulationIds.length >= 2 && stats.commonCount === 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Aucun SKU en commun entre ces simulations — la comparaison produit sera vide ou limitée.
+          {t("comparator.sku.noneCommon")}
         </div>
       )}
 
       {stats.commonSkus.length > 0 && (
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            SKU communs ({stats.commonSkus.length})
+            {t("comparator.sku.commonHeading", { count: stats.commonSkus.length })}
           </div>
           <ul className="max-h-48 divide-y divide-border overflow-y-auto">
             {stats.commonSkus.slice(0, 20).map((sku) => (
@@ -132,7 +134,7 @@ export function SkuOverlapPreview({ simulationIds, simulations, className }: Pro
             ))}
             {stats.commonSkus.length > 20 && (
               <li className="px-4 py-2 text-xs text-muted-foreground">
-                + {stats.commonSkus.length - 20} autres SKU communs
+                {t("comparator.sku.more", { count: stats.commonSkus.length - 20 })}
               </li>
             )}
           </ul>

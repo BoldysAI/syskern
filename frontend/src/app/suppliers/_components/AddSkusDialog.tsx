@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CircleNotch, Package } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { bulkLinkSkus, type Product } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { CatalogBrowser } from "@/app/catalog/_components/CatalogBrowser";
 import type { DataTableColumnDef } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export function AddSkusDialog({
   onClose,
   onLinked,
 }: Props) {
+  const t = useUiTranslate();
   const [selected, setSelected] = useState<Map<string, string>>(new Map());
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,11 +48,13 @@ export function AddSkusDialog({
         width: 110,
         render: (p) =>
           existingProductIds.has(p.id) ? (
-            <span className="text-xs font-medium text-muted-foreground">Déjà lié</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("suppliers.addSkus.alreadyLinked")}
+            </span>
           ) : null,
       },
     ],
-    [existingProductIds],
+    [existingProductIds, t],
   );
 
   const toggleRow = (p: Product) => {
@@ -101,11 +105,13 @@ export function AddSkusDialog({
       const res = await bulkLinkSkus(supplierId, [...selected.keys()]);
       await onLinked();
       toast.success(
-        res.created === 1 ? "1 SKU lié au fournisseur." : `${res.created} SKU liés au fournisseur.`,
+        res.created === 1
+          ? t("suppliers.addSkus.linkedOne")
+          : t("suppliers.addSkus.linkedOther", { count: res.created }),
       );
       handleOpenChange(false);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSubmitting(false);
     }
@@ -118,10 +124,8 @@ export function AddSkusDialog({
         showCloseButton={!submitting}
       >
         <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>Lier des SKU à {supplierName}</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Recherchez et filtrez comme dans le catalogue, puis sélectionnez les SKU à lier.
-          </p>
+          <DialogTitle>{t("suppliers.addSkus.title", { name: supplierName })}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{t("suppliers.addSkus.hint")}</p>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -138,7 +142,7 @@ export function AddSkusDialog({
             filtersCollapsedStorageKey="syskern:supplier-add-skus-filters-collapsed"
             filtersWidthStorageKey="syskern:supplier-add-skus-filters-width"
             paginationJumpInputId="supplier-add-skus-page"
-            title="Catalogue"
+            title={t("suppliers.addSkus.catalog")}
             selectedIds={selectedIds}
             onToggleProduct={toggleRow}
             onTogglePageProducts={togglePage}
@@ -150,13 +154,13 @@ export function AddSkusDialog({
           <aside className="flex w-full shrink-0 flex-col border-t border-border md:w-56 md:border-l md:border-t-0 lg:w-64">
             <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
               <Package size={16} className="text-primary" />
-              <span className="text-sm font-semibold">Sélection</span>
+              <span className="text-sm font-semibold">{t("suppliers.selection")}</span>
               <span className="ml-auto text-xs text-muted-foreground">{selectedCount}</span>
             </div>
             <ul className="max-h-48 flex-1 divide-y divide-border overflow-y-auto md:max-h-none">
               {selectedCount === 0 ? (
                 <li className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  Aucun SKU sélectionné.
+                  {t("suppliers.addSkus.noneSelected")}
                 </li>
               ) : (
                 [...selected.entries()].map(([id, sku]) => (
@@ -173,7 +177,7 @@ export function AddSkusDialog({
                         })
                       }
                     >
-                      Retirer
+                      {t("suppliers.detail.remove")}
                     </button>
                   </li>
                 ))
@@ -184,11 +188,13 @@ export function AddSkusDialog({
 
         <DialogFooter className="border-t border-border px-5 py-4">
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={handleLink} disabled={submitting || selectedCount === 0} className="gap-2">
             {submitting && <CircleNotch size={15} className="animate-spin" />}
-            Lier {selectedCount > 0 ? `(${selectedCount})` : ""}
+            {selectedCount > 0
+              ? t("suppliers.addSkus.linkWithCount", { count: selectedCount })
+              : t("suppliers.addSkus.link")}
           </Button>
         </DialogFooter>
       </DialogContent>

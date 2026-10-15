@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 
 interface Props {
   simId: string;
@@ -36,20 +38,20 @@ interface Props {
 
 const ADVANCED_SCOPES: {
   id: Exclude<RecalcScope, "params_only">;
-  label: string;
-  description: string;
+  label: MessageKey;
+  description: MessageKey;
   icon: typeof ArrowsClockwise;
 }[] = [
   {
     id: "with_odoo_refresh",
-    label: "Rafraîchir Odoo + recalcul",
-    description: "Stock, PAMP et achats engagés depuis Odoo, puis recalcul.",
+    label: "simulator.recalc.odooScope",
+    description: "simulator.recalc.odooScopeHint",
     icon: ArrowsClockwise,
   },
   {
     id: "full_refresh",
-    label: "Rafraîchissement complet",
-    description: "Paramètres marché actifs + Odoo, puis recalcul.",
+    label: "simulator.recalc.fullScope",
+    description: "simulator.recalc.fullScopeHint",
     icon: Database,
   },
 ];
@@ -61,6 +63,7 @@ export function RecalculateButton({
   isDirty,
   onDone,
 }: Props) {
+  const t = useUiTranslate();
   const [running, setRunning] = useState(false);
 
   const run = async (scope: RecalcScope) => {
@@ -73,13 +76,13 @@ export function RecalculateButton({
       onDone();
       if (result?.odoo_refresh_error) {
         toast.warning(
-          `Recalcul effectué sur les paramètres courants. Rafraîchissement Odoo indisponible : ${result.odoo_refresh_error}`,
+          t("simulator.recalc.odooUnavailable", { error: result.odoo_refresh_error }),
         );
       } else {
-        toast.success("Recalcul terminé");
+        toast.success(t("simulator.recalc.done"));
       }
     } catch (e) {
-      toast.error(humanizeApiError(e, "Recalcul échoué."));
+      toast.error(humanizeApiError(e, t("simulator.recalc.failed")));
     } finally {
       setRunning(false);
     }
@@ -100,11 +103,11 @@ export function RecalculateButton({
         ) : (
           <Calculator size={15} />
         )}
-        Recalculer
+        {t("simulator.recalc.button")}
         {isDirty && !running && (
           <span
             className="h-2 w-2 rounded-full bg-primary-foreground"
-            title="Recalcul nécessaire"
+            title={t("simulator.status.dirty")}
           />
         )}
       </Button>
@@ -117,8 +120,8 @@ export function RecalculateButton({
               variant={isDirty ? "default" : "outline"}
               size="sm"
               className="rounded-l-none px-2"
-              aria-label="Options de recalcul avancées"
-              title="Options avancées"
+              aria-label={t("simulator.recalc.advancedAria")}
+              title={t("simulator.recalc.advancedTitle")}
             />
           }
         >
@@ -136,9 +139,9 @@ export function RecalculateButton({
               >
                 <Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
                 <span>
-                  <span className="block text-sm font-medium">{s.label}</span>
+                  <span className="block text-sm font-medium">{t(s.label)}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {s.description}
+                    {t(s.description)}
                   </span>
                 </span>
               </DropdownMenuItem>

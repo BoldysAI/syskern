@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Columns } from "@phosphor-icons/react";
 import type { AttributeRegistry } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { localize } from "@/components/AttributeRenderer";
 import { AppModal } from "@/components/AppModal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export function CatalogColumnsDialog({
   onApply,
   disabled,
 }: CatalogColumnsDialogProps) {
+  const t = useUiTranslate();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(visibleKeys);
 
@@ -79,12 +81,12 @@ export function CatalogColumnsDialog({
         type="button"
         variant="outline"
         size="sm"
-        title="Choisir les colonnes"
+        title={t("catalog.columns.choose")}
         disabled={disabled}
         onClick={openDialog}
       >
         <Columns size={15} />
-        <span className="hidden sm:inline">Colonnes</span>
+        <span className="hidden sm:inline">{t("catalog.columns.button")}</span>
         {selectedCount > 0 && (
           <span className="text-xs text-muted-foreground">({selectedCount})</span>
         )}
@@ -93,20 +95,20 @@ export function CatalogColumnsDialog({
       <AppModal
         open={open}
         onOpenChange={handleOpenChange}
-        title="Colonnes du catalogue"
-        description="Cochez les colonnes à afficher dans le tableau. Le SKU reste toujours visible."
+        title={t("catalog.columns.title")}
+        description={t("catalog.columns.description")}
         size="lg"
         footer={
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
-              Réinitialiser
+              {t("catalog.columns.reset")}
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button type="button" onClick={handleApply}>
-                Appliquer
+                {t("catalog.action.apply")}
               </Button>
             </div>
           </div>
@@ -114,7 +116,7 @@ export function CatalogColumnsDialog({
       >
         <div className="flex max-h-[min(60vh,28rem)] flex-col gap-6 overflow-y-auto pr-1">
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-foreground">Colonnes produit</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("catalog.columns.product")}</h3>
             <ul className="flex flex-col gap-2">
               {CATALOG_CORE_COLUMN_META.map((col) => {
                 const checked = draft.includes(col.key);
@@ -132,9 +134,11 @@ export function CatalogColumnsDialog({
                         disabled={col.locked}
                         onCheckedChange={() => toggle(col.key, col.locked)}
                       />
-                      <span className="text-sm text-foreground">{col.label}</span>
+                      <span className="text-sm text-foreground">{t(col.labelKey)}</span>
                       {col.locked && (
-                        <span className="text-xs text-muted-foreground">(toujours affiché)</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t("catalog.columns.alwaysVisible")}
+                        </span>
                       )}
                     </label>
                   </li>
@@ -144,9 +148,9 @@ export function CatalogColumnsDialog({
           </section>
 
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-foreground">Attributs dynamiques</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("catalog.columns.dynamic")}</h3>
             {sortedAttrs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun attribut défini dans le registre.</p>
+              <p className="text-sm text-muted-foreground">{t("catalog.columns.noAttrs")}</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {sortedAttrs.map((attr) => {

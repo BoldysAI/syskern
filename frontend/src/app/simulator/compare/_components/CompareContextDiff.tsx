@@ -4,7 +4,8 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { Equals, PencilSimple } from "@phosphor-icons/react";
 import type { CompareColumn } from "@/lib/api";
-import { RECALC_TRIGGER } from "@/app/simulator/[id]/_components/sim-format";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { buildSimulationHref, type SimulationNavigationContext } from "@/lib/simulation-navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -31,7 +32,12 @@ export function CompareContextDiff({
   simulationNavContext = { kind: "default" },
   onSimulationReplaced,
 }: Props) {
-  const sections = useMemo(() => buildDiffSections(columns), [columns]);
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
+  const sections = useMemo(
+    () => buildDiffSections(columns, displayLanguage),
+    [columns, displayLanguage],
+  );
   const diffCount = useMemo(() => countDiffs(sections), [sections]);
   const baseKey = columns[0]?.key ?? "";
   const visuals = useMemo(
@@ -54,20 +60,22 @@ export function CompareContextDiff({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-gradient-to-r from-slate-50 to-white px-4 py-3">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">Légende</span>
-          <LegendSwatch kind="same" label="Identique" />
-          <LegendSwatch kind="changed" label="Modifié" />
-          <LegendSwatch kind="added" label="Ajouté" />
-          <LegendSwatch kind="missing" label="Absent" />
+          <span className="font-semibold text-foreground">{t("simulator.compare.legend")}</span>
+          <LegendSwatch kind="same" label={t("simulator.compare.same")} />
+          <LegendSwatch kind="changed" label={t("simulator.compare.changed")} />
+          <LegendSwatch kind="added" label={t("simulator.compare.added")} />
+          <LegendSwatch kind="missing" label={t("simulator.compare.missing")} />
         </div>
         {diffCount === 0 ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
             <Equals size={13} />
-            Tous les paramètres sont identiques
+            {t("simulator.compare.allSame")}
           </span>
         ) : (
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-            {diffCount} écart{diffCount !== 1 ? "s" : ""}
+            {diffCount !== 1
+              ? t("simulator.compare.diffOther", { count: diffCount })
+              : t("simulator.compare.diffOne", { count: diffCount })}
           </span>
         )}
       </div>
@@ -77,7 +85,7 @@ export function CompareContextDiff({
           <thead>
             <tr className="border-b border-border bg-muted/40">
               <th className="sticky left-0 z-20 min-w-[200px] bg-muted/40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Paramètre
+                {t("simulator.compare.parameter")}
               </th>
               {visuals.map((v, i) => {
                 const col = columns[i];
@@ -107,11 +115,11 @@ export function CompareContextDiff({
                         </Link>
                         {v.isRef ? (
                           <span className="mt-0.5 inline-block rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-700">
-                            référence
+                            {t("simulator.compare.reference")}
                           </span>
                         ) : (
                           <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                            vs réf.
+                            {t("simulator.compare.vsRef")}
                           </span>
                         )}
                         {canEdit && isLiveSim && (
@@ -121,15 +129,15 @@ export function CompareContextDiff({
                             className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                           >
                             <PencilSimple size={11} />
-                            Modifier
+                            {t("common.edit")}
                           </button>
                         )}
                         {canEdit && !isLiveSim && (
                           <span
                             className="mt-1.5 block text-[10px] text-muted-foreground"
-                            title="Les snapshots de recalcul sont figés"
+                            title={t("simulator.compare.snapshotFrozenTitle")}
                           >
-                            Snapshot figé
+                            {t("simulator.compare.snapshotFrozen")}
                           </span>
                         )}
                       </div>
@@ -180,6 +188,7 @@ function ParamDiffRow({
   visuals: ReturnType<typeof columnVisuals>;
   baseKey: string;
 }) {
+  const { displayLanguage } = useAuth();
   const ref = row.values[baseKey] ?? "";
 
   return (
@@ -206,12 +215,11 @@ function ParamDiffRow({
       </td>
       {visuals.map((v, i) => {
         const raw = row.values[v.key] ?? "—";
-        const display =
-          row.id === "trigger" && raw !== "—" ? (RECALC_TRIGGER[raw]?.label ?? raw) : raw;
+        const display = raw;
         const kind: DiffKind = i === 0 ? "same" : diffKind(ref, raw);
         const delta =
           i > 0 && kind === "changed" && row.deltaUnit
-            ? fmtDelta(ref, raw, row.deltaUnit)
+            ? fmtDelta(ref, raw, row.deltaUnit, displayLanguage)
             : null;
 
         return (

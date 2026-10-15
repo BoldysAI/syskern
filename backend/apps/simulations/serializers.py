@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
+
 from .models import (
     SavedComparison,
     Simulation,
@@ -169,13 +171,18 @@ class SimulationWriteSerializer(serializers.ModelSerializer):
             if not (project_name and project_name.strip()) and label and label.strip():
                 project_name = label.strip()
                 attrs["project_name"] = project_name
+            request = self.context.get("request")
             if not (project_name and project_name.strip()):
                 raise serializers.ValidationError(
-                    {"project_name": "Le nom du projet est requis pour une simulation projet."}
+                    {
+                        "project_name": translate_request(
+                            request, "simulations.project_name_required"
+                        )
+                    }
                 )
             if len(client_ids) != 1:
                 raise serializers.ValidationError(
-                    {"client_ids": "Une simulation projet doit cibler exactement un client."}
+                    {"client_ids": translate_request(request, "simulations.project_one_client")}
                 )
 
         return attrs
@@ -215,7 +222,7 @@ class AddLinesSerializer(serializers.Serializer):
     def validate(self, attrs):
         if not attrs.get("product_ids") and not attrs.get("items"):
             raise serializers.ValidationError(
-                "Fournir product_ids ou items (product_id + paramètres optionnels)."
+                translate_request(self.context.get("request"), "simulations.lines_payload")
             )
         return attrs
 
@@ -287,10 +294,13 @@ class CompareSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         total = len(attrs.get("simulation_ids") or []) + len(attrs.get("recalculation_ids") or [])
+        request = self.context.get("request")
         if total < 2:
-            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+            raise serializers.ValidationError(
+                translate_request(request, "simulations.compare_count")
+            )
         if total > 4:
-            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
+            raise serializers.ValidationError(translate_request(request, "simulations.compare_max"))
         return attrs
 
 
@@ -311,25 +321,34 @@ class CompareWhatIfSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         total = len(attrs.get("simulation_ids") or []) + len(attrs.get("recalculation_ids") or [])
+        request = self.context.get("request")
         if total < 2:
-            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+            raise serializers.ValidationError(
+                translate_request(request, "simulations.compare_count")
+            )
         if total > 4:
-            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
+            raise serializers.ValidationError(translate_request(request, "simulations.compare_max"))
         return attrs
 
 
-def _validate_compare_ids(simulation_ids: list, recalculation_ids: list) -> None:
+def _validate_compare_ids(simulation_ids: list, recalculation_ids: list, request) -> None:
     """Ensure compare column IDs exist (shared by live compare + saved compare)."""
     sim_ids = [str(x) for x in simulation_ids]
     recalc_ids = [str(x) for x in recalculation_ids]
     if len({*sim_ids}) != len(sim_ids):
-        raise serializers.ValidationError("Doublon dans les simulations sélectionnées.")
+        raise serializers.ValidationError(
+            translate_request(request, "simulations.duplicate_simulations")
+        )
     if len({*recalc_ids}) != len(recalc_ids):
-        raise serializers.ValidationError("Doublon dans les recalculs sélectionnés.")
+        raise serializers.ValidationError(
+            translate_request(request, "simulations.duplicate_recalcs")
+        )
     if Simulation.objects.filter(id__in=sim_ids).count() != len(set(sim_ids)):
-        raise serializers.ValidationError("Certaines simulations sont introuvables.")
+        raise serializers.ValidationError(translate_request(request, "simulations.sims_not_found"))
     if SimulationRecalculation.objects.filter(id__in=recalc_ids).count() != len(set(recalc_ids)):
-        raise serializers.ValidationError("Certains recalculs sont introuvables.")
+        raise serializers.ValidationError(
+            translate_request(request, "simulations.recalcs_not_found")
+        )
 
 
 class SavedComparisonColumnSerializer(serializers.Serializer):
@@ -359,6 +378,7 @@ class SavedComparisonSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_columns(self, obj: SavedComparison) -> list[dict]:
+        request = self.context.get("request")
         sims = {str(s.id): s for s in Simulation.objects.filter(id__in=obj.simulation_ids)}
         recalcs = {
             str(r.id): r
@@ -374,14 +394,26 @@ class SavedComparisonSerializer(serializers.ModelSerializer):
                 {
                     "type": "simulation",
                     "id": sid,
-                    "label": s.label if s else "(simulation supprimée)",
+                    "label": (
+                        s.label
+                        if s
+                        else translate_request(request, "simulations.simulation_deleted_label")
+                    ),
                     "simulation_id": sid,
                 }
             )
         for rid in obj.recalculation_ids:
             key = str(rid)
             r = recalcs.get(key)
-            label = f"Recalcul du {r.calculated_at:%d/%m/%Y %H:%M}" if r else "(recalcul supprimé)"
+            label = (
+                translate_request(
+                    request,
+                    "simulations.recalc_label",
+                    when=f"{r.calculated_at:%d/%m/%Y %H:%M}",
+                )
+                if r
+                else translate_request(request, "simulations.recalc_deleted_label")
+            )
             out.append(
                 {
                     "type": "recalculation",
@@ -421,11 +453,14 @@ class SavedComparisonWriteSerializer(serializers.ModelSerializer):
         if sim_ids is None:
             sim_ids = []
         total = len(sim_ids) + len(recalc_ids)
+        request = self.context.get("request")
         if total < 2:
-            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+            raise serializers.ValidationError(
+                translate_request(request, "simulations.compare_count")
+            )
         if total > 4:
-            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
-        _validate_compare_ids(sim_ids, recalc_ids)
+            raise serializers.ValidationError(translate_request(request, "simulations.compare_max"))
+        _validate_compare_ids(sim_ids, recalc_ids, request)
         return attrs
 
 
@@ -453,9 +488,12 @@ class SavedComparisonPatchSerializer(serializers.ModelSerializer):
         sim_ids = attrs.get("simulation_ids", instance.simulation_ids)
         recalc_ids = attrs.get("recalculation_ids", instance.recalculation_ids)
         total = len(sim_ids) + len(recalc_ids)
+        request = self.context.get("request")
         if total < 2:
-            raise serializers.ValidationError("Sélectionnez entre 2 et 4 éléments à comparer.")
+            raise serializers.ValidationError(
+                translate_request(request, "simulations.compare_count")
+            )
         if total > 4:
-            raise serializers.ValidationError("La comparaison est limitée à 4 éléments.")
-        _validate_compare_ids(sim_ids, recalc_ids)
+            raise serializers.ValidationError(translate_request(request, "simulations.compare_max"))
+        _validate_compare_ids(sim_ids, recalc_ids, request)
         return attrs

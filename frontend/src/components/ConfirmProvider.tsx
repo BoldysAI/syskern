@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface ConfirmOptions {
   title: string;
@@ -30,6 +31,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
+  const t = useUiTranslate();
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     setOptions(opts);
@@ -60,13 +62,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => finish(false)}>
-              {options?.cancelLabel ?? "Annuler"}
+              {options?.cancelLabel ?? t("common.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               variant={options?.destructive ? "destructive" : "default"}
               onClick={() => finish(true)}
             >
-              {options?.confirmLabel ?? "Confirmer"}
+              {options?.confirmLabel ?? t("common.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CaretDown, DownloadSimple, Warning, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function NotFoundSkuBanner({ skus, onClear }: Props) {
+  const t = useUiTranslate();
   const [open, setOpen] = useState(false);
 
   if (skus.length === 0) return null;
@@ -21,7 +23,7 @@ export function NotFoundSkuBanner({ skus, onClear }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "sku_non_trouves.csv";
+    a.download = t("simulator.sku.reportFilename");
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -38,7 +40,9 @@ export function NotFoundSkuBanner({ skus, onClear }: Props) {
       >
         <Warning size={18} weight="fill" className="shrink-0 text-destructive" />
         <span className="flex-1 text-sm font-semibold text-destructive">
-          {skus.length} SKU non trouvé{skus.length > 1 ? "s" : ""} lors de l&apos;import
+          {skus.length > 1
+            ? t("simulator.sku.notFoundOther", { count: skus.length })
+            : t("simulator.sku.notFoundOne", { count: skus.length })}
         </span>
         <CaretDown
           size={16}
@@ -58,7 +62,7 @@ export function NotFoundSkuBanner({ skus, onClear }: Props) {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={downloadReport}>
               <DownloadSimple size={14} />
-              Télécharger le rapport
+              {t("simulator.sku.downloadReport")}
             </Button>
             <Button
               type="button"
@@ -68,7 +72,7 @@ export function NotFoundSkuBanner({ skus, onClear }: Props) {
               onClick={onClear}
             >
               <X size={14} />
-              Vider la liste
+              {t("simulator.sku.clearList")}
             </Button>
           </div>
         </div>

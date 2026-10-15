@@ -1,5 +1,9 @@
 // Comparison list filters — mirrors the offers/simulations modules (CDC §6.9.8).
 
+import type { MessageKey } from "@/lib/i18n";
+
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
 export type ComparisonSimType = "tariff" | "project";
 export type HasRecalcFilter = "true" | "false";
 
@@ -9,14 +13,14 @@ export interface ComparisonFilters {
   sim_type?: ComparisonSimType[];
 }
 
-export const STRUCTURE_OPTIONS: { value: HasRecalcFilter; label: string }[] = [
-  { value: "true", label: "Avec recalculs" },
-  { value: "false", label: "Simulations seules" },
+export const STRUCTURE_OPTIONS: { value: HasRecalcFilter }[] = [
+  { value: "true" },
+  { value: "false" },
 ];
 
-export const SIM_TYPE_OPTIONS: { value: ComparisonSimType; label: string }[] = [
-  { value: "tariff", label: "Tarif" },
-  { value: "project", label: "Projet" },
+export const SIM_TYPE_OPTIONS: { value: ComparisonSimType }[] = [
+  { value: "tariff" },
+  { value: "project" },
 ];
 
 export function countActiveComparisonFilters(filters: ComparisonFilters): number {
@@ -51,23 +55,34 @@ export interface ComparisonFilterChip {
   label: string;
 }
 
-export function buildComparisonFilterChips(filters: ComparisonFilters): ComparisonFilterChip[] {
+export function buildComparisonFilterChips(
+  filters: ComparisonFilters,
+  t: Translate,
+): ComparisonFilterChip[] {
   const chips: ComparisonFilterChip[] = [];
-  if (filters.q?.trim()) chips.push({ id: "q", category: "Recherche", label: filters.q.trim() });
+  if (filters.q?.trim())
+    chips.push({
+      id: "q",
+      category: t("comparator.filters.chipSearch"),
+      label: filters.q.trim(),
+    });
   if (filters.has_recalculations)
     chips.push({
       id: "has_recalculations",
-      category: "Structure",
+      category: t("comparator.filters.chipStructure"),
       label:
-        STRUCTURE_OPTIONS.find((o) => o.value === filters.has_recalculations)?.label ??
-        filters.has_recalculations,
+        filters.has_recalculations === "true"
+          ? t("comparator.filters.withRecalcs")
+          : t("comparator.filters.simsOnly"),
     });
   if (filters.sim_type?.length)
     chips.push({
       id: "sim_type",
-      category: "Simulations",
+      category: t("comparator.simulations"),
       label: filters.sim_type
-        .map((t) => SIM_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t)
+        .map((type) =>
+          type === "tariff" ? t("comparator.type.tariff") : t("comparator.type.project"),
+        )
         .join(", "),
     });
   return chips;

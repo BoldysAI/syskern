@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
@@ -14,6 +15,8 @@ import {
   UploadSimple,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -30,8 +33,10 @@ import { LibraryActiveFilterBar } from "./_components/LibraryActiveFilterBar";
 import { LibraryFilterSheet, LibraryFilterTrigger } from "./_components/LibraryFilterSheet";
 import {
   buildLibraryQuery,
+  CATEGORY_OPTIONS,
   countActiveLibraryFilters,
   normalizeLibraryFilters,
+  translateOptionLabel,
   type LibraryFilters,
 } from "./_components/library-filters";
 import {
@@ -75,17 +80,7 @@ interface ProductLite {
   name: string;
 }
 
-const CATEGORIES: { code: string; label: string }[] = [
-  { code: "cgv", label: "CGV" },
-  { code: "warranty", label: "Garantie" },
-  { code: "quality", label: "Qualité" },
-  { code: "project_reference", label: "Références projet" },
-  { code: "company", label: "Entreprise" },
-  { code: "other", label: "Autre" },
-];
-const CAT_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.code, c.label]));
 const LANGS = [
-  { code: "", label: "Multi" },
   { code: "fr", label: "FR" },
   { code: "en", label: "EN" },
   { code: "es", label: "ES" },
@@ -103,11 +98,14 @@ async function getJson<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error("Erreur de chargement");
   return res.json();
 }
-function humanSize(b: number | null): string {
+function humanSize(
+  b: number | null,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): string {
   if (!b) return "—";
-  if (b < 1024) return `${b} o`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} Ko`;
-  return `${(b / 1024 / 1024).toFixed(1)} Mo`;
+  if (b < 1024) return t("library.size.bytes", { count: b });
+  if (b < 1024 * 1024) return t("library.size.kb", { count: (b / 1024).toFixed(0) });
+  return t("library.size.mb", { count: (b / 1024 / 1024).toFixed(1) });
 }
 function docLabel(d: Doc): string {
   return d.name?.fr || d.name?.en || d.file_name || "—";
@@ -119,6 +117,7 @@ const PAGE_SIZE = 50;
 // ── Upload dialog ─────────────────────────────────────────────────────────────
 
 function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useUiTranslate();
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState("cgv");
   const [language, setLanguage] = useState("fr");
@@ -147,8 +146,8 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
 
   const validate = (f: File): string | null => {
     const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
-    if (!ALLOWED_EXT.includes(ext)) return "Format non accepté (PDF, JPG, PNG, DOCX, XLSX).";
-    if (f.size > MAX_BYTES) return "Fichier trop volumineux (max 20 Mo).";
+    if (!ALLOWED_EXT.includes(ext)) return t("library.upload.format_rejected");
+    if (f.size > MAX_BYTES) return t("library.upload.too_large");
     return null;
   };
   const pickFile = (f: File | null) => {
@@ -182,12 +181,12 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d?.detail ?? "Échec de l'upload.");
+        throw new Error(d?.detail ?? t("library.upload.failed"));
       }
       await mutate((k) => typeof k === "string" && k.startsWith("library:"));
       onClose();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Échec de l'upload.");
+      setError(e instanceof Error ? e.message : t("library.upload.failed"));
       setBusy(false);
     }
   };
@@ -196,7 +195,7 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Ajouter un document</DialogTitle>
+          <DialogTitle>{t("library.upload.title")}</DialogTitle>
         </DialogHeader>
 
         {error && (
@@ -225,10 +224,10 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
           <UploadSimple size={22} className="text-muted-foreground" />
           {file ? (
             <span className="font-medium text-foreground">
-              {file.name} · {humanSize(file.size)}
+              {file.name} · {humanSize(file.size, t)}
             </span>
           ) : (
-            <span>Glissez un fichier ici ou cliquez (PDF, JPG, PNG, DOCX, XLSX · max 20 Mo)</span>
+            <span>{t("library.upload.drop")}</span>
           )}
           <input
             ref={inputRef}
@@ -240,37 +239,42 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Catégorie">
+          <FormField label={t("library.category")}>
             <FilterSelect
               value={category}
               onChange={setCategory}
-              placeholder="Choisir…"
-              options={CATEGORIES.map((c) => ({ value: c.code, label: c.label }))}
+              placeholder={t("library.upload.choose")}
+              options={CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
             />
           </FormField>
-          <FormField label="Langue">
+          <FormField label={t("library.language")}>
             <FilterSelect
               value={language}
               onChange={setLanguage}
-              placeholder="Choisir…"
-              options={LANGS.map((l) => ({ value: l.code, label: l.label }))}
+              placeholder={t("library.upload.choose")}
+              options={[
+                { value: "", label: t("library.language.multi") },
+                ...LANGS.map((l) => ({ value: l.code, label: l.label })),
+              ]}
             />
           </FormField>
         </div>
 
         <div className="relative">
-          <FormField label="Produit lié (optionnel)">
+          <FormField label={t("library.upload.product")}>
             <Input
               value={productQuery}
               onChange={(e) => {
                 setProductQuery(e.target.value);
                 setProductId("");
               }}
-              placeholder="Rechercher un SKU ou un nom…"
+              placeholder={t("library.upload.product_placeholder")}
             />
           </FormField>
           {productId && (
-            <span className="mt-1 inline-block text-xs text-brand-green">Produit lié ✓</span>
+            <span className="mt-1 inline-block text-xs text-brand-green">
+              {t("library.upload.product_linked")}
+            </span>
           )}
           {productMatches.length > 0 && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
@@ -292,16 +296,16 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
           )}
         </div>
 
-        <FormField label="Notes">
+        <FormField label={t("library.upload.notes")}>
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </FormField>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={submit} disabled={!file || busy}>
-            {busy ? "Envoi…" : "Uploader"}
+            {busy ? t("library.upload.sending") : t("library.upload.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -312,6 +316,7 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
 // ── Preview modal ─────────────────────────────────────────────────────────────
 
 function PreviewDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+  const t = useUiTranslate();
   const isImage = doc.mime_type.startsWith("image/");
   const isPdf = doc.mime_type === "application/pdf";
   const src = `${doc.download_url}?inline=1`;
@@ -335,9 +340,9 @@ function PreviewDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
                 weight="duotone"
                 className="mx-auto mb-2 text-muted-foreground/50"
               />
-              Aperçu indisponible pour ce format.
+              {t("library.preview.unavailable")}
               <a href={doc.download_url} className="mt-2 block font-medium text-brand-green">
-                Télécharger
+                {t("library.download")}
               </a>
             </div>
           )}
@@ -350,6 +355,8 @@ function PreviewDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 // ── Versions dialog ───────────────────────────────────────────────────────────
 
 function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const { data } = useSWR<Doc[]>(`versions:${doc.id}`, () =>
     getJson<Doc[]>(`/api/document-library/${doc.id}/versions/`),
   );
@@ -358,7 +365,7 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Versions — {doc.file_name}</DialogTitle>
+          <DialogTitle>{t("library.versions.title", { name: doc.file_name })}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
           {(data ?? []).map((v) => (
@@ -369,11 +376,11 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
               <span>
                 <span className="font-data font-medium">v{v.version}</span>{" "}
                 <span className="text-muted-foreground">
-                  · {new Date(v.created_at).toLocaleDateString("fr-FR")}
+                  · {new Date(v.created_at).toLocaleDateString(uiDateLocale(displayLanguage))}
                 </span>
               </span>
               <a href={v.download_url} className="text-xs font-medium text-brand-green">
-                Télécharger
+                {t("library.download")}
               </a>
             </div>
           ))}
@@ -386,6 +393,8 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const confirm = useConfirm();
   const [filters, setFilters] = useState<LibraryFilters>({});
   const [showUpload, setShowUpload] = useState(false);
@@ -448,22 +457,22 @@ export default function LibraryPage() {
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("library.filters.delete_favorite_title"),
+        description: t("library.filters.delete_favorite_description", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
   );
 
   const remove = async (d: Doc) => {
     const ok = await confirm({
-      title: "Supprimer le document",
-      description: `Supprimer « ${docLabel(d)} » ? (conservé 30 jours puis purgé)`,
-      confirmLabel: "Supprimer",
+      title: t("library.delete.title"),
+      description: t("library.delete.description", { name: docLabel(d) }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -479,7 +488,7 @@ export default function LibraryPage() {
     () => [
       {
         key: "name",
-        label: "Document",
+        label: t("library.column.document"),
         width: 240,
         sortField: "file_name",
         render: (d) => (
@@ -491,28 +500,28 @@ export default function LibraryPage() {
       },
       {
         key: "category",
-        label: "Catégorie",
+        label: t("library.category"),
         width: 140,
         cellClassName: "text-sm text-muted-foreground",
-        render: (d) => CAT_LABEL[d.category] ?? d.category,
+        render: (d) => translateOptionLabel(CATEGORY_OPTIONS, d.category, t),
       },
       {
         key: "language",
-        label: "Langue",
+        label: t("library.language"),
         width: 80,
         cellClassName: "text-sm uppercase text-muted-foreground",
-        render: (d) => d.language || "multi",
+        render: (d) => d.language || t("library.language.unspecified"),
       },
       {
         key: "product",
-        label: "Produit",
+        label: t("library.column.product"),
         width: 120,
         cellClassName: "text-sm text-muted-foreground",
         render: (d) => d.product_sku ?? "—",
       },
       {
         key: "version",
-        label: "Ver.",
+        label: t("library.column.version"),
         width: 60,
         align: "right",
         sortField: "version",
@@ -521,15 +530,15 @@ export default function LibraryPage() {
       },
       {
         key: "size",
-        label: "Taille",
+        label: t("library.column.size"),
         width: 80,
         align: "right",
         sortField: "file_size_bytes",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (d) => humanSize(d.file_size_bytes),
+        render: (d) => humanSize(d.file_size_bytes, t),
       },
     ],
-    [],
+    [t],
   );
 
   return (
@@ -540,8 +549,8 @@ export default function LibraryPage() {
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("library.filters.show")}
+            title={t("library.filters.title")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -558,17 +567,19 @@ export default function LibraryPage() {
         >
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("library.filters.title")}</span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {activeFilterCount > 1
+                    ? t("library.filters.active_other", { count: activeFilterCount })
+                    : t("library.filters.active_one", { count: activeFilterCount })}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  Tout effacer
+                  {t("library.filters.clear_all")}
                 </Button>
               )}
               <Button
@@ -576,8 +587,8 @@ export default function LibraryPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("library.filters.hide")}
+                title={t("library.filters.hide")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -596,7 +607,7 @@ export default function LibraryPage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("library.filters.resize")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -619,18 +630,20 @@ export default function LibraryPage() {
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 <FileText size={22} weight="duotone" className="shrink-0 text-primary" />
-                Bibliothèque de documents
+                {t("library.title")}
               </h1>
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                  {total.toLocaleString("fr-FR")} document{total !== 1 ? "s" : ""}
+                  {total !== 1
+                    ? t("library.count.other", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("library.count.one", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>
           </div>
           <Button onClick={() => setShowUpload(true)}>
             <Plus size={16} weight="bold" />
-            <span className="hidden sm:inline">Ajouter</span>
+            <span className="hidden sm:inline">{t("library.add")}</span>
           </Button>
         </div>
 
@@ -667,21 +680,21 @@ export default function LibraryPage() {
           trailingWidth={140}
           renderTrailingCell={(d) => (
             <div className="flex items-center justify-end gap-0.5">
-              <IconBtn title="Aperçu" onClick={() => setPreview(d)}>
+              <IconBtn title={t("library.preview.action")} onClick={() => setPreview(d)}>
                 <Eye size={15} />
               </IconBtn>
               <a
                 href={d.download_url}
-                title="Télécharger"
+                title={t("library.download")}
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-brand-green"
                 onClick={(e) => e.stopPropagation()}
               >
                 <DownloadSimple size={15} />
               </a>
-              <IconBtn title="Versions" onClick={() => setVersions(d)}>
+              <IconBtn title={t("library.versions.action")} onClick={() => setVersions(d)}>
                 <ClockCounterClockwise size={15} />
               </IconBtn>
-              <IconBtn title="Supprimer" danger onClick={() => remove(d)}>
+              <IconBtn title={t("common.delete")} danger onClick={() => remove(d)}>
                 <Trash size={15} />
               </IconBtn>
             </div>
@@ -690,29 +703,29 @@ export default function LibraryPage() {
             error ? (
               <EmptyState
                 icon={<FileText size={24} weight="duotone" />}
-                title="Erreur de chargement"
-                description="Impossible de charger les documents."
+                title={t("library.error.title")}
+                description={t("library.error.description")}
               />
             ) : undefined
           }
           emptyState={
             <EmptyState
               icon={<FileText size={24} weight="duotone" />}
-              title="Aucun document"
+              title={t("library.empty.title")}
               description={
                 activeFilterCount > 0
-                  ? "Essayez d’élargir vos filtres."
-                  : "Cliquez « Ajouter » pour en uploader un."
+                  ? t("library.empty.filtered")
+                  : t("library.empty.default")
               }
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Réinitialiser les filtres
+                    {t("library.empty.reset")}
                   </Button>
                 ) : (
                   <Button onClick={() => setShowUpload(true)}>
                     <Plus size={16} weight="bold" />
-                    Ajouter
+                    {t("library.add")}
                   </Button>
                 )
               }
@@ -726,9 +739,9 @@ export default function LibraryPage() {
                   totalCount: total,
                   pageSize: PAGE_SIZE,
                   onPageChange: setPage,
-                  itemLabel: "document",
+                  itemLabel: t("library.pagination.item"),
                   jumpInputId: "library-page-jump",
-                  ariaLabel: "Pagination des documents",
+                  ariaLabel: t("library.pagination.aria"),
                 }
               : undefined
           }

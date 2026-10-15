@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Star, X } from "@phosphor-icons/react";
 import type { Simulation } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { COLUMN_PALETTE } from "@/app/simulator/compare/_components/compare-colors";
@@ -25,6 +26,7 @@ export function SelectedColumnsOrder({
   readOnly = false,
   className,
 }: Props) {
+  const t = useUiTranslate();
   const simMap = new Map(simulations.map((s) => [s.id, s]));
   const totalColumns = simulationIds.length + recalculationIds.length;
 
@@ -45,16 +47,19 @@ export function SelectedColumnsOrder({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Ordre des colonnes
+            {t("comparator.columns.order")}
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            La colonne <span className="font-semibold text-brand-green">A · Référence</span> sert de
-            base pour les écarts (PV, paramètres, etc.).
+            {t("comparator.columns.orderLead")}{" "}
+            <span className="font-semibold text-brand-green">
+              {t("comparator.columns.referenceMark")}
+            </span>{" "}
+            {t("comparator.columns.orderTail")}
           </p>
         </div>
         {!readOnly && simulationIds.length > 1 && (
           <p className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-            Flèches ↑↓ pour changer la référence
+            {t("comparator.columns.reorderHint")}
           </p>
         )}
       </div>
@@ -86,22 +91,26 @@ export function SelectedColumnsOrder({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-sm font-semibold text-foreground">
-                    {sim?.label ?? "Simulation"}
+                    {sim?.label ?? t("comparator.simulationFallback")}
                   </span>
                   {isRef && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-green px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                       <Star size={10} weight="fill" />
-                      Référence
+                      {t("comparator.reference")}
                     </span>
                   )}
                   {!isRef && (
-                    <span className="text-[10px] font-medium text-muted-foreground">vs réf.</span>
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {t("comparator.vsRef")}
+                    </span>
                   )}
                 </div>
                 {sim && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {sim.simulation_type === "tariff" ? "Tarif" : "Projet"} · {sim.line_count}{" "}
-                    lignes
+                    {sim.simulation_type === "tariff"
+                      ? t("comparator.type.tariff")
+                      : t("comparator.type.project")}{" "}
+                    · {t("comparator.lineCount", { count: sim.line_count })}
                   </p>
                 )}
               </div>
@@ -114,8 +123,8 @@ export function SelectedColumnsOrder({
                     size="icon-sm"
                     disabled={i === 0}
                     onClick={() => move(id, -1)}
-                    title="Monter (devient référence si en 1ʳᵉ position)"
-                    aria-label="Monter"
+                    title={t("comparator.columns.moveUpTitle")}
+                    aria-label={t("comparator.columns.moveUp")}
                   >
                     <ArrowUp size={14} />
                   </Button>
@@ -125,8 +134,8 @@ export function SelectedColumnsOrder({
                     size="icon-sm"
                     disabled={i === simulationIds.length - 1}
                     onClick={() => move(id, 1)}
-                    title="Descendre"
-                    aria-label="Descendre"
+                    title={t("comparator.columns.moveDown")}
+                    aria-label={t("comparator.columns.moveDown")}
                   >
                     <ArrowDown size={14} />
                   </Button>
@@ -135,8 +144,8 @@ export function SelectedColumnsOrder({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => onRemoveSimulation?.(id)}
-                    title="Retirer"
-                    aria-label="Retirer"
+                    title={t("comparator.columns.remove")}
+                    aria-label={t("comparator.columns.remove")}
                   >
                     <X size={14} />
                   </Button>
@@ -158,8 +167,10 @@ export function SelectedColumnsOrder({
                 {letter}
               </span>
               <div className="min-w-0 flex-1">
-                <span className="text-sm font-medium text-violet-900">Snapshot de recalcul</span>
-                <p className="mt-0.5 text-xs text-violet-700">Colonne historique figée</p>
+                <span className="text-sm font-medium text-violet-900">
+                  {t("comparator.columns.snapshot")}
+                </span>
+                <p className="mt-0.5 text-xs text-violet-700">{t("comparator.columns.snapshotHint")}</p>
               </div>
             </li>
           );

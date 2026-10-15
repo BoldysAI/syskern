@@ -1,27 +1,37 @@
 // Document library list filters — mirrors the offers/simulations modules (CDC §7.4).
 
+import type { MessageKey } from "@/lib/i18n";
+
 export interface LibraryFilters {
   category?: string[];
   language?: string[];
 }
 
-export const CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: "cgv", label: "CGV" },
-  { value: "warranty", label: "Garantie" },
-  { value: "quality", label: "Qualité" },
-  { value: "project_reference", label: "Références projet" },
-  { value: "company", label: "Entreprise" },
-  { value: "other", label: "Autre" },
+export const CATEGORY_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: "cgv", labelKey: "library.category.cgv" },
+  { value: "warranty", labelKey: "library.category.warranty" },
+  { value: "quality", labelKey: "library.category.quality" },
+  { value: "project_reference", labelKey: "library.category.project_reference" },
+  { value: "company", labelKey: "library.category.company" },
+  { value: "other", labelKey: "library.category.other" },
 ];
 
-export const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
-  { value: "fr", label: "Français" },
-  { value: "en", label: "Anglais" },
-  { value: "es", label: "Espagnol" },
+export const LANGUAGE_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: "fr", labelKey: "library.language.fr" },
+  { value: "en", labelKey: "library.language.en" },
+  { value: "es", labelKey: "library.language.es" },
 ];
 
-const CATEGORY_LABEL = Object.fromEntries(CATEGORY_OPTIONS.map((o) => [o.value, o.label]));
-const LANGUAGE_LABEL = Object.fromEntries(LANGUAGE_OPTIONS.map((o) => [o.value, o.label]));
+type TranslateFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+export function translateOptionLabel(
+  options: readonly { value: string; labelKey: MessageKey }[],
+  value: string,
+  t: TranslateFn,
+): string {
+  const match = options.find((option) => option.value === value);
+  return match ? t(match.labelKey) : value;
+}
 
 export function countActiveLibraryFilters(filters: LibraryFilters): number {
   let n = 0;
@@ -54,19 +64,26 @@ export interface LibraryFilterChip {
   label: string;
 }
 
-export function buildLibraryFilterChips(filters: LibraryFilters): LibraryFilterChip[] {
+export function buildLibraryFilterChips(
+  filters: LibraryFilters,
+  t: TranslateFn,
+): LibraryFilterChip[] {
   const chips: LibraryFilterChip[] = [];
   if (filters.category?.length)
     chips.push({
       id: "category",
-      category: "Catégorie",
-      label: filters.category.map((c) => CATEGORY_LABEL[c] ?? c).join(", "),
+      category: t("library.category"),
+      label: filters.category
+        .map((c) => translateOptionLabel(CATEGORY_OPTIONS, c, t))
+        .join(", "),
     });
   if (filters.language?.length)
     chips.push({
       id: "language",
-      category: "Langue",
-      label: filters.language.map((l) => LANGUAGE_LABEL[l] ?? l).join(", "),
+      category: t("library.language"),
+      label: filters.language
+        .map((l) => translateOptionLabel(LANGUAGE_OPTIONS, l, t))
+        .join(", "),
     });
   return chips;
 }

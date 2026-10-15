@@ -2,6 +2,7 @@
 
 import { Warning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   issues: string[];
@@ -10,6 +11,7 @@ interface Props {
 
 /** Liste les paramètres manquants ou invalides sur l'étape 3 du wizard. */
 export function WizardStep3IssuesBanner({ issues, className }: Props) {
+  const t = useUiTranslate();
   if (issues.length === 0) return null;
 
   return (
@@ -24,12 +26,12 @@ export function WizardStep3IssuesBanner({ issues, className }: Props) {
         <Warning size={20} weight="duotone" className="mt-0.5 shrink-0 text-warm" aria-hidden />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            {issues.length} information{issues.length > 1 ? "s" : ""} manquante
-            {issues.length > 1 ? "s" : ""} ou incomplète{issues.length > 1 ? "s" : ""}
+            {issues.length > 1
+              ? t("simulator.wizard.issuesOther", { count: issues.length })
+              : t("simulator.wizard.issuesOne", { count: issues.length })}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Corrigez ces points pour un calcul fiable, ou confirmez à la création pour continuer
-            malgré tout.
+            {t("simulator.wizard.issuesHint")}
           </p>
           <ul className="mt-2.5 list-disc space-y-1 pl-4 text-sm text-foreground/90">
             {issues.map((issue) => (

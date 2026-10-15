@@ -6,6 +6,9 @@ import { ChartLine, CurrencyCircleDollar } from "@phosphor-icons/react";
 import { listMarketParameters, type MarketParameter } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 const COPPER_UNIT_LABELS: Record<string, string> = {
   tonne: "t",
@@ -13,11 +16,11 @@ const COPPER_UNIT_LABELS: Record<string, string> = {
   lb: "lb",
 };
 
-function formatFx(value?: string | null): string {
+function formatFx(value: string | null | undefined, locale: string): string {
   if (value == null || value === "") return "—";
   const n = Number(value);
   if (Number.isNaN(n)) return value;
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return n.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
 function copperUnitLabel(unit?: string | null): string {
@@ -59,8 +62,10 @@ function currentMarketParams(params: MarketParameter[]): MarketParameter[] {
 }
 
 function MarketParamRow({ param }: { param: MarketParameter }) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const isCopper = param.parameter_type === "copper_price";
-  const validFrom = new Date(param.valid_from).toLocaleDateString("fr-FR");
+  const validFrom = new Date(param.valid_from).toLocaleDateString(uiDateLocale(displayLanguage));
 
   return (
     <div className="flex items-start gap-3 rounded-lg bg-muted/40 px-3 py-2.5">
@@ -72,21 +77,29 @@ function MarketParamRow({ param }: { param: MarketParameter }) {
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">
           {isCopper
-            ? `Cuivre ${param.copper_market ?? "—"}`
-            : `FX ${param.fx_from_currency} → ${param.fx_to_currency}`}
+            ? t("dashboard.copperParam", { market: param.copper_market ?? "—" })
+            : t("dashboard.fxParam", {
+                from: param.fx_from_currency ?? "",
+                to: param.fx_to_currency ?? "",
+              })}
         </p>
         <p className="text-sm font-semibold tabular-nums text-foreground">
           {isCopper
             ? `${param.copper_price} ${param.copper_currency}/${copperUnitLabel(param.copper_unit)}`
-            : `1 ${param.fx_from_currency} = ${formatFx(param.fx_rate)} ${param.fx_to_currency}`}
+            : t("dashboard.fxRate", {
+                from: param.fx_from_currency ?? "",
+                rate: formatFx(param.fx_rate, displayLanguage),
+                to: param.fx_to_currency ?? "",
+              })}
         </p>
-        <p className="text-[11px] text-muted-foreground">Valide depuis le {validFrom}</p>
+        <p className="text-[11px] text-muted-foreground">{t("dashboard.validSince", { date: validFrom })}</p>
       </div>
     </div>
   );
 }
 
 export function DashboardMarketCard() {
+  const t = useUiTranslate();
   const { data, isLoading } = useSWR("market-params-active", () =>
     listMarketParameters({ activeOnly: true }),
   );
@@ -105,20 +118,20 @@ export function DashboardMarketCard() {
   return (
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">Paramètres marché</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("dashboard.marketParams")}</h2>
         <Button
           variant="ghost"
           size="sm"
           nativeButton={false}
           render={<Link href="/settings?tab=marche" />}
         >
-          Gérer
+          {t("dashboard.manage")}
         </Button>
       </div>
 
       {params.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Aucun paramètre marché actif. Saisissez le cuivre et les taux de change.
+          {t("dashboard.noMarketParams")}
         </p>
       ) : (
         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">

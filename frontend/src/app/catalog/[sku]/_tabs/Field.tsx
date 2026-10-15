@@ -1,6 +1,9 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import type { ProductDetail } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +44,8 @@ function validate(kind: FieldKind, value: unknown): boolean {
 }
 
 export function Field({ field, label, kind = "text", unit, options, readOnly }: FieldProps) {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const { mode, coreValue, setCore } = useEdit();
   const value = coreValue(field);
   const editable = mode === "edit" && !readOnly;
@@ -58,7 +63,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             value ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
           )}
         >
-          {value ? "Oui" : "Non"}
+          {value ? t("common.yes") : t("common.no")}
         </span>
       );
     }
@@ -66,7 +71,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
       const n = Number(value);
       return (
         <span className="font-medium text-foreground">
-          {Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value)}
+          {Number.isFinite(n) ? n.toLocaleString(uiDateLocale(displayLanguage)) : String(value)}
           {unit && <span className="ml-1 text-muted-foreground">{unit}</span>}
         </span>
       );
@@ -106,7 +111,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
             onValueChange={(v) => emit(v)}
           >
             <SelectTrigger className="w-full text-left">
-              <SelectValue placeholder="Sélectionner…">
+              <SelectValue placeholder={t("catalog.field.select")}>
                 {options.find((o) => o.value === value)?.label}
               </SelectValue>
             </SelectTrigger>

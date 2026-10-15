@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { SimulationType } from "@/lib/api";
 import { Package, X } from "@phosphor-icons/react";
 import type { SelectedSku } from "./wizard-draft";
@@ -30,6 +31,7 @@ export function SelectedSkuList({
   onClear,
   className,
 }: Props) {
+  const t = useUiTranslate();
   const isProject = simulationType === "project";
 
   return (
@@ -38,7 +40,9 @@ export function SelectedSkuList({
         <div className="flex items-center gap-2">
           <Package size={16} className="text-warm" />
           <span className="text-sm font-semibold text-foreground">
-            {skus.length} SKU sélectionné{skus.length !== 1 ? "s" : ""}
+            {skus.length !== 1
+              ? t("simulator.sku.selectedOther", { count: skus.length })
+              : t("simulator.sku.selectedOne", { count: skus.length })}
           </span>
         </div>
         {skus.length > 0 && (
@@ -47,14 +51,14 @@ export function SelectedSkuList({
             onClick={onClear}
             className="text-xs font-semibold text-muted-foreground hover:text-destructive"
           >
-            Tout retirer
+            {t("simulator.sku.clearAll")}
           </button>
         )}
       </div>
 
       {skus.length === 0 ? (
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          Aucun SKU sélectionné. Parcourez le catalogue pour en ajouter.
+          {t("simulator.sku.none")}
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -64,8 +68,8 @@ export function SelectedSkuList({
               isProject ? "grid-cols-[minmax(0,1fr)_4.5rem_2rem]" : "grid-cols-[minmax(0,1fr)_2rem]",
             )}
           >
-            <span>SKU</span>
-            {isProject && <span className="text-right">Qté</span>}
+            <span>{t("simulator.column.sku")}</span>
+            {isProject && <span className="text-right">{t("simulator.column.qtyShort")}</span>}
             <span />
           </div>
           <ul className="divide-y divide-border">
@@ -95,14 +99,14 @@ export function SelectedSkuList({
                     }}
                     placeholder="1"
                     className={inputCls}
-                    aria-label={`Quantité pour ${s.sku_code}`}
+                    aria-label={t("simulator.sku.qtyFor", { sku: s.sku_code })}
                   />
                 )}
                 <button
                   type="button"
                   onClick={() => onRemove(s.id)}
                   className="justify-self-end rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-red-500"
-                  aria-label={`Retirer ${s.sku_code}`}
+                  aria-label={t("simulator.sku.remove", { sku: s.sku_code })}
                 >
                   <X size={15} />
                 </button>

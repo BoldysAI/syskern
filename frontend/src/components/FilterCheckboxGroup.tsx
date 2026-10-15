@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -28,11 +29,12 @@ export function FilterCheckboxGroup({
   selected,
   onChange,
   searchable,
-  searchPlaceholder = "Rechercher…",
+  searchPlaceholder,
   maxHeight = "max-h-48",
   idPrefix = "filter",
   className,
 }: FilterCheckboxGroupProps) {
+  const t = useUiTranslate();
   const [query, setQuery] = useState("");
   const selectedRef = useRef(selected);
   useLayoutEffect(() => {
@@ -61,14 +63,14 @@ export function FilterCheckboxGroup({
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchPlaceholder}
+          placeholder={searchPlaceholder ?? t("common.searchEllipsis")}
           className="h-8"
         />
       )}
       <div className={cn("overflow-y-auto overscroll-contain", maxHeight)}>
         <ul className="space-y-0.5 pr-1">
           {filtered.length === 0 ? (
-            <li className="px-2 py-4 text-center text-xs text-muted-foreground">Aucun résultat</li>
+            <li className="px-2 py-4 text-center text-xs text-muted-foreground">{t("common.noResults")}</li>
           ) : (
             filtered.map((opt) => {
               const id = optionDomId(idPrefix, opt.value);

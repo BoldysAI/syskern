@@ -190,6 +190,18 @@ def test_excel_opens_with_columns_in_order(export_dir, finalized_tariff, two_cli
     assert ws.cell(row=header_row + 1, column=2).value == "KCFF6A4PZHDBL5-21"
 
 
+def test_fx_note_follows_offer_language():
+    from apps.offers.services.excel import fx_note_for
+
+    assert fx_note_for("EUR", {}, Decimal("1")) == ""
+    assert (
+        fx_note_for("USD", {}, Decimal("1.15")) == "Taux de conversion appliqué : 1 EUR = 1.15 USD"
+    )
+    assert (
+        fx_note_for("USD", {}, Decimal("1.15"), "en") == "Applied conversion rate: 1 EUR = 1.15 USD"
+    )
+
+
 def test_english_headers(export_dir, finalized_tariff, two_clients):
     _run(
         finalized_tariff,

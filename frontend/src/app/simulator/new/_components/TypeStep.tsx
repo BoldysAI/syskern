@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { Check, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { getClients, getClientsByIds, type Client, type SimulationType } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   label: string;
@@ -31,6 +32,7 @@ export function TypeStep({
   onClientIds,
   onProjectName,
 }: Props) {
+  const t = useUiTranslate();
   const [search, setMagnifyingGlass] = useState("");
   const [debounced, setDebounced] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,31 +85,33 @@ export function TypeStep({
     <div className="flex min-h-[min(68vh,640px)] w-full flex-col gap-6">
       <div className="grid shrink-0 gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>Libellé *</label>
+          <label className={labelCls}>{t("simulator.typeStep.label")}</label>
           <input
             value={label}
             onChange={(e) => onLabel(e.target.value)}
-            placeholder="ex. Tarif Q2 2026"
+            placeholder={t("simulator.typeStep.labelPlaceholder")}
             className={inputCls}
           />
         </div>
 
         <div>
-          <label className={labelCls}>Type *</label>
+          <label className={labelCls}>{t("simulator.typeStep.type")}</label>
           <div className="flex gap-2">
-            {(["tariff", "project"] as SimulationType[]).map((t) => (
+            {(["tariff", "project"] as SimulationType[]).map((kind) => (
               <button
                 type="button"
-                key={t}
-                onClick={() => onType(t)}
+                key={kind}
+                onClick={() => onType(kind)}
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-lg border transition-colors",
-                  type === t
+                  type === kind
                     ? "border-primary bg-accent text-accent-foreground"
                     : "border-border text-muted-foreground hover:bg-muted"
                 )}
               >
-                {t === "tariff" ? "Tarif (multi-clients)" : "Projet (1 client)"}
+                {kind === "tariff"
+                  ? t("simulator.type.tariffClients")
+                  : t("simulator.type.projectClient")}
               </button>
             ))}
           </div>
@@ -116,11 +120,11 @@ export function TypeStep({
 
       {type === "project" && (
         <div className="shrink-0 sm:max-w-md">
-          <label className={labelCls}>Nom du projet *</label>
+          <label className={labelCls}>{t("simulator.typeStep.projectName")}</label>
           <input
             value={projectName}
             onChange={(e) => onProjectName(e.target.value)}
-            placeholder="ex. Datacenter Lyon"
+            placeholder={t("simulator.typeStep.projectPlaceholder")}
             className={inputCls}
           />
         </div>
@@ -128,7 +132,9 @@ export function TypeStep({
 
       <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-4 shadow-sm">
         <label className={labelCls}>
-          {type === "tariff" ? "Clients (optionnel)" : "Client *"}
+          {type === "tariff"
+            ? t("simulator.typeStep.clientsOptional")
+            : t("simulator.typeStep.clientRequired")}
         </label>
 
         {clientIds.length > 0 && (
@@ -143,7 +149,7 @@ export function TypeStep({
                   type="button"
                   onClick={() => onClientIds(clientIds.filter((x) => x !== id))}
                   className="text-accent-foreground/70 hover:text-accent-foreground"
-                  aria-label={`Retirer ${nameFor(id)}`}
+                  aria-label={t("simulator.typeStep.removeClient", { name: nameFor(id) })}
                 >
                   <X size={14} />
                 </button>
@@ -160,16 +166,16 @@ export function TypeStep({
           <input
             value={search}
             onChange={(e) => onMagnifyingGlassChange(e.target.value)}
-            placeholder="Rechercher un client…"
+            placeholder={t("simulator.typeStep.searchClient")}
             className={cn(inputCls, "pl-9")}
           />
         </div>
 
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border divide-y divide-border">
           {isLoading ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Chargement…</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">{t("common.loading")}</p>
           ) : !clients?.length ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Aucun client trouvé.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">{t("simulator.typeStep.noClient")}</p>
           ) : (
             clients.map((c) => {
               const selected = selectedSet.has(c.id);
@@ -189,7 +195,7 @@ export function TypeStep({
                     </span>
                     {(c.address_city || c.is_prospect) && (
                       <span className="block text-xs text-muted-foreground">
-                        {c.is_prospect ? "Prospect" : "Client"}
+                        {c.is_prospect ? t("simulator.typeStep.prospect") : t("simulator.typeStep.client")}
                         {c.address_city ? ` · ${c.address_city}` : ""}
                       </span>
                     )}

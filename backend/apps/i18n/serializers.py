@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
 from apps.core.models import Language
 from apps.offers.services.translation import MAX_TEXT_LENGTH
 
@@ -28,12 +29,9 @@ class TranslateRequestSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         has_text = "text" in attrs
         has_texts = "texts" in attrs
+        request = self.context.get("request")
         if has_text == has_texts:
-            raise serializers.ValidationError(
-                "Fournir soit « text » (chaîne unique) soit « texts » (liste)."
-            )
+            raise serializers.ValidationError(translate_request(request, "i18n.text_or_texts"))
         if attrs.get("source_lang") == attrs["target_lang"]:
-            raise serializers.ValidationError(
-                "La langue source et la langue cible doivent être différentes."
-            )
+            raise serializers.ValidationError(translate_request(request, "i18n.langs_must_differ"))
         return attrs

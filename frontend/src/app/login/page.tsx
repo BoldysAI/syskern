@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CircleNotch, Eye, EyeSlash, SignIn } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
+import { translate } from "@/lib/i18n";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/FormField";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, displayLanguage } = useAuth();
+  const t = (key: Parameters<typeof translate>[0], vars?: Record<string, string | number>) =>
+    translate(key, displayLanguage, vars);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +27,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur de connexion.");
+      setError(err instanceof Error ? err.message : t("login.error"));
     } finally {
       setLoading(false);
     }
@@ -37,8 +40,8 @@ export default function LoginPage() {
 
         <Card className="w-full shadow-[var(--shadow-elevated)]">
           <CardHeader>
-            <CardTitle>Connexion</CardTitle>
-            <CardDescription>Accédez à votre espace de travail.</CardDescription>
+            <CardTitle>{t("login.title")}</CardTitle>
+            <CardDescription>{t("login.description")}</CardDescription>
           </CardHeader>
           <CardContent>
             {error && (
@@ -51,7 +54,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <FormField label="Adresse e-mail" htmlFor="email" required>
+              <FormField label={t("login.email")} htmlFor="email" required>
                 <Input
                   id="email"
                   type="email"
@@ -59,11 +62,11 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="vous@exemple.com"
+                  placeholder={t("login.emailPlaceholder")}
                 />
               </FormField>
 
-              <FormField label="Mot de passe" htmlFor="password" required>
+              <FormField label={t("login.password")} htmlFor="password" required>
                 <div className="relative">
                   <Input
                     id="password"
@@ -81,7 +84,9 @@ export default function LoginPage() {
                     size="icon-sm"
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    aria-label={
+                      showPassword ? t("login.hidePassword") : t("login.showPassword")
+                    }
                   >
                     {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                   </Button>
@@ -94,7 +99,7 @@ export default function LoginPage() {
                 ) : (
                   <SignIn size={16} weight="bold" />
                 )}
-                {loading ? "Connexion..." : "Se connecter"}
+                {loading ? t("login.submitting") : t("login.submit")}
               </Button>
             </form>
           </CardContent>

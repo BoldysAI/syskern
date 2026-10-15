@@ -3,6 +3,7 @@
 import { CurrencyDollar, MapPinLine, SealCheck, Truck } from "@phosphor-icons/react";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import {
   CURRENCY_OPTIONS,
@@ -19,11 +20,16 @@ interface Props {
 }
 
 export function SuppliersFiltersSidebar({ filters, onChange, className }: Props) {
+  const t = useUiTranslate();
   const patch = (p: Partial<SupplierFilters>) => onChange({ ...filters, ...p });
 
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
-      <FilterSection title="Devise" icon={CurrencyDollar} activeCount={filters.currency?.length ?? 0}>
+      <FilterSection
+        title={t("suppliers.column.currency")}
+        icon={CurrencyDollar}
+        activeCount={filters.currency?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="sup-currency"
           options={CURRENCY_OPTIONS}
@@ -32,7 +38,11 @@ export function SuppliersFiltersSidebar({ filters, onChange, className }: Props)
         />
       </FilterSection>
 
-      <FilterSection title="Incoterm" icon={MapPinLine} activeCount={filters.incoterm?.length ?? 0}>
+      <FilterSection
+        title={t("suppliers.column.incoterm")}
+        icon={MapPinLine}
+        activeCount={filters.incoterm?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="sup-incoterm"
           options={INCOTERM_OPTIONS}
@@ -42,19 +52,27 @@ export function SuppliersFiltersSidebar({ filters, onChange, className }: Props)
         />
       </FilterSection>
 
-      <FilterSection title="Statut" icon={SealCheck} activeCount={filters.status?.length ?? 0}>
+      <FilterSection
+        title={t("suppliers.column.status")}
+        icon={SealCheck}
+        activeCount={filters.status?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="sup-status"
-          options={STATUS_OPTIONS}
+          options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           selected={filters.status ?? []}
           onChange={(v) => patch({ status: v.length ? v : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="SKU liés" icon={Truck} activeCount={filters.skus?.length ?? 0}>
+      <FilterSection
+        title={t("suppliers.column.linkedSkus")}
+        icon={Truck}
+        activeCount={filters.skus?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="sup-skus"
-          options={SKUS_OPTIONS}
+          options={SKUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           selected={filters.skus ?? []}
           onChange={(v) => patch({ skus: v.length ? v : undefined })}
         />

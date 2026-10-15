@@ -1,10 +1,13 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Warning, Check, ArrowSquareOut, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { FormField } from "@/components/FormField";
 import { FilterSelect } from "@/components/FilterSelect";
 import { WizardStepper } from "@/components/WizardStepper";
@@ -45,27 +48,21 @@ interface GenResult {
   error: string;
 }
 
-const LANGUAGES = [
-  { code: "fr", label: "Français" },
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-];
-const STEPS = ["Client & projet", "Quantités", "Langue & validité", "Sections", "Instructions IA"];
-const SECTIONS: { key: string; label: string }[] = [
-  { key: "cover", label: "1. Couverture" },
-  { key: "presentation", label: "2. Présentation Syskern" },
-  { key: "pricing", label: "3. Tableau de prix" },
-  { key: "arguments", label: "4. Argumentaires (IA)" },
-  { key: "conditions", label: "5. Conditions" },
-];
+const SECTIONS = [
+  { key: "cover", labelKey: "offers.project.section.cover" },
+  { key: "presentation", labelKey: "offers.project.section.presentation" },
+  { key: "pricing", labelKey: "offers.project.section.pricing" },
+  { key: "arguments", labelKey: "offers.project.section.arguments" },
+  { key: "conditions", labelKey: "offers.project.section.conditions" },
+] as const;
 // Gamma layout templates (FEEDBACK 1). Values must match the backend
 // GammaTemplate choices; "" = default project template.
-const GAMMA_TEMPLATES: { value: string; label: string }[] = [
-  { value: "", label: "Défaut" },
-  { value: "distributeur", label: "Distributeur" },
-  { value: "factoring", label: "Factoring" },
-  { value: "export", label: "Export" },
-];
+const GAMMA_TEMPLATES = [
+  { value: "", labelKey: "offers.project.template.default" },
+  { value: "distributeur", labelKey: "offers.project.template.distributor" },
+  { value: "factoring", labelKey: "offers.project.template.factoring" },
+  { value: "export", labelKey: "offers.project.template.export" },
+] as const;
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
@@ -74,9 +71,9 @@ function getCsrfToken(): string {
   const m = document.cookie.match(/csrftoken=([^;]+)/);
   return m ? m[1] : "";
 }
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, loadError: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(loadError);
   return res.json();
 }
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
@@ -93,30 +90,53 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
-async function pollGeneration(taskId: string): Promise<GenResult> {
+async function pollGeneration(
+  taskId: string,
+  loadError: string,
+  failed: string,
+  timeout: string,
+): Promise<GenResult> {
   for (let i = 0; i < 120; i++) {
     const data = await getJson<{ status: string; result?: GenResult; error?: string }>(
       `/api/tasks/${taskId}/`,
+      loadError,
     );
     if (data.status === "SUCCESS" && data.result) return data.result;
-    if (data.status === "FAILURE") throw new Error(data.error ?? "Génération échouée.");
+    if (data.status === "FAILURE") throw new Error(data.error ?? failed);
     await new Promise((r) => setTimeout(r, 3000));
   }
-  throw new Error("Délai de génération dépassé.");
+  throw new Error(timeout);
 }
 
 // ── Wizard ─────────────────────────────────────────────────────────────────────
 
 function ProjectWizard() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
+  const t = useUiTranslate();
   const simulationId = useSearchParams().get("simulation_id") ?? "";
+  const steps = [
+    t("offers.project.step.client"),
+    t("offers.project.step.quantities"),
+    t("offers.project.step.language"),
+    t("offers.project.step.sections"),
+    t("offers.project.step.ai"),
+  ];
+  const languages = [
+    { code: "fr", label: t("offers.language.fr") },
+    { code: "en", label: t("offers.language.en") },
+    { code: "es", label: t("offers.language.es") },
+  ];
 
   const { data: sim, error: simError } = useSWR<SimulationDetail>(
     simulationId ? `sim:${simulationId}` : null,
-    () => getJson<SimulationDetail>(`/api/simulations/${simulationId}/`),
+    () => getJson<SimulationDetail>(`/api/simulations/${simulationId}/`, t("offers.errors.load")),
   );
   const { data: clientsResp } = useSWR("clients:all", () =>
-    getJson<{ results?: ClientLite[] } | ClientLite[]>("/api/clients/?limit=1000"),
+    getJson<{ results?: ClientLite[] } | ClientLite[]>(
+      "/api/clients/?limit=1000",
+      t("offers.errors.load"),
+    ),
   );
   const clients = useMemo<ClientLite[]>(
     () => (Array.isArray(clientsResp) ? clientsResp : (clientsResp?.results ?? [])),
@@ -149,10 +169,10 @@ function ProjectWizard() {
   };
   const sectionOn = (key: string) => sectionOverride[key] ?? true;
 
-  if (!simulationId) return <Notice text="Paramètre simulation_id manquant." />;
-  if (simError) return <Notice text="Simulation introuvable." />;
+  if (!simulationId) return <Notice text={t("offers.project.missingSimulation")} />;
+  if (simError) return <Notice text={t("offers.wizard.simulationNotFound")} />;
   if (sim && (sim.status !== "finalized" || sim.simulation_type !== "project")) {
-    return <Notice text="La génération projet requiert une simulation finalisée de type projet." />;
+    return <Notice text={t("offers.project.requiresFinalized")} />;
   }
 
   const skuCount = (sim?.lines ?? []).length;
@@ -184,9 +204,16 @@ function ProjectWizard() {
               gamma_template: gammaTemplate,
             },
           );
-      setResult(await pollGeneration(task_id));
+      setResult(
+        await pollGeneration(
+          task_id,
+          t("offers.errors.load"),
+          t("offers.errors.generationFailed"),
+          t("offers.errors.generationTimeout"),
+        ),
+      );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Échec de la génération.");
+      setError(err instanceof Error ? err.message : t("offers.errors.generateFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -196,10 +223,8 @@ function ProjectWizard() {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
         <CircleNotch className="mb-4 animate-spin text-brand-green" size={40} />
-        <p className="font-medium text-foreground">Génération du devis Gamma…</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Argumentaires IA puis mise en page — 1 à 3 min.
-        </p>
+        <p className="font-medium text-foreground">{t("offers.project.generating")}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("offers.project.generatingHint")}</p>
       </div>
     );
   }
@@ -221,7 +246,7 @@ function ProjectWizard() {
         </div>
         {ok ? (
           <>
-            <p className="font-semibold text-foreground">Devis projet généré</p>
+            <p className="font-semibold text-foreground">{t("offers.project.generated")}</p>
             {result.gamma_url && (
               <a
                 href={result.gamma_url}
@@ -229,7 +254,7 @@ function ProjectWizard() {
                 rel="noreferrer"
                 className={cn(buttonVariants(), "mt-3 inline-flex gap-2")}
               >
-                Ouvrir dans Gamma
+                {t("offers.detail.openGamma")}
                 <ArrowSquareOut size={15} weight="duotone" />
               </a>
             )}
@@ -238,15 +263,15 @@ function ProjectWizard() {
               onClick={() => router.push("/offers")}
               className="mt-3 text-muted-foreground"
             >
-              Voir les offres
+              {t("offers.project.viewOffers")}
             </Button>
           </>
         ) : (
           <>
-            <p className="font-semibold text-foreground">Échec de la génération Gamma</p>
+            <p className="font-semibold text-foreground">{t("offers.project.gammaFailed")}</p>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">{result.error}</p>
             <Button onClick={() => runGeneration(result.offer_id)} className="mt-4">
-              Réessayer
+              {t("offers.generation.retry")}
             </Button>
           </>
         )}
@@ -256,11 +281,13 @@ function ProjectWizard() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-xl font-semibold text-foreground">Nouvelle offre projet (devis Gamma)</h1>
-      <p className="mb-6 mt-0.5 text-sm text-muted-foreground">Depuis « {sim?.label ?? "…"} ».</p>
+      <h1 className="text-xl font-semibold text-foreground">{t("offers.project.title")}</h1>
+      <p className="mb-6 mt-0.5 text-sm text-muted-foreground">
+        {t("offers.project.fromSimulation", { label: sim?.label ?? "…" })}
+      </p>
 
       <WizardStepper
-        steps={STEPS.map((label) => ({ label }))}
+        steps={steps.map((label) => ({ label }))}
         current={step}
         onStepClick={setStep}
       />
@@ -273,17 +300,17 @@ function ProjectWizard() {
 
       <Card className="min-h-[300px] p-5">
         {step === 0 && (
-          <Section title="Client & projet">
+          <Section title={t("offers.project.step.client")}>
             <div className="flex max-w-md flex-col gap-4">
-              <FormField label="Client" required>
+              <FormField label={t("offers.project.client")} required>
                 <FilterSelect
                   value={clientId}
                   onChange={(v) => setClientOverride(v)}
-                  placeholder="— Sélectionner —"
+                  placeholder={t("offers.project.selectClient")}
                   options={clients.map((c) => ({ value: c.id, label: c.name }))}
                 />
               </FormField>
-              <FormField label="Nom du projet" required>
+              <FormField label={t("offers.project.projectName")} required>
                 <Input value={projectName} onChange={(e) => setNameOverride(e.target.value)} />
               </FormField>
             </div>
@@ -292,16 +319,16 @@ function ProjectWizard() {
 
         {step === 1 && (
           <Section
-            title="Quantités par SKU"
-            hint="Reprises depuis la simulation source (lecture seule). Pour les modifier, éditez les quantités dans la simulation."
+            title={t("offers.project.quantities")}
+            hint={t("offers.project.quantitiesHint")}
           >
             <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left">SKU</th>
-                    <th className="px-3 py-2 text-left">Désignation</th>
-                    <th className="px-3 py-2 text-right">Quantité</th>
+                    <th className="px-3 py-2 text-left">{t("offers.column.sku")}</th>
+                    <th className="px-3 py-2 text-left">{t("offers.detail.designation")}</th>
+                    <th className="px-3 py-2 text-right">{t("offers.project.quantity")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -310,7 +337,7 @@ function ProjectWizard() {
                       <td className="px-3 py-2 font-medium text-foreground">{l.product_sku}</td>
                       <td className="px-3 py-2 text-muted-foreground">{l.product_name}</td>
                       <td className="px-3 py-2 text-right font-data tabular-nums text-foreground">
-                        {lineQty(l).toLocaleString("fr-FR")}
+                        {lineQty(l).toLocaleString(uiDateLocale(displayLanguage))}
                       </td>
                     </tr>
                   ))}
@@ -321,10 +348,10 @@ function ProjectWizard() {
         )}
 
         {step === 2 && (
-          <Section title="Langue & validité">
+          <Section title={t("offers.project.step.language")}>
             <div className="flex max-w-md flex-col gap-4">
               <div className="flex gap-3">
-                {LANGUAGES.map((l) => (
+                {languages.map((l) => (
                   <Button
                     key={l.code}
                     type="button"
@@ -337,10 +364,10 @@ function ProjectWizard() {
               </div>
               {!languageOverride && selectedClient?.preferred_language && (
                 <p className="text-xs text-muted-foreground">
-                  Langue par défaut du client ({selectedClient.name}).
+                  {t("offers.project.clientDefaultLanguage", { name: selectedClient.name })}
                 </p>
               )}
-              <FormField label="Date d'expiration" required>
+              <FormField label={t("offers.wizard.expirationDate")} required>
                 <Input
                   type="date"
                   value={expiration}
@@ -355,7 +382,7 @@ function ProjectWizard() {
 
         {step === 3 && (
           <>
-            <Section title="Sections du devis" hint="Les 5 sections fixes du devis Gamma.">
+            <Section title={t("offers.project.sections")} hint={t("offers.project.sectionsHint")}>
               <div className="flex flex-col gap-2">
                 {SECTIONS.map((s) => (
                   <label
@@ -368,55 +395,57 @@ function ProjectWizard() {
                         setSectionOverride((o) => ({ ...o, [s.key]: !sectionOn(s.key) }))
                       }
                     />
-                    {s.label}
+                    {t(s.labelKey)}
                   </label>
                 ))}
               </div>
             </Section>
             <div className="mt-5">
               <Section
-                title="Mise en page (modèle Gamma)"
-                hint="Choisit le template de présentation du devis."
+                title={t("offers.project.layout")}
+                hint={t("offers.project.layoutHint")}
               >
                 <div className="flex flex-wrap gap-2">
-                  {GAMMA_TEMPLATES.map((t) => (
+                  {GAMMA_TEMPLATES.map((template) => (
                     <Button
-                      key={t.value}
+                      key={template.value}
                       type="button"
                       size="sm"
-                      variant={gammaTemplate === t.value ? "default" : "outline"}
-                      onClick={() => setGammaTemplate(t.value)}
+                      variant={gammaTemplate === template.value ? "default" : "outline"}
+                      onClick={() => setGammaTemplate(template.value)}
                     >
-                      {t.label}
+                      {t(template.labelKey)}
                     </Button>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Les modèles (Distributeur / Factoring / Export) sont conçus côté client dans
-                  Gamma. Un modèle non encore configuré utilise la mise en page par défaut.
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("offers.project.templateNote")}</p>
               </Section>
             </div>
           </>
         )}
 
         {step === 4 && (
-          <Section title="Instructions IA" hint="Orientent les argumentaires générés (OpenAI).">
+          <Section title={t("offers.project.step.ai")} hint={t("offers.project.aiHint")}>
             <Textarea
               value={aiInstructions}
               onChange={(e) => setAiInstructions(e.target.value)}
               rows={6}
-              placeholder="Ex : insister sur la conformité CPR, la garantie 30 ans, et l'expérience datacenter."
+              placeholder={t("offers.project.aiPlaceholder")}
             />
             <div className="mt-4">
-              <FormField label="Documents joints (bibliothèque → PDF fusionné)">
+              <FormField label={t("offers.project.attachments")}>
                 <DocumentPicker selected={attachedDocIds} onChange={setAttachedDocIds} />
               </FormField>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              {skuCount} SKU · {language.toUpperCase()} ·{" "}
-              {SECTIONS.filter((s) => sectionOn(s.key)).length} sections
-              {attachedDocIds.length > 0 ? ` · ${attachedDocIds.length} doc(s)` : ""}
+              {t("offers.project.summary", {
+                count: skuCount,
+                language: language.toUpperCase(),
+                sections: SECTIONS.filter((s) => sectionOn(s.key)).length,
+              })}
+              {attachedDocIds.length > 0
+                ? t("offers.project.summaryDocs", { count: attachedDocIds.length })
+                : ""}
             </p>
           </Section>
         )}
@@ -429,15 +458,15 @@ function ProjectWizard() {
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
         >
-          Précédent
+          {t("offers.wizard.previous")}
         </Button>
-        {step < STEPS.length - 1 ? (
+        {step < steps.length - 1 ? (
           <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
-            Suivant
+            {t("offers.wizard.next")}
           </Button>
         ) : (
           <Button type="button" onClick={() => runGeneration()}>
-            Générer le devis
+            {t("offers.project.generate")}
           </Button>
         )}
       </div>
@@ -474,8 +503,11 @@ function Notice({ text }: { text: string }) {
 }
 
 export default function NewProjectOfferPage() {
+  const t = useUiTranslate();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+    <Suspense
+      fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}
+    >
       <ProjectWizard />
     </Suspense>
   );

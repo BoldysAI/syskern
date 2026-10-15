@@ -12,6 +12,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.ui_locale import translate_request
 from apps.simulations.models import Simulation, SimulationStatus
 
 from .dashboard_metrics import build_offer_dashboard_metrics
@@ -63,17 +64,14 @@ class OfferViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         simulation: Simulation = serializer.validated_data["simulation"]
         if simulation.status != SimulationStatus.FINALIZED:
-            raise ValidationError("Offers can only be created from finalized simulations.")
+            raise ValidationError(translate_request(self.request, "offers.finalized_only"))
         serializer.save()
 
     def perform_destroy(self, instance: Offer) -> None:
         # Deleting an offer is the only destructive action (CDC §7.5.5), but a
         # generation in flight would leave an orphaned Celery task + file.
         if instance.generation_status == GenerationStatus.GENERATING:
-            raise ValidationError(
-                "Impossible de supprimer une offre en cours de génération. "
-                "Réessayez une fois la génération terminée."
-            )
+            raise ValidationError(translate_request(self.request, "offers.delete_while_generating"))
         instance.delete()
 
     # ─── /status (lifecycle transition) ───────────────────────────────
@@ -88,13 +86,20 @@ class OfferViewSet(viewsets.ModelViewSet):
         if new_status != offer.status and new_status not in ALLOWED_TRANSITIONS.get(
             offer.status, set()
         ):
-            raise ValidationError(f"Transition {offer.status} → {new_status} non autorisée.")
+            raise ValidationError(
+                translate_request(
+                    request,
+                    "offers.transition_forbidden",
+                    from_status=offer.status,
+                    to_status=new_status,
+                )
+            )
         # `won` / `lost` only apply to project offers (CDC §7.5.1).
         if (
             new_status in {OfferStatus.WON, OfferStatus.LOST}
             and offer.offer_type != OfferType.PROJECT
         ):
-            raise ValidationError("won/lost transitions only apply to project offers.")
+            raise ValidationError(translate_request(request, "offers.won_lost_project_only"))
 
         now = timezone.now()
         offer.status = new_status
@@ -152,7 +157,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         """Create V(n+1) of a project offer (CDC §7.5). Project offers only."""
         src = self.get_object()
         if src.offer_type != OfferType.PROJECT:
-            raise ValidationError("Seules les offres projet sont versionnables.")
+            raise ValidationError(translate_request(request, "offers.project_version_only"))
         copy = self._create_next_version(src)
         return Response(OfferDetailSerializer(copy).data, status=status.HTTP_201_CREATED)
 
@@ -171,7 +176,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         new_date = ser.validated_data["new_date"]
         if new_date <= timezone.now().date() + timedelta(days=7):
-            raise ValidationError("La nouvelle date doit être à plus de 7 jours.")
+            raise ValidationError(translate_request(request, "offers.expiration_too_soon"))
         offer.valid_to = new_date
         if offer.status == OfferStatus.EXPIRED:
             offer.status = OfferStatus.SENT  # reactivate (expired only comes from sent)
@@ -207,7 +212,7 @@ class OfferViewSet(viewsets.ModelViewSet):
 
         offer = self.get_object()
         if offer.offer_type != OfferType.PROJECT:
-            raise ValidationError("La régénération concerne les offres projet.")
+            raise ValidationError(translate_request(request, "offers.regenerate_project_only"))
         task = regenerate_project_offer_task.delay(str(offer.id))
         return Response({"task_id": task.id, "status": "PENDING"}, status=status.HTTP_202_ACCEPTED)
 
@@ -245,7 +250,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         if offer.offer_type == OfferType.TARIFF:
             path = offer_export_path(offer.id)
             if not path.is_file():
-                raise Http404("Document non généré ou expiré.")
+                raise Http404(translate_request(request, "offers.document_missing"))
             if not docs:
                 return FileResponse(
                     path.open("rb"),
@@ -263,11 +268,11 @@ class OfferViewSet(viewsets.ModelViewSet):
         # Project offer → Gamma PDF, optionally merged with the annexes.
         export_url = (offer.project_info or {}).get("gamma_export_url")
         if not export_url:
-            raise Http404("PDF du devis non disponible (génération Gamma incomplète).")
+            raise Http404(translate_request(request, "offers.pdf_unavailable"))
         try:
             pdf = fetch_pdf(export_url)
         except Exception as exc:  # noqa: BLE001 — surface a clean 404 to the client
-            raise Http404("Impossible de récupérer le PDF du devis Gamma.") from exc
+            raise Http404(translate_request(request, "offers.pdf_fetch_failed")) from exc
         if docs:
             pdf = merge_pdfs(pdf, docs)
         resp = HttpResponse(pdf, content_type="application/pdf")
@@ -291,7 +296,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer.save(update_fields=["gamma_document_id", "generated_file_url", "updated_at"])
         return Response(
             {
-                "detail": "Generation stub — Gamma integration pending.",
+                "detail": translate_request(request, "offers.generation_stub"),
                 "gamma_document_id": offer.gamma_document_id,
             },
             status=status.HTTP_202_ACCEPTED,

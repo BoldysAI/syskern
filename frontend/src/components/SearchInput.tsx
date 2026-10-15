@@ -1,6 +1,7 @@
 "use client";
 
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +18,12 @@ interface SearchInputProps {
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Rechercher…",
+  placeholder,
   className,
   inputClassName,
   id,
 }: SearchInputProps) {
+  const t = useUiTranslate();
   return (
     <div className={cn("relative", className)}>
       <MagnifyingGlass
@@ -35,7 +37,7 @@ export function SearchInput({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("common.searchEllipsis")}
         className={cn("pl-9 pr-9", inputClassName)}
       />
       {value.length > 0 && (
@@ -45,7 +47,7 @@ export function SearchInput({
           size="icon-xs"
           className="absolute right-1 top-1/2 -translate-y-1/2"
           onClick={() => onChange("")}
-          aria-label="Effacer la recherche"
+          aria-label={t("common.clearSearch")}
         >
           <X size={14} />
         </Button>

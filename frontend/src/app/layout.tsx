@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { DocumentLanguage } from "@/components/DocumentLanguage";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
 import "./globals.css";
+import { translate } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -22,8 +24,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Syskern Pricing Platform",
-  description: "Plateforme de tarification Syskern",
+  title: translate("meta.title", "fr"),
+  description: translate("meta.description", "fr"),
   icons: {
     icon: "/favicon.png",
   },
@@ -33,14 +35,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="fr" className={cn("h-full", plusJakarta.variable, jetbrainsMono.variable)}>
       <body className="h-full font-sans antialiased">
-        <TooltipProvider>
-          <ConfirmProvider>
-            <AuthProvider>
+        <AuthProvider>
+          <DocumentLanguage />
+          <TooltipProvider>
+            <ConfirmProvider>
               {children}
               <Toaster richColors position="top-right" />
-            </AuthProvider>
-          </ConfirmProvider>
-        </TooltipProvider>
+            </ConfirmProvider>
+          </TooltipProvider>
+        </AuthProvider>
       </body>
     </html>
   );

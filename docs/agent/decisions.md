@@ -1257,3 +1257,16 @@ Y compris un test bout-en-bout qui fait traverser `sync_task` aux kwargs réels.
 ⚠️ **Dette connexe non traitée** : un échec de tâche planifiée reste invisible dans l'UI tant qu'il
 survient avant la création du `SyncLog`. Créer la ligne `SyncLog` **en tête** de `sync()` (statut
 `running`, puis `failed` sur exception) rendrait toute panne future visible. À arbitrer.
+
+## 2026-10-08 · [P] Langue d'interface par déploiement, pas par entité en base
+
+Story 7.1. Le login et l'écran Utilisateurs suivent la langue du compte, sinon
+`DEFAULT_UI_LOCALE` (une valeur par serveur), sinon `fr`.
+
+- `Profile.locale` optionnel (`fr` / `en` / vide). Pas de clé `entity` sur les modèles :
+  un déploiement = une entité = une langue de repli.
+- Messages API de ces écrans : français source, anglais par clé, repli français si la
+  clé manque. Écarte « messages API toujours en français » pour ces chaînes
+  (`AGENTS.md` §5.9, `apps/accounts/ui_locale.py`).
+- DeepL / contenus produit inchangés. Pas de catalogue chinois.
+- Le reste des écrans MVP1 reste en français en dur.

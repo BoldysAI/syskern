@@ -2,6 +2,7 @@
 
 import { SimulationParamsSheet } from "@/app/simulator/_components/SimulationParamsSheet";
 import type { SimulationStatus } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   simulationId: string | null;
@@ -20,6 +21,7 @@ export function CompareSimulationParamsSheet({
   onClose,
   onSaved,
 }: Props) {
+  const t = useUiTranslate();
   return (
     <SimulationParamsSheet
       simulationId={simulationId}
@@ -28,13 +30,15 @@ export function CompareSimulationParamsSheet({
       open={open}
       onClose={onClose}
       onSaved={onSaved}
-      duplicateLabelSuffix="(comparaison)"
-      finalizedForkDescription={`La simulation « ${simulationLabel} » est finalisée et ne peut pas être modifiée directement. Enregistrer créera une nouvelle simulation en mode brouillon avec les paramètres saisis, qui remplacera cette colonne dans la comparaison. La simulation d'origine reste inchangée.`}
+      duplicateLabelSuffix={t("simulator.params.compareSuffix")}
+      finalizedForkDescription={t("simulator.params.compareFork", { name: simulationLabel })}
       finalizedBanner={
         <>
-          Cette simulation est <strong>finalisée</strong>. Toute modification créera une{" "}
-          <strong>nouvelle simulation en brouillon</strong> à partir de vos paramètres, qui
-          remplacera cette colonne dans la comparaison. L&apos;original reste intact.
+          {t("simulator.params.archivedLead")}
+          <strong>{t("simulator.params.finalizedInline")}</strong>
+          {t("simulator.params.compareFinalizedMid")}
+          <strong>{t("simulator.params.newDraft")}</strong>
+          {t("simulator.params.compareFinalizedEnd")}
         </>
       }
     />

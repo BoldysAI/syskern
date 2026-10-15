@@ -1,3 +1,4 @@
+import { uiDateLocale } from "@/lib/i18n";
 import type { PriceHistoryPoint } from "@/lib/api";
 
 type ClickableDotPayload = {
@@ -63,15 +64,19 @@ export function collapsePriceHistoryByDay(points: PriceHistoryPoint[]): PriceHis
   );
 }
 
-export function formatPriceHistoryAxisLabel(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("fr-FR", {
+export function formatPriceHistoryAxisLabel(isoDate: string, locale: string): string {
+  return new Date(isoDate).toLocaleDateString(uiDateLocale(locale), {
     day: "2-digit",
     month: "short",
   });
 }
 
-export function formatPriceHistoryTooltipLabel(isoDate: string, simulationLabel?: string): string {
-  const when = new Date(isoDate).toLocaleDateString("fr-FR", {
+export function formatPriceHistoryTooltipLabel(
+  isoDate: string,
+  locale: string,
+  simulationLabel?: string,
+): string {
+  const when = new Date(isoDate).toLocaleDateString(uiDateLocale(locale), {
     day: "2-digit",
     month: "long",
     year: "numeric",
