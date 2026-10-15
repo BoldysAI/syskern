@@ -1,6 +1,6 @@
 import type { CompareColumn } from "@/lib/api";
 import { decToPct, fmtEur, mpStr, recalcTriggerLabel } from "@/app/simulator/[id]/_components/sim-format";
-import { translate, type MessageKey } from "@/lib/i18n";
+import { formatUiDateTime, formatUiNumber, translate, type MessageKey } from "@/lib/i18n";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 
 export type DiffKind = "same" | "changed" | "added" | "missing";
@@ -30,8 +30,11 @@ export function diffKind(ref: string, val: string): DiffKind {
   return "changed";
 }
 
-/** Parse a French-locale display string (e.g. "317,51 €", "20 %") to a number. */
-export function parseLocaleNum(v: string): number | null {
+/**
+ * Parse a string this UI just displayed (e.g. "317,51 €" or "1,234.56 €").
+ * The locale is the viewer's display locale, never the locale of an imported file.
+ */
+export function parseLocaleNum(v: string, locale = "fr"): number | null {
   const trimmed = v.trim();
   if (!trimmed || trimmed === "—") return null;
   let s = trimmed
@@ -41,16 +44,17 @@ export function parseLocaleNum(v: string): number | null {
     .replace(/%/g, "")
     .trim();
   if (!s) return null;
-  if (s.includes(",")) {
-    // "1.234,56" or "317,51"
+  if (locale === "en") {
+    s = s.replace(/,/g, "");
+  } else if (s.includes(",")) {
     s = s.includes(".") ? s.replace(/\./g, "").replace(",", ".") : s.replace(",", ".");
   }
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
 }
 
-export function parseNum(v: string): number | null {
-  return parseLocaleNum(v);
+export function parseNum(v: string, locale = "fr"): number | null {
+  return parseLocaleNum(v, locale);
 }
 
 /** Format numeric delta for display (EUR or %). */
@@ -60,13 +64,13 @@ export function fmtDelta(
   unit: "eur" | "pct" | "raw" = "raw",
   locale = "fr",
 ): string | null {
-  const r = parseNum(ref);
-  const v = parseNum(val);
+  const r = parseNum(ref, locale);
+  const v = parseNum(val, locale);
   if (r == null || v == null || r === v) return null;
   const d = v - r;
   if (unit === "eur") {
     const sign = d >= 0 ? "+" : "−";
-    return `${sign}${fmtEur(Math.abs(d).toFixed(4))}`;
+    return `${sign}${fmtEur(Math.abs(d).toFixed(4), locale)}`;
   }
   if (unit === "pct") {
     const sign = d >= 0 ? "+" : "−";
@@ -75,7 +79,7 @@ export function fmtDelta(
     });
   }
   const sign = d >= 0 ? "+" : "−";
-  return `${sign}${Math.abs(d).toLocaleString("fr-FR", { maximumFractionDigits: 4 })}`;
+  return `${sign}${formatUiNumber(Math.abs(d), locale, { maximumFractionDigits: 4 })}`;
 }
 
 const SYMEA_POS: Record<string, MessageKey> = {
@@ -94,9 +98,9 @@ const STATUS: Record<string, MessageKey> = {
   archived: "simulator.status.archivedFem",
 };
 
-function fmtDate(iso: string | null | undefined): string {
+function fmtDate(iso: string | null | undefined, locale: string): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR");
+  return formatUiDateTime(iso, locale);
 }
 
 function colContextValue(col: CompareColumn, fieldId: string, locale: string): string {
@@ -118,9 +122,9 @@ function colContextValue(col: CompareColumn, fieldId: string, locale: string): s
           : "—"
         : "—";
     case "calculated_at":
-      return fmtDate(ctx.calculated_at);
+      return fmtDate(ctx.calculated_at, locale);
     case "odoo_snapshot_at":
-      return fmtDate(ctx.odoo_snapshot_at);
+      return fmtDate(ctx.odoo_snapshot_at, locale);
     case "trigger":
       return recalcTriggerLabel(ctx.trigger_type, locale);
     case "copper_base":
@@ -158,17 +162,17 @@ function colContextValue(col: CompareColumn, fieldId: string, locale: string): s
     case "agg_lines":
       return agg.line_count != null ? String(agg.line_count) : "—";
     case "agg_avg_pa":
-      return fmtEur(agg.avg_pa_eur);
+      return fmtEur(agg.avg_pa_eur, locale);
     case "agg_avg_pr":
-      return fmtEur(agg.avg_pr_eur);
+      return fmtEur(agg.avg_pr_eur, locale);
     case "agg_avg_pv":
-      return fmtEur(agg.avg_pv_eur);
+      return fmtEur(agg.avg_pv_eur, locale);
     case "agg_avg_margin":
       return agg.avg_margin ? `${decToPct(agg.avg_margin)} %` : "—";
     case "agg_min_pv":
-      return fmtEur(agg.min_pv_eur);
+      return fmtEur(agg.min_pv_eur, locale);
     case "agg_max_pv":
-      return fmtEur(agg.max_pv_eur);
+      return fmtEur(agg.max_pv_eur, locale);
     case "agg_warnings":
       return agg.warnings_count != null ? String(agg.warnings_count) : "0";
     case "agg_errors":

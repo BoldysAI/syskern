@@ -59,3 +59,32 @@ export function translate(
 export function uiDateLocale(locale: string): string {
   return locale === "en" ? "en-GB" : "fr-FR";
 }
+
+/** Display-only. Incoming documents are not parsed with this locale. */
+export function formatUiNumber(
+  value: number,
+  locale = "fr",
+  options?: Intl.NumberFormatOptions,
+): string {
+  return value.toLocaleString(uiDateLocale(locale), options);
+}
+
+export function formatUiDate(
+  value: Date | string | number,
+  locale = "fr",
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(uiDateLocale(locale), options);
+}
+
+export function formatUiDateTime(
+  value: Date | string | number,
+  locale = "fr",
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(uiDateLocale(locale), options);
+}

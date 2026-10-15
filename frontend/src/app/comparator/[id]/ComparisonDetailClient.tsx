@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +23,7 @@ interface Props {
 }
 
 export function ComparisonDetailPage({ id }: Props) {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
   const t = useUiTranslate();
@@ -101,11 +104,11 @@ export function ComparisonDetailPage({ id }: Props) {
             (data.column_count === 1
               ? t("comparator.detail.metaOne", {
                   count: data.column_count,
-                  date: new Date(data.updated_at).toLocaleDateString("fr-FR"),
+                  date: new Date(data.updated_at).toLocaleDateString(uiDateLocale(displayLanguage)),
                 })
               : t("comparator.detail.metaOther", {
                   count: data.column_count,
-                  date: new Date(data.updated_at).toLocaleDateString("fr-FR"),
+                  date: new Date(data.updated_at).toLocaleDateString(uiDateLocale(displayLanguage)),
                 }))
           }
           className="mb-0"

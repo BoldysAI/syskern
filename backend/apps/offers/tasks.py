@@ -146,7 +146,7 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
                 lines=offer_lines,
                 columns=columns,
                 lang=lang,
-                fx_note=fx_note_for(target, simulation.market_params, rate),
+                fx_note=fx_note_for(target, simulation.market_params, rate, lang),
             )
             offer_export_path(offer.id).write_bytes(xlsx)
             offer.generated_file_url = f"/api/offers/{offer.id}/download/"

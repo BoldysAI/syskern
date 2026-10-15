@@ -36,6 +36,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -132,7 +135,8 @@ function Sidebar({
   collapsed?: boolean;
   onClose?: () => void;
 }) {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, setLocale } = useAuth();
+  const localeValue = user?.locale === "fr" || user?.locale === "en" ? user.locale : "deployment";
   const t = useUiTranslate();
   const displayName =
     user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email;
@@ -257,6 +261,21 @@ function Sidebar({
             <DropdownMenuItem disabled className="text-xs text-muted-foreground">
               {user?.email}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("users.locale")}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={localeValue}
+              onValueChange={(next) => {
+                if (!next || next === localeValue) return;
+                void setLocale(next === "deployment" ? "" : next);
+              }}
+            >
+              <DropdownMenuRadioItem value="fr">{t("users.localeFr")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="en">{t("users.localeEn")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="deployment">
+                {t("users.localeDeployment")}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem render={<Link href="/help" />}>
               <BookOpenText size={16} />

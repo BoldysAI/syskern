@@ -73,6 +73,7 @@ def export_products_task(
     filters: dict | None = None,
     columns: list[str] | None = None,
     ids: list[str] | None = None,
+    locale: str = "fr",
 ) -> dict:
     """Build a filtered catalog Excel workbook and store it on disk (CDC §4.1.1).
 
@@ -92,7 +93,7 @@ def export_products_task(
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"
-    file_path.write_bytes(build_products_xlsx(qs, columns=columns))
+    file_path.write_bytes(build_products_xlsx(qs, columns=columns, locale=locale))
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
     return {

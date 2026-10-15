@@ -225,6 +225,7 @@ def _build_line(
     po_currency: str | None = None,
     factory_code: str | None = None,
     incoterm: str | None = None,
+    locale: str | None = None,
 ) -> dict:
     return {
         "row": row_number,
@@ -232,7 +233,7 @@ def _build_line(
         "supplier": supplier_label,
         "po": "" if po_raw is None else str(po_raw),
         "status": status,
-        "reason": _ui(_STATUS_REASON_KEYS[status]) if status in _STATUS_REASON_KEYS else "",
+        "reason": _ui(_STATUS_REASON_KEYS[status], locale) if status in _STATUS_REASON_KEYS else "",
         "old_po_base_price": str(old_price) if old_price is not None else None,
         "new_po_base_price": str(new_price) if new_price is not None else None,
         "po_currency": po_currency,
@@ -247,6 +248,7 @@ def _resolve_rows(
     column_map: dict,
     default_supplier: Supplier | None,
     header_row: int = 1,
+    locale: str | None = None,
 ) -> tuple[list[dict], dict[str, int]]:
     """Resolve every data row against the DB. Pure read — no writes.
 
@@ -267,6 +269,9 @@ def _resolve_rows(
     lines: list[dict] = []
     counts: dict[str, int] = {}
 
+    def line(**kwargs) -> dict:
+        return _build_line(locale=locale, **kwargs)
+
     def bump(status: str) -> None:
         counts[status] = counts.get(status, 0) + 1
 
@@ -284,7 +289,7 @@ def _resolve_rows(
 
         if not sku:
             lines.append(
-                _build_line(
+                line(
                     row_number=row_number,
                     sku=sku,
                     supplier_label=supplier_label,
@@ -301,7 +306,7 @@ def _resolve_rows(
             supplier = supplier_cache.get(supplier_label.lower())
             if supplier is None:
                 lines.append(
-                    _build_line(
+                    line(
                         row_number=row_number,
                         sku=sku,
                         supplier_label=supplier_label,
@@ -316,7 +321,7 @@ def _resolve_rows(
 
         if supplier is None:
             lines.append(
-                _build_line(
+                line(
                     row_number=row_number,
                     sku=sku,
                     supplier_label=supplier_label,
@@ -330,7 +335,7 @@ def _resolve_rows(
         price = _parse_price(po_raw)
         if price is None:
             lines.append(
-                _build_line(
+                line(
                     row_number=row_number,
                     sku=sku,
                     supplier_label=supplier.name,
@@ -345,7 +350,7 @@ def _resolve_rows(
         product = Product.objects.filter(sku_code=sku).first()
         if product is None:
             lines.append(
-                _build_line(
+                line(
                     row_number=row_number,
                     sku=sku,
                     supplier_label=supplier.name,
@@ -363,7 +368,7 @@ def _resolve_rows(
         if link is None:
             currency = _clean_currency(_cell(row, currency_idx)) or supplier.currency_default
             lines.append(
-                _build_line(
+                line(
                     row_number=row_number,
                     sku=sku,
                     supplier_label=supplier.name,
@@ -383,7 +388,7 @@ def _resolve_rows(
         currency = _clean_currency(_cell(row, currency_idx)) or link.po_currency
         status = UNCHANGED if old_price == price else WILL_UPDATE
         lines.append(
-            _build_line(
+            line(
                 row_number=row_number,
                 sku=sku,
                 supplier_label=supplier.name,
@@ -425,6 +430,7 @@ def preview_import(
     default_supplier: Supplier | None,
     header_row: int = 1,
     row_cap: int = 1000,
+    locale: str | None = None,
     progress=None,
 ) -> dict:
     """Dry-run the import — returns ``{summary, lines}`` without any DB write.
@@ -433,7 +439,11 @@ def preview_import(
     rows. ``progress`` (optional) is a callable ``(current, total)``.
     """
     lines, counts = _resolve_rows(
-        path, column_map=column_map, default_supplier=default_supplier, header_row=header_row
+        path,
+        column_map=column_map,
+        default_supplier=default_supplier,
+        header_row=header_row,
+        locale=locale,
     )
     if progress is not None:
         progress(len(lines), len(lines))
@@ -446,6 +456,7 @@ def apply_import(
     column_map: dict,
     default_supplier: Supplier | None,
     header_row: int = 1,
+    locale: str | None = None,
     progress=None,
 ) -> dict:
     """Apply the import: update / create links and write PO history.
@@ -455,7 +466,11 @@ def apply_import(
     ``{updated, created, rejected, total, rejected_rows}``.
     """
     lines, counts = _resolve_rows(
-        path, column_map=column_map, default_supplier=default_supplier, header_row=header_row
+        path,
+        column_map=column_map,
+        default_supplier=default_supplier,
+        header_row=header_row,
+        locale=locale,
     )
     supplier_cache = _resolve_supplier_cache()
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useMemo, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
@@ -15,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CatalogBrowser } from "@/app/catalog/_components/CatalogBrowser";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import type { MessageKey } from "@/lib/i18n";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import {
   bulkUpdatePo,
   listSuppliers,
@@ -48,20 +49,28 @@ const MODE_OPTIONS: { value: BulkPoMode; labelKey: MessageKey; hintKey: MessageK
 
 type Step = "supplier" | "skus" | "change" | "review";
 
-function formatPoAmount(amount: string | null | undefined, currency?: string): string {
+function formatPoAmount(
+  amount: string | null | undefined,
+  currency: string | undefined,
+  locale: string,
+): string {
   if (amount == null || amount === "") return "—";
   const n = parseFloat(amount);
   if (!Number.isFinite(n)) return "—";
-  const formatted = n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const formatted = n.toLocaleString(uiDateLocale(locale), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
 function describeBulkPoOperation(
   mode: BulkPoMode,
   numValue: number,
+  locale: string,
   t: (key: MessageKey, vars?: Record<string, string | number>) => string,
 ): string {
-  const v = numValue.toLocaleString("fr-FR", { maximumFractionDigits: 4 });
+  const v = numValue.toLocaleString(uiDateLocale(locale), { maximumFractionDigits: 4 });
   if (mode === "set") return t("suppliers.batch.opSet", { value: v });
   if (mode === "pct") return t("suppliers.batch.opPct", { value: v });
   return t("suppliers.batch.opAbs", { value: v });
@@ -91,7 +100,11 @@ function previewStatusVariant(
   return "draft";
 }
 
-function poDeltaLabel(oldPrice: string | null, newPrice: string | null): string | null {
+function poDeltaLabel(
+  oldPrice: string | null,
+  newPrice: string | null,
+  locale: string,
+): string | null {
   if (oldPrice == null || newPrice == null) return null;
   const oldN = parseFloat(oldPrice);
   const newN = parseFloat(newPrice);
@@ -99,7 +112,7 @@ function poDeltaLabel(oldPrice: string | null, newPrice: string | null): string 
   const delta = newN - oldN;
   if (delta === 0) return "0";
   const sign = delta > 0 ? "+" : "";
-  return `${sign}${delta.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+  return `${sign}${delta.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
 }
 
 export function BatchPriceWizard({
@@ -114,6 +127,7 @@ export function BatchPriceWizard({
   onApplied?: () => void | Promise<void>;
 }) {
   const { mutate } = useSWRConfig();
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier ?? null);
   const [step, setStep] = useState<Step>(initialSupplier ? "skus" : "supplier");
@@ -300,10 +314,10 @@ export function BatchPriceWizard({
                             <tr key={line.link_id} className="border-t border-border/60">
                               <td className="px-4 py-2 font-mono text-foreground">{line.product_sku}</td>
                               <td className="px-4 py-2 text-right font-data text-muted-foreground">
-                                {formatPoAmount(line.old_po_base_price, line.po_currency)}
+                                {formatPoAmount(line.old_po_base_price, line.po_currency, displayLanguage)}
                               </td>
                               <td className="px-4 py-2 text-right font-data font-medium text-foreground">
-                                {formatPoAmount(line.new_po_base_price, line.po_currency)}
+                                {formatPoAmount(line.new_po_base_price, line.po_currency, displayLanguage)}
                               </td>
                             </tr>
                           ))}
@@ -467,7 +481,7 @@ export function BatchPriceWizard({
                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {t("suppliers.batch.operation")}
                     </dt>
-                    <dd className="mt-0.5 text-foreground">{describeBulkPoOperation(mode, numValue, t)}</dd>
+                    <dd className="mt-0.5 text-foreground">{describeBulkPoOperation(mode, numValue, displayLanguage, t)}</dd>
                   </div>
                 </dl>
               </div>
@@ -525,6 +539,7 @@ export function BatchPriceWizard({
                             const delta = poDeltaLabel(
                               line.old_po_base_price,
                               line.new_po_base_price,
+                              displayLanguage,
                             );
                             return (
                               <tr
@@ -541,10 +556,10 @@ export function BatchPriceWizard({
                                   {line.product_name}
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                                  {formatPoAmount(line.old_po_base_price, line.po_currency)}
+                                  {formatPoAmount(line.old_po_base_price, line.po_currency, displayLanguage)}
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-data font-medium text-foreground">
-                                  {formatPoAmount(line.new_po_base_price, line.po_currency)}
+                                  {formatPoAmount(line.new_po_base_price, line.po_currency, displayLanguage)}
                                 </td>
                                 <td
                                   className={cn(

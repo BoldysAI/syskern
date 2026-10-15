@@ -10,7 +10,14 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { getSession, loginApi, logoutApi, type AuthUser, type Role } from "@/lib/auth";
+import {
+  getSession,
+  loginApi,
+  logoutApi,
+  updateLocaleApi,
+  type AuthUser,
+  type Role,
+} from "@/lib/auth";
 import type { UiLocale } from "@/lib/i18n";
 
 interface AuthContextValue {
@@ -20,6 +27,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  setLocale: (locale: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -59,12 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       epoch.current += 1;
-      const u = await loginApi(email, password);
+      const u = await loginApi(email, password, displayLanguage);
       setUser(u);
       setDisplayLanguage(u.display_language === "en" ? "en" : "fr");
       router.push("/");
     },
-    [router],
+    [router, displayLanguage],
   );
 
   const logout = useCallback(async () => {
@@ -76,9 +84,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const setLocale = useCallback(async (locale: string) => {
+    const updated = await updateLocaleApi(locale);
+    setUser(updated);
+    setDisplayLanguage(updated.display_language === "en" ? "en" : "fr");
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, role: user?.role, displayLanguage, isLoading, login, logout }}
+      value={{ user, role: user?.role, displayLanguage, isLoading, login, logout, setLocale }}
     >
       {children}
     </AuthContext.Provider>

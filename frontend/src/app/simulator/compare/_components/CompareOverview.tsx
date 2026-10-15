@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -138,7 +139,7 @@ export function CompareOverview({
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <MiniStat label={t("simulator.column.lines")} value={String(agg.line_count ?? "—")} />
-                <MiniStat label={t("simulator.history.pvAvgShort")} value={fmtEur(agg.avg_pv_eur)} />
+                <MiniStat label={t("simulator.history.pvAvgShort")} value={fmtEur(agg.avg_pv_eur, displayLanguage)} />
                 <MiniStat label={t("simulator.history.marginAvg")} value={agg.avg_margin ? `${decToPct(agg.avg_margin)} %` : "—"} />
                 <MiniStat
                   label={t("simulator.history.alerts")}
@@ -153,7 +154,7 @@ export function CompareOverview({
       {/* KPI delta cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((kpi) => (
-          <KpiDeltaCard key={kpi.label} kpi={kpi} visuals={visuals} baseKey={baseKey} />
+          <KpiDeltaCard key={kpi.label} kpi={kpi} visuals={visuals} baseKey={baseKey} locale={displayLanguage} />
         ))}
       </div>
 
@@ -255,7 +256,7 @@ export function CompareOverview({
                               }}
                             />
                             <span className="relative z-10 flex h-full items-center px-2 text-[11px] font-semibold tabular-nums text-foreground">
-                              {val.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}
+                              {val.toLocaleString(uiDateLocale(displayLanguage), { maximumFractionDigits: 4 })}
                             </span>
                           </div>
                         </div>
@@ -284,7 +285,7 @@ export function CompareOverview({
                     <span className="ml-2 truncate text-xs text-muted-foreground">{m.name}</span>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {t("simulator.compare.refShort", { value: fmtEur(String(m.basePv)) })}
+                    {t("simulator.compare.refShort", { value: fmtEur(String(m.basePv), displayLanguage) })}
                   </span>
                 </div>
                 <div className="space-y-1.5">
@@ -308,7 +309,7 @@ export function CompareOverview({
                             }}
                           />
                           <span className="relative flex h-full items-center justify-between px-2 text-[11px] font-semibold tabular-nums">
-                            <span>{fmtEur(String(d.pv))}</span>
+                            <span>{fmtEur(String(d.pv), displayLanguage)}</span>
                             <DeltaBadge pct={d.deltaPct} />
                           </span>
                         </div>
@@ -390,10 +391,12 @@ function KpiDeltaCard({
   kpi,
   visuals,
   baseKey,
+  locale,
 }: {
   kpi: ReturnType<typeof buildKpiCards>[0];
   visuals: ReturnType<typeof columnVisuals>;
   baseKey: string;
+  locale: string;
 }) {
   const t = useUiTranslate();
   const nonRef = kpi.values.filter((v) => v.key !== baseKey && v.deltaPct != null);
@@ -409,7 +412,7 @@ function KpiDeltaCard({
         {kpi.refValue != null
           ? kpi.unit === "pct"
             ? `${(kpi.refValue * 100).toFixed(1)} %`
-            : fmtEur(String(kpi.refValue))
+            : fmtEur(String(kpi.refValue), locale)
           : "—"}
       </div>
       {worst && (

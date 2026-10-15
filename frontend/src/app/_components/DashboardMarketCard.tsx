@@ -16,11 +16,11 @@ const COPPER_UNIT_LABELS: Record<string, string> = {
   lb: "lb",
 };
 
-function formatFx(value?: string | null): string {
+function formatFx(value: string | null | undefined, locale: string): string {
   if (value == null || value === "") return "—";
   const n = Number(value);
   if (Number.isNaN(n)) return value;
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return n.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
 function copperUnitLabel(unit?: string | null): string {
@@ -88,7 +88,7 @@ function MarketParamRow({ param }: { param: MarketParameter }) {
             ? `${param.copper_price} ${param.copper_currency}/${copperUnitLabel(param.copper_unit)}`
             : t("dashboard.fxRate", {
                 from: param.fx_from_currency ?? "",
-                rate: formatFx(param.fx_rate),
+                rate: formatFx(param.fx_rate, displayLanguage),
                 to: param.fx_to_currency ?? "",
               })}
         </p>

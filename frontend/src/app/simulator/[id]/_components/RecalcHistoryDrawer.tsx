@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { decToPct, fmtEur, mpStr, RECALC_TRIGGER, recalcTriggerLabel } from "./sim-format";
 import { useAuth } from "@/contexts/AuthContext";
-import { translate } from "@/lib/i18n";
+import { translate, uiDateLocale } from "@/lib/i18n";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { formatIncotermDisplay } from "@/lib/incoterms";
 import { RecalcDetailModal } from "./RecalcDetailModal";
@@ -131,7 +131,7 @@ function RecalcEntry({
     <li className="rounded-xl border border-border bg-card p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold text-foreground">
-          {new Date(r.calculated_at).toLocaleString("fr-FR")}
+          {new Date(r.calculated_at).toLocaleString(uiDateLocale(locale))}
         </span>
         <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-medium", triggerBadge)}>
           {triggerLabel}
@@ -160,18 +160,18 @@ function RecalcEntry({
         {r.odoo_snapshot_at && (
           <ParamRow
             label={t("simulator.history.snapshotOdoo")}
-            value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")}
+            value={new Date(r.odoo_snapshot_at).toLocaleString(uiDateLocale(locale))}
           />
         )}
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
         <Stat label={t("simulator.column.lines")} value={String(a.line_count ?? "—")} />
-        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur)} />
-        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur)} />
-        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur)} />
+        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur, locale)} />
+        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur, locale)} />
+        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur, locale)} />
         <Stat label={t("simulator.history.marginAvg")} value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
-        <Stat label={t("simulator.history.pvMinMaxTight")} value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
+        <Stat label={t("simulator.history.pvMinMaxTight")} value={`${fmtEur(a.min_pv_eur, locale)} / ${fmtEur(a.max_pv_eur, locale)}`} />
       </div>
       {(a.warnings_count || a.errors_count) ? (
         <div className="mt-2 flex gap-2 text-xs">

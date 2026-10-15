@@ -1,8 +1,9 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { useMemo } from "react";
-import type { MessageKey } from "@/lib/i18n";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { ProductNavigationContext } from "@/lib/product-navigation";
 import { buildProductHref } from "@/lib/product-navigation";
@@ -91,6 +92,7 @@ function buildCoreColumnDef(
   skuAsLink: boolean,
   productNavigationContext: ProductNavigationContext,
   t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+  locale: string,
 ): DataTableColumnDef<Product> | null {
   switch (key) {
     case "sku_code":
@@ -187,7 +189,7 @@ function buildCoreColumnDef(
         render: (product) => {
           const pamp = parseDec(product.pamp_eur);
           return pamp > 0
-            ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+            ? `${pamp.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
             : "—";
         },
       };
@@ -281,6 +283,7 @@ export function useCatalogColumns({
   visibleColumnKeys,
   attributeColumns = [],
 }: UseCatalogColumnsOptions = {}) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   return useMemo<DataTableColumnDef<Product>[]>(() => {
     const attrByCode = new Map(attributeColumns.map((a) => [a.code, a]));
@@ -293,7 +296,7 @@ export function useCatalogColumns({
       visibleColumnKeys && visibleColumnKeys.length > 0
         ? visibleColumnKeys.filter((k) => {
             if (k.startsWith("attr:")) return attrByCode.has(k.slice(5));
-            return buildCoreColumnDef(k, skuAsLink, productNavigationContext, t) != null;
+            return buildCoreColumnDef(k, skuAsLink, productNavigationContext, t, displayLanguage) != null;
           })
         : [...CATALOG_COLUMN_ORDER.filter((k) => k !== "lang_coverage"), ...attrKeys];
 
@@ -315,11 +318,12 @@ export function useCatalogColumns({
           sortField: attrSortField(code),
           width: 140,
           cellClassName: "text-sm text-muted-foreground truncate",
-          render: (product) => formatAttributeDisplayValue(attr, product.attribute_values?.[code]),
+          render: (product) =>
+            formatAttributeDisplayValue(attr, product.attribute_values?.[code], "fr", displayLanguage),
         });
         continue;
       }
-      const core = buildCoreColumnDef(key, skuAsLink, productNavigationContext, t);
+      const core = buildCoreColumnDef(key, skuAsLink, productNavigationContext, t, displayLanguage);
       if (core) cols.push(core);
     }
 
@@ -340,6 +344,7 @@ export function useCatalogColumns({
     visibleColumnKeys,
     attributeColumns,
     t,
+    displayLanguage,
   ]);
 }
 

@@ -53,13 +53,13 @@ const PV_BANDS: { key: MessageKey; cls: string }[] = [
   { key: "simulator.compare.band5", cls: "bg-red-200" },
 ];
 
-function metricRaw(c: CompareCell | undefined, key: MetricKey): string {
+function metricRaw(c: CompareCell | undefined, key: MetricKey, locale: string): string {
   if (!c) return "—";
   const v = c[key];
   if (v == null) return "—";
   if (key === "effective_margin_rate") return `${decToPct(String(v))} %`;
   if (key === "effective_mix_pct") return `${v} %`;
-  return fmtEur(String(v));
+  return fmtEur(String(v), locale);
 }
 
 function metricNumeric(
@@ -101,7 +101,7 @@ function metricDeltaRaw(
     });
   }
   const sign = d >= 0 ? "+" : "−";
-  return `${sign}${fmtEur(Math.abs(d).toFixed(4))}`;
+  return `${sign}${fmtEur(Math.abs(d).toFixed(4), locale)}`;
 }
 
 function metricChanged(
@@ -299,7 +299,7 @@ export function CompareSkuTable({
                           <td key={c.key} className="px-2 py-2 align-top">
                             <div className="space-y-0.5">
                               {METRICS.map((m) => {
-                                const val = metricRaw(cell, m.key);
+                                const val = metricRaw(cell, m.key, displayLanguage);
                                 const changed =
                                   i > 0 && metricChanged(cell, baseCell, m.key);
                                 const delta = changed ? metricDeltaRaw(cell, baseCell, m.key, displayLanguage) : null;
@@ -334,7 +334,7 @@ export function CompareSkuTable({
                             )}
                           >
                             <div className="text-sm font-bold font-data text-foreground">
-                              {fmtEur(cell?.pv_eur)}
+                              {fmtEur(cell?.pv_eur, displayLanguage)}
                             </div>
                             {deltaPct != null && i > 0 && (
                               <span
@@ -349,7 +349,7 @@ export function CompareSkuTable({
                               </span>
                             )}
                             <div className="mt-1.5 text-[9px] text-muted-foreground">
-                              {t("simulator.compare.prPrefix", { value: fmtEur(cell?.pr_eur) })}
+                              {t("simulator.compare.prPrefix", { value: fmtEur(cell?.pr_eur, displayLanguage) })}
                             </div>
                           </div>
                         </td>

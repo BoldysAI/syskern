@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import useSWR from "swr";
 import {
@@ -152,6 +154,7 @@ export function CatalogBrowser({
   disabledRowIds,
   onRowClick,
 }: CatalogBrowserProps) {
+  const { displayLanguage } = useAuth();
   const confirm = useConfirm();
   const t = useUiTranslate();
   const selectionEnabled = Boolean(selectedIds && onToggleProduct);
@@ -513,7 +516,7 @@ export function CatalogBrowser({
                 {!isLoading && (
                   <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                     {t(total === 1 ? "catalog.productCount.one" : "catalog.productCount.other", {
-                      count: total.toLocaleString("fr-FR"),
+                      count: total.toLocaleString(uiDateLocale(displayLanguage)),
                     })}
                   </p>
                 )}
@@ -527,7 +530,7 @@ export function CatalogBrowser({
                 {!isLoading && (
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {t(total === 1 ? "catalog.productCount.one" : "catalog.productCount.other", {
-                      count: total.toLocaleString("fr-FR"),
+                      count: total.toLocaleString(uiDateLocale(displayLanguage)),
                     })}
                   </span>
                 )}
@@ -692,7 +695,7 @@ export function CatalogBrowser({
                       >
                         {t("catalog.browser.selectFiltered")}
                         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                          {total.toLocaleString("fr-FR")}
+                          {total.toLocaleString(uiDateLocale(displayLanguage))}
                         </span>
                       </DropdownMenuItem>
                       {(somePageSelected ||

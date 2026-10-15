@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
@@ -194,6 +195,7 @@ function DetailModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const guess = useMemo(() => guessProduct(row.raw_data), [row.raw_data]);
   const [action, setAction] = useState<ResolutionAction>("ignore");
@@ -311,7 +313,7 @@ function DetailModal({
           <div className="text-muted-foreground">
             {t("admin.quarantine.resolvedBy", {
               name: row.resolved_by,
-              date: new Date(row.resolved_at!).toLocaleString("fr-FR"),
+              date: new Date(row.resolved_at!).toLocaleString(uiDateLocale(displayLanguage)),
             })}
           </div>
           {row.resolution_notes && (
@@ -349,7 +351,7 @@ function DetailModal({
                   value={sku}
                   onChange={(e) => setSku(e.target.value)}
                   className="font-mono uppercase"
-                  placeholder="KCFF…-21"
+                  placeholder={t("admin.quarantine.skuPlaceholder")}
                 />
               </FormField>
               <FormField label={t("admin.quarantine.designation")}>

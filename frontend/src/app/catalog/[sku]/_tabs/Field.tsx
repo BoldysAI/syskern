@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import type { ProductDetail } from "@/lib/api";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,7 @@ function validate(kind: FieldKind, value: unknown): boolean {
 }
 
 export function Field({ field, label, kind = "text", unit, options, readOnly }: FieldProps) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const { mode, coreValue, setCore } = useEdit();
   const value = coreValue(field);
@@ -68,7 +71,7 @@ export function Field({ field, label, kind = "text", unit, options, readOnly }: 
       const n = Number(value);
       return (
         <span className="font-medium text-foreground">
-          {Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value)}
+          {Number.isFinite(n) ? n.toLocaleString(uiDateLocale(displayLanguage)) : String(value)}
           {unit && <span className="ml-1 text-muted-foreground">{unit}</span>}
         </span>
       );

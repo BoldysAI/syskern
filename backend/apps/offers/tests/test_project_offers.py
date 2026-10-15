@@ -8,6 +8,7 @@ Covers offer/line creation with quantities, the 5-section payload, OpenAI-failur
 from __future__ import annotations
 
 import types
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -387,6 +388,25 @@ def test_build_gamma_payload_has_5_sections_and_price_table(fake_args, project_s
     assert "Datacenter Marseille" in text
     assert "CABLE-1" in text and "RACK-1" in text  # price table rows
     assert "487.70 EUR" in text
+
+
+def test_english_structure_keeps_product_name(fake_args, project_sim, project_client):
+    offer = pg.create_project_offer(
+        simulation=project_sim,
+        client=project_client,
+        project_name="Datacenter Marseille",
+        quantities={"CABLE-1": 1},
+        language="en",
+        expiration_date=date(2026, 12, 31),
+        ai_instructions="",
+    )
+    text = pg.build_gamma_payload(offer, arguments={"technical": "Keep this body"})["inputText"]
+    assert "Câble cat7" in text
+    assert "About Syskern" in text
+    assert "Syskern general terms of sale." in text
+    assert "Validity: 2026-12-31." in text
+    assert "### Technical" in text
+    assert "Keep this body" in text
 
 
 def test_price_table_ends_with_grand_total(fake_args, project_sim, project_client):

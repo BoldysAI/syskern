@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Bookmark, CircleNotch } from "@phosphor-icons/react";
 import { createSavedComparison } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { translate } from "@/lib/i18n";
+import { translate, uiDateLocale } from "@/lib/i18n";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ function defaultComparisonLabel(locale: string, fallback?: string) {
   return (
     fallback?.trim() ||
     translate("simulator.compare.defaultLabel", locale, {
-      date: new Date().toLocaleDateString("fr-FR"),
+      date: new Date().toLocaleDateString(uiDateLocale(locale)),
     })
   );
 }

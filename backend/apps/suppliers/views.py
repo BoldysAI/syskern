@@ -389,7 +389,11 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
         supplier_id = data.get("supplier_id")
         result = task.delay(
-            str(path), column_map, str(supplier_id) if supplier_id else None, header_row
+            str(path),
+            column_map,
+            str(supplier_id) if supplier_id else None,
+            header_row,
+            locale=resolve_request_locale(request),
         )
         return Response(
             {"task_id": result.id, "status": "PENDING"},

@@ -6,6 +6,9 @@
  */
 
 import type { BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
+import type { MessageKey } from "@/lib/i18n";
+
+type Translate = (key: MessageKey) => string;
 
 export type SimulationNavigationContext =
   | { kind: "default" }
@@ -19,6 +22,7 @@ type SearchParamsLike = { get(name: string): string | null };
 
 export function parseSimulationNavigationContext(
   params: SearchParamsLike,
+  t: Translate,
 ): SimulationNavigationContext {
   const from = params.get("from");
   if (from === "compare" || from === "comparator") {
@@ -27,7 +31,7 @@ export function parseSimulationNavigationContext(
       return {
         kind: "compare",
         returnHref,
-        returnLabel: params.get("return_label") || "Comparaison",
+        returnLabel: params.get("return_label") || t("nav.comparison"),
       };
     }
   }
@@ -58,13 +62,14 @@ export function buildSimulationHref(
 export function buildSimulationBreadcrumbs(
   ctx: SimulationNavigationContext,
   simulationLabel: string,
+  t: Translate,
 ): BreadcrumbCrumb[] {
-  const dashboard: BreadcrumbCrumb = { href: "/", label: "Tableau de bord" };
+  const dashboard: BreadcrumbCrumb = { href: "/", label: t("nav.dashboard") };
 
   if (ctx.kind === "compare") {
     return [
       dashboard,
-      { href: "/comparator", label: "Comparaisons" },
+      { href: "/comparator", label: t("nav.comparisons") },
       { href: ctx.returnHref, label: ctx.returnLabel },
       { label: simulationLabel },
     ];
@@ -72,7 +77,7 @@ export function buildSimulationBreadcrumbs(
 
   return [
     dashboard,
-    { href: "/simulator", label: "Simulations" },
+    { href: "/simulator", label: t("nav.simulations") },
     { label: simulationLabel },
   ];
 }

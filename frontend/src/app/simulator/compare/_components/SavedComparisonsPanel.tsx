@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -19,6 +21,7 @@ interface Props {
 }
 
 export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const router = useRouter();
   const confirm = useConfirm();
@@ -96,7 +99,7 @@ export function SavedComparisonsPanel({ activeId, onLoad }: Props) {
                     ? t("simulator.compare.columnOther", { count: item.column_count })
                     : t("simulator.compare.columnOne", { count: item.column_count })}
                   {" · "}
-                  {new Date(item.created_at).toLocaleDateString("fr-FR")}
+                  {new Date(item.created_at).toLocaleDateString(uiDateLocale(displayLanguage))}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">

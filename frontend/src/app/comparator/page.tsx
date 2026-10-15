@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -48,6 +50,7 @@ const DEFAULT_SORT: DataTableSortState = { field: "updated_at", dir: "desc" };
 const COLUMN_WIDTHS_KEY = "syskern:comparisons-list-col-widths:v1";
 
 export default function ComparisonsPage() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
   const t = useUiTranslate();
@@ -246,7 +249,7 @@ export default function ComparisonsPage() {
         width: 120,
         render: (item) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(item.created_at).toLocaleDateString("fr-FR")}
+            {new Date(item.created_at).toLocaleDateString(uiDateLocale(displayLanguage))}
           </span>
         ),
       },
@@ -257,12 +260,12 @@ export default function ComparisonsPage() {
         width: 120,
         render: (item) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(item.updated_at).toLocaleDateString("fr-FR")}
+            {new Date(item.updated_at).toLocaleDateString(uiDateLocale(displayLanguage))}
           </span>
         ),
       },
     ],
-    [t],
+    [t, displayLanguage],
   );
 
   const handleSort = useCallback((field: string) => {
@@ -369,8 +372,8 @@ export default function ComparisonsPage() {
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                   {total === 1
-                    ? t("comparator.list.countOne", { count: total.toLocaleString("fr-FR") })
-                    : t("comparator.list.countOther", { count: total.toLocaleString("fr-FR") })}
+                    ? t("comparator.list.countOne", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("comparator.list.countOther", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>

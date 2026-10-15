@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useMemo, useState, Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -115,6 +116,7 @@ function KeyInfoCard({
   product: ProductDetail;
   latestPvSource: CatalogPvSource | null;
 }) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
@@ -162,7 +164,7 @@ function KeyInfoCard({
             accent="green"
             value={
               pamp > 0
-                ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                ? `${pamp.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
                 : "—"
             }
           />
@@ -304,12 +306,16 @@ function ProductPageContent() {
   const editing = manualEditing ?? (wantEdit && userCanEdit && Boolean(product));
 
   const breadcrumbCrumbs = useMemo(() => {
-    const navContext = parseProductNavigationContext(searchParams);
-    return buildProductBreadcrumbs(navContext, {
-      productLabel: product?.name || decodedSku,
-      universe: product?.universe,
-    });
-  }, [searchParams, product, decodedSku]);
+    const navContext = parseProductNavigationContext(searchParams, t);
+    return buildProductBreadcrumbs(
+      navContext,
+      {
+        productLabel: product?.name || decodedSku,
+        universe: product?.universe,
+      },
+      t,
+    );
+  }, [searchParams, product, decodedSku, t]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(decodedSku));
 

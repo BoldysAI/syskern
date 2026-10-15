@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Profile, Role
-from apps.accounts.ui_locale import resolve_ui_locale, translate
+from apps.accounts.ui_locale import EN, FR, resolve_ui_locale, translate
 
 
 def test_anonymous_uses_deployment_locale(settings):
@@ -46,6 +48,21 @@ def test_empty_user_locale_uses_deployment_setting(settings):
 def test_missing_english_label_falls_back_to_french_only():
     assert translate("login.title", "en") == "Sign in"
     assert translate("_proof.only_fr", "en") == "Libellé français"
+
+
+def test_api_catalog_has_english_except_the_fallback_proof():
+    missing = sorted(set(FR) - set(EN) - {"_proof.only_fr"})
+    assert missing == []
+
+
+def test_english_api_labels_keep_french_placeholders():
+    names = re.compile(r"\{(\w+)\}")
+    mismatches = [
+        key
+        for key, french in FR.items()
+        if key in EN and set(names.findall(french)) != set(names.findall(EN[key]))
+    ]
+    assert mismatches == []
 
 
 @pytest.mark.django_db
@@ -116,3 +133,49 @@ def test_create_user_locale_optional(settings):
     assert bare.status_code == 201
     assert bare.data["locale"] == ""
     assert bare.data["display_language"] == "fr"
+
+
+@pytest.mark.django_db
+def test_locale_choice_is_reapplied_on_the_next_login(settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    user = User.objects.create_user(
+        username="switch@test.com",
+        email="switch@test.com",
+        password="GoodSecret123!",
+    )
+    Profile.objects.update_or_create(user=user, defaults={"role": Role.VIEWER, "locale": ""})
+    client = APIClient()
+    client.force_login(user)
+
+    saved = client.patch("/api/auth/locale", {"locale": "en"}, format="json")
+    assert saved.status_code == 200
+    assert saved.data["user"]["locale"] == "en"
+    assert saved.data["user"]["display_language"] == "en"
+
+    client.post("/api/auth/logout")
+    login = client.post(
+        "/api/auth/login",
+        {"email": "switch@test.com", "password": "GoodSecret123!"},
+        format="json",
+    )
+    assert login.status_code == 200
+    assert login.data["user"]["display_language"] == "en"
+    session = client.get("/api/auth/session")
+    assert session.data["display_language"] == "en"
+
+
+@pytest.mark.django_db
+def test_locale_choice_rejects_an_unknown_language(settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    user = User.objects.create_user(
+        username="viewer@test.com",
+        email="viewer@test.com",
+        password="GoodSecret123!",
+    )
+    Profile.objects.update_or_create(user=user, defaults={"role": Role.VIEWER, "locale": "fr"})
+    client = APIClient()
+    client.force_login(user)
+    rejected = client.patch("/api/auth/locale", {"locale": "es"}, format="json")
+    assert rejected.status_code == 400
+    user.profile.refresh_from_db()
+    assert user.profile.locale == "fr"

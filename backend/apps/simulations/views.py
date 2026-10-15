@@ -13,7 +13,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
-from apps.accounts.ui_locale import translate_request
+from apps.accounts.ui_locale import resolve_request_locale, translate_request
 from apps.clients.models import Client
 from apps.core.pagination import DefaultLimitOffsetPagination
 from apps.offers.models import Offer
@@ -690,7 +690,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
         then downloads the file via `/api/simulations/exports/{task_id}/`.
         """
         simulation = self.get_object()
-        result = export_simulation_task.delay(str(simulation.pk))
+        result = export_simulation_task.delay(
+            str(simulation.pk), locale=resolve_request_locale(request)
+        )
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,

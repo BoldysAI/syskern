@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -652,7 +653,7 @@ export function SimulationTable({
         width: 100,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtNum(line.product_stock),
+        render: (line) => fmtNum(line.product_stock, displayLanguage),
       },
       {
         key: "product_pamp_eur",
@@ -660,7 +661,7 @@ export function SimulationTable({
         width: 110,
         align: "right",
         cellClassName: "text-sm font-medium text-foreground font-data",
-        render: (line) => fmtEur(line.product_pamp_eur),
+        render: (line) => fmtEur(line.product_pamp_eur, displayLanguage),
       },
       {
         key: "pamp_predictive_eur",
@@ -668,7 +669,7 @@ export function SimulationTable({
         width: 120,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pamp_predictive_eur),
+        render: (line) => fmtEur(line.pamp_predictive_eur, displayLanguage),
       },
       ...(isProject
         ? [
@@ -724,7 +725,7 @@ export function SimulationTable({
         width: 110,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pa_net_eur),
+        render: (line) => fmtEur(line.pa_net_eur, displayLanguage),
       },
       {
         key: "pr_eur",
@@ -733,7 +734,7 @@ export function SimulationTable({
         width: 100,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pr_eur),
+        render: (line) => fmtEur(line.pr_eur, displayLanguage),
       },
       {
         key: "margin",
@@ -761,7 +762,7 @@ export function SimulationTable({
         width: 110,
         align: "right",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (line) => fmtEur(line.previous_pv_eur),
+        render: (line) => fmtEur(line.previous_pv_eur, displayLanguage),
       },
       {
         key: "pv_eur",
@@ -770,7 +771,7 @@ export function SimulationTable({
         width: 110,
         align: "right",
         cellClassName: "text-sm font-semibold text-foreground font-data",
-        render: (line) => fmtEur(line.pv_eur),
+        render: (line) => fmtEur(line.pv_eur, displayLanguage),
       },
       ...(isProject
         ? [
@@ -780,7 +781,7 @@ export function SimulationTable({
               width: 120,
               align: "right" as const,
               cellClassName: "text-sm font-semibold text-foreground font-data",
-              render: (line: SimulationLine) => fmtEur(line.pv_total_eur),
+              render: (line: SimulationLine) => fmtEur(line.pv_total_eur, displayLanguage),
             },
           ]
         : []),
@@ -934,7 +935,7 @@ export function SimulationTable({
               label={t("simulator.column.lastCalc")}
               value={
                 sim.last_calculated_at
-                  ? new Date(sim.last_calculated_at).toLocaleString("fr-FR")
+                  ? new Date(sim.last_calculated_at).toLocaleString(uiDateLocale(displayLanguage))
                   : t("simulator.lines.never")
               }
             />
@@ -951,7 +952,7 @@ export function SimulationTable({
             <ContextItem
               label={t("simulator.history.snapshotOdoo")}
               value={
-                sim.odoo_snapshot_at ? new Date(sim.odoo_snapshot_at).toLocaleString("fr-FR") : "—"
+                sim.odoo_snapshot_at ? new Date(sim.odoo_snapshot_at).toLocaleString(uiDateLocale(displayLanguage)) : "—"
               }
             />
           </div>

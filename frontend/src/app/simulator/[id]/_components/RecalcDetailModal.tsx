@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import useSWR from "swr";
 import { getRecalculation, type Recalculation } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -65,7 +66,7 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-foreground">
-          {new Date(r.calculated_at).toLocaleString("fr-FR")}
+          {new Date(r.calculated_at).toLocaleString(uiDateLocale(displayLanguage))}
         </span>
         <span className={cn("rounded px-2 py-0.5 text-xs font-medium", triggerBadge)}>
           {triggerLabel}
@@ -80,17 +81,17 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
         <Row label={t("simulator.history.marginsSymea")} value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
         <Row label={t("simulator.params.saleIncotermShort")} value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)} />
         {r.odoo_snapshot_at && (
-          <Row label={t("simulator.history.snapshotOdoo")} value={new Date(r.odoo_snapshot_at).toLocaleString("fr-FR")} />
+          <Row label={t("simulator.history.snapshotOdoo")} value={new Date(r.odoo_snapshot_at).toLocaleString(uiDateLocale(displayLanguage))} />
         )}
       </section>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label={t("simulator.column.lines")} value={String(a.line_count ?? "—")} />
-        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur)} />
-        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur)} />
-        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur)} />
+        <Stat label={t("simulator.history.paAvg")} value={fmtEur(a.avg_pa_eur, displayLanguage)} />
+        <Stat label={t("simulator.history.prAvg")} value={fmtEur(a.avg_pr_eur, displayLanguage)} />
+        <Stat label={t("simulator.history.pvAvg")} value={fmtEur(a.avg_pv_eur, displayLanguage)} />
         <Stat label={t("simulator.history.marginAvg")} value={a.avg_margin ? `${decToPct(a.avg_margin)} %` : "—"} />
-        <Stat label={t("simulator.history.pvMinMax")} value={`${fmtEur(a.min_pv_eur)} / ${fmtEur(a.max_pv_eur)}`} />
+        <Stat label={t("simulator.history.pvMinMax")} value={`${fmtEur(a.min_pv_eur, displayLanguage)} / ${fmtEur(a.max_pv_eur, displayLanguage)}`} />
       </section>
 
       {(a.warnings_count || a.errors_count) ? (
@@ -128,10 +129,10 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
                   <td className="max-w-[200px] truncate px-3 py-2 text-muted-foreground" title={s.designation}>
                     {s.designation}
                   </td>
-                  <td className="px-3 py-2 text-right font-data">{fmtEur(s.pa_net_eur)}</td>
-                  <td className="px-3 py-2 text-right font-data">{fmtEur(s.pr_eur)}</td>
+                  <td className="px-3 py-2 text-right font-data">{fmtEur(s.pa_net_eur, displayLanguage)}</td>
+                  <td className="px-3 py-2 text-right font-data">{fmtEur(s.pr_eur, displayLanguage)}</td>
                   <td className="px-3 py-2 text-right font-semibold font-data text-foreground">
-                    {fmtEur(s.pv_eur)}
+                    {fmtEur(s.pv_eur, displayLanguage)}
                   </td>
                   <td className="px-3 py-2 text-right font-data">
                     {s.effective_margin_rate ? `${decToPct(s.effective_margin_rate)} %` : "—"}

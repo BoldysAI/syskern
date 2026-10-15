@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
@@ -31,7 +32,7 @@ import { SuppliersFiltersSidebar } from "./SuppliersFiltersSidebar";
 import { applySupplierFilters, type SupplierFilters } from "./supplier-filters";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import type { MessageKey } from "@/lib/i18n";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import {
   analyzePoImport,
   applyPoImport,
@@ -131,11 +132,15 @@ const STATUS_ORDER: PoImportRowStatus[] = [
   "missing_sku",
 ];
 
-function formatPoAmount(amount: string | null | undefined, currency?: string | null): string {
+function formatPoAmount(
+  amount: string | null | undefined,
+  currency: string | null | undefined,
+  locale: string,
+): string {
   if (amount == null || amount === "") return "—";
   const n = parseFloat(amount);
   if (!Number.isFinite(n)) return "—";
-  const formatted = n.toLocaleString("fr-FR", {
+  const formatted = n.toLocaleString(uiDateLocale(locale), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   });
@@ -870,6 +875,7 @@ function autoMap(headers: string[]): ImportColumnMap {
 }
 
 function PreviewRow({ line }: { line: PoImportPreviewLine }) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const meta = STATUS_META[line.status];
   const actionable = line.status === "will_update" || line.status === "will_create_link";
@@ -881,10 +887,10 @@ function PreviewRow({ line }: { line: PoImportPreviewLine }) {
         {line.supplier || "—"}
       </td>
       <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-        {formatPoAmount(line.old_po_base_price, line.po_currency)}
+        {formatPoAmount(line.old_po_base_price, line.po_currency, displayLanguage)}
       </td>
       <td className="px-4 py-2.5 text-right font-data font-medium text-foreground">
-        {formatPoAmount(line.new_po_base_price, line.po_currency)}
+        {formatPoAmount(line.new_po_base_price, line.po_currency, displayLanguage)}
       </td>
       <td className="px-4 py-2.5">
         <StatusBadge variant={meta.variant} title={line.reason || undefined}>

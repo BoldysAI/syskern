@@ -1,10 +1,11 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useMemo } from "react";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import type { AttributeRegistry } from "@/lib/api";
-import { translate } from "@/lib/i18n";
+import { formatUiDate, formatUiNumber, translate } from "@/lib/i18n";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
@@ -66,9 +67,10 @@ export function validateAttributeValue(attribute: AttributeRegistry, value: unkn
   }
 }
 
-function formatDateFr(iso: string): string {
+function formatAttributeDate(iso: string, locale: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+  if (!m) return iso;
+  return formatUiDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), locale);
 }
 
 /** Format an attribute value for compact display (catalog columns, recap). */
@@ -83,13 +85,13 @@ export function formatAttributeDisplayValue(
   switch (attribute.data_type) {
     case "number": {
       const n = Number(value);
-      const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
+      const formatted = Number.isFinite(n) ? formatUiNumber(n, locale) : String(value);
       return attribute.unit ? `${formatted} ${attribute.unit}` : formatted;
     }
     case "boolean":
       return translate(value ? "common.yes" : "common.no", locale);
     case "date":
-      return formatDateFr(String(value));
+      return formatAttributeDate(String(value), locale);
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
       return opt ? localize(opt.label, lang) : String(value);
@@ -121,12 +123,13 @@ function ReadValue({
   lang: string;
 }) {
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   if (isAttributeValueEmpty(value)) return <span className="text-muted-foreground/50">—</span>;
 
   switch (attribute.data_type) {
     case "number": {
       const n = Number(value);
-      const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
+      const formatted = Number.isFinite(n) ? formatUiNumber(n, displayLanguage) : String(value);
       return (
         <span className="font-medium text-foreground">
           {formatted}
@@ -146,7 +149,11 @@ function ReadValue({
         </span>
       );
     case "date":
-      return <span className="font-medium text-foreground">{formatDateFr(String(value))}</span>;
+      return (
+        <span className="font-medium text-foreground">
+          {formatAttributeDate(String(value), displayLanguage)}
+        </span>
+      );
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
       return (

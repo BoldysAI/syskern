@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -68,6 +70,7 @@ export function CatalogSidebar({
   onDeleteFilter,
   className,
 }: CatalogSidebarProps) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const boundsFilters = useMemo(() => {
     const { pamp_min: _pm, pamp_max: _px, stock_min: _sm, attrs: _attrs, ...rest } = filters;
@@ -237,7 +240,7 @@ export function CatalogSidebar({
               pamp_max: max ?? null,
             })
           }
-          formatValue={(n) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
+          formatValue={(n) => n.toLocaleString(uiDateLocale(displayLanguage), { maximumFractionDigits: 2 })}
           unit="€"
         />
       </FilterSection>

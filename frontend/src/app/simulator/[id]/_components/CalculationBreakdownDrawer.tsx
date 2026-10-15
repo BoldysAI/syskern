@@ -110,12 +110,12 @@ function ChainSteps({
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <div className="rounded border border-border bg-card px-2 py-1">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground">{t("simulator.breakdown.input")}</span>
-              <p className="tabular-nums text-foreground">{fmtPrice(step.input_price)}</p>
+              <p className="tabular-nums text-foreground">{fmtPrice(step.input_price, locale)}</p>
             </div>
             <CaretRight size={16} className="shrink-0 text-muted-foreground/60" />
             <div className="rounded border border-warm/30 bg-warm/10/50 px-2 py-1">
               <span className="text-[10px] font-semibold uppercase text-warm">{t("simulator.breakdown.output")}</span>
-              <p className="font-medium tabular-nums text-foreground">{fmtPrice(step.output_price)}</p>
+              <p className="font-medium tabular-nums text-foreground">{fmtPrice(step.output_price, locale)}</p>
             </div>
           </div>
 
@@ -246,10 +246,10 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                     {t("simulator.breakdown.frozen")}
                   </h3>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <SummaryCell label={t("simulator.column.paNet")} value={fmtEur(line.pa_net_eur)} />
-                    <SummaryCell label={t("simulator.module.pamp")} value={fmtEur(line.pamp_predictive_eur)} />
-                    <SummaryCell label={t("simulator.column.pr")} value={fmtEur(line.pr_eur)} highlight />
-                    <SummaryCell label={t("simulator.column.pv")} value={fmtEur(line.pv_eur)} highlight />
+                    <SummaryCell label={t("simulator.column.paNet")} value={fmtEur(line.pa_net_eur, displayLanguage)} />
+                    <SummaryCell label={t("simulator.module.pamp")} value={fmtEur(line.pamp_predictive_eur, displayLanguage)} />
+                    <SummaryCell label={t("simulator.column.pr")} value={fmtEur(line.pr_eur, displayLanguage)} highlight />
+                    <SummaryCell label={t("simulator.column.pv")} value={fmtEur(line.pv_eur, displayLanguage)} highlight />
                     <SummaryCell
                       label={t("simulator.breakdown.syskernEffective")}
                       value={
@@ -329,7 +329,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                     = ({purchasePct / 100} × {line.pa_net_eur ?? "?"}) + ({mixPct / 100} ×{" "}
                     {line.pamp_predictive_eur ?? "?"})
                     {" → "}
-                    <span className="font-semibold">{fmtEur(line.pr_eur)}</span>
+                    <span className="font-semibold">{fmtEur(line.pr_eur, displayLanguage)}</span>
                   </p>
                 </section>
 
@@ -346,16 +346,16 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       {t("simulator.breakdown.syskernFixed")}
                     </p>
                     <p className="mt-2 text-sm tabular-nums text-foreground">
-                      {t("simulator.breakdown.prPrefix", { value: fmtEur(line.pr_eur) })}
+                      {t("simulator.breakdown.prPrefix", { value: fmtEur(line.pr_eur, displayLanguage) })}
                       {saleSteps.map((s) => (
                         <span key={`${s.module}-${s.order}`}>
                           {" → "}
-                          {stepModuleLabel(s, displayLanguage)} {fmtPrice(s.output_price)}
+                          {stepModuleLabel(s, displayLanguage)} {fmtPrice(s.output_price, displayLanguage)}
                         </span>
                       ))}
                       {" → "}
                       <span className="font-semibold">
-                        {t("simulator.breakdown.pvPrefix", { value: fmtEur(line.pv_eur) })}
+                        {t("simulator.breakdown.pvPrefix", { value: fmtEur(line.pv_eur, displayLanguage) })}
                       </span>
                     </p>
                   </section>
@@ -392,10 +392,13 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   {breakdown.purchase?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">
                       {t("simulator.breakdown.result", {
-                        price: fmtPrice({
-                          amount: breakdown.purchase.final_amount,
-                          currency: breakdown.purchase.final_currency ?? "EUR",
-                        }),
+                        price: fmtPrice(
+                          {
+                            amount: breakdown.purchase.final_amount,
+                            currency: breakdown.purchase.final_currency ?? "EUR",
+                          },
+                          displayLanguage,
+                        ),
                       })}
                     </span>
                   )}
@@ -423,6 +426,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                                 currency: breakdown.pr.final_currency ?? "EUR",
                               }
                             : { amount: line.pr_eur!, currency: "EUR" },
+                          displayLanguage,
                         ),
                       })}
                     </span>
@@ -444,10 +448,13 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   {breakdown.sale?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">
                       {t("simulator.breakdown.result", {
-                        price: fmtPrice({
-                          amount: breakdown.sale.final_amount,
-                          currency: breakdown.sale.final_currency ?? "EUR",
-                        }),
+                        price: fmtPrice(
+                          {
+                            amount: breakdown.sale.final_amount,
+                            currency: breakdown.sale.final_currency ?? "EUR",
+                          },
+                          displayLanguage,
+                        ),
                       })}
                     </span>
                   )}

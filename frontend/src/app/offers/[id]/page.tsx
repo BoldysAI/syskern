@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -132,6 +134,7 @@ function daysUntil(date: string | null): number | null {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OfferDetailPage() {
+  const { displayLanguage } = useAuth();
   const id = String(useParams().id);
   const router = useRouter();
   const confirm = useConfirm();
@@ -322,7 +325,7 @@ export default function OfferDetailPage() {
               )}
             >
               <Clock size={14} />
-              {new Date(offer.valid_to).toLocaleDateString("fr-FR")}
+              {new Date(offer.valid_to).toLocaleDateString(uiDateLocale(displayLanguage))}
               {remaining != null && (
                 <span className="text-xs">
                   {remaining < 0
@@ -337,7 +340,7 @@ export default function OfferDetailPage() {
         </Info>
         <Info label={t("offers.detail.estimatedTotal")}>
           <span className="font-data">
-            {total.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} {offer.currency}
+            {total.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2 })} {offer.currency}
           </span>
         </Info>
       </div>
@@ -436,7 +439,7 @@ export default function OfferDetailPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="px-4 py-2 text-left">SKU</th>
+              <th className="px-4 py-2 text-left">{t("offers.column.sku")}</th>
               <th className="px-4 py-2 text-left">{t("offers.detail.designation")}</th>
               {isProject && <th className="px-4 py-2 text-right">{t("offers.detail.qtyShort")}</th>}
               <th className="px-4 py-2 text-right">

@@ -38,8 +38,8 @@ function roleOptions(locale: string) {
 function localeOptions(locale: string) {
   return [
     { value: LOCALE_UNSET, label: translate("users.localeDeployment", locale) },
-    { value: "fr", label: "Français" },
-    { value: "en", label: "English" },
+    { value: "fr", label: translate("users.localeFr", locale) },
+    { value: "en", label: translate("users.localeEn", locale) },
   ];
 }
 

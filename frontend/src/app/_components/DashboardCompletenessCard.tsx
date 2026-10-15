@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import Link from "next/link";
 import useSWR from "swr";
 import { ArrowRight, ClipboardText } from "@phosphor-icons/react";
@@ -22,7 +23,7 @@ function barColor(pct: number): string {
  * the least-complete fields, linking to the detail table on /settings/attributes.
  */
 export function DashboardCompletenessCard() {
-  const { user } = useAuth();
+  const { user, displayLanguage } = useAuth();
   const t = useUiTranslate();
   const { data, isLoading } = useSWR("attribute-completeness", getAttributeCompleteness);
   const userIsAdmin = isAdmin(user?.role);
@@ -49,7 +50,7 @@ export function DashboardCompletenessCard() {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {t("dashboard.completenessAverage", {
-                    count: data.total_products.toLocaleString("fr-FR"),
+                    count: data.total_products.toLocaleString(uiDateLocale(displayLanguage)),
                   })}
                 </div>
               </div>

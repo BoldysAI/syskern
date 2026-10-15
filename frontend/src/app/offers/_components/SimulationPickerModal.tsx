@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -38,6 +40,7 @@ interface SimulationPickerModalProps {
  * wizard.
  */
 export function SimulationPickerModal({ open, onClose }: SimulationPickerModalProps) {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const t = useUiTranslate();
 
@@ -135,13 +138,13 @@ export function SimulationPickerModal({ open, onClose }: SimulationPickerModalPr
         render: (sim) => (
           <span className="text-sm text-muted-foreground">
             {sim.last_calculated_at
-              ? new Date(sim.last_calculated_at).toLocaleDateString("fr-FR")
+              ? new Date(sim.last_calculated_at).toLocaleDateString(uiDateLocale(displayLanguage))
               : "—"}
           </span>
         ),
       },
     ],
-    [t],
+    [t, displayLanguage],
   );
 
   return (

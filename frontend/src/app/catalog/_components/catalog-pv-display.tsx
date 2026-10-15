@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import Link from "next/link";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { useUiTranslate } from "@/lib/use-ui-translate";
@@ -20,8 +22,8 @@ function parsePositive(value: string | null | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function formatAmount(n: number): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatAmount(n: number, locale: string): string {
+  return n.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 const SIZE_STYLES = {
@@ -62,12 +64,14 @@ function PvAmountRow({
   amount,
   primary,
   size,
+  locale,
 }: {
   code: string;
   symbol: string;
   amount: number;
   primary: boolean;
   size: keyof typeof SIZE_STYLES;
+  locale: string;
 }) {
   const s = SIZE_STYLES[size];
   return (
@@ -91,7 +95,7 @@ function PvAmountRow({
           primary ? s.primaryAmount : cn(s.amount, "text-foreground"),
         )}
       >
-        {formatAmount(amount)}
+        {formatAmount(amount, locale)}
         <span className="ml-1 text-[0.85em] font-medium text-muted-foreground">{symbol}</span>
       </span>
     </li>
@@ -105,6 +109,7 @@ export function CatalogPvDisplay({
   size = "sm",
   className,
 }: CatalogPvDisplayProps) {
+  const { displayLanguage } = useAuth();
   const rows = CURRENCY_META.map((c) => ({
     ...c,
     amount: parsePositive(pv?.[c.field]),
@@ -118,7 +123,7 @@ export function CatalogPvDisplay({
     return (
       <span className={cn("font-data tabular-nums text-foreground", className)}>
         {rows
-          .map((r) => `${formatAmount(r.amount!)} ${r.symbol}`)
+          .map((r) => `${formatAmount(r.amount!, displayLanguage)} ${r.symbol}`)
           .join(" · ")}
       </span>
     );
@@ -135,6 +140,7 @@ export function CatalogPvDisplay({
           amount={r.amount!}
           primary={r.primary}
           size={size}
+          locale={displayLanguage}
         />
       ))}
     </ul>
@@ -195,11 +201,11 @@ export function latestPvSourceFromHistory(
   };
 }
 
-function formatSimulationDate(isoDate: string): string | null {
+function formatSimulationDate(isoDate: string, locale: string): string | null {
   if (!isoDate) return null;
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("fr-FR", {
+  return d.toLocaleDateString(uiDateLocale(locale), {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -224,10 +230,11 @@ export function CatalogPvSimulationSource({
   productTab = "commercial",
   className,
 }: CatalogPvSimulationSourceProps) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   if (!source?.simulationId) return null;
 
-  const when = formatSimulationDate(source.date);
+  const when = formatSimulationDate(source.date, displayLanguage);
   const href = simulationHrefFromCatalog(source.simulationId, {
     productSku,
     productLabel,

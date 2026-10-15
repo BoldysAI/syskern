@@ -1,7 +1,7 @@
 import type { SimulationLine, SimulationLineStatus } from "@/lib/api";
 import { buildProductHref } from "@/lib/product-navigation";
 import { humanizeEngineMessage } from "@/lib/humanize-errors";
-import { translate, type MessageKey } from "@/lib/i18n";
+import { formatUiNumber, translate, uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { transportModeLabel as defaultTransportModeLabel } from "@/lib/transport-modes";
 
 function tr(
@@ -94,19 +94,19 @@ export function simulationHrefFromCatalog(
 }
 
 /** Format a Decimal-string money value as EUR for display (never for math). */
-export function fmtEur(v?: string | null): string {
+export function fmtEur(v?: string | null, locale = "fr"): string {
   if (v == null || v === "") return "—";
   const n = parseFloat(v);
   if (!Number.isFinite(n)) return "—";
-  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  return `${formatUiNumber(n, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 /** Format a plain number-ish string (e.g. stock) for display. */
-export function fmtNum(v?: string | null): string {
+export function fmtNum(v?: string | null, locale = "fr"): string {
   if (v == null || v === "") return "—";
   const n = parseFloat(v);
   if (!Number.isFinite(n)) return "—";
-  return n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+  return formatUiNumber(n, locale, { maximumFractionDigits: 2 });
 }
 
 /** Decimal rate string ("0.0600") → percent display string ("6"). */
@@ -188,11 +188,11 @@ function displayMoneyOptions(currency?: string | null): Intl.NumberFormatOptions
   return { minimumFractionDigits: 2, maximumFractionDigits: 4 };
 }
 
-function fmtMoney(amount: unknown, currency?: string): string {
+function fmtMoney(amount: unknown, currency?: string, locale = "fr"): string {
   if (amount == null || amount === "") return "—";
   const n = parseFloat(String(amount));
   if (!Number.isFinite(n)) return String(amount);
-  const formatted = n.toLocaleString("fr-FR", displayMoneyOptions(currency));
+  const formatted = formatUiNumber(n, locale, displayMoneyOptions(currency));
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
@@ -203,7 +203,7 @@ function fmtDelta(input: BreakdownPrice, output: BreakdownPrice, locale: string)
   const delta = outN - inN;
   if (delta === 0) return tr(locale, "simulator.breakdown.noAmountChange");
   const sign = delta > 0 ? "+" : "−";
-  const formatted = Math.abs(delta).toLocaleString("fr-FR", displayMoneyOptions(output.currency));
+  const formatted = formatUiNumber(Math.abs(delta), locale, displayMoneyOptions(output.currency));
   return tr(locale, "simulator.breakdown.amountDelta", {
     sign,
     amount: formatted,
@@ -217,6 +217,9 @@ export function formatBreakdownStepDetails(
   options?: { transportLabels?: Record<string, string>; locale?: string },
 ): string[] {
   const locale = options?.locale ?? "fr";
+  const money = (amount: unknown, currency?: string) => fmtMoney(amount, currency, locale);
+  const num = (v?: string | null) => fmtNum(v, locale);
+  const price = (v?: BreakdownPrice | null) => fmtPrice(v, locale);
   const meta = step.metadata ?? {};
   const lines: string[] = [];
   const labelTransport = (code: unknown) => {
@@ -238,7 +241,7 @@ export function formatBreakdownStepDetails(
     if (reason === "missing_total_quantity") {
       lines.push(
         tr(locale, "simulator.breakdown.feesEntered", {
-          amount: fmtMoney(meta.global_cost, String(meta.global_cost_currency ?? "EUR")),
+          amount: money(meta.global_cost, String(meta.global_cost_currency ?? "EUR")),
         }),
       );
       lines.push(tr(locale, "simulator.breakdown.missingQtyHint"));
@@ -251,38 +254,38 @@ export function formatBreakdownStepDetails(
       const ccy = String(meta.copper_price_currency ?? "RMB");
       const poCcy = String(meta.po_currency ?? step.input_price.currency);
       lines.push(
-        tr(locale, "simulator.breakdown.poPrice", { price: fmtPrice(step.input_price) }),
+        tr(locale, "simulator.breakdown.poPrice", { price: price(step.input_price) }),
       );
       lines.push(
         tr(locale, "simulator.breakdown.copperLme", {
-          base: fmtMoney(meta.copper_base, ccy),
-          current: fmtMoney(meta.copper_current, ccy),
+          base: money(meta.copper_base, ccy),
+          current: money(meta.copper_current, ccy),
         }),
       );
       lines.push(
         tr(locale, "simulator.breakdown.copperWeight", {
-          weight: fmtNum(String(meta.copper_weight_kg)),
+          weight: num(String(meta.copper_weight_kg)),
         }),
       );
       lines.push(
         tr(locale, "simulator.breakdown.copperVariation", {
-          amount: fmtMoney(meta.variation_rmb ?? meta.variation, ccy),
+          amount: money(meta.variation_rmb ?? meta.variation, ccy),
         }),
       );
       if (meta.fx_rmb_to_input && poCcy !== "RMB") {
         lines.push(
           tr(locale, "simulator.breakdown.copperFx", {
             currency: poCcy,
-            rate: parseFloat(String(meta.fx_rmb_to_input)).toLocaleString("fr-FR", {
+            rate: parseFloat(String(meta.fx_rmb_to_input)).toLocaleString(uiDateLocale(locale), {
               maximumFractionDigits: 6,
             }),
-            amount: fmtMoney(meta.variation, poCcy),
+            amount: money(meta.variation, poCcy),
           }),
         );
       } else if (poCcy === "RMB") {
         lines.push(
           tr(locale, "simulator.breakdown.copperAdded", {
-            amount: fmtMoney(meta.variation, poCcy),
+            amount: money(meta.variation, poCcy),
           }),
         );
       }
@@ -293,15 +296,15 @@ export function formatBreakdownStepDetails(
         tr(locale, "simulator.breakdown.fxConversion", {
           from: String(meta.from_currency ?? ""),
           to: String(meta.to_currency ?? ""),
-          rate: parseFloat(String(meta.fx_rate)).toLocaleString("fr-FR", {
+          rate: parseFloat(String(meta.fx_rate)).toLocaleString(uiDateLocale(locale), {
             maximumFractionDigits: 6,
           }),
         }),
       );
       lines.push(
         tr(locale, "simulator.breakdown.fxResult", {
-          input: fmtMoney(step.input_price.amount, step.input_price.currency),
-          output: fmtPrice(step.output_price),
+          input: money(step.input_price.amount, step.input_price.currency),
+          output: price(step.output_price),
         }),
       );
       break;
@@ -323,7 +326,7 @@ export function formatBreakdownStepDetails(
       } else {
         const gcc = String(meta.global_cost_currency ?? step.input_price.currency);
         let globalCost = tr(locale, "simulator.breakdown.transportGlobal", {
-          cost: fmtMoney(meta.global_cost, gcc),
+          cost: money(meta.global_cost, gcc),
         });
         if (meta.from_location || meta.to_location) {
           globalCost += ` (${[meta.from_location, meta.to_location].filter(Boolean).join(" → ")})`;
@@ -334,16 +337,16 @@ export function formatBreakdownStepDetails(
         lines.push(`${globalCost}.`);
         lines.push(
           tr(locale, "simulator.breakdown.transportSplit", {
-            cost: fmtMoney(meta.global_cost, gcc),
+            cost: money(meta.global_cost, gcc),
             pallets: String(meta.pallet_count ?? ""),
-            perPallet: fmtMoney(meta.cost_per_pallet, gcc),
+            perPallet: money(meta.cost_per_pallet, gcc),
           }),
         );
         lines.push(
           tr(locale, "simulator.breakdown.transportUnit", {
-            perPallet: fmtMoney(meta.cost_per_pallet, gcc),
+            perPallet: money(meta.cost_per_pallet, gcc),
             qty: String(meta.pallet_qty ?? ""),
-            perUnit: fmtMoney(
+            perUnit: money(
               meta.cost_per_unit,
               String(meta.cost_per_unit_currency ?? step.input_price.currency),
             ),
@@ -353,7 +356,7 @@ export function formatBreakdownStepDetails(
           lines.push(
             tr(locale, "simulator.breakdown.transportFx", {
               currency: step.input_price.currency,
-              rate: parseFloat(String(meta.fx_transport_to_input)).toLocaleString("fr-FR", {
+              rate: parseFloat(String(meta.fx_transport_to_input)).toLocaleString(uiDateLocale(locale), {
                 maximumFractionDigits: 6,
               }),
             }),
@@ -361,7 +364,7 @@ export function formatBreakdownStepDetails(
         }
         lines.push(
           tr(locale, "simulator.breakdown.transportTotal", {
-            price: fmtPrice(step.output_price),
+            price: price(step.output_price),
           }),
         );
       }
@@ -380,26 +383,26 @@ export function formatBreakdownStepDetails(
         );
         lines.push(
           tr(locale, "simulator.breakdown.customsDuty", {
-            input: fmtMoney(step.input_price.amount, step.input_price.currency),
+            input: money(step.input_price.amount, step.input_price.currency),
             rate: String(meta.rate_pct ?? ""),
-            duty: fmtMoney(meta.duty_amount, String(meta.duty_currency ?? step.input_price.currency)),
+            duty: money(meta.duty_amount, String(meta.duty_currency ?? step.input_price.currency)),
           }),
         );
         lines.push(
-          tr(locale, "simulator.breakdown.customsAfter", { price: fmtPrice(step.output_price) }),
+          tr(locale, "simulator.breakdown.customsAfter", { price: price(step.output_price) }),
         );
       } else {
         const gcc = String(meta.global_cost_currency ?? step.input_price.currency);
         lines.push(
           tr(locale, "simulator.breakdown.customsLegacy", {
-            cost: fmtMoney(meta.global_cost, gcc),
+            cost: money(meta.global_cost, gcc),
           }),
         );
         lines.push(
           tr(locale, "simulator.breakdown.customsSplit", {
-            cost: fmtMoney(meta.global_cost, gcc),
-            qty: fmtNum(String(meta.total_quantity)),
-            perUnit: fmtMoney(meta.cost_per_unit, step.input_price.currency),
+            cost: money(meta.global_cost, gcc),
+            qty: num(String(meta.total_quantity)),
+            perUnit: money(meta.cost_per_unit, step.input_price.currency),
           }),
         );
       }
@@ -419,15 +422,15 @@ export function formatBreakdownStepDetails(
       lines.push(
         tr(locale, "simulator.breakdown.marginFormula", {
           pct,
-          input: fmtMoney(step.input_price.amount, step.input_price.currency),
-          rate: parseFloat(String(meta.rate)).toLocaleString("fr-FR", { maximumFractionDigits: 4 }),
-          output: fmtPrice(step.output_price),
+          input: money(step.input_price.amount, step.input_price.currency),
+          rate: parseFloat(String(meta.rate)).toLocaleString(uiDateLocale(locale), { maximumFractionDigits: 4 }),
+          output: price(step.output_price),
         }),
       );
       if (meta.margin_amount) {
         lines.push(
           tr(locale, "simulator.breakdown.marginAdded", {
-            amount: fmtMoney(meta.margin_amount, step.output_price.currency),
+            amount: money(meta.margin_amount, step.output_price.currency),
           }),
         );
       }
@@ -436,9 +439,9 @@ export function formatBreakdownStepDetails(
     case "predictive_pamp": {
       lines.push(
         tr(locale, "simulator.breakdown.stockNow", {
-          qty: fmtNum(String(meta.stock_quantity)),
-          pamp: fmtMoney(meta.pamp_eur, "EUR"),
-          value: fmtMoney(meta.stock_value_eur, "EUR"),
+          qty: num(String(meta.stock_quantity)),
+          pamp: money(meta.pamp_eur, "EUR"),
+          value: money(meta.stock_value_eur, "EUR"),
         }),
       );
       const pending = Array.isArray(meta.pending_purchases) ? meta.pending_purchases : [];
@@ -448,9 +451,9 @@ export function formatBreakdownStepDetails(
           const r = row as { quantity?: string; price_unit_eur?: string };
           lines.push(
             tr(locale, "simulator.breakdown.pendingRow", {
-              qty: fmtNum(String(r.quantity ?? "0")),
-              price: fmtMoney(r.price_unit_eur, "EUR"),
-              value: fmtMoney(
+              qty: num(String(r.quantity ?? "0")),
+              price: money(r.price_unit_eur, "EUR"),
+              value: money(
                 parseFloat(String(r.quantity ?? "0")) * parseFloat(String(r.price_unit_eur ?? "0")),
                 "EUR",
               ),
@@ -459,7 +462,7 @@ export function formatBreakdownStepDetails(
         }
         lines.push(
           tr(locale, "simulator.breakdown.purchaseValue", {
-            amount: fmtMoney(meta.purchase_value_eur, "EUR"),
+            amount: money(meta.purchase_value_eur, "EUR"),
           }),
         );
       } else {
@@ -467,10 +470,10 @@ export function formatBreakdownStepDetails(
       }
       lines.push(
         tr(locale, "simulator.breakdown.pampFormula", {
-          stock: fmtMoney(meta.stock_value_eur, "EUR"),
-          purchases: fmtMoney(meta.purchase_value_eur, "EUR"),
-          qty: fmtNum(String(meta.total_quantity)),
-          output: fmtPrice(step.output_price),
+          stock: money(meta.stock_value_eur, "EUR"),
+          purchases: money(meta.purchase_value_eur, "EUR"),
+          qty: num(String(meta.total_quantity)),
+          output: price(step.output_price),
         }),
       );
       break;
@@ -502,8 +505,8 @@ export function formatBreakdownStepDetails(
       } else {
         lines.push(
           tr(locale, "simulator.breakdown.paAndPamp", {
-            pa: fmtMoney(meta.pa_net_eur, "EUR"),
-            pamp: fmtMoney(meta.pamp_predictive_eur, "EUR"),
+            pa: money(meta.pa_net_eur, "EUR"),
+            pamp: money(meta.pamp_predictive_eur, "EUR"),
           }),
         );
         lines.push(
@@ -513,11 +516,11 @@ export function formatBreakdownStepDetails(
           }) +
             (meta.weighted_pa_component && meta.weighted_pamp_component
               ? tr(locale, "simulator.breakdown.prWeighted", {
-                  pa: fmtMoney(meta.weighted_pa_component, "EUR"),
-                  pamp: fmtMoney(meta.weighted_pamp_component, "EUR"),
+                  pa: money(meta.weighted_pa_component, "EUR"),
+                  pamp: money(meta.weighted_pamp_component, "EUR"),
                 })
               : "") +
-            tr(locale, "simulator.breakdown.prResult", { price: fmtPrice(step.output_price) }),
+            tr(locale, "simulator.breakdown.prResult", { price: price(step.output_price) }),
         );
       }
       break;
@@ -653,11 +656,11 @@ export function stepModuleLabel(step: BreakdownStep, locale = "fr"): string {
 }
 
 /** Format a price from the breakdown (amount + currency). */
-export function fmtPrice(price?: BreakdownPrice | null): string {
+export function fmtPrice(price?: BreakdownPrice | null, locale = "fr"): string {
   if (!price?.amount) return "—";
   const n = parseFloat(price.amount);
   if (!Number.isFinite(n)) return "—";
-  const formatted = n.toLocaleString("fr-FR", displayMoneyOptions(price.currency));
+  const formatted = formatUiNumber(n, locale, displayMoneyOptions(price.currency));
   return `${formatted} ${price.currency ?? ""}`.trim();
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useMemo } from "react";
 import useSWR from "swr";
 import {
@@ -28,7 +29,7 @@ import { DashboardCompletenessCard } from "@/app/_components/DashboardCompletene
 import { useUiTranslate } from "@/lib/use-ui-translate";
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, displayLanguage } = useAuth();
   const t = useUiTranslate();
   const userCanEdit = canEdit(user?.role);
   const userIsAdmin = isAdmin(user?.role);
@@ -66,7 +67,7 @@ export default function HomePage() {
     ? [
         {
           label: t("nav.catalog"),
-          value: data.catalog.product_count.toLocaleString("fr-FR"),
+          value: data.catalog.product_count.toLocaleString(uiDateLocale(displayLanguage)),
           subValue: t("dashboard.kpiUnivers", { count: data.catalog.universe_count }),
           href: "/catalog",
           icon: SquaresFour,
@@ -107,7 +108,7 @@ export default function HomePage() {
                 })
               : null,
             data.offers.won_total
-              ? t("dashboard.wonAmount", { amount: fmtEur(data.offers.won_total) })
+              ? t("dashboard.wonAmount", { amount: fmtEur(data.offers.won_total, displayLanguage) })
               : null,
           ]
             .filter(Boolean)
@@ -126,7 +127,7 @@ export default function HomePage() {
         },
         {
           label: t("nav.library"),
-          value: data.library.document_count.toLocaleString("fr-FR"),
+          value: data.library.document_count.toLocaleString(uiDateLocale(displayLanguage)),
           subValue: t("dashboard.kpiDocuments"),
           href: "/library",
           icon: Books,

@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
@@ -115,7 +117,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         onClick={(e) => e.stopPropagation()}
       >
         <DownloadSimple size={14} weight="duotone" />
-        Excel
+        {t("offers.format.excel")}
       </a>
     );
   }
@@ -156,7 +158,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         onClick={(e) => e.stopPropagation()}
       >
         <ArrowSquareOut size={14} weight="duotone" />
-        PDF
+        {t("offers.format.pdf")}
       </a>
     );
   }
@@ -166,6 +168,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
   const t = useUiTranslate();
@@ -342,7 +345,7 @@ export default function OffersPage() {
         width: 120,
         sortField: "valid_to",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (o) => (o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—"),
+        render: (o) => (o.valid_to ? new Date(o.valid_to).toLocaleDateString(uiDateLocale(displayLanguage)) : "—"),
       },
       {
         key: "document",
@@ -351,7 +354,7 @@ export default function OffersPage() {
         render: (o) => <GenerationCell offer={o} onRetry={() => retry(o.id)} />,
       },
     ],
-    [clientName, retry, statusLabel, t],
+    [clientName, retry, statusLabel, t, displayLanguage],
   );
 
   return (
@@ -448,8 +451,8 @@ export default function OffersPage() {
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                   {total !== 1
-                    ? t("offers.list.countOther", { count: total.toLocaleString("fr-FR") })
-                    : t("offers.list.countOne", { count: total.toLocaleString("fr-FR") })}
+                    ? t("offers.list.countOther", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("offers.list.countOne", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>
@@ -527,7 +530,7 @@ export default function OffersPage() {
                   accent="green"
                   value={
                     dash.won_total != null
-                      ? Number(dash.won_total).toLocaleString("fr-FR", {
+                      ? Number(dash.won_total).toLocaleString(uiDateLocale(displayLanguage), {
                           maximumFractionDigits: 0,
                         })
                       : "—"

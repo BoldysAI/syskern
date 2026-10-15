@@ -109,7 +109,7 @@ def _slugify_label(label: str) -> str:
 
 
 @shared_task(name="simulations.export_simulation_task", bind=True)
-def export_simulation_task(self, simulation_pk: str) -> dict:
+def export_simulation_task(self, simulation_pk: str, locale: str = "fr") -> dict:
     """Build the simulation Excel workbook and store it on disk (CDC §6.9).
 
     Returns `{"file_url", "filename", "size_bytes"}` — the client polls the
@@ -122,7 +122,7 @@ def export_simulation_task(self, simulation_pk: str) -> dict:
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"
-    file_path.write_bytes(build_simulation_xlsx(sim))
+    file_path.write_bytes(build_simulation_xlsx(sim, locale=locale))
 
     timestamp = timezone.now().strftime("%Y%m%d")
     return {

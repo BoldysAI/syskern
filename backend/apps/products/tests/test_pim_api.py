@@ -537,6 +537,18 @@ class TestExcelExportTask:
         assert headers[0] == "SKU"
         assert "Nom" in headers
 
+    def test_english_headers_keep_stored_product_name(self, product):
+        product.name = "Câble cat7"
+        product.is_active = True
+        product.save(update_fields=["name", "is_active", "updated_at"])
+        _, ws = _run_export(locale="en", ids=[str(product.pk)])
+        assert ws.title == "Product catalog"
+        headers = [c.value for c in ws[1]]
+        assert "Name" in headers
+        assert "Nom" not in headers
+        assert ws.cell(row=2, column=headers.index("Name") + 1).value == "Câble cat7"
+        assert ws.cell(row=2, column=headers.index("Active") + 1).value == "Yes"
+
     def test_filters_are_honored(self):
         Product.objects.create(
             sku_code="EXPORT-A", name="Produit A", description_marketing={"fr": "A"}

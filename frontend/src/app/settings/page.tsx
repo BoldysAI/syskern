@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
@@ -76,11 +78,11 @@ function normalizeCopperUnit(unit?: string | null): string {
   return unit;
 }
 
-function formatFxRateDisplay(rate?: string | null): string {
+function formatFxRateDisplay(rate: string | null | undefined, locale: string): string {
   if (rate == null || rate === "") return "—";
   const n = parseFloat(rate);
   if (!Number.isFinite(n)) return rate;
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString(uiDateLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function sanitizeFxRateInput(raw: string, previous: string): string {
@@ -90,9 +92,9 @@ function sanitizeFxRateInput(raw: string, previous: string): string {
   return previous;
 }
 
-function formatMarketParamUpdatedAt(value?: string | null): string {
+function formatMarketParamUpdatedAt(value: string | null | undefined, locale: string): string {
   if (!value) return "—";
-  return new Date(value).toLocaleString("fr-FR", {
+  return new Date(value).toLocaleString(uiDateLocale(locale), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -379,6 +381,7 @@ function MarketParamModal({ param, onClose }: { param?: MarketParameter; onClose
 }
 
 function TabMarche() {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<MarketParameter[]>("market-params", () =>
@@ -449,12 +452,12 @@ function TabMarche() {
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {p.parameter_type === "copper_price"
                       ? `${p.copper_market} : ${p.copper_price} ${p.copper_currency}/${copperUnitLabel(p.copper_unit, t)}`
-                      : `1 ${p.fx_from_currency} = ${formatFxRateDisplay(p.fx_rate)} ${p.fx_to_currency}`}
+                      : `1 ${p.fx_from_currency} = ${formatFxRateDisplay(p.fx_rate, displayLanguage)} ${p.fx_to_currency}`}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_from}</td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.valid_to || "—"}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
-                    {formatMarketParamUpdatedAt(p.updated_at)}
+                    {formatMarketParamUpdatedAt(p.updated_at, displayLanguage)}
                   </td>
                   <td className="px-4 py-2.5">
                     <ActiveBadge active={p.is_active} />
@@ -738,6 +741,7 @@ function syncStatusBadge(s: SyncLog["status"]) {
 }
 
 function TabOdoo() {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const { data: health } = useSWR<{ ok: boolean }>("odoo-health", getOdooHealth, {
     refreshInterval: 30_000,
@@ -831,7 +835,7 @@ function TabOdoo() {
             <p className="mt-3 text-xs text-brand-blue">
               {t("settings.odoo.running", {
                 scope: status.running.scope,
-                date: new Date(status.running.started_at).toLocaleString("fr-FR"),
+                date: new Date(status.running.started_at).toLocaleString(uiDateLocale(displayLanguage)),
               })}
             </p>
           )}
@@ -870,7 +874,7 @@ function TabOdoo() {
                   return (
                     <tr key={l.id} className="hover:bg-muted/30">
                       <td className="whitespace-nowrap px-4 py-2 text-sm text-foreground">
-                        {new Date(l.started_at).toLocaleString("fr-FR")}
+                        {new Date(l.started_at).toLocaleString(uiDateLocale(displayLanguage))}
                       </td>
                       <td className="px-4 py-2 text-sm capitalize text-muted-foreground">
                         {l.sync_type}

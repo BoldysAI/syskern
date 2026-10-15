@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -39,7 +40,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: () => void }) {
   const router = useRouter();
   const t = useUiTranslate();
-  const { role } = useAuth();
+  const { role, displayLanguage } = useAuth();
   const userCanEdit = canEdit(role);
 
   const { data, isLoading, error } = useSWR<ProductDetail>(
@@ -108,7 +109,7 @@ export function ProductDrawer({ sku, onClose }: { sku: string | null; onClose: (
                   value={
                     data.pamp_eur ? (
                       <span className="font-mono tabular-nums text-primary">
-                        {parseFloat(data.pamp_eur).toLocaleString("fr-FR", {
+                        {parseFloat(data.pamp_eur).toLocaleString(uiDateLocale(displayLanguage), {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}{" "}

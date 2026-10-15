@@ -295,8 +295,16 @@ def build_tariff_xlsx(
     return buf.getvalue()
 
 
-def fx_note_for(target_currency: str, market_params: dict, rate: Decimal) -> str:
+_FX_NOTE = {
+    "fr": "Taux de conversion appliqué : 1 EUR = {rate} {currency}",
+    "en": "Applied conversion rate: 1 EUR = {rate} {currency}",
+    "es": "Tipo de cambio aplicado: 1 EUR = {rate} {currency}",
+}
+
+
+def fx_note_for(target_currency: str, market_params: dict, rate: Decimal, lang: str = "fr") -> str:
     """Footnote tracing the applied conversion (CDC §7.2.5)."""
     if target_currency.upper() == "EUR":
         return ""
-    return f"Taux de conversion appliqué : 1 EUR = {rate} {target_currency.upper()}"
+    template = _FX_NOTE.get(lang) or _FX_NOTE["fr"]
+    return template.format(rate=rate, currency=target_currency.upper())

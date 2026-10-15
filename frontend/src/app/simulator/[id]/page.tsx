@@ -83,12 +83,12 @@ export default function SimulationDetailPage() {
       ];
     }
 
-    const navContext = parseSimulationNavigationContext(searchParams);
+    const navContext = parseSimulationNavigationContext(searchParams, t);
     if (navContext.kind === "compare") {
-      return buildSimulationBreadcrumbs(navContext, sim.label);
+      return buildSimulationBreadcrumbs(navContext, sim.label, t);
     }
 
-    return buildSimulationBreadcrumbs({ kind: "default" }, sim.label);
+    return buildSimulationBreadcrumbs({ kind: "default" }, sim.label, t);
   }, [sim, searchParams, t]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(sim));

@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import type { MessageKey } from "@/lib/i18n";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -68,7 +68,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const { mutate } = useSWRConfig();
   const confirm = useConfirm();
-  const { role } = useAuth();
+  const { role, displayLanguage } = useAuth();
   const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
@@ -218,7 +218,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         sortField: "date",
         render: (h) => (
           <span className="text-muted-foreground">
-            {new Date(h.created_at).toLocaleDateString("fr-FR", {
+            {new Date(h.created_at).toLocaleDateString(uiDateLocale(displayLanguage), {
               day: "2-digit",
               month: "2-digit",
               year: "numeric",
@@ -266,7 +266,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         ),
       },
     ],
-    [t],
+    [t, displayLanguage],
   );
 
   const sortedHistory = useMemo(() => {

@@ -1346,6 +1346,35 @@ class TestSimulationExport:
         wb = openpyxl.load_workbook(io.BytesIO(build_simulation_xlsx(sim)))
         assert wb.sheetnames == ["Synthèse", "Résultats", "Breakdown détaillé"]
 
+    def test_english_headers_keep_stored_designation(self) -> None:
+        sim = Simulation.objects.create(label="Export me", simulation_type=SimulationType.TARIFF)
+        product = Product.objects.create(
+            sku_code="XP-EN",
+            name="Short name",
+            range="Réseau",
+            description_marketing={"fr": "Câble français"},
+        )
+        SimulationLine.objects.create(
+            simulation=sim,
+            product=product,
+            status="pending",
+            pa_net_eur=Decimal("100"),
+            pr_eur=Decimal("100"),
+            pv_eur=Decimal("130"),
+        )
+        wb = openpyxl.load_workbook(io.BytesIO(build_simulation_xlsx(sim, locale="en")))
+        assert wb.sheetnames == ["Summary", "Results", "Detailed breakdown"]
+        summary = wb["Summary"]
+        assert summary.cell(row=2, column=1).value == "Label"
+        assert summary.cell(row=2, column=2).value == "Export me"
+        assert summary.cell(row=3, column=2).value == "Tariff (several clients)"
+        results = wb["Results"]
+        headers = [cell.value for cell in results[1]]
+        assert headers[1] == "Name"
+        assert results.cell(row=2, column=2).value == "Câble français"
+        assert results.cell(row=2, column=3).value == "Réseau"
+        assert results.cell(row=2, column=headers.index("Status") + 1).value == "Pending"
+
 
 class TestSavedComparisonFilters:
     """Sidebar filters: has_recalculations + sim_type multi-select (CDC §6.9.8)."""

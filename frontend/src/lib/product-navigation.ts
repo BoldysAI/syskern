@@ -6,6 +6,9 @@
  */
 
 import type { BreadcrumbCrumb } from "@/components/layout/BreadcrumbContext";
+import type { MessageKey } from "@/lib/i18n";
+
+type Translate = (key: MessageKey) => string;
 
 export type ProductNavigationContext =
   | { kind: "catalog" }
@@ -16,6 +19,7 @@ type SearchParamsLike = { get(name: string): string | null };
 
 export function parseProductNavigationContext(
   params: SearchParamsLike,
+  t: Translate,
 ): ProductNavigationContext {
   const from = params.get("from");
   if (from === "simulation") {
@@ -24,7 +28,7 @@ export function parseProductNavigationContext(
       return {
         kind: "simulation",
         simulationId,
-        simulationLabel: params.get("simulation_label") || "Simulation",
+        simulationLabel: params.get("simulation_label") || t("nav.simulation"),
       };
     }
   }
@@ -34,7 +38,7 @@ export function parseProductNavigationContext(
       return {
         kind: "supplier",
         supplierId,
-        supplierName: params.get("supplier_name") || "Fournisseur",
+        supplierName: params.get("supplier_name") || t("common.supplier"),
       };
     }
   }
@@ -72,13 +76,14 @@ export function buildProductHref(
 export function buildProductBreadcrumbs(
   ctx: ProductNavigationContext,
   opts: { productLabel: string; universe?: string | null },
+  t: Translate,
 ): BreadcrumbCrumb[] {
-  const dashboard: BreadcrumbCrumb = { href: "/", label: "Tableau de bord" };
+  const dashboard: BreadcrumbCrumb = { href: "/", label: t("nav.dashboard") };
 
   if (ctx.kind === "simulation") {
     return [
       dashboard,
-      { href: "/simulator", label: "Simulations" },
+      { href: "/simulator", label: t("nav.simulations") },
       { href: `/simulator/${ctx.simulationId}`, label: ctx.simulationLabel },
       { label: opts.productLabel },
     ];
@@ -87,7 +92,7 @@ export function buildProductBreadcrumbs(
   if (ctx.kind === "supplier") {
     return [
       dashboard,
-      { href: "/suppliers", label: "Fournisseurs" },
+      { href: "/suppliers", label: t("nav.suppliers") },
       { href: `/suppliers/${ctx.supplierId}`, label: ctx.supplierName },
       { label: opts.productLabel },
     ];
@@ -95,7 +100,7 @@ export function buildProductBreadcrumbs(
 
   const crumbs: BreadcrumbCrumb[] = [
     dashboard,
-    { href: "/catalog", label: "Catalogue" },
+    { href: "/catalog", label: t("nav.catalog") },
   ];
   if (opts.universe) {
     crumbs.push({ label: opts.universe });

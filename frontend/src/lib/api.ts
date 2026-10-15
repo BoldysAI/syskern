@@ -1,3 +1,5 @@
+import { translate } from "@/lib/i18n";
+
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
   const match = document.cookie.match(/csrftoken=([^;]+)/);
@@ -49,11 +51,11 @@ async function pollTask<T>(
   while (Date.now() - start < timeoutMs) {
     const r = await apiFetch<TaskResponse<T>>(`/api/tasks/${encodeURIComponent(taskId)}/`);
     if (r.status === "SUCCESS") return r.result as T;
-    if (r.status === "FAILURE") throw new Error(r.error || "Tâche échouée");
-    if (r.status === "REVOKED") throw new Error("Tâche annulée");
+    if (r.status === "FAILURE") throw new Error(r.error || translate("common.taskFailed", "fr"));
+    if (r.status === "REVOKED") throw new Error(translate("common.taskCancelled", "fr"));
     await new Promise((res) => setTimeout(res, intervalMs));
   }
-  throw new Error("Délai d'attente dépassé");
+  throw new Error(translate("common.taskTimeout", "fr"));
 }
 
 /** Dispatch a Celery task via the given endpoint, then poll until done. */

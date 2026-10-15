@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
@@ -47,6 +49,7 @@ function parseDec(v?: string | null): number {
  * d'héritage produit ↔ fournisseur.
  */
 function CopperCell({ supplier }: { supplier: ProductSupplier }) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const eff = supplier.effective_copper;
   if (!eff?.is_copper_indexed) {
@@ -57,7 +60,7 @@ function CopperCell({ supplier }: { supplier: ProductSupplier }) {
     <span className="inline-flex items-center gap-1.5">
       <span className="font-data text-foreground">
         {weight
-          ? `${parseDec(weight).toLocaleString("fr-FR")} kg`
+          ? `${parseDec(weight).toLocaleString(uiDateLocale(displayLanguage))} kg`
           : t("catalog.commercial.weightMissing")}
       </span>
       <StatusBadge variant={eff.source === "supplier" ? "success" : "draft"}>
@@ -90,6 +93,7 @@ type ChartRow = {
 };
 
 export function CommercialTab() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const t = useUiTranslate();
   const { mode, product } = useEdit();
@@ -152,7 +156,7 @@ export function CommercialTab() {
   const chartData = useMemo(
     (): ChartRow[] =>
       points.map((p) => ({
-        date: formatPriceHistoryAxisLabel(p.date),
+        date: formatPriceHistoryAxisLabel(p.date, displayLanguage),
         at: p.date,
         simulationId: p.simulation_id,
         simulationLabel: p.simulation_label,
@@ -160,7 +164,7 @@ export function CommercialTab() {
         PR: p.pr_eur != null ? parseFloat(p.pr_eur) : null,
         PV: p.pv_eur != null ? parseFloat(p.pv_eur) : null,
       })),
-    [points],
+    [points, displayLanguage],
   );
 
   const openSimulationById = useCallback(
@@ -195,13 +199,13 @@ export function CommercialTab() {
             </div>
             <div className="mt-2 text-2xl font-bold font-data text-foreground">
               {pamp > 0
-                ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                ? `${pamp.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
                 : "—"}
             </div>
             {product.pamp_synced_at && (
               <div className="mt-2 text-xs text-muted-foreground">
                 {t("catalog.commercial.syncedOn", {
-                  date: new Date(product.pamp_synced_at).toLocaleDateString("fr-FR"),
+                  date: new Date(product.pamp_synced_at).toLocaleDateString(uiDateLocale(displayLanguage)),
                 })}
               </div>
             )}
@@ -318,12 +322,12 @@ export function CommercialTab() {
                     labelFormatter={(_, payload) => {
                       const row = payload?.[0]?.payload as ChartRow | undefined;
                       if (!row?.at) return "";
-                      return formatPriceHistoryTooltipLabel(row.at, row.simulationLabel);
+                      return formatPriceHistoryTooltipLabel(row.at, displayLanguage, row.simulationLabel);
                     }}
                     formatter={(value) => {
                       const n = Array.isArray(value) ? NaN : Number(value);
                       return Number.isFinite(n)
-                        ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                        ? `${n.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
                         : "—";
                     }}
                   />
@@ -419,7 +423,7 @@ export function CommercialTab() {
                   </td>
                   <td className="px-4 py-3 text-sm font-data text-foreground">
                     {s.po_base_price
-                      ? parseDec(s.po_base_price).toLocaleString("fr-FR", {
+                      ? parseDec(s.po_base_price).toLocaleString(uiDateLocale(displayLanguage), {
                           minimumFractionDigits: 2,
                         })
                       : "—"}

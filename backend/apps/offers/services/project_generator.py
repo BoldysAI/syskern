@@ -55,6 +55,26 @@ SECTION_TITLES = {
     "arguments": {"fr": "Argumentaires", "en": "Value proposition", "es": "Argumentario"},
     "conditions": {"fr": "Conditions", "en": "Terms", "es": "Condiciones"},
 }
+_PRESENTATION = {
+    "fr": "Syskern (groupe Symea) — solutions de câblage réseau, fibre optique et racks.",
+    "en": "Syskern (Symea group) — network cabling, fibre optic and rack solutions.",
+    "es": "Syskern (grupo Symea) — soluciones de cableado de red, fibra óptica y racks.",
+}
+_TERMS = {
+    "fr": "Conditions générales de vente Syskern.",
+    "en": "Syskern general terms of sale.",
+    "es": "Condiciones generales de venta de Syskern.",
+}
+_VALIDITY = {
+    "fr": "Validité : {date}.",
+    "en": "Validity: {date}.",
+    "es": "Validez: {date}.",
+}
+_ARGUMENT_TITLES = {
+    "technical": {"fr": "Technique", "en": "Technical", "es": "Técnico"},
+    "commercial": {"fr": "Commercial", "en": "Commercial", "es": "Comercial"},
+    "logistic": {"fr": "Logistique", "en": "Logistics", "es": "Logística"},
+}
 DEFAULT_SECTIONS = dict.fromkeys(SECTION_TITLES, True)
 
 
@@ -171,6 +191,10 @@ def _price_table_markdown(offer: Offer, lang: str) -> str:
     return "\n".join(rows)
 
 
+def _offer_text(table: dict[str, str], lang: str) -> str:
+    return table.get(lang) or table["fr"]
+
+
 def build_gamma_payload(
     offer: Offer, *, arguments: dict | None, image_source: str = "aiGenerated"
 ) -> dict:
@@ -183,20 +207,22 @@ def build_gamma_payload(
     if sections.get("cover", True):
         parts.append(f"## {title['cover'][lang]}\n{offer.project_name}")
     if sections.get("presentation", True):
-        parts.append(
-            f"## {title['presentation'][lang]}\n"
-            "Syskern (groupe Symea) — solutions de câblage réseau, fibre optique et racks."
-        )
+        parts.append(f"## {title['presentation'][lang]}\n{_offer_text(_PRESENTATION, lang)}")
     if sections.get("pricing", True):
         parts.append(f"## {title['pricing'][lang]}\n{_price_table_markdown(offer, lang)}")
     if sections.get("arguments", True) and arguments:
-        body = "\n\n".join(f"### {k.capitalize()}\n{v}" for k, v in arguments.items() if v)
-        parts.append(f"## {title['arguments'][lang]}\n{body}")
+        blocks = []
+        for key, value in arguments.items():
+            if not value:
+                continue
+            heading = _offer_text(_ARGUMENT_TITLES[key], lang) if key in _ARGUMENT_TITLES else key
+            blocks.append(f"### {heading}\n{value}")
+        parts.append(f"## {title['arguments'][lang]}\n" + "\n\n".join(blocks))
     if sections.get("conditions", True):
-        validity = f" Validité : {offer.valid_to}." if offer.valid_to else ""
-        parts.append(
-            f"## {title['conditions'][lang]}\nConditions générales de vente Syskern.{validity}"
-        )
+        validity = ""
+        if offer.valid_to:
+            validity = " " + _offer_text(_VALIDITY, lang).format(date=offer.valid_to)
+        parts.append(f"## {title['conditions'][lang]}\n{_offer_text(_TERMS, lang)}{validity}")
 
     # Separate sections with a `---` rule: Gamma's `inputTextBreaks` splits a
     # new card on each break, so the deck maps 1:1 to our sections (a long price

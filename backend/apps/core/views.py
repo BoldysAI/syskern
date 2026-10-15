@@ -9,13 +9,15 @@ from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Profile
 from apps.accounts.serializers import UserInfoSerializer
-from apps.accounts.ui_locale import resolve_ui_locale, translate, translate_request
+from apps.accounts.ui_locale import UI_LOCALES, resolve_ui_locale, translate, translate_request
 from apps.core import rate_limit
 from apps.core.dashboard import build_dashboard_summary
 
@@ -119,6 +121,23 @@ def session_view(request: Request) -> Response:
         )
     language = resolve_ui_locale(None)
     return Response({"authenticated": False, "user": None, "display_language": language})
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_locale_view(request: Request) -> Response:
+    """Store the signed-in user's interface language on their profile (story 7.8)."""
+    raw = (request.data or {}).get("locale", "")
+    value = raw.strip() if isinstance(raw, str) else ""
+    if value not in ("", *UI_LOCALES):
+        raise ValidationError(
+            {"locale": translate("users.locale_invalid", resolve_ui_locale(request.user))}
+        )
+    profile, _created = Profile.objects.get_or_create(user=request.user)
+    profile.locale = value
+    profile.save(update_fields=["locale"])
+    user = User.objects.select_related("profile").get(pk=request.user.pk)
+    return Response({"user": UserInfoSerializer(user).data})
 
 
 def _locale_for_email(email: str) -> str:

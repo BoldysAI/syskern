@@ -184,8 +184,9 @@ Props : `{ value, onChange, mode, kind, label, requiredSource, rows }`. Utilisé
 
 Libellés d'interface : catalogues `lib/i18n/catalogs/`, assemblés par `lib/i18n.ts`.
 Dans un composant client, `useUiTranslate()` (`lib/use-ui-translate.ts`). `displayLanguage` vient
-de la session (`AuthContext`). Une clé anglaise manquante affiche le français de cette clé.
-Ne pas y mettre les contenus produit. Détail → `i18n.md` § Langue d'interface.
+de la session (`AuthContext`). Le menu du compte change cette langue (`setLocale` → `PATCH /api/auth/locale`) ; elle reste sur le profil à la prochaine connexion. `DocumentLanguage` aligne `<html lang>` sur cette langue (`fr-FR` ou `en-GB`) pour les champs date, et remplace les bulles natives du navigateur par `common.validity.*`. Les dates, nombres et montants déjà dessinés à l'écran suivent la même langue (`formatUiDate` / `formatUiNumber`) ; l'import d'un fichier ne s'en sert pas. Les catalogues d'écran ont leur anglais (story 7.5). Les messages renvoyés par l'API aussi (story 7.6). Une clé anglaise absente affiche le français de cette clé. Le parcours catalogue → offre se rejoue par `pytest` (`test_en_acceptance_path.py`, story 7.10). Les exports tableur catalogue, simulation et lignes rejetées reprennent cette langue d'interface ; les fichiers d'offre suivent la langue de l'offre. Les noms et descriptions produit dans ces fichiers restent le texte stocké.
+Ne pas y mettre les contenus produit. ESLint `local/no-literal-ui-string` échoue sur une chaîne
+affichable hors catalogue (`eslint-rules/no-literal-ui-string.mjs`). Détail → `i18n.md` § Langue d'interface et § Filet ESLint.
 
 ## `AttributeRenderer` (attributs dynamiques)
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -109,6 +111,7 @@ async function pollGeneration(
 // ── Wizard ─────────────────────────────────────────────────────────────────────
 
 function ProjectWizard() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const t = useUiTranslate();
   const simulationId = useSearchParams().get("simulation_id") ?? "";
@@ -323,7 +326,7 @@ function ProjectWizard() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left">SKU</th>
+                    <th className="px-3 py-2 text-left">{t("offers.column.sku")}</th>
                     <th className="px-3 py-2 text-left">{t("offers.detail.designation")}</th>
                     <th className="px-3 py-2 text-right">{t("offers.project.quantity")}</th>
                   </tr>
@@ -334,7 +337,7 @@ function ProjectWizard() {
                       <td className="px-3 py-2 font-medium text-foreground">{l.product_sku}</td>
                       <td className="px-3 py-2 text-muted-foreground">{l.product_name}</td>
                       <td className="px-3 py-2 text-right font-data tabular-nums text-foreground">
-                        {lineQty(l).toLocaleString("fr-FR")}
+                        {lineQty(l).toLocaleString(uiDateLocale(displayLanguage))}
                       </td>
                     </tr>
                   ))}

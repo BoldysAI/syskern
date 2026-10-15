@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -87,6 +89,7 @@ function SimulationStatusCell({
 }
 
 export default function SimulatorPage() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
@@ -206,7 +209,7 @@ export default function SimulatorPage() {
         render: (sim) => (
           <span className="text-sm text-muted-foreground">
             {sim.last_calculated_at
-              ? new Date(sim.last_calculated_at).toLocaleDateString("fr-FR", {
+              ? new Date(sim.last_calculated_at).toLocaleDateString(uiDateLocale(displayLanguage), {
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -224,12 +227,12 @@ export default function SimulatorPage() {
         width: 120,
         render: (sim) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(sim.updated_at).toLocaleDateString("fr-FR")}
+            {new Date(sim.updated_at).toLocaleDateString(uiDateLocale(displayLanguage))}
           </span>
         ),
       },
     ],
-    [t],
+    [t, displayLanguage],
   );
 
   const handleSort = useCallback((field: string) => {
@@ -404,8 +407,8 @@ export default function SimulatorPage() {
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                   {total !== 1
-                    ? t("simulator.list.countOther", { count: total.toLocaleString("fr-FR") })
-                    : t("simulator.list.countOne", { count: total.toLocaleString("fr-FR") })}
+                    ? t("simulator.list.countOther", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("simulator.list.countOne", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>

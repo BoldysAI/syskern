@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import type { MessageKey } from "@/lib/i18n";
+import { uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -354,6 +355,7 @@ function PreviewDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 // ── Versions dialog ───────────────────────────────────────────────────────────
 
 function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const { data } = useSWR<Doc[]>(`versions:${doc.id}`, () =>
     getJson<Doc[]>(`/api/document-library/${doc.id}/versions/`),
@@ -374,7 +376,7 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
               <span>
                 <span className="font-data font-medium">v{v.version}</span>{" "}
                 <span className="text-muted-foreground">
-                  · {new Date(v.created_at).toLocaleDateString("fr-FR")}
+                  · {new Date(v.created_at).toLocaleDateString(uiDateLocale(displayLanguage))}
                 </span>
               </span>
               <a href={v.download_url} className="text-xs font-medium text-brand-green">
@@ -391,6 +393,7 @@ function VersionsDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
+  const { displayLanguage } = useAuth();
   const t = useUiTranslate();
   const confirm = useConfirm();
   const [filters, setFilters] = useState<LibraryFilters>({});
@@ -632,8 +635,8 @@ export default function LibraryPage() {
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
                   {total !== 1
-                    ? t("library.count.other", { count: total.toLocaleString("fr-FR") })
-                    : t("library.count.one", { count: total.toLocaleString("fr-FR") })}
+                    ? t("library.count.other", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("library.count.one", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>

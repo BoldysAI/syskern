@@ -37,10 +37,7 @@ const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
 
-const COPPER_MARKET_OPTIONS = [
-  { value: "LME", label: "LME (London)" },
-  { value: "SHE", label: "SHE (Shanghai)" },
-] as const;
+const COPPER_MARKET_OPTIONS = ["LME", "SHE"] as const;
 
 const COPPER_CURRENCY_OPTIONS = [
   { value: "RMB", label: "RMB" },
@@ -107,9 +104,9 @@ function MarketParamsPanel({
             <OptionSelect
               value={draft.copper_market ?? "LME"}
               onValueChange={(v) => set({ copper_market: v as "LME" | "SHE" })}
-              options={COPPER_MARKET_OPTIONS.map((o) => ({
-                value: o.value,
-                label: o.value === "LME" ? t("simulator.market.lme") : t("simulator.market.she"),
+              options={COPPER_MARKET_OPTIONS.map((value) => ({
+                value,
+                label: value === "LME" ? t("simulator.market.lme") : t("simulator.market.she"),
               }))}
             />
           </div>

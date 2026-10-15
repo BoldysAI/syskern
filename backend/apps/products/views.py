@@ -17,7 +17,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.ui_locale import translate_request
+from apps.accounts.ui_locale import resolve_request_locale, translate_request
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.attributes.serializers import ProductAttributeValueSerializer
 from apps.simulations.models import SimulationLine, SimulationStatus
@@ -468,7 +468,12 @@ class ProductViewSet(viewsets.ModelViewSet):
         columns = body.get("columns") if isinstance(body.get("columns"), list) else None
         ids = body.get("ids") if isinstance(body.get("ids"), list) else None
 
-        result = export_products_task.delay(filters=filters, columns=columns, ids=ids)
+        result = export_products_task.delay(
+            filters=filters,
+            columns=columns,
+            ids=ids,
+            locale=resolve_request_locale(request),
+        )
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
