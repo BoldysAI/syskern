@@ -2,6 +2,10 @@
 
 Views and serializers: DRF errors. Celery tasks: any raised exception, whose text
 ``GET /api/tasks/{id}/`` returns to the client.
+
+Only text written in the ``raise`` itself is seen. A relayed ``str(exc)`` or an exception
+raised deeper (DeepL client, pricing engine) passes; those are translated at the task
+boundary and covered by their own tests.
 """
 
 from __future__ import annotations

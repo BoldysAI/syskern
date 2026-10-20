@@ -70,6 +70,12 @@ FR: dict[str, str] = {
     "products.not_found": "Produit introuvable.",
     "products.not_in_odoo": "Produit introuvable dans Odoo.",
     "products.odoo_unavailable": "Odoo indisponible : {error}",
+    "products.translation_quota": "Quota de traduction dépassé.",
+    "products.translation_unavailable": "Service de traduction temporairement indisponible.",
+    "products.translation_too_long": "Texte trop long pour la traduction automatique.",
+    "products.translation_failed": (
+        "La traduction automatique a échoué. Si l'erreur persiste, contactez un administrateur."
+    ),
     "products.invalid_level": "niveau invalide",
     "products.name_param_required": "Le paramètre « name » est requis.",
     "exports.not_found": "Export introuvable ou expiré.",
@@ -144,6 +150,8 @@ FR: dict[str, str] = {
     "simulations.not_found": "Simulation introuvable.",
     "simulations.finalized_no_recalc": "Une simulation finalisée ne peut pas être recalculée.",
     "simulations.recalc_scope_invalid": "Périmètre de recalcul invalide.",
+    "simulations.odoo_unreachable": "connexion impossible (détail dans l'historique du recalcul)",
+    "simulations.odoo_refresh_note": "Rafraîchissement Odoo indisponible : {error}",
     "simulations.archived_no_finalize": "Une simulation archivée ne peut pas être finalisée.",
     "simulations.never_calculated": (
         "Impossible de finaliser une simulation jamais calculée — lancez un recalcul d'abord."
@@ -192,7 +200,14 @@ FR: dict[str, str] = {
     "offers.unknown_columns": "Colonne(s) inconnue(s) : {unknown}. Valides : {valid}",
     "offers.task_tariff_type": "La simulation doit être de type tarif.",
     "offers.task_project_type": "La simulation doit être de type projet.",
-    "offers.generation_failed": "Erreur de génération.",
+    "offers.generation_failed": (
+        "La génération du devis a échoué. Relancez-la ; si l'erreur persiste, "
+        "contactez un administrateur."
+    ),
+    "offers.fx_missing": (
+        "Taux de change {pair} manquant : renseignez-le dans les paramètres marché "
+        "de la simulation."
+    ),
     "offers.generation_timeout": "La génération a dépassé le temps imparti.",
     "offers.generation_interrupted": (
         "Génération interrompue (worker indisponible). Relancez la génération."
@@ -322,6 +337,12 @@ EN: dict[str, str] = {
     "products.not_found": "Product not found.",
     "products.not_in_odoo": "Product not found in Odoo.",
     "products.odoo_unavailable": "Odoo unavailable: {error}",
+    "products.translation_quota": "Translation quota exceeded.",
+    "products.translation_unavailable": "Translation service temporarily unavailable.",
+    "products.translation_too_long": "Text too long for automatic translation.",
+    "products.translation_failed": (
+        "Automatic translation failed. If the error persists, contact an administrator."
+    ),
     "products.invalid_level": "invalid level",
     "products.name_param_required": "The “name” parameter is required.",
     "exports.not_found": "Export not found or expired.",
@@ -389,6 +410,8 @@ EN: dict[str, str] = {
     "simulations.not_found": "Simulation not found.",
     "simulations.finalized_no_recalc": "A finalized simulation cannot be recalculated.",
     "simulations.recalc_scope_invalid": "Invalid recalculation scope.",
+    "simulations.odoo_unreachable": "connection failed (details in the recalculation history)",
+    "simulations.odoo_refresh_note": "Odoo refresh unavailable: {error}",
     "simulations.archived_no_finalize": "An archived simulation cannot be finalized.",
     "simulations.never_calculated": (
         "A simulation that has never been calculated cannot be finalized — "
@@ -434,7 +457,12 @@ EN: dict[str, str] = {
     "offers.unknown_columns": "Unknown column(s): {unknown}. Valid: {valid}",
     "offers.task_tariff_type": "The simulation must be a tariff simulation.",
     "offers.task_project_type": "The simulation must be a project simulation.",
-    "offers.generation_failed": "Generation error.",
+    "offers.generation_failed": (
+        "Quote generation failed. Run it again; if the error persists, contact an administrator."
+    ),
+    "offers.fx_missing": (
+        "Missing {pair} exchange rate: enter it in the simulation's market parameters."
+    ),
     "offers.generation_timeout": "Generation exceeded the time limit.",
     "offers.generation_interrupted": (
         "Generation interrupted (worker unavailable). Run generation again."

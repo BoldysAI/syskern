@@ -335,6 +335,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             data["source_lang"],
             data["target_langs"],
             data.get("content_fields") or ["marketing", "technical"],
+            resolve_request_locale(request),
         )
         return Response(
             {"task_id": task.id, "status": "PENDING", "product_count": len(data["ids"])},

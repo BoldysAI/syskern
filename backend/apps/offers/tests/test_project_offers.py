@@ -14,6 +14,7 @@ from decimal import Decimal
 import pytest
 from rest_framework.test import APIClient
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.clients.models import Client
 from apps.offers.models import GenerationStatus, Offer, OfferType
 from apps.offers.services import project_generator as pg
@@ -201,7 +202,8 @@ def test_gamma_failure_marks_error_then_retry_succeeds(
     monkeypatch.setattr(pg, "GammaClient", FailingGamma)
     result = _run(project_sim, _params(project_client))
     assert result["generation_status"] == GenerationStatus.ERROR
-    assert "boom" in result["error"]
+    assert result["error"] == translate("offers.generation_failed", resolve_ui_locale(None))
+    assert "boom" not in result["error"]
     offer_id = result["offer_id"]
 
     # Retry with Gamma back up.
@@ -266,7 +268,7 @@ def _new_offer(project_sim, project_client):
 
 
 def test_unexpected_exception_marks_error_not_stuck(
-    snapshot_dir, fake_args, monkeypatch, project_sim, project_client
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client, caplog
 ):
     """A non-GammaError failure must end the offer in ERROR, never GENERATING."""
     monkeypatch.setattr(pg, "GammaClient", BrokenGamma)
@@ -274,7 +276,20 @@ def test_unexpected_exception_marks_error_not_stuck(
     assert result["generation_status"] == GenerationStatus.ERROR
     offer = Offer.objects.get(id=result["offer_id"])
     assert offer.generation_status == GenerationStatus.ERROR
-    assert "network exploded" in offer.generation_error
+    # Translated message on the offer; the raw cause only in the worker log.
+    assert "network exploded" not in offer.generation_error
+    assert "network exploded" in caplog.text
+
+
+def test_generation_error_follows_the_caller_locale(
+    snapshot_dir, fake_args, monkeypatch, project_sim, project_client, settings
+):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    monkeypatch.setattr(pg, "GammaClient", BrokenGamma)
+    offer = _new_offer(project_sim, project_client)
+    pg.run_generation(offer, locale="en")
+    offer.refresh_from_db()
+    assert offer.generation_error == translate("offers.generation_failed", "en")
 
 
 def test_payload_build_failure_marks_error(
@@ -289,7 +304,9 @@ def test_payload_build_failure_marks_error(
     monkeypatch.setattr(pg, "build_gamma_payload", _boom)
     result = _run(project_sim, _params(project_client))
     assert result["generation_status"] == GenerationStatus.ERROR
-    assert "payload broken" in Offer.objects.get(id=result["offer_id"]).generation_error
+    assert Offer.objects.get(id=result["offer_id"]).generation_error == translate(
+        "offers.generation_failed", resolve_ui_locale(None)
+    )
 
 
 def test_soft_time_limit_marks_error_and_reraises(

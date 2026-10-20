@@ -21,7 +21,7 @@ from pathlib import Path
 import openpyxl
 from celery import shared_task
 
-from apps.accounts.ui_locale import translate
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.suppliers.models import Supplier
 from apps.suppliers.services_import import apply_import, preview_import
 
@@ -41,7 +41,7 @@ def _load_default_supplier(supplier_id: str | None, locale: str) -> Supplier | N
     return supplier
 
 
-def _write_report(task_id: str, rejected: list[dict], locale: str = "fr") -> str | None:
+def _write_report(task_id: str, rejected: list[dict], locale: str) -> str | None:
     """Write the rejected-rows Excel report; return its download URL (or None)."""
     if not rejected:
         return None
@@ -82,9 +82,10 @@ def import_po_preview_task(
     column_map: dict,
     supplier_id: str | None = None,
     header_row: int = 1,
-    locale: str = "fr",
+    locale: str | None = None,
 ) -> dict:
     """Dry-run the mapped import — returns ``{summary, lines}`` (no DB writes)."""
+    locale = locale or resolve_ui_locale(None)
     path = Path(upload_path)
     if not path.is_file():
         raise _TaskError(translate("suppliers.import_file_expired", locale))
@@ -114,9 +115,10 @@ def import_po_apply_task(
     column_map: dict,
     supplier_id: str | None = None,
     header_row: int = 1,
-    locale: str = "fr",
+    locale: str | None = None,
 ) -> dict:
     """Apply the mapped import and write the rejection report."""
+    locale = locale or resolve_ui_locale(None)
     path = Path(upload_path)
     if not path.is_file():
         raise _TaskError(translate("suppliers.import_file_expired", locale))

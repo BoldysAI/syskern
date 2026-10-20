@@ -10,7 +10,7 @@ from pathlib import Path
 from celery import shared_task
 from django.utils import timezone
 
-from apps.accounts.ui_locale import translate
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 
 from .exports import build_simulation_xlsx
 from .models import RecalculationTrigger, Simulation
@@ -40,7 +40,7 @@ def recalculate_task(
     scope: str = "params_only",
     market_params: dict | None = None,
     note: str = "",
-    locale: str = "fr",
+    locale: str | None = None,
 ) -> dict:
     """Recalculate every line of a simulation in a worker (CDC §6.9.4).
 
@@ -58,6 +58,7 @@ def recalculate_task(
     Returns the fresh `SimulationDetailSerializer` payload (plus an optional
     `odoo_refresh_error` key when the refresh degraded).
     """
+    locale = locale or resolve_ui_locale(None)
     try:
         sim = Simulation.objects.get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:
@@ -88,7 +89,8 @@ def recalculate_task(
     effective_note = note
     if odoo_error:
         prefix = f"{note} " if note else ""
-        effective_note = f"{prefix}[Rafraîchissement Odoo indisponible : {odoo_error}]"
+        detail = translate("simulations.odoo_refresh_note", locale).format(error=odoo_error)
+        effective_note = f"{prefix}[{detail}]"
 
     run_simulation(
         sim,
@@ -101,7 +103,8 @@ def recalculate_task(
     fresh = Simulation.objects.prefetch_related("lines").get(pk=sim.pk)
     data = SimulationDetailSerializer(fresh).data
     if odoo_error:
-        data["odoo_refresh_error"] = odoo_error
+        # The raw Odoo exception stays in the log and the recalc note, not in the toast.
+        data["odoo_refresh_error"] = translate("simulations.odoo_unreachable", locale)
     return data
 
 
@@ -112,12 +115,13 @@ def _slugify_label(label: str) -> str:
 
 
 @shared_task(name="simulations.export_simulation_task", bind=True)
-def export_simulation_task(self, simulation_pk: str, locale: str = "fr") -> dict:
+def export_simulation_task(self, simulation_pk: str, locale: str | None = None) -> dict:
     """Build the simulation Excel workbook and store it on disk (CDC §6.9).
 
     Returns `{"file_url", "filename", "size_bytes"}` — the client polls the
     polling endpoint, then downloads the file via the URL.
     """
+    locale = locale or resolve_ui_locale(None)
     try:
         sim = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:

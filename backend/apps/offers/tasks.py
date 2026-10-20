@@ -74,7 +74,11 @@ def generate_tariff_offers_task(
         raise ValueError(translate("offers.task_tariff_type", ui_locale))
 
     target = (params.get("target_currency") or "EUR").upper()
-    rate = fx_rate("EUR", target, simulation.market_params)  # raises if FX missing
+    try:
+        rate = fx_rate("EUR", target, simulation.market_params)
+    except ValueError as exc:
+        message = translate("offers.fx_missing", ui_locale).format(pair=f"EUR → {target}")
+        raise ValueError(message) from exc
 
     expiration = params.get("expiration_date")
     valid_to = date.fromisoformat(expiration) if expiration else None

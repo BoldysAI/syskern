@@ -1274,17 +1274,23 @@ Story 7.1. Le login et l'écran Utilisateurs suivent la langue du compte, sinon
 ## 2026-10-20 · [P] Interface FR/EN complète — écart au CDC MVP1 §10.1
 
 Le CDC MVP1 §10.1 limite le multilingue au contenu produit et aux sorties commerciales, et
-garde l'interface en français (§10.1, rappel « UI mono-langue FR »). L'épique
-« Internationalisation de l'interface (FR/EN) » (MVP2, CDC §7.4, Annexe Technique Brique 2
-§2.2, stories 7.1-7.10) acte l'inverse : **toute l'interface existe en français et en anglais**
-pour les équipes de Shanghai.
+garde l'interface en français (§10.1, rappel « UI mono-langue FR »). L'épique Notion
+« Épique — Internationalisation de l'interface (FR/EN) » (MVP2 Amplify Group, stories 7.1-7.10)
+acte l'inverse : **toute l'interface existe en français et en anglais** pour les équipes de
+Shanghai. Les sections que cite l'épique renvoient aux documents MVP2, absents du dépôt ; elles
+ne correspondent pas aux §7.4 / §2.2 du CDC MVP1 versionné ici.
 
 - Langue résolue par `resolve_ui_locale` : `Profile.locale`, sinon `DEFAULT_UI_LOCALE`, sinon `fr`.
   Repli français par clé.
 - Écrans, messages API, erreurs de tâches Celery et documents générés (exports, rapport de
   rejets PO) suivent la langue d'interface de l'utilisateur. Une tâche lancée par un utilisateur
   reçoit sa langue au `delay()`. Une tâche planifiée sans utilisateur (beat, ex.
-  `reap_stuck_generations`) écrit dans la langue du déploiement.
+  `reap_stuck_generations`), ou appelée sans langue, écrit dans la langue du déploiement.
+- Échecs de services externes (Gamma, OpenAI, DeepL, Odoo en recalcul dégradé) : l'utilisateur
+  lit une phrase du catalogue ; le texte brut du service reste dans les logs du worker (et dans
+  la note de l'historique pour le recalcul). Taux de change manquant à la génération d'offre
+  tarif : clé `offers.fx_missing` ; le moteur garde son message français pour ses propres
+  diagnostics de ligne.
 - Offres (Excel, Gamma) : langue de l'offre (`fr`/`en`/`es`), pas la langue d'interface.
 - Login non authentifié : erreurs toujours dans la langue du déploiement, que l'e-mail existe ou
   non. Lire la langue du compte avant authentification révélerait qu'il existe.

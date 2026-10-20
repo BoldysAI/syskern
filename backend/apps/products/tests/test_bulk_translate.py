@@ -63,11 +63,24 @@ def test_bulk_aborts_on_quota(monkeypatch):
 
     monkeypatch.setattr(i18n_services, "translate_cached", _quota)
     p = Product.objects.create(sku_code="P4", name="P4", description_marketing={"fr": "Bonjour"})
-    result = bulk_translate_products_task.apply(
-        args=[[str(p.id)], "fr", ["en"], ["marketing"]]
-    )
+    result = bulk_translate_products_task.apply(args=[[str(p.id)], "fr", ["en"], ["marketing"]])
     assert result.failed()
     assert "Quota" in str(result.result)
+
+
+def test_bulk_deepl_failure_follows_the_caller_locale(monkeypatch, settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+
+    def _quota(*a, **k):
+        raise TranslationQuotaError("Quota de traduction dépassé.")
+
+    monkeypatch.setattr(i18n_services, "translate_cached", _quota)
+    p = Product.objects.create(sku_code="P6", name="P6", description_marketing={"fr": "Bonjour"})
+    result = bulk_translate_products_task.apply(
+        args=[[str(p.id)], "fr", ["en"], ["marketing"], "en"]
+    )
+    assert result.failed()
+    assert str(result.result) == "Translation quota exceeded."
 
 
 def test_bulk_endpoint_returns_202(api):

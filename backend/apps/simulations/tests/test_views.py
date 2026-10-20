@@ -21,6 +21,7 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.accounts.ui_locale import translate
 from apps.core.models import Currency
 from apps.odoo_sync.schemas import OdooPurchaseLine, OdooStock
 from apps.offers.models import Offer, OfferStatus, OfferType
@@ -1277,14 +1278,16 @@ class TestRecalcScopeTrigger:
         monkeypatch.setattr("apps.simulations.tasks.refresh_odoo_for_simulation", boom)
 
         # The task SUCCEEDS (degraded), surfacing the error rather than raising.
-        result = recalculate_task(str(sim.pk), scope="with_odoo_refresh")
-        assert "Odoo 404" in result["odoo_refresh_error"]
+        result = recalculate_task(str(sim.pk), scope="with_odoo_refresh", locale="en")
+        # The toast gets a translated cause, never the raw Odoo exception.
+        assert result["odoo_refresh_error"] == translate("simulations.odoo_unreachable", "en")
+        assert "Odoo 404" not in result["odoo_refresh_error"]
 
-        # The recalc still ran on current params (trace appended).
+        # The recalc still ran on current params (trace appended); the note keeps the detail.
         trace = SimulationRecalculation.objects.filter(simulation=sim).first()
         assert trace is not None
         assert trace.trigger_type == RecalculationTrigger.MANUAL_REFRESH_ODOO
-        assert "Odoo indisponible" in trace.note
+        assert "Odoo refresh unavailable: Odoo 404" in trace.note
 
 
 # ─── Odoo bulk refresh service (CDC §6.9.4) ─────────────────────────────────

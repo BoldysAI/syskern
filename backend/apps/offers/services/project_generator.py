@@ -305,10 +305,10 @@ def _resolve_arguments(offer: Offer) -> tuple[dict | None, bool]:
     return args, False
 
 
-def _mark_generation_error(offer: Offer, message: str, locale: str) -> Offer:
+def _mark_generation_error(offer: Offer, message: str) -> Offer:
     """Persist a terminal ERROR state so the UI stops polling (CDC §7.6.3)."""
     offer.generation_status = GenerationStatus.ERROR
-    offer.generation_error = (message or translate("offers.generation_failed", locale))[:2000]
+    offer.generation_error = message[:2000]
     offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
     return offer
 
@@ -337,11 +337,12 @@ def run_generation(
         payload = build_gamma_payload(offer, arguments=arguments)
         result = gamma.generate_and_wait(payload)
     except SoftTimeLimitExceeded:
-        _mark_generation_error(offer, translate("offers.generation_timeout", locale), locale)
+        _mark_generation_error(offer, translate("offers.generation_timeout", locale))
         raise  # surface the timeout to Celery
     except Exception as exc:  # noqa: BLE001 — any failure must yield a terminal state
+        # Raw Gamma/OpenAI text (keys, HTTP bodies) stays in the worker log, not on the offer.
         logger.warning("Gamma generation failed for offer %s: %s", offer.id, exc)
-        return _mark_generation_error(offer, str(exc), locale)
+        return _mark_generation_error(offer, translate("offers.generation_failed", locale))
 
     # Success — store the Gamma identifiers.
     offer.gamma_document_id = result.generation_id
