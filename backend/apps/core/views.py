@@ -39,7 +39,8 @@ def login_view(request: Request) -> Response:
 
     email = (request.data or {}).get("email", "")
     password = (request.data or {}).get("password", "")
-    locale = _locale_for_email(email)
+    # Deployment language whatever the e-mail: a per-account language would reveal the account.
+    locale = resolve_ui_locale(None)
 
     if not email or not password:
         return Response(
@@ -56,7 +57,6 @@ def login_view(request: Request) -> Response:
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
-    locale = resolve_ui_locale(user_obj)
     user = authenticate(request, username=user_obj.username, password=password)
     if user is None:
         rate_limit.register_failure(request)
@@ -138,16 +138,6 @@ def update_locale_view(request: Request) -> Response:
     profile.save(update_fields=["locale"])
     user = User.objects.select_related("profile").get(pk=request.user.pk)
     return Response({"user": UserInfoSerializer(user).data})
-
-
-def _locale_for_email(email: str) -> str:
-    if not email:
-        return resolve_ui_locale(None)
-    try:
-        user = User.objects.select_related("profile").get(email__iexact=email)
-    except User.DoesNotExist:
-        return resolve_ui_locale(None)
-    return resolve_ui_locale(user)
 
 
 class DashboardSummaryView(APIView):

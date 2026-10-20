@@ -72,13 +72,7 @@ def _pad(rows: list[list], width: int) -> list[list]:
 def _ui(key: str, locale: str | None = None, **kwargs: object) -> str:
     """Catalog string. No locale (Celery) uses the deployment default."""
     text = translate(key, locale if locale is not None else resolve_ui_locale(None))
-    if not kwargs:
-        return text
-    # Values may contain braces (openpyxl errors). Escape them so format stays literal.
-    safe = {
-        name: str(value).replace("{", "{{").replace("}", "}}") for name, value in kwargs.items()
-    }
-    return text.format(**safe)
+    return text.format(**kwargs) if kwargs else text
 
 
 def read_excel_headers(
@@ -178,7 +172,9 @@ def _cell(row: list, idx: int | None) -> object:
     return row[idx]
 
 
-def _iter_data_rows(path: str | Path, *, header_row: int = 1) -> tuple[list[list], int]:
+def _iter_data_rows(
+    path: str | Path, *, header_row: int = 1, locale: str | None = None
+) -> tuple[list[list], int]:
     """Return ``(data_rows, column_count)`` — every row after ``header_row``.
 
     ``header_row`` is 1-based; rows before it (title/blank) and the header line
@@ -189,7 +185,7 @@ def _iter_data_rows(path: str | Path, *, header_row: int = 1) -> tuple[list[list
     try:
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     except Exception as exc:  # noqa: BLE001
-        raise ValueError(_ui("suppliers.excel_unreadable", reason=exc)) from exc
+        raise ValueError(_ui("suppliers.excel_unreadable", locale, reason=exc)) from exc
     ws = wb.active
     header_len = 0
     data_rows: list[list] = []
@@ -204,7 +200,7 @@ def _iter_data_rows(path: str | Path, *, header_row: int = 1) -> tuple[list[list
         data_rows.append(list(raw_row))
     wb.close()
     if not found:
-        raise ValueError(_ui("suppliers.header_row_missing"))
+        raise ValueError(_ui("suppliers.header_row_missing", locale))
     column_count = max([header_len, *(len(r) for r in data_rows)])
     return data_rows, column_count
 
@@ -256,7 +252,7 @@ def _resolve_rows(
     row; falls back to ``default_supplier``; if neither → ``no_supplier``.
     Matching is by existing SKU / existing supplier only.
     """
-    data_rows, column_count = _iter_data_rows(path, header_row=header_row)
+    data_rows, column_count = _iter_data_rows(path, header_row=header_row, locale=locale)
     indices = _resolve_indices(column_map, column_count)
     sku_idx = indices.get("sku")
     po_idx = indices.get("po")

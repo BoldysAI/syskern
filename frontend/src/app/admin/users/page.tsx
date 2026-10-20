@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { OptionSelect } from "@/components/OptionSelect";
 import { useAuth } from "@/contexts/AuthContext";
+import { getApiLocale } from "@/lib/api";
 import type { Role } from "@/lib/auth";
 import { translate, uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ function getCsrfToken(): string {
 
 async function fetchUsers(): Promise<PlatformUser[]> {
   const res = await fetch("/api/users/", { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(translate("common.loadError", getApiLocale()));
   return res.json();
 }
 

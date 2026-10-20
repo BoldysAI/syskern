@@ -10,6 +10,8 @@ from pathlib import Path
 from celery import shared_task
 from django.utils import timezone
 
+from apps.accounts.ui_locale import translate
+
 from .exports import build_simulation_xlsx
 from .models import RecalculationTrigger, Simulation
 from .serializers import SimulationDetailSerializer
@@ -38,6 +40,7 @@ def recalculate_task(
     scope: str = "params_only",
     market_params: dict | None = None,
     note: str = "",
+    locale: str = "fr",
 ) -> dict:
     """Recalculate every line of a simulation in a worker (CDC §6.9.4).
 
@@ -58,13 +61,13 @@ def recalculate_task(
     try:
         sim = Simulation.objects.get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:
-        raise _TaskError("Simulation introuvable.") from e
+        raise _TaskError(translate("simulations.not_found", locale)) from e
 
     if sim.status == "finalized":
-        raise _TaskError("Une simulation finalisée ne peut pas être recalculée.")
+        raise _TaskError(translate("simulations.finalized_no_recalc", locale))
 
     if scope not in _SCOPE_TRIGGER:
-        raise _TaskError("Périmètre de recalcul invalide.")
+        raise _TaskError(translate("simulations.recalc_scope_invalid", locale))
 
     # Market params from the client (sidebar) are persisted before recalc (any scope).
     if market_params:
@@ -118,7 +121,7 @@ def export_simulation_task(self, simulation_pk: str, locale: str = "fr") -> dict
     try:
         sim = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:
-        raise _TaskError("Simulation introuvable.") from e
+        raise _TaskError(translate("simulations.not_found", locale)) from e
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"

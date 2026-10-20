@@ -13,6 +13,7 @@ import {
   type ProductSupplier,
   type ProductSupplierInput,
 } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { localizeIncotermLabel } from "@/lib/incoterms";
 import type { MessageKey } from "@/lib/i18n";
@@ -445,6 +446,7 @@ function IncotermSelect({
   onChange: (i: string) => void;
   disabled?: boolean;
 }) {
+  const { displayLanguage } = useAuth();
   const { data: incoterms } = useSWR("incoterms-supplier", listIncoterms);
   const codes = incoterms?.map((i) => i.code) ?? [...INCOTERMS_FALLBACK];
 
@@ -470,7 +472,7 @@ function IncotermSelect({
           <Select.Viewport className="p-1">
             {codes.map((code) => {
               const ref = incoterms?.find((i) => i.code === code);
-              const label = ref ? localizeIncotermLabel(ref.label, code) : code;
+              const label = ref ? localizeIncotermLabel(ref.label, code, displayLanguage) : code;
               return (
                 <Select.Item
                   key={code}

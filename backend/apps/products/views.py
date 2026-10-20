@@ -280,7 +280,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 {"detail": translate_request(request, "products.pamp_not_linked")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        result = refresh_pamp_task.delay(str(product.pk))
+        result = refresh_pamp_task.delay(str(product.pk), resolve_request_locale(request))
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
@@ -310,7 +310,9 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        result = translate_product_task.delay(str(product.pk), target)
+        result = translate_product_task.delay(
+            str(product.pk), target, resolve_request_locale(request)
+        )
         return Response(
             {"task_id": result.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,

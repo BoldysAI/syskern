@@ -12,6 +12,7 @@ from pathlib import Path
 from celery import shared_task
 from django.utils import timezone
 
+from apps.accounts.ui_locale import translate
 from apps.odoo_sync.adapters.factory import get_odoo_adapter
 from apps.offers.services.translation import DeepLClient
 
@@ -28,30 +29,31 @@ class _TaskError(RuntimeError):
 
 
 @shared_task(name="products.refresh_pamp_task")
-def refresh_pamp_task(product_pk: str) -> dict:
+def refresh_pamp_task(product_pk: str, locale: str = "fr") -> dict:
     """Re-pull PAMP + stock from Odoo for a single product (read-only Odoo).
 
     Returns the updated `ProductDetailSerializer` payload. Raises on any
-    Odoo failure so the polling endpoint surfaces the error.
+    Odoo failure so the polling endpoint surfaces the error, in `locale`.
     """
     try:
         product = Product.objects.get(pk=product_pk)
     except Product.DoesNotExist as e:
-        raise _TaskError("Produit introuvable.") from e
+        raise _TaskError(translate("products.not_found", locale)) from e
 
     if not product.odoo_id:
-        raise _TaskError("Produit non lié à Odoo — PAMP non recalculable.")
+        raise _TaskError(translate("products.pamp_not_linked", locale))
 
     try:
         adapter = get_odoo_adapter()
         adapter.authenticate()
         stock_map = adapter.get_stock_quantities([product.odoo_id])
     except Exception as exc:  # noqa: BLE001
-        raise _TaskError(f"Odoo indisponible : {exc}") from exc
+        message = translate("products.odoo_unavailable", locale).format(error=exc)
+        raise _TaskError(message) from exc
 
     stock = stock_map.get(product.odoo_id)
     if stock is None:
-        raise _TaskError("Produit introuvable dans Odoo.")
+        raise _TaskError(translate("products.not_in_odoo", locale))
 
     now = timezone.now()
     update_fields = {
@@ -190,26 +192,26 @@ def bulk_translate_products_task(
 
 
 @shared_task(name="products.translate_product_task")
-def translate_product_task(product_pk: str, target_lang: str) -> dict:
+def translate_product_task(product_pk: str, target_lang: str, locale: str = "fr") -> dict:
     """Translate the FR descriptions to EN/ES via DeepL and cache them.
 
     Returns the updated `ProductDetailSerializer` payload. Raises on DeepL
     failure (missing key, quota, network) — Celery FAILURE surfaces the
-    message to the polling endpoint.
+    message to the polling endpoint. Task errors use the caller's `locale`.
     """
     target = target_lang.lower()
     if target not in {"en", "es"}:
-        raise _TaskError("Langue cible invalide (attendu : en ou es).")
+        raise _TaskError(translate("products.target_lang_invalid", locale))
 
     try:
         product = Product.objects.get(pk=product_pk)
     except Product.DoesNotExist as e:
-        raise _TaskError("Produit introuvable.") from e
+        raise _TaskError(translate("products.not_found", locale)) from e
 
     marketing_fr = (product.description_marketing or {}).get("fr", "")
     technical_fr = (product.description_technical or {}).get("fr", "")
     if not marketing_fr and not technical_fr:
-        raise _TaskError("Aucune description française à traduire.")
+        raise _TaskError(translate("products.no_french_description", locale))
 
     client = DeepLClient()
     marketing_tr = (

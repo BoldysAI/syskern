@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { setApiLocale } from "@/lib/api";
 import { translate, uiDateLocale, type MessageKey } from "@/lib/i18n";
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -41,6 +42,7 @@ export function DocumentLanguage() {
 
   useEffect(() => {
     document.documentElement.lang = uiDateLocale(displayLanguage);
+    setApiLocale(displayLanguage);
   }, [displayLanguage]);
 
   useEffect(() => {

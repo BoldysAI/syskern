@@ -1,5 +1,6 @@
 import type { ChainDraft, TransportDraft } from "@/app/simulator/new/_components/wizard-draft";
 import { emptyChain } from "@/app/simulator/new/_components/wizard-draft";
+import type { MessageKey } from "@/lib/i18n";
 
 export interface IncotermOption {
   code: string;
@@ -22,19 +23,19 @@ const TO_PORT = new Set(["FAS", "FOB"]);
 const MAIN_INCLUDED = new Set(["CFR", "CIF", "CPT", "CIP"]);
 const DELIVERED = new Set(["DAP", "DPU", "DDP"]);
 
-/** Short FR impact text (CDC §12.2) for tooltips. */
-export const INCOTERM_IMPACT_FR: Record<string, string> = {
-  EXW: "Aucun transport ajouté côté vendeur — l'acheteur prend tout en charge.",
-  FCA: "Transport jusqu'au point de remise au transporteur.",
-  FAS: "Transport jusqu'au port d'embarquement (maritime).",
-  FOB: "Transport jusqu'au chargement à bord (maritime).",
-  CFR: "Fret principal inclus jusqu'au port de destination.",
-  CIF: "Fret principal et assurance inclus jusqu'au port de destination.",
-  CPT: "Transport principal inclus jusqu'à la destination (multimodal).",
-  CIP: "Transport principal et assurance inclus (multimodal).",
-  DAP: "Transport jusqu'à destination, sans douane import.",
-  DPU: "Transport jusqu'à destination avec déchargement.",
-  DDP: "Transport et douane import inclus — engagement maximal vendeur.",
+/** Catalog key of the short impact text (CDC §12.2) shown under the sale incoterm. */
+export const INCOTERM_IMPACT_KEYS: Record<string, MessageKey> = {
+  EXW: "simulator.incotermImpact.EXW",
+  FCA: "simulator.incotermImpact.FCA",
+  FAS: "simulator.incotermImpact.FAS",
+  FOB: "simulator.incotermImpact.FOB",
+  CFR: "simulator.incotermImpact.CFR",
+  CIF: "simulator.incotermImpact.CIF",
+  CPT: "simulator.incotermImpact.CPT",
+  CIP: "simulator.incotermImpact.CIP",
+  DAP: "simulator.incotermImpact.DAP",
+  DPU: "simulator.incotermImpact.DPU",
+  DDP: "simulator.incotermImpact.DDP",
 };
 
 function uid(): string {
@@ -58,10 +59,11 @@ function transportLeg(category: string, currency: string): TransportDraft {
 
 export function localizeIncotermLabel(
   label: Record<string, string> | undefined,
-  code: string
+  code: string,
+  locale = "fr"
 ): string {
   if (!label) return code;
-  return label.fr || label.en || Object.values(label)[0] || code;
+  return label[locale] || label.fr || label.en || Object.values(label)[0] || code;
 }
 
 /** Dominant purchase incoterm from line supplier snapshots (default FOB). */

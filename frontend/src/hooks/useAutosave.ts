@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getApiLocale } from "@/lib/api";
+import { translate } from "@/lib/i18n";
 
 export type AutosaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -72,7 +74,9 @@ export function useAutosave<T>(
         },
         (e: unknown) => {
           if (runIdRef.current !== myRun) return;
-          setError(e instanceof Error ? e.message : "Erreur de sauvegarde");
+          setError(
+            e instanceof Error ? e.message : translate("catalog.product.saveError", getApiLocale()),
+          );
           setStatus("error");
         },
       );

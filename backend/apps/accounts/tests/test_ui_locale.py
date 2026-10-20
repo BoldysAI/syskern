@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 
 import pytest
 from django.contrib.auth.models import User
@@ -10,6 +11,8 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Profile, Role
 from apps.accounts.ui_locale import EN, FR, resolve_ui_locale, translate
+from apps.products.tasks import refresh_pamp_task
+from apps.suppliers import services_import
 
 
 def test_anonymous_uses_deployment_locale(settings):
@@ -66,7 +69,7 @@ def test_english_api_labels_keep_french_placeholders():
 
 
 @pytest.mark.django_db
-def test_login_error_follows_the_account_locale(settings):
+def test_login_errors_do_not_reveal_the_account_locale(settings):
     settings.DEFAULT_UI_LOCALE = "fr"
     user = User.objects.create_user(
         username="shanghai@test.com",
@@ -75,13 +78,15 @@ def test_login_error_follows_the_account_locale(settings):
     )
     Profile.objects.update_or_create(user=user, defaults={"role": Role.VIEWER, "locale": "en"})
     client = APIClient()
-    resp = client.post(
-        "/api/auth/login",
-        {"email": "shanghai@test.com", "password": "WRONG"},
-        format="json",
-    )
-    assert resp.status_code == 401
-    assert resp.data["detail"] == "Incorrect email or password."
+
+    def detail(email: str, password: str) -> str:
+        resp = client.post("/api/auth/login", {"email": email, "password": password}, format="json")
+        return resp.data["detail"]
+
+    wrong_password = detail("shanghai@test.com", "WRONG")
+    unknown_email = detail("nobody@test.com", "WRONG")
+    assert wrong_password == unknown_email == "Identifiants incorrects."
+    assert detail("shanghai@test.com", "") == detail("nobody@test.com", "")
 
 
 @pytest.mark.django_db
@@ -179,3 +184,23 @@ def test_locale_choice_rejects_an_unknown_language(settings):
     assert rejected.status_code == 400
     user.profile.refresh_from_db()
     assert user.profile.locale == "fr"
+
+
+@pytest.mark.django_db
+def test_task_errors_follow_the_caller_locale_not_the_deployment(settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    with pytest.raises(RuntimeError, match=r"^Product not found\.$"):
+        refresh_pamp_task.apply(args=[str(uuid.uuid4()), "en"]).get()
+
+
+def test_po_import_rows_follow_the_caller_locale(tmp_path, settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    broken = tmp_path / "broken.xlsx"
+    broken.write_text("not a workbook", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"^Unreadable Excel file: "):
+        services_import._iter_data_rows(broken, locale="en")
+
+
+def test_catalog_placeholders_keep_braces_from_values():
+    message = services_import._ui("suppliers.excel_unreadable", "en", reason="bad {cell}")
+    assert message == "Unreadable Excel file: bad {cell}"

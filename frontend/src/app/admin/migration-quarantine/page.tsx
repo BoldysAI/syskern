@@ -1,6 +1,7 @@
 "use client";
 
-import { uiDateLocale } from "@/lib/i18n";
+import { getApiLocale } from "@/lib/api";
+import { translate, uiDateLocale } from "@/lib/i18n";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
@@ -153,7 +154,7 @@ function getCsrfToken(): string {
 
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(translate("common.loadError", getApiLocale()));
   return res.json();
 }
 

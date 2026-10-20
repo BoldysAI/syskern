@@ -16,7 +16,8 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import { uiDateLocale, type MessageKey } from "@/lib/i18n";
+import { getApiLocale } from "@/lib/api";
+import { translate, uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -95,7 +96,7 @@ function getCsrfToken(): string {
 }
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(translate("library.error.title", getApiLocale()));
   return res.json();
 }
 function humanSize(

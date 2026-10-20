@@ -12,7 +12,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.ui_locale import translate_request
+from apps.accounts.ui_locale import resolve_request_locale, translate_request
 from apps.simulations.models import Simulation, SimulationStatus
 
 from .dashboard_metrics import build_offer_dashboard_metrics
@@ -213,7 +213,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         offer = self.get_object()
         if offer.offer_type != OfferType.PROJECT:
             raise ValidationError(translate_request(request, "offers.regenerate_project_only"))
-        task = regenerate_project_offer_task.delay(str(offer.id))
+        task = regenerate_project_offer_task.delay(str(offer.id), resolve_request_locale(request))
         return Response({"task_id": task.id, "status": "PENDING"}, status=status.HTTP_202_ACCEPTED)
 
     # ─── /tariff-columns (catalogue for the generation wizard) ───────

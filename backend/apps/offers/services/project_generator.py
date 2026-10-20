@@ -23,7 +23,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.utils import timezone
 
-from apps.accounts.ui_locale import translate_request
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.clients.models import Client
 from apps.simulations.models import Simulation
 
@@ -305,22 +305,28 @@ def _resolve_arguments(offer: Offer) -> tuple[dict | None, bool]:
     return args, False
 
 
-def _mark_generation_error(offer: Offer, message: str) -> Offer:
+def _mark_generation_error(offer: Offer, message: str, locale: str) -> Offer:
     """Persist a terminal ERROR state so the UI stops polling (CDC §7.6.3)."""
     offer.generation_status = GenerationStatus.ERROR
-    offer.generation_error = (message or translate_request(None, "offers.generation_failed"))[:2000]
+    offer.generation_error = (message or translate("offers.generation_failed", locale))[:2000]
     offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
     return offer
 
 
-def run_generation(offer: Offer, *, gamma_client: GammaClient | None = None) -> Offer:
+def run_generation(
+    offer: Offer, *, gamma_client: GammaClient | None = None, locale: str | None = None
+) -> Offer:
     """Generate the Gamma quote for *offer*. Idempotent / retry-safe.
 
     Guarantees a **terminal** status: on ANY failure (Gamma, OpenAI, soft time
     limit, or any unexpected exception) the offer is saved as ``error`` — it is
     never left stuck in ``generating``, so the front stops polling (CDC §7.6.3).
     A worker hard-kill is caught out-of-band by ``offers.reap_stuck_generations``.
+
+    ``locale`` is the interface language of the user who launched the generation;
+    without it, stored errors use the deployment language.
     """
+    locale = locale or resolve_ui_locale(None)
     offer.generation_status = GenerationStatus.GENERATING
     offer.generation_error = ""
     offer.save(update_fields=["generation_status", "generation_error", "updated_at"])
@@ -331,11 +337,11 @@ def run_generation(offer: Offer, *, gamma_client: GammaClient | None = None) -> 
         payload = build_gamma_payload(offer, arguments=arguments)
         result = gamma.generate_and_wait(payload)
     except SoftTimeLimitExceeded:
-        _mark_generation_error(offer, translate_request(None, "offers.generation_timeout"))
+        _mark_generation_error(offer, translate("offers.generation_timeout", locale), locale)
         raise  # surface the timeout to Celery
     except Exception as exc:  # noqa: BLE001 — any failure must yield a terminal state
         logger.warning("Gamma generation failed for offer %s: %s", offer.id, exc)
-        return _mark_generation_error(offer, str(exc))
+        return _mark_generation_error(offer, str(exc), locale)
 
     # Success — store the Gamma identifiers.
     offer.gamma_document_id = result.generation_id

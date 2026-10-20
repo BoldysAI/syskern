@@ -14,10 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { listIncoterms } from "@/lib/api";
 import { LocationSelectField } from "@/components/LocationSelectField";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
-  INCOTERM_IMPACT_FR,
+  INCOTERM_IMPACT_KEYS,
   INCOTERMS_FALLBACK,
   localizeIncotermLabel,
 } from "@/lib/incoterms";
@@ -41,14 +42,16 @@ export function SaleIncotermFields({
   onLocationChange,
 }: Props) {
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const { data: incoterms } = useSWR("incoterms", listIncoterms);
-  const impact = INCOTERM_IMPACT_FR[incoterm];
+  const impactKey = INCOTERM_IMPACT_KEYS[incoterm];
+  const impact = impactKey ? t(impactKey) : "";
   const incotermOptions = incoterms ?? INCOTERMS_FALLBACK;
   const currentIncoterm = incoterm || "EXW";
   const incotermDisplay = (() => {
     const item = incotermOptions.find((i) => i.code === currentIncoterm);
     return item
-      ? `${item.code} — ${localizeIncotermLabel(item.label, item.code)}`
+      ? `${item.code} — ${localizeIncotermLabel(item.label, item.code, displayLanguage)}`
       : currentIncoterm;
   })();
 
@@ -85,7 +88,7 @@ export function SaleIncotermFields({
                     className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>
-                      {item.code} — {localizeIncotermLabel(item.label, item.code)}
+                      {item.code} — {localizeIncotermLabel(item.label, item.code, displayLanguage)}
                     </Select.ItemText>
                     <Select.ItemIndicator>
                       <Check size={14} className="text-warm" />

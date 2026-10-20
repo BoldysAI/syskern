@@ -356,7 +356,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
             "label": data.get("label") or "",
             "attached_document_ids": [str(d) for d in data.get("attached_document_ids") or []],
         }
-        task = generate_tariff_offers_task.delay(str(simulation.id), payload)
+        task = generate_tariff_offers_task.delay(
+            str(simulation.id), payload, resolve_request_locale(request)
+        )
         return Response(
             {"task_id": task.id, "status": "PENDING", "client_count": len(payload["client_ids"])},
             status=status.HTTP_202_ACCEPTED,
@@ -392,7 +394,9 @@ class SimulationViewSet(viewsets.ModelViewSet):
             "attached_document_ids": [str(d) for d in data.get("attached_document_ids") or []],
             "gamma_template": data.get("gamma_template") or "",
         }
-        task = generate_project_offer_task.delay(str(simulation.id), payload)
+        task = generate_project_offer_task.delay(
+            str(simulation.id), payload, resolve_request_locale(request)
+        )
         return Response(
             {"task_id": task.id, "status": "PENDING"},
             status=status.HTTP_202_ACCEPTED,
@@ -648,6 +652,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
             scope=scope,
             market_params=data.get("market_params") or None,
             note=data.get("note", ""),
+            locale=resolve_request_locale(request),
         )
         return Response(
             {"task_id": result.id, "status": "PENDING"},
