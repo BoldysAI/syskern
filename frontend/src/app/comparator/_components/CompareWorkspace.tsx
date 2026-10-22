@@ -16,6 +16,7 @@ import {
   compareSimulationNavContext,
   type SimulationNavigationContext,
 } from "@/lib/simulation-navigation";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { CompareContextDiff } from "@/app/simulator/compare/_components/CompareContextDiff";
 import { CompareOverview } from "@/app/simulator/compare/_components/CompareOverview";
@@ -39,11 +40,13 @@ export function CompareWorkspace({
   recalculationIds,
   savedComparisonId,
   compareReturnHref,
-  compareReturnLabel = "Comparaison",
+  compareReturnLabel,
   onSimulationIdsChange,
 }: Props) {
   const { role } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
+  const resolvedReturnLabel = compareReturnLabel ?? t("comparator.workspace.fallbackTitle");
 
   const [simulationIds, setSimulationIds] = useState(simulationIdsProp);
   const [tab, setTab] = useState<TabId>("overview");
@@ -56,10 +59,10 @@ export function CompareWorkspace({
 
   const simulationNavContext = useMemo((): SimulationNavigationContext => {
     if (compareReturnHref) {
-      return compareSimulationNavContext(compareReturnHref, compareReturnLabel);
+      return compareSimulationNavContext(compareReturnHref, resolvedReturnLabel);
     }
     return { kind: "default" };
-  }, [compareReturnHref, compareReturnLabel]);
+  }, [compareReturnHref, resolvedReturnLabel]);
 
   const replaceSimulationId = useCallback(
     async (sourceId: string, effectiveId: string) => {
@@ -116,19 +119,19 @@ export function CompareWorkspace({
   if (!compareKey) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
-        <p className="text-sm">Sélectionnez au moins 2 colonnes pour lancer la comparaison.</p>
+        <p className="text-sm">{t("comparator.workspace.needColumns")}</p>
       </div>
     );
   }
 
   if (isLoading) {
-    return <div className="py-10 text-center text-sm text-muted-foreground">Comparaison…</div>;
+    return <div className="py-10 text-center text-sm text-muted-foreground">{t("comparator.workspace.loading")}</div>;
   }
 
   if (error) {
     return (
       <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-red-700">
-        {error instanceof Error ? error.message : "Comparaison échouée."}
+        {error instanceof Error ? error.message : t("comparator.workspace.error")}
       </div>
     );
   }
@@ -139,7 +142,7 @@ export function CompareWorkspace({
     <div className="space-y-5">
       {recalculationIds.length > 0 && (
         <div className="rounded-lg bg-accent px-4 py-2.5 text-sm text-accent-foreground">
-          Comparaison incluant un ou plusieurs snapshots de recalcul historique.
+          {t("comparator.workspace.recalcBanner")}
         </div>
       )}
 
@@ -152,7 +155,7 @@ export function CompareWorkspace({
               i === 0 ? "bg-brand-green/10 text-brand-green" : "bg-muted text-muted-foreground",
             )}
           >
-            {i === 0 ? "Réf. · " : ""}
+            {i === 0 ? t("comparator.refPrefix") : ""}
             {label}
           </span>
         ))}
@@ -163,19 +166,19 @@ export function CompareWorkspace({
           active={tab === "overview"}
           onClick={() => setTab("overview")}
           icon={<ChartBar size={15} />}
-          label="Synthèse"
+          label={t("comparator.workspace.overview")}
         />
         <TabButton
           active={tab === "context"}
           onClick={() => setTab("context")}
           icon={<Gear size={15} />}
-          label="Paramètres"
+          label={t("comparator.workspace.parameters")}
         />
         <TabButton
           active={tab === "products"}
           onClick={() => setTab("products")}
           icon={<Stack size={15} />}
-          label="Lignes SKU"
+          label={t("comparator.workspace.skuLines")}
           badge={data.products.length}
         />
       </div>

@@ -14,9 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { listIncoterms } from "@/lib/api";
 import { LocationSelectField } from "@/components/LocationSelectField";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
-  INCOTERM_IMPACT_FR,
+  INCOTERM_IMPACT_KEYS,
   INCOTERMS_FALLBACK,
   localizeIncotermLabel,
 } from "@/lib/incoterms";
@@ -39,14 +41,17 @@ export function SaleIncotermFields({
   onIncotermChange,
   onLocationChange,
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const { data: incoterms } = useSWR("incoterms", listIncoterms);
-  const impact = INCOTERM_IMPACT_FR[incoterm];
+  const impactKey = INCOTERM_IMPACT_KEYS[incoterm];
+  const impact = impactKey ? t(impactKey) : "";
   const incotermOptions = incoterms ?? INCOTERMS_FALLBACK;
   const currentIncoterm = incoterm || "EXW";
   const incotermDisplay = (() => {
     const item = incotermOptions.find((i) => i.code === currentIncoterm);
     return item
-      ? `${item.code} — ${localizeIncotermLabel(item.label, item.code)}`
+      ? `${item.code} — ${localizeIncotermLabel(item.label, item.code, displayLanguage)}`
       : currentIncoterm;
   })();
 
@@ -54,11 +59,11 @@ export function SaleIncotermFields({
     <div className="flex flex-col gap-3">
       <div>
         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-          Incoterm de vente
+          {t("simulator.params.saleIncoterm")}
         </label>
         <Select.Root value={currentIncoterm} onValueChange={onIncotermChange} disabled={disabled}>
           <Select.Trigger
-            aria-label={`Incoterm de vente : ${incotermDisplay}`}
+            aria-label={t("simulator.params.saleIncotermAria", { value: incotermDisplay })}
             className={cn(
               inputCls,
               "flex items-center justify-between gap-2 text-left disabled:opacity-50"
@@ -83,7 +88,7 @@ export function SaleIncotermFields({
                     className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md cursor-pointer select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   >
                     <Select.ItemText>
-                      {item.code} — {localizeIncotermLabel(item.label, item.code)}
+                      {item.code} — {localizeIncotermLabel(item.label, item.code, displayLanguage)}
                     </Select.ItemText>
                     <Select.ItemIndicator>
                       <Check size={14} className="text-warm" />
@@ -98,13 +103,13 @@ export function SaleIncotermFields({
 
       <div>
         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-          Lieu incoterm vente
+          {t("simulator.params.saleLocation")}
         </label>
         <LocationSelectField
           value={location}
           onChange={onLocationChange}
           disabled={disabled}
-          ariaLabel="Lieu incoterm vente"
+          ariaLabel={t("simulator.params.saleLocation")}
         />
       </div>
 
@@ -133,6 +138,7 @@ export function IncotermPrefillConfirm({
   onConfirm,
   onCancel,
 }: ConfirmProps) {
+  const t = useUiTranslate();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-md">
@@ -142,10 +148,10 @@ export function IncotermPrefillConfirm({
         <p className="text-sm text-muted-foreground">{message}</p>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={onConfirm}>
-            Appliquer la structure
+            {t("simulator.params.applyStructure")}
           </Button>
         </DialogFooter>
       </DialogContent>

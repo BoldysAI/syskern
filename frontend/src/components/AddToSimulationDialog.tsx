@@ -11,6 +11,7 @@ import {
 } from "@/app/simulator/new/_components/wizard-draft";
 import { addSimulationLines, getSimulations, type Simulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface AddToSimulationDialogProps {
   productIds: string[];
@@ -33,6 +34,7 @@ export function AddToSimulationDialog({
   children,
 }: AddToSimulationDialogProps) {
   const router = useRouter();
+  const t = useUiTranslate();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("existing");
   const [selectedSim, setSelectedSim] = useState("");
@@ -68,7 +70,7 @@ export function AddToSimulationDialog({
           prefilledSkus ?? [],
         );
         if (selectedSkus.length === 0) {
-          setError("Impossible de charger les produits sélectionnés.");
+          setError(t("common.addToSimLoadError"));
           return;
         }
         writeCatalogSeed(productIds, selectedSkus);
@@ -87,7 +89,7 @@ export function AddToSimulationDialog({
       setOpen(false);
       router.push(`/simulator/${selectedSim}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Échec de l'ajout à la simulation.");
+      setError(e instanceof Error ? e.message : t("common.addToSimFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -101,11 +103,11 @@ export function AddToSimulationDialog({
   const confirmLabel =
     tab === "new"
       ? submitting
-        ? "Préparation…"
-        : "Ouvrir le wizard"
+        ? t("common.preparing")
+        : t("common.openWizard")
       : submitting
-        ? "Ajout…"
-        : "Ajouter";
+        ? t("common.adding")
+        : t("common.add");
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -115,11 +117,11 @@ export function AddToSimulationDialog({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-popover shadow-xl focus:outline-none">
           <div className="flex items-center justify-between border-b border-border p-5">
             <Dialog.Title className="text-lg font-semibold text-foreground">
-              Ajouter à une simulation
+              {t("common.addToSimulation")}
             </Dialog.Title>
             <Dialog.Close
               className="text-muted-foreground hover:text-muted-foreground"
-              aria-label="Fermer"
+              aria-label={t("common.close")}
             >
               <X size={20} />
             </Dialog.Close>
@@ -127,35 +129,34 @@ export function AddToSimulationDialog({
 
           <div className="p-5">
             <Dialog.Description className="mb-4 text-sm text-muted-foreground">
-              {productIds.length > 1 ? "Produits" : "Produit"}{" "}
+              {productIds.length > 1 ? t("common.products") : t("common.product")}{" "}
               <span className="font-mono font-medium text-foreground">{productLabel}</span>
             </Dialog.Description>
 
             <div className="mb-4 flex gap-2">
-              {(["existing", "new"] as Tab[]).map((t) => (
+              {(["existing", "new"] as Tab[]).map((tabId) => (
                 <button
-                  key={t}
+                  key={tabId}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => setTab(tabId)}
                   className={cn(
                     "flex-1 rounded-lg border py-2 text-sm font-medium transition-colors",
-                    tab === t
+                    tab === tabId
                       ? "border-primary bg-accent text-accent-foreground"
                       : "border-border text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {t === "existing" ? "Simulation existante" : "Nouvelle simulation"}
+                  {tabId === "existing" ? t("common.existingSimulation") : t("nav.newSimulation")}
                 </button>
               ))}
             </div>
 
             {tab === "existing" ? (
               isLoading ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">Chargement…</div>
+                <div className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
               ) : drafts.length === 0 ? (
                 <div className="py-6 text-center text-sm text-muted-foreground">
-                  Aucune simulation brouillon. Créez-en une nouvelle via l&apos;onglet
-                  « Nouvelle simulation ».
+                  {t("common.noDraftSimulations")}
                 </div>
               ) : (
                 <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
@@ -174,8 +175,10 @@ export function AddToSimulationDialog({
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-foreground">{s.label}</div>
                         <div className="text-xs text-muted-foreground">
-                          {s.simulation_type === "tariff" ? "Tarif" : "Projet"} · {s.line_count}{" "}
-                          ligne(s)
+                          {t("common.lineCount", {
+                            type: s.simulation_type === "tariff" ? t("common.tariff") : t("common.project"),
+                            count: s.line_count,
+                          })}
                         </div>
                       </div>
                       {selectedSim === s.id && (
@@ -188,9 +191,10 @@ export function AddToSimulationDialog({
             ) : (
               <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                 <p>
-                  Les {productIds.length} produit{productIds.length > 1 ? "s" : ""} sélectionné
-                  {productIds.length > 1 ? "s" : ""} seront pré-remplis dans le wizard de création
-                  (type, client, paramètres marché et chaîne de calcul).
+                  {t(
+                    productIds.length > 1 ? "common.addToSimPrefillOther" : "common.addToSimPrefillOne",
+                    { count: productIds.length },
+                  )}
                 </p>
               </div>
             )}
@@ -203,7 +207,7 @@ export function AddToSimulationDialog({
 
             <div className="mt-5 flex gap-3">
               <Dialog.Close className="flex-1 rounded-lg border border-border py-2.5 text-center text-sm text-muted-foreground transition-colors hover:bg-muted">
-                Annuler
+                {t("common.cancel")}
               </Dialog.Close>
               <button
                 type="button"

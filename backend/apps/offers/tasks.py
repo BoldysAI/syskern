@@ -16,6 +16,7 @@ from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.clients.models import Client
 from apps.simulations.models import Simulation, SimulationStatus, SimulationType
 from apps.simulations.services.engine.context import fx_rate
@@ -53,23 +54,31 @@ def _log_language_fallbacks(products, target_lang: str, *, offer_ref: str) -> in
 
 
 @shared_task(name="offers.generate_tariff_offers_task", soft_time_limit=120, time_limit=180)
-def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
+def generate_tariff_offers_task(
+    simulation_id: str, params: dict, locale: str | None = None
+) -> dict:
     """Generate one tariff offer (+ Excel) per client from a finalized simulation.
 
     ``params`` = {client_ids, columns, target_currency, language,
     expiration_date (ISO str | None), incoterm, label}.
+    ``locale`` = interface language of the caller, for task errors (not the offer language).
     Returns {count, currency, offers: [{offer_id, client_id, file_url,
     line_count, total_amount_eur}]}.
     """
+    ui_locale = locale or resolve_ui_locale(None)
     simulation = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_id)
     # Defensive re-check (the endpoint validates too).
     if simulation.status != SimulationStatus.FINALIZED:
-        raise ValueError("La simulation doit être finalisée.")
+        raise ValueError(translate("simulations.must_be_finalized", ui_locale))
     if simulation.simulation_type != SimulationType.TARIFF:
-        raise ValueError("La simulation doit être de type tarif.")
+        raise ValueError(translate("offers.task_tariff_type", ui_locale))
 
     target = (params.get("target_currency") or "EUR").upper()
-    rate = fx_rate("EUR", target, simulation.market_params)  # raises if FX missing
+    try:
+        rate = fx_rate("EUR", target, simulation.market_params)
+    except ValueError as exc:
+        message = translate("offers.fx_missing", ui_locale).format(pair=f"EUR → {target}")
+        raise ValueError(message) from exc
 
     expiration = params.get("expiration_date")
     valid_to = date.fromisoformat(expiration) if expiration else None
@@ -145,7 +154,7 @@ def generate_tariff_offers_task(simulation_id: str, params: dict) -> dict:
                 lines=offer_lines,
                 columns=columns,
                 lang=lang,
-                fx_note=fx_note_for(target, simulation.market_params, rate),
+                fx_note=fx_note_for(target, simulation.market_params, rate, lang),
             )
             offer_export_path(offer.id).write_bytes(xlsx)
             offer.generated_file_url = f"/api/offers/{offer.id}/download/"
@@ -180,17 +189,21 @@ def _offer_generation_result(offer: Offer) -> dict:
 
 
 @shared_task(name="offers.generate_project_offer_task", soft_time_limit=330, time_limit=360)
-def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
+def generate_project_offer_task(
+    simulation_id: str, params: dict, locale: str | None = None
+) -> dict:
     """Create a project offer then generate its Gamma quote (CDC §7.3).
 
     ``params`` = {client_id, project_name, quantities (sku->qty), language,
     expiration_date (ISO|None), ai_instructions, sections_config}.
+    ``locale`` = interface language of the caller, for task and stored generation errors.
     """
+    ui_locale = locale or resolve_ui_locale(None)
     simulation = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_id)
     if simulation.status != SimulationStatus.FINALIZED:
-        raise ValueError("La simulation doit être finalisée.")
+        raise ValueError(translate("simulations.must_be_finalized", ui_locale))
     if simulation.simulation_type != SimulationType.PROJECT:
-        raise ValueError("La simulation doit être de type projet.")
+        raise ValueError(translate("offers.task_project_type", ui_locale))
 
     client = Client.objects.get(pk=params["client_id"])
     expiration = params.get("expiration_date")
@@ -210,15 +223,15 @@ def generate_project_offer_task(simulation_id: str, params: dict) -> dict:
         attached_document_ids=params.get("attached_document_ids") or [],
         gamma_template=params.get("gamma_template") or "",
     )
-    offer = run_generation(offer)
+    offer = run_generation(offer, locale=ui_locale)
     return _offer_generation_result(offer)
 
 
 @shared_task(name="offers.regenerate_project_offer_task", soft_time_limit=330, time_limit=360)
-def regenerate_project_offer_task(offer_id: str) -> dict:
+def regenerate_project_offer_task(offer_id: str, locale: str | None = None) -> dict:
     """Re-run Gamma generation for an existing project offer (retry, CDC §7.6.3)."""
     offer = Offer.objects.get(pk=offer_id)
-    offer = run_generation(offer)
+    offer = run_generation(offer, locale=locale)
     return _offer_generation_result(offer)
 
 
@@ -235,9 +248,10 @@ def reap_stuck_generations(max_age_minutes: int = 15) -> dict:
     stuck = Offer.objects.filter(
         generation_status=GenerationStatus.GENERATING, updated_at__lt=cutoff
     )
+    # Beat task: no user to read a language from, so the deployment language.
     count = stuck.update(
         generation_status=GenerationStatus.ERROR,
-        generation_error=("Génération interrompue (worker indisponible). Relancez la génération."),
+        generation_error=translate("offers.generation_interrupted", resolve_ui_locale(None)),
         updated_at=timezone.now(),
     )
     if count:

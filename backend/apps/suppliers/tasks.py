@@ -21,6 +21,7 @@ from pathlib import Path
 import openpyxl
 from celery import shared_task
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.suppliers.models import Supplier
 from apps.suppliers.services_import import apply_import, preview_import
 
@@ -31,24 +32,32 @@ class _TaskError(RuntimeError):
     """Surface a clean FR message through Celery FAILURE."""
 
 
-def _load_default_supplier(supplier_id: str | None) -> Supplier | None:
+def _load_default_supplier(supplier_id: str | None, locale: str) -> Supplier | None:
     if not supplier_id:
         return None
     supplier = Supplier.objects.filter(pk=supplier_id).first()
     if supplier is None:
-        raise _TaskError("Fournisseur sélectionné introuvable.")
+        raise _TaskError(translate("suppliers.selected_not_found", locale))
     return supplier
 
 
-def _write_report(task_id: str, rejected: list[dict]) -> str | None:
+def _write_report(task_id: str, rejected: list[dict], locale: str) -> str | None:
     """Write the rejected-rows Excel report; return its download URL (or None)."""
     if not rejected:
         return None
     IMPORT_DIR.mkdir(parents=True, exist_ok=True)
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Lignes rejetées"
-    ws.append(["Ligne", "SKU", "Fournisseur", "PO", "Raison du rejet"])
+    ws.title = translate("exports.import.sheet", locale)[:31]
+    ws.append(
+        [
+            translate("exports.import.row", locale),
+            translate("exports.import.sku", locale),
+            translate("exports.import.supplier", locale),
+            translate("exports.import.po", locale),
+            translate("exports.import.reason", locale),
+        ]
+    )
     for row in rejected:
         ws.append(
             [
@@ -68,14 +77,20 @@ def _write_report(task_id: str, rejected: list[dict]) -> str | None:
     name="suppliers.import_po_preview_task", bind=True, soft_time_limit=600, time_limit=660
 )
 def import_po_preview_task(
-    self, upload_path: str, column_map: dict, supplier_id: str | None = None, header_row: int = 1
+    self,
+    upload_path: str,
+    column_map: dict,
+    supplier_id: str | None = None,
+    header_row: int = 1,
+    locale: str | None = None,
 ) -> dict:
     """Dry-run the mapped import — returns ``{summary, lines}`` (no DB writes)."""
+    locale = locale or resolve_ui_locale(None)
     path = Path(upload_path)
     if not path.is_file():
-        raise _TaskError("Fichier d'import introuvable ou expiré.")
+        raise _TaskError(translate("suppliers.import_file_expired", locale))
 
-    default_supplier = _load_default_supplier(supplier_id)
+    default_supplier = _load_default_supplier(supplier_id, locale)
 
     def _progress(current: int, total: int) -> None:
         self.update_state(state="PROGRESS", meta={"current": current, "total": total})
@@ -86,6 +101,7 @@ def import_po_preview_task(
             column_map=column_map,
             default_supplier=default_supplier,
             header_row=header_row,
+            locale=locale,
             progress=_progress,
         )
     except ValueError as exc:
@@ -94,14 +110,20 @@ def import_po_preview_task(
 
 @shared_task(name="suppliers.import_po_apply_task", bind=True, soft_time_limit=600, time_limit=660)
 def import_po_apply_task(
-    self, upload_path: str, column_map: dict, supplier_id: str | None = None, header_row: int = 1
+    self,
+    upload_path: str,
+    column_map: dict,
+    supplier_id: str | None = None,
+    header_row: int = 1,
+    locale: str | None = None,
 ) -> dict:
     """Apply the mapped import and write the rejection report."""
+    locale = locale or resolve_ui_locale(None)
     path = Path(upload_path)
     if not path.is_file():
-        raise _TaskError("Fichier d'import introuvable ou expiré.")
+        raise _TaskError(translate("suppliers.import_file_expired", locale))
 
-    default_supplier = _load_default_supplier(supplier_id)
+    default_supplier = _load_default_supplier(supplier_id, locale)
 
     def _progress(current: int, total: int) -> None:
         self.update_state(state="PROGRESS", meta={"current": current, "total": total})
@@ -112,12 +134,13 @@ def import_po_apply_task(
             column_map=column_map,
             default_supplier=default_supplier,
             header_row=header_row,
+            locale=locale,
             progress=_progress,
         )
     except ValueError as exc:
         raise _TaskError(str(exc)) from exc
 
-    report_url = _write_report(self.request.id, result.get("rejected_rows", []))
+    report_url = _write_report(self.request.id, result.get("rejected_rows", []), locale)
 
     # Best-effort cleanup of the raw upload (the report is what the user needs).
     with contextlib.suppress(OSError):

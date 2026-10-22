@@ -1,15 +1,32 @@
 import type { SimulationFilters, SimulationStatus, SimulationType } from "@/lib/api";
+import { translate, type MessageKey } from "@/lib/i18n";
 
-export const SIMULATION_TYPE_OPTIONS: { value: SimulationType; label: string }[] = [
-  { value: "tariff", label: "Tarif" },
-  { value: "project", label: "Projet" },
-];
+const TYPE_KEYS: Record<SimulationType, MessageKey> = {
+  tariff: "simulator.type.tariff",
+  project: "simulator.type.project",
+};
 
-export const SIMULATION_STATUS_OPTIONS: { value: SimulationStatus; label: string }[] = [
-  { value: "draft", label: "Brouillon" },
-  { value: "finalized", label: "Finalisé" },
-  { value: "archived", label: "Archivé" },
-];
+const STATUS_KEYS: Record<SimulationStatus, MessageKey> = {
+  draft: "simulator.status.draft",
+  finalized: "simulator.status.finalized",
+  archived: "simulator.status.archived",
+};
+
+export function simulationTypeOptions(locale: string): { value: SimulationType; label: string }[] {
+  return (Object.keys(TYPE_KEYS) as SimulationType[]).map((value) => ({
+    value,
+    label: translate(TYPE_KEYS[value], locale),
+  }));
+}
+
+export function simulationStatusOptions(
+  locale: string,
+): { value: SimulationStatus; label: string }[] {
+  return (Object.keys(STATUS_KEYS) as SimulationStatus[]).map((value) => ({
+    value,
+    label: translate(STATUS_KEYS[value], locale),
+  }));
+}
 
 export function countActiveSimulationFilters(filters: SimulationFilters): number {
   let n = 0;
@@ -30,25 +47,44 @@ export interface SimulationFilterChip {
   label: string;
 }
 
-export function buildSimulationFilterChips(filters: SimulationFilters): SimulationFilterChip[] {
+export function buildSimulationFilterChips(
+  filters: SimulationFilters,
+  locale: string,
+): SimulationFilterChip[] {
   const chips: SimulationFilterChip[] = [];
   if (filters.q?.trim()) {
-    chips.push({ id: "q", category: "Recherche", label: filters.q.trim() });
+    chips.push({
+      id: "q",
+      category: translate("simulator.filters.categorySearch", locale),
+      label: filters.q.trim(),
+    });
   }
   if (filters.simulation_type?.length) {
-    const labels = filters.simulation_type.map(
-      (t) => SIMULATION_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t,
+    const labels = filters.simulation_type.map((value) =>
+      TYPE_KEYS[value] ? translate(TYPE_KEYS[value], locale) : value,
     );
-    chips.push({ id: "simulation_type", category: "Type", label: labels.join(", ") });
+    chips.push({
+      id: "simulation_type",
+      category: translate("simulator.filters.type", locale),
+      label: labels.join(", "),
+    });
   }
   if (filters.status?.length) {
-    const labels = filters.status.map(
-      (s) => SIMULATION_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s,
+    const labels = filters.status.map((value) =>
+      STATUS_KEYS[value] ? translate(STATUS_KEYS[value], locale) : value,
     );
-    chips.push({ id: "status", category: "Statut", label: labels.join(", ") });
+    chips.push({
+      id: "status",
+      category: translate("simulator.filters.status", locale),
+      label: labels.join(", "),
+    });
   }
   if (filters.is_dirty === true) {
-    chips.push({ id: "is_dirty", category: "État", label: "Recalcul nécessaire" });
+    chips.push({
+      id: "is_dirty",
+      category: translate("simulator.filters.categoryState", locale),
+      label: translate("simulator.status.dirty", locale),
+    });
   }
   return chips;
 }

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
+
 from .models import MarketParameter, MarketParameterType, TransportMode, TransportPreset
 
 
@@ -20,16 +22,23 @@ class TransportPresetSerializer(serializers.ModelSerializer):
 
     def validate_transport_mode_code(self, value: str) -> str:
         code = (value or "").strip().upper()
+        request = self.context.get("request")
         if not code:
-            raise serializers.ValidationError("Le mode de transport est requis.")
+            raise serializers.ValidationError(
+                translate_request(request, "market.transport_required")
+            )
         if not TransportMode.objects.filter(code=code, is_active=True).exists():
-            raise serializers.ValidationError(f"Mode de transport inconnu ou inactif : {code}.")
+            raise serializers.ValidationError(
+                translate_request(request, "market.transport_unknown", code=code)
+            )
         return code
 
     def validate_name(self, value: str) -> str:
         name = (value or "").strip()
         if not name:
-            raise serializers.ValidationError("Le nom est requis.")
+            raise serializers.ValidationError(
+                translate_request(self.context.get("request"), "market.name_required")
+            )
         return name
 
 
@@ -40,13 +49,18 @@ class MarketParameterSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "created_at", "updated_at")
 
     def validate(self, attrs: dict) -> dict:
+        request = self.context.get("request")
         ptype = attrs.get("parameter_type", getattr(self.instance, "parameter_type", None))
         if ptype == MarketParameterType.COPPER_PRICE:
             if not attrs.get("copper_price") and not getattr(self.instance, "copper_price", None):
-                raise serializers.ValidationError({"copper_price": "Required for copper_price."})
+                raise serializers.ValidationError(
+                    {"copper_price": translate_request(request, "market.copper_price_required")}
+                )
         elif ptype == MarketParameterType.FX_RATE:
             if not attrs.get("fx_rate") and not getattr(self.instance, "fx_rate", None):
-                raise serializers.ValidationError({"fx_rate": "Required for fx_rate."})
+                raise serializers.ValidationError(
+                    {"fx_rate": translate_request(request, "market.fx_rate_required")}
+                )
             # allow partial update if both currencies are already on instance
             missing_payload = not attrs.get("fx_from_currency") or not attrs.get("fx_to_currency")
             missing_instance = not (
@@ -55,6 +69,6 @@ class MarketParameterSerializer(serializers.ModelSerializer):
             )
             if missing_payload and missing_instance:
                 raise serializers.ValidationError(
-                    "fx_from_currency / fx_to_currency required for fx_rate."
+                    translate_request(request, "market.fx_currencies_required")
                 )
         return attrs

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
+
 from .models import MigrationUnmatched, ResolutionAction
 
 
@@ -37,6 +39,10 @@ class ResolveSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         if attrs["action"] == ResolutionAction.CREATE and not attrs.get("product"):
             raise serializers.ValidationError(
-                {"product": "Requis pour créer le produit (au moins le code SKU)."}
+                {
+                    "product": translate_request(
+                        self.context.get("request"), "migration.product_required"
+                    )
+                }
             )
         return attrs

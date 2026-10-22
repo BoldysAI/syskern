@@ -5,6 +5,8 @@ from __future__ import annotations
 from django.db import transaction
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
+
 from .models import Product, ProductSupplier
 from .services.copper import resolve_copper
 
@@ -39,7 +41,7 @@ class BulkTranslateSerializer(serializers.Serializer):
         targets = [lang for lang in attrs["target_langs"] if lang != attrs["source_lang"]]
         if not targets:
             raise serializers.ValidationError(
-                "Au moins une langue cible différente de la source est requise."
+                translate_request(self.context.get("request"), "products.target_lang_required")
             )
         attrs["target_langs"] = targets
         return attrs
@@ -259,7 +261,11 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         )
         if is_copper and (copper_weight is None or copper_weight <= 0):
             raise serializers.ValidationError(
-                {"copper_weight_kg_per_unit": "Required and > 0 when is_copper_indexed is true."}
+                {
+                    "copper_weight_kg_per_unit": translate_request(
+                        self.context.get("request"), "products.copper_weight_required"
+                    )
+                }
             )
 
         marketing = attrs.get(
@@ -268,6 +274,10 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         )
         if not (isinstance(marketing, dict) and marketing.get("fr")):
             raise serializers.ValidationError(
-                {"description_marketing": "French description (`fr`) is required."}
+                {
+                    "description_marketing": translate_request(
+                        self.context.get("request"), "products.french_description_required"
+                    )
+                }
             )
         return attrs

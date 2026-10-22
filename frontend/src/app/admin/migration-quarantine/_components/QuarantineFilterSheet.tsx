@@ -1,6 +1,7 @@
 "use client";
 
 import { Faders, X } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export function QuarantineFilterSheet({
   onApplyFilter,
   onDeleteFilter,
 }: QuarantineFilterSheetProps) {
+  const t = useUiTranslate();
   const active = countActiveQuarantineFilters(filters);
 
   return (
@@ -57,10 +59,17 @@ export function QuarantineFilterSheet({
                 <AppIcon icon={Faders} weight="duotone" size="md" />
               </span>
               <div>
-                <SheetTitle className="text-base">Filtres quarantaine</SheetTitle>
+                <SheetTitle className="text-base">
+                  {t("admin.quarantine.filtersQuarantine")}
+                </SheetTitle>
                 {active > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {active} critère{active > 1 ? "s" : ""} actif{active > 1 ? "s" : ""}
+                    {t(
+                      active > 1
+                        ? "admin.quarantine.activeCriteriaOther"
+                        : "admin.quarantine.activeCriteriaOne",
+                      { count: active },
+                    )}
                   </p>
                 )}
               </div>
@@ -68,12 +77,12 @@ export function QuarantineFilterSheet({
             <div className="flex items-center gap-1">
               {active > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={onReset}>
-                  Effacer
+                  {t("admin.quarantine.clear")}
                 </Button>
               )}
               <SheetClose
                 render={
-                  <Button type="button" variant="ghost" size="icon" aria-label="Fermer">
+                  <Button type="button" variant="ghost" size="icon" aria-label={t("common.close")}>
                     <X size={18} />
                   </Button>
                 }
@@ -99,7 +108,7 @@ export function QuarantineFilterSheet({
 
         <SheetFooter className="border-t border-border bg-muted/30 p-4">
           <Button type="button" className="w-full" onClick={() => onOpenChange(false)}>
-            Voir les résultats
+            {t("admin.quarantine.viewResults")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -114,6 +123,7 @@ export function QuarantineFilterTrigger({
   activeCount: number;
   onClick: () => void;
 }) {
+  const t = useUiTranslate();
   return (
     <Button
       type="button"
@@ -123,7 +133,7 @@ export function QuarantineFilterTrigger({
       className={cn("lg:hidden", activeCount > 0 && "border-primary/30 bg-primary/5 text-primary")}
     >
       <Faders size={16} weight="duotone" />
-      Filtres
+      {t("admin.quarantine.filters")}
       {activeCount > 0 && (
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {activeCount}

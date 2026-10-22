@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import noLiteralUiString from "./eslint-rules/no-literal-ui-string.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -13,6 +14,20 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/i18n/**"],
+    plugins: {
+      local: {
+        rules: {
+          "no-literal-ui-string": noLiteralUiString,
+        },
+      },
+    },
+    rules: {
+      "local/no-literal-ui-string": "error",
+    },
+  },
   {
     // Honour the `_`-prefix convention for intentionally unused bindings
     // (e.g. destructuring-omit `{ a: _omit, ...rest }`, unused callback args).

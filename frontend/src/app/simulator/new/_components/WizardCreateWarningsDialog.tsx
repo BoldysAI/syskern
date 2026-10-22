@@ -2,7 +2,9 @@
 
 import { CircleNotch, Info, Package, Warning } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,7 +30,7 @@ const KIND_STYLES: Record<
     bg: string;
     iconBg: string;
     iconColor: string;
-    label: string;
+    label: MessageKey;
     Icon: Icon;
   }
 > = {
@@ -37,7 +39,7 @@ const KIND_STYLES: Record<
     bg: "bg-warm/10",
     iconBg: "bg-warm/20",
     iconColor: "text-warm",
-    label: "Paramètres",
+    label: "simulator.wizard.kindParams" as const,
     Icon: Warning,
   },
   "sku-empty": {
@@ -45,7 +47,7 @@ const KIND_STYLES: Record<
     bg: "bg-primary/5",
     iconBg: "bg-primary/15",
     iconColor: "text-primary",
-    label: "Catalogue",
+    label: "simulator.wizard.kindCatalog" as const,
     Icon: Info,
   },
   "sku-not-found": {
@@ -53,12 +55,13 @@ const KIND_STYLES: Record<
     bg: "bg-destructive/5",
     iconBg: "bg-destructive/15",
     iconColor: "text-destructive",
-    label: "Import",
+    label: "simulator.wizard.kindImport" as const,
     Icon: Package,
   },
 };
 
 function WarningCard({ warning, index }: { warning: WizardCreateWarning; index: number }) {
+  const t = useUiTranslate();
   const style = KIND_STYLES[warning.kind];
   const KindIcon = style.Icon;
 
@@ -90,7 +93,7 @@ function WarningCard({ warning, index }: { warning: WizardCreateWarning; index: 
               style.iconColor,
             )}
           >
-            {style.label}
+            {t(style.label)}
           </span>
           <span className="text-xs font-semibold text-foreground">{warning.title}</span>
         </div>
@@ -107,6 +110,7 @@ export function WizardCreateWarningsDialog({
   onCancel,
   onConfirm,
 }: Props) {
+  const t = useUiTranslate();
   const close = () => {
     if (!saving) onCancel();
   };
@@ -122,11 +126,12 @@ export function WizardCreateWarningsDialog({
               </span>
               <span className="min-w-0 pt-0.5">
                 <span className="block text-base font-bold text-foreground">
-                  Créer malgré les avertissements ?
+                  {t("simulator.wizard.warningsTitle")}
                 </span>
                 <span className="mt-1 block text-sm font-normal text-muted-foreground">
-                  {warnings.length} point{warnings.length > 1 ? "s" : ""} peut
-                  {warnings.length > 1 ? "vent" : ""} empêcher un calcul correct.
+                  {warnings.length > 1
+                    ? t("simulator.wizard.warningsSubtitleOther", { count: warnings.length })
+                    : t("simulator.wizard.warningsSubtitleOne", { count: warnings.length })}
                 </span>
               </span>
             </DialogTitle>
@@ -141,18 +146,17 @@ export function WizardCreateWarningsDialog({
 
         <div className="border-t border-border bg-card px-5 py-3">
           <p className="text-sm text-muted-foreground">
-            Vous pouvez revenir corriger ces points, ou confirmer pour créer la simulation telle
-            quelle.
+            {t("simulator.wizard.warningsFooter")}
           </p>
         </div>
 
         <DialogFooter className="border-t border-border bg-card">
           <Button type="button" variant="outline" onClick={close} disabled={saving}>
-            Revenir corriger
+            {t("simulator.wizard.backToFix")}
           </Button>
           <Button type="button" onClick={onConfirm} disabled={saving} className="gap-2">
             {saving && <CircleNotch size={15} className="animate-spin" />}
-            Créer quand même
+            {t("simulator.wizard.createAnyway")}
           </Button>
         </DialogFooter>
       </DialogContent>

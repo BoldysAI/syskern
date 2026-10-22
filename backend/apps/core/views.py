@@ -9,12 +9,15 @@ from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Profile
 from apps.accounts.serializers import UserInfoSerializer
+from apps.accounts.ui_locale import UI_LOCALES, resolve_ui_locale, translate, translate_request
 from apps.core import rate_limit
 from apps.core.dashboard import build_dashboard_summary
 
@@ -26,32 +29,31 @@ def login_view(request: Request) -> Response:
     # 5 failed attempts per IP within 15 minutes → 429 + Retry-After.
     decision = rate_limit.check(request)
     if not decision.allowed:
+        minutes = max(decision.retry_after_seconds // 60, 1)
+        detail = translate("auth.rate_limited", resolve_ui_locale(None)).format(minutes=minutes)
         return Response(
-            {
-                "detail": (
-                    "Trop de tentatives. Réessaye dans "
-                    f"{max(decision.retry_after_seconds // 60, 1)} minutes."
-                )
-            },
+            {"detail": detail},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
 
     email = (request.data or {}).get("email", "")
     password = (request.data or {}).get("password", "")
+    # Deployment language whatever the e-mail: a per-account language would reveal the account.
+    locale = resolve_ui_locale(None)
 
     if not email or not password:
         return Response(
-            {"detail": "Email et mot de passe requis."},
+            {"detail": translate("auth.missing_credentials", locale)},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     try:
-        user_obj = User.objects.get(email__iexact=email)
+        user_obj = User.objects.select_related("profile").get(email__iexact=email)
     except User.DoesNotExist:
         rate_limit.register_failure(request)
         return Response(
-            {"detail": "Identifiants incorrects."},
+            {"detail": translate("auth.invalid_credentials", locale)},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -59,7 +61,7 @@ def login_view(request: Request) -> Response:
     if user is None:
         rate_limit.register_failure(request)
         return Response(
-            {"detail": "Identifiants incorrects."},
+            {"detail": translate("auth.invalid_credentials", locale)},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -94,7 +96,9 @@ def task_status(_request: Request, task_id: str) -> Response:
         body["result"] = r.result
     elif r.failed():
         info = r.info
-        body["error"] = str(info) if info is not None else "Tâche échouée"
+        body["error"] = (
+            str(info) if info is not None else translate_request(_request, "tasks.failed")
+        )
     elif isinstance(r.info, dict):
         # Non-terminal states (STARTED, custom PROGRESS) carry {current, total}.
         body["progress"] = r.info
@@ -107,13 +111,33 @@ def session_view(request: Request) -> Response:
     # Always ensure the csrftoken cookie is present so the frontend can read it.
     get_token(request)
     if request.user.is_authenticated:
+        user_data = UserInfoSerializer(request.user).data
         return Response(
             {
                 "authenticated": True,
-                "user": UserInfoSerializer(request.user).data,
+                "user": user_data,
+                "display_language": user_data["display_language"],
             }
         )
-    return Response({"authenticated": False, "user": None})
+    language = resolve_ui_locale(None)
+    return Response({"authenticated": False, "user": None, "display_language": language})
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_locale_view(request: Request) -> Response:
+    """Store the signed-in user's interface language on their profile (story 7.8)."""
+    raw = (request.data or {}).get("locale", "")
+    value = raw.strip() if isinstance(raw, str) else ""
+    if value not in ("", *UI_LOCALES):
+        raise ValidationError(
+            {"locale": translate("users.locale_invalid", resolve_ui_locale(request.user))}
+        )
+    profile, _created = Profile.objects.get_or_create(user=request.user)
+    profile.locale = value
+    profile.save(update_fields=["locale"])
+    user = User.objects.select_related("profile").get(pk=request.user.pk)
+    return Response({"user": UserInfoSerializer(user).data})
 
 
 class DashboardSummaryView(APIView):

@@ -5,6 +5,7 @@ import type { Product } from "@/lib/api";
 import { CatalogBrowser } from "@/app/catalog/_components/CatalogBrowser";
 import { CATALOG_COLUMN_WIDTHS_KEY } from "@/app/catalog/_components/useColumnWidths";
 import type { SelectedSku } from "./wizard-draft";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   selectedIds: Set<string>;
@@ -22,6 +23,7 @@ export function WizardCatalogPicker({
   onRemoveMany,
   className,
 }: Props) {
+  const t = useUiTranslate();
   const onToggleProduct = useCallback(
     (product: Product) => {
       if (selectedIds.has(product.id)) {
@@ -75,7 +77,7 @@ export function WizardCatalogPicker({
       filtersCollapsedStorageKey="syskern:wizard-catalog-filters-collapsed"
       filtersWidthStorageKey="syskern:wizard-catalog-filters-width"
       paginationJumpInputId="wizard-catalog-page-jump"
-      title="Catalogue"
+      title={t("simulator.catalog.title")}
       selectedIds={selectedIds}
       onToggleProduct={onToggleProduct}
       onTogglePageProducts={onTogglePageProducts}

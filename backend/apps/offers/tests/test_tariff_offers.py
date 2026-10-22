@@ -190,6 +190,29 @@ def test_excel_opens_with_columns_in_order(export_dir, finalized_tariff, two_cli
     assert ws.cell(row=header_row + 1, column=2).value == "KCFF6A4PZHDBL5-21"
 
 
+def test_fx_note_follows_offer_language():
+    from apps.offers.services.excel import fx_note_for
+
+    assert fx_note_for("EUR", {}, Decimal("1")) == ""
+    assert (
+        fx_note_for("USD", {}, Decimal("1.15")) == "Taux de conversion appliqué : 1 EUR = 1.15 USD"
+    )
+    assert (
+        fx_note_for("USD", {}, Decimal("1.15"), "en") == "Applied conversion rate: 1 EUR = 1.15 USD"
+    )
+
+
+def test_missing_fx_rate_follows_the_caller_locale(export_dir, two_clients, settings):
+    settings.DEFAULT_UI_LOCALE = "fr"
+    sim = Simulation.objects.create(
+        label="Sans taux", simulation_type="tariff", status="draft", market_params={}
+    )
+    Simulation.objects.filter(pk=sim.pk).update(status="finalized")
+    params = _params(two_clients, target_currency="USD")
+    with pytest.raises(ValueError, match=r"^Missing EUR → USD exchange rate: "):
+        generate_tariff_offers_task.apply(args=[str(sim.id), params, "en"]).get()
+
+
 def test_english_headers(export_dir, finalized_tariff, two_clients):
     _run(
         finalized_tariff,

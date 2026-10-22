@@ -6,6 +6,7 @@ import { Plus, Translate, X } from "@phosphor-icons/react";
 import type { CatalogFilters, Product } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { AddToSimulationDialog } from "@/components/AddToSimulationDialog";
 import { Button } from "@/components/ui/button";
 import { CatalogBrowser } from "./_components/CatalogBrowser";
@@ -15,6 +16,7 @@ import { BulkTranslateDialog } from "./_components/BulkTranslateDialog";
 
 export default function CatalogPage() {
   const { role } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -57,7 +59,9 @@ export default function CatalogPage() {
     ({ selectedIds: ids, filters }: { selectedIds: string[]; filters: CatalogFilters }) => (
       <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-2.5 sm:px-6">
         <span className="text-sm font-semibold text-foreground">
-          {ids.length} sélectionné{ids.length > 1 ? "s" : ""}
+          {t(ids.length > 1 ? "catalog.selection.other" : "catalog.selection.one", {
+            count: ids.length,
+          })}
         </span>
         <div className="flex items-center gap-2">
           <ExportButton filters={filters} selectedIds={ids} />
@@ -71,32 +75,35 @@ export default function CatalogPage() {
               }}
             >
               <Translate size={15} weight="duotone" />
-              Traduire
+              {t("catalog.action.translate")}
             </Button>
           )}
           <AddToSimulationDialog
             productIds={ids}
-            productLabel={`${ids.length} produit${ids.length > 1 ? "s" : ""}`}
+            productLabel={t(
+              ids.length > 1 ? "catalog.productCount.other" : "catalog.productCount.one",
+              { count: ids.length },
+            )}
             onAdded={() => setSelected(new Set())}
           >
             <Button size="sm">
               <Plus size={15} weight="bold" />
-              Ajouter à simulation
+              {t("catalog.action.addToSimulation")}
             </Button>
           </AddToSimulationDialog>
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={() => setSelected(new Set())}
-            title="Vider la sélection"
-            aria-label="Vider la sélection"
+            title={t("catalog.action.clearSelection")}
+            aria-label={t("catalog.action.clearSelection")}
           >
             <X size={16} weight="bold" />
           </Button>
         </div>
       </div>
     ),
-    [userCanEdit],
+    [t, userCanEdit],
   );
 
   return (
@@ -112,9 +119,9 @@ export default function CatalogPage() {
           <>
             <ExportButton filters={filters} disabled={total === 0} />
             {userCanEdit && (
-              <Button nativeButton={false} render={<Link href="/catalog/new" />} title="Créer un produit">
+              <Button nativeButton={false} render={<Link href="/catalog/new" />} title={t("catalog.action.createProduct")}>
                 <Plus size={16} weight="bold" />
-                <span className="hidden sm:inline">Nouveau produit</span>
+                <span className="hidden sm:inline">{t("catalog.action.newProduct")}</span>
               </Button>
             )}
           </>

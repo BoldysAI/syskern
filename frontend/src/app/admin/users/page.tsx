@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { PencilSimple, Plus, ShieldCheck, Trash, UserPlus } from "@phosphor-icons/react";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
@@ -16,16 +16,33 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { OptionSelect } from "@/components/OptionSelect";
+import { useAuth } from "@/contexts/AuthContext";
+import { getApiLocale } from "@/lib/api";
 import type { Role } from "@/lib/auth";
+import { translate, uiDateLocale, type MessageKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-const ROLE_OPTIONS = [
-  { value: "admin", label: "Administrateur" },
-  { value: "commercial", label: "Commercial" },
-  { value: "viewer", label: "Lecteur" },
-] as const;
+const LOCALE_UNSET = "deployment";
+
+type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+function roleOptions(locale: string) {
+  return [
+    { value: "admin", label: translate("users.roleAdmin", locale) },
+    { value: "commercial", label: translate("users.roleCommercial", locale) },
+    { value: "viewer", label: translate("users.roleViewer", locale) },
+  ];
+}
+
+function localeOptions(locale: string) {
+  return [
+    { value: LOCALE_UNSET, label: translate("users.localeDeployment", locale) },
+    { value: "fr", label: translate("users.localeFr", locale) },
+    { value: "en", label: translate("users.localeEn", locale) },
+  ];
+}
 
 interface PlatformUser {
   id: number;
@@ -33,16 +50,17 @@ interface PlatformUser {
   first_name: string;
   last_name: string;
   role: Role;
+  locale: string;
   is_active: boolean;
   date_joined: string;
   last_login: string | null;
 }
 
-const ROLE_LABELS: Record<Role, string> = {
-  admin: "Administrateur",
-  commercial: "Commercial",
-  viewer: "Lecteur",
-};
+function roleLabel(role: Role, locale: string): string {
+  if (role === "admin") return translate("users.roleAdmin", locale);
+  if (role === "commercial") return translate("users.roleCommercial", locale);
+  return translate("users.roleViewer", locale);
+}
 
 function roleBadgeVariant(role: Role) {
   switch (role) {
@@ -65,7 +83,7 @@ function getCsrfToken(): string {
 
 async function fetchUsers(): Promise<PlatformUser[]> {
   const res = await fetch("/api/users/", { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(translate("common.loadError", getApiLocale()));
   return res.json();
 }
 
@@ -81,7 +99,8 @@ async function apiCall(url: string, method: string, body?: unknown) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data?.detail ?? data?.email?.[0] ?? "Erreur serveur");
+    const emailError = Array.isArray(data?.email) ? data.email[0] : undefined;
+    throw new Error(data?.detail ?? emailError ?? "");
   }
   return res.status === 204 ? null : res.json();
 }
@@ -99,9 +118,14 @@ function UserModal({
   const [firstName, setFirstName] = useState(user?.first_name ?? "");
   const [lastName, setLastName] = useState(user?.last_name ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "viewer");
+  const [localeChoice, setLocaleChoice] = useState(
+    user?.locale === "fr" || user?.locale === "en" ? user.locale : LOCALE_UNSET,
+  );
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { displayLanguage } = useAuth();
+  const t: TFn = (key, vars) => translate(key, displayLanguage, vars);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +137,7 @@ function UserModal({
         first_name: firstName,
         last_name: lastName,
         role,
+        locale: localeChoice === LOCALE_UNSET ? "" : localeChoice,
       };
       if (password) body.password = password;
       if (!user) body.password = password || "";
@@ -124,7 +149,7 @@ function UserModal({
       await mutate("platform-users");
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error && err.message ? err.message : t("users.genericError"));
     } finally {
       setLoading(false);
     }
@@ -134,7 +159,7 @@ function UserModal({
     <AppModal
       open={open}
       onOpenChange={(v) => !v && onClose()}
-      title={user ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
+      title={user ? t("users.edit") : t("users.new")}
       size="md"
     >
       {error && (
@@ -145,15 +170,15 @@ function UserModal({
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Prénom">
+          <FormField label={t("users.firstName")}>
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </FormField>
-          <FormField label="Nom">
+          <FormField label={t("users.lastName")}>
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </FormField>
         </div>
 
-        <FormField label="E-mail" required>
+        <FormField label={t("users.email")} required>
           <Input
             type="email"
             required
@@ -163,7 +188,7 @@ function UserModal({
         </FormField>
 
         <FormField
-          label={user ? "Mot de passe (laisser vide pour ne pas changer)" : "Mot de passe"}
+          label={user ? t("users.passwordKeep") : t("users.password")}
           required={!user}
         >
           <Input
@@ -175,20 +200,28 @@ function UserModal({
           />
         </FormField>
 
-        <FormField label="Rôle" required>
+        <FormField label={t("users.role")} required>
           <OptionSelect
             value={role}
             onValueChange={(v) => setRole(v as Role)}
-            options={ROLE_OPTIONS}
+            options={roleOptions(displayLanguage)}
+          />
+        </FormField>
+
+        <FormField label={t("users.locale")}>
+          <OptionSelect
+            value={localeChoice}
+            onValueChange={setLocaleChoice}
+            options={localeOptions(displayLanguage)}
           />
         </FormField>
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Annuler
+            {t("users.cancel")}
           </Button>
           <Button type="submit" disabled={loading} className="flex-1">
-            {loading ? "Enregistrement..." : user ? "Mettre à jour" : "Créer"}
+            {loading ? t("users.saving") : user ? t("users.update") : t("users.create")}
           </Button>
         </div>
       </form>
@@ -198,6 +231,9 @@ function UserModal({
 
 export default function UsersPage() {
   const confirm = useConfirm();
+  const { displayLanguage } = useAuth();
+  const t: TFn = useCallback((key, vars) => translate(key, displayLanguage, vars), [displayLanguage]);
+  const dateLocale = uiDateLocale(displayLanguage);
   const { isLoading: authLoading, allowed } = useRequireAdmin();
   const [modalUser, setModalUser] = useState<PlatformUser | "new" | null>(null);
   const [sort, setSort] = useState<DataTableSortState>(DEFAULT_SORT);
@@ -225,7 +261,7 @@ export default function UsersPage() {
     () => [
       {
         key: "user",
-        label: "Utilisateur",
+        label: t("users.columnUser"),
         width: 260,
         render: (u) => (
           <div className="flex items-center gap-3">
@@ -239,7 +275,9 @@ export default function UsersPage() {
                 {u.first_name || u.last_name ? `${u.first_name} ${u.last_name}`.trim() : "—"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Créé le {new Date(u.date_joined).toLocaleDateString("fr-FR")}
+                {t("users.createdOn", {
+                  date: new Date(u.date_joined).toLocaleDateString(dateLocale),
+                })}
               </div>
             </div>
           </div>
@@ -247,50 +285,50 @@ export default function UsersPage() {
       },
       {
         key: "email",
-        label: "E-mail",
+        label: t("users.email"),
         width: 220,
         sortField: "email",
         render: (u) => <span className="text-sm text-muted-foreground">{u.email}</span>,
       },
       {
         key: "role",
-        label: "Rôle",
+        label: t("users.role"),
         width: 150,
         sortField: "role",
         render: (u) => (
           <StatusBadge variant={roleBadgeVariant(u.role)} className="gap-1">
             {u.role === "admin" && <AppIcon icon={ShieldCheck} size="sm" />}
-            {ROLE_LABELS[u.role]}
+            {roleLabel(u.role, displayLanguage)}
           </StatusBadge>
         ),
       },
       {
         key: "last_login",
-        label: "Dernière connexion",
+        label: t("users.lastLogin"),
         width: 180,
         sortField: "last_login",
         render: (u) => (
           <span className="text-sm text-muted-foreground">
             {u.last_login
-              ? new Date(u.last_login).toLocaleDateString("fr-FR", {
+              ? new Date(u.last_login).toLocaleDateString(dateLocale, {
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
                 })
-              : "Jamais"}
+              : t("users.never")}
           </span>
         ),
       },
     ],
-    [],
+    [dateLocale, displayLanguage, t],
   );
 
   if (authLoading || !allowed) {
     return (
       <div className="p-6">
-        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t("users.loading")}</div>
       </div>
     );
   }
@@ -298,16 +336,16 @@ export default function UsersPage() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Utilisateurs"
+        title={t("users.title")}
         description={
           !isLoading && users
-            ? `${users.length} utilisateur${users.length !== 1 ? "s" : ""}`
+            ? t(users.length === 1 ? "users.countOne" : "users.countOther", { count: users.length })
             : undefined
         }
         actions={
           <Button onClick={() => setModalUser("new")}>
             <AppIcon icon={UserPlus} size="sm" />
-            Nouvel utilisateur
+            {t("users.new")}
           </Button>
         }
       />
@@ -329,7 +367,7 @@ export default function UsersPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setModalUser(u)}
-                title="Modifier"
+                title={t("users.editAction")}
               >
                 <AppIcon icon={PencilSimple} size="sm" />
               </Button>
@@ -338,9 +376,9 @@ export default function UsersPage() {
                 size="icon-sm"
                 onClick={async () => {
                   const ok = await confirm({
-                    title: "Supprimer l'utilisateur",
-                    description: `Supprimer ${u.email} ?`,
-                    confirmLabel: "Supprimer",
+                    title: t("users.deleteTitle"),
+                    description: t("users.deleteDescription", { email: u.email }),
+                    confirmLabel: t("users.deleteAction"),
                     destructive: true,
                   });
                   if (!ok) return;
@@ -348,10 +386,12 @@ export default function UsersPage() {
                     await apiCall(`/api/users/${u.id}/`, "DELETE");
                     await mutate("platform-users");
                   } catch (err: unknown) {
-                    toast.error(err instanceof Error ? err.message : "Erreur");
+                    toast.error(
+                      err instanceof Error && err.message ? err.message : t("users.genericError"),
+                    );
                   }
                 }}
-                title="Supprimer"
+                title={t("users.deleteAction")}
               >
                 <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
               </Button>
@@ -361,18 +401,18 @@ export default function UsersPage() {
             error ? (
               <EmptyState
                 icon={<AppIcon icon={UserPlus} size="lg" />}
-                title="Impossible de charger les utilisateurs"
+                title={t("users.loadError")}
               />
             ) : undefined
           }
           emptyState={
             <EmptyState
               icon={<AppIcon icon={UserPlus} size="lg" />}
-              title="Aucun utilisateur"
+              title={t("users.empty")}
               action={
                 <Button onClick={() => setModalUser("new")}>
                   <AppIcon icon={Plus} size="sm" />
-                  Nouvel utilisateur
+                  {t("users.new")}
                 </Button>
               }
             />

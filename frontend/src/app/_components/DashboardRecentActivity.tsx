@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { Clock, FileText } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { AppIcon } from "@/components/AppIcon";
-import { Clock, FileText } from "@phosphor-icons/react";
+import { useAuth } from "@/contexts/AuthContext";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import { formatRelative } from "./dashboard-utils";
 
 interface RecentSimulation {
   id: string;
@@ -24,32 +28,19 @@ interface RecentOffer {
   created_at: string;
 }
 
-const OFFER_STATUS: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
-  draft: { label: "Brouillon", variant: "draft" },
-  sent: { label: "Envoyée", variant: "info" },
-  won: { label: "Gagnée", variant: "success" },
-  lost: { label: "Perdue", variant: "failed" },
-  expired: { label: "Expirée", variant: "warning" },
+const OFFER_STATUS: Record<string, { labelKey: MessageKey; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
+  draft: { labelKey: "dashboard.statusDraft", variant: "draft" },
+  sent: { labelKey: "dashboard.statusSent", variant: "info" },
+  won: { labelKey: "dashboard.statusWon", variant: "success" },
+  lost: { labelKey: "dashboard.statusLost", variant: "failed" },
+  expired: { labelKey: "dashboard.statusExpired", variant: "warning" },
 };
 
-const SIM_STATUS: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
-  draft: { label: "Brouillon", variant: "warning" },
-  finalized: { label: "Finalisé", variant: "success" },
-  archived: { label: "Archivé", variant: "draft" },
+const SIM_STATUS: Record<string, { labelKey: MessageKey; variant: "default" | "info" | "success" | "warning" | "failed" | "draft" }> = {
+  draft: { labelKey: "dashboard.statusDraft", variant: "warning" },
+  finalized: { labelKey: "dashboard.statusFinalized", variant: "success" },
+  archived: { labelKey: "dashboard.statusArchived", variant: "draft" },
 };
-
-function formatRelative(dateStr: string): string {
-  const date = new Date(dateStr);
-  const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "à l'instant";
-  if (diffMin < 60) return `il y a ${diffMin} min`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `il y a ${diffH} h`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `il y a ${diffD} j`;
-  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-}
 
 function ActivityListSkeleton() {
   return (
@@ -69,12 +60,13 @@ interface ActivityPanelProps {
 }
 
 function ActivityPanel({ title, href, loading, children }: ActivityPanelProps) {
+  const t = useUiTranslate();
   return (
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <Link href={href} className="text-xs font-medium text-primary hover:underline">
-          Voir tout
+          {t("dashboard.seeAll")}
         </Link>
       </div>
       {loading ? <ActivityListSkeleton /> : children}
@@ -140,14 +132,16 @@ export function DashboardRecentActivity({
   loadingSims,
   loadingOffers,
 }: DashboardRecentActivityProps) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <ActivityPanel title="Dernières simulations" href="/simulator" loading={loadingSims}>
+      <ActivityPanel title={t("dashboard.latestSimulations")} href="/simulator" loading={loadingSims}>
         {simulations.length === 0 ? (
           <EmptyState
             icon={<AppIcon icon={Clock} weight="duotone" size="lg" />}
-            title="Aucune simulation"
-            description="Créez votre première simulation pour commencer."
+            title={t("dashboard.noSimulation")}
+            description={t("dashboard.noSimulationDesc")}
             className="py-8"
           />
         ) : (
@@ -159,8 +153,8 @@ export function DashboardRecentActivity({
                   key={sim.id}
                   href={`/simulator/${sim.id}`}
                   title={sim.label}
-                  meta={`${sim.simulation_type === "project" ? "Projet" : "Tarif"} · ${formatRelative(sim.updated_at)}`}
-                  badgeLabel={st.label}
+                  meta={`${sim.simulation_type === "project" ? t("common.project") : t("common.tariff")} · ${formatRelative(sim.updated_at, displayLanguage)}`}
+                  badgeLabel={t(st.labelKey)}
                   badgeVariant={st.variant}
                   isLast={index === simulations.length - 1}
                 />
@@ -170,26 +164,26 @@ export function DashboardRecentActivity({
         )}
       </ActivityPanel>
 
-      <ActivityPanel title="Dernières offres" href="/offers" loading={loadingOffers}>
+      <ActivityPanel title={t("dashboard.latestOffers")} href="/offers" loading={loadingOffers}>
         {offers.length === 0 ? (
           <EmptyState
             icon={<AppIcon icon={FileText} weight="duotone" size="lg" />}
-            title="Aucune offre"
-            description="Générez une offre à partir d'une simulation finalisée."
+            title={t("dashboard.noOffer")}
+            description={t("dashboard.noOfferDesc")}
             className="py-8"
           />
         ) : (
           <ul className="pl-0.5">
             {offers.map((offer, index) => {
-              const st = OFFER_STATUS[offer.status] ?? { label: offer.status, variant: "default" as const };
+              const st = OFFER_STATUS[offer.status];
               return (
                 <TimelineItem
                   key={offer.id}
                   href={`/offers/${offer.id}`}
                   title={offer.label}
-                  meta={`${offer.offer_type === "project" ? "Projet" : "Tarif"} · ${formatRelative(offer.created_at)}`}
-                  badgeLabel={st.label}
-                  badgeVariant={st.variant}
+                  meta={`${offer.offer_type === "project" ? t("common.project") : t("common.tariff")} · ${formatRelative(offer.created_at, displayLanguage)}`}
+                  badgeLabel={st ? t(st.labelKey) : offer.status}
+                  badgeVariant={st?.variant ?? "default"}
                   isLast={index === offers.length - 1}
                 />
               );

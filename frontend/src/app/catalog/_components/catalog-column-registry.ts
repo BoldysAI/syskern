@@ -1,10 +1,12 @@
 /** Registry of catalog table columns (core product fields + dynamic attributes). */
 
+import type { MessageKey } from "@/lib/i18n";
+
 export type CatalogColumnKind = "core" | "attribute";
 
 export interface CatalogColumnMeta {
   key: string;
-  label: string;
+  labelKey: MessageKey;
   kind: CatalogColumnKind;
   /** Cannot be hidden (e.g. SKU). */
   locked?: boolean;
@@ -12,21 +14,21 @@ export interface CatalogColumnMeta {
 
 /** Core columns available on the product list API (no attr_columns param). */
 export const CATALOG_CORE_COLUMN_META: CatalogColumnMeta[] = [
-  { key: "sku_code", label: "SKU", kind: "core", locked: true },
-  { key: "name", label: "Désignation", kind: "core" },
-  { key: "universe", label: "Univers", kind: "core" },
-  { key: "family", label: "Famille", kind: "core" },
-  { key: "range", label: "Gamme", kind: "core" },
-  { key: "sub_range", label: "Sous-gamme", kind: "core" },
-  { key: "brand", label: "Marque", kind: "core" },
-  { key: "active_supplier", label: "Fournisseur actif", kind: "core" },
-  { key: "pamp_eur", label: "PAMP", kind: "core" },
-  { key: "catalog_pv", label: "PV", kind: "core" },
-  { key: "stock_quantity", label: "Stock", kind: "core" },
-  { key: "is_copper_indexed", label: "Indexé cuivre", kind: "core" },
-  { key: "is_active", label: "Actif", kind: "core" },
-  { key: "lang_coverage", label: "Langues", kind: "core" },
-  { key: "completeness_pct", label: "Complétude", kind: "core" },
+  { key: "sku_code", labelKey: "catalog.column.sku", kind: "core", locked: true },
+  { key: "name", labelKey: "catalog.column.designation", kind: "core" },
+  { key: "universe", labelKey: "catalog.column.universe", kind: "core" },
+  { key: "family", labelKey: "catalog.column.family", kind: "core" },
+  { key: "range", labelKey: "catalog.column.range", kind: "core" },
+  { key: "sub_range", labelKey: "catalog.column.subRange", kind: "core" },
+  { key: "brand", labelKey: "catalog.column.brand", kind: "core" },
+  { key: "active_supplier", labelKey: "catalog.column.activeSupplier", kind: "core" },
+  { key: "pamp_eur", labelKey: "catalog.column.pamp", kind: "core" },
+  { key: "catalog_pv", labelKey: "catalog.column.pv", kind: "core" },
+  { key: "stock_quantity", labelKey: "catalog.column.stock", kind: "core" },
+  { key: "is_copper_indexed", labelKey: "catalog.column.copperIndexed", kind: "core" },
+  { key: "is_active", labelKey: "catalog.column.active", kind: "core" },
+  { key: "lang_coverage", labelKey: "catalog.column.languages", kind: "core" },
+  { key: "completeness_pct", labelKey: "catalog.column.completeness", kind: "core" },
 ];
 
 /** Default visible columns on first visit / after reset. */

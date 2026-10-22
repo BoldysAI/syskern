@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Translate } from "@phosphor-icons/react";
 import { translateText } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,10 +14,10 @@ export type Lang = "fr" | "en" | "es";
 export type MultilingualValue = Partial<Record<Lang, string>>;
 
 const LANGS: Lang[] = ["fr", "en", "es"];
-const LANG_LABELS: Record<Lang, string> = {
-  fr: "Français",
-  en: "Anglais",
-  es: "Espagnol",
+const LANG_LABEL_KEYS: Record<Lang, MessageKey> = {
+  fr: "common.langFr",
+  en: "common.langEn",
+  es: "common.langEs",
 };
 const LANG_SHORT: Record<Lang, string> = { fr: "FR", en: "EN", es: "ES" };
 
@@ -36,7 +38,7 @@ interface MultilingualFieldProps {
   extraTranslateSources?: Partial<Record<Lang, Lang[]>>;
 }
 
-function extractApiError(err: unknown): string {
+function extractApiError(err: unknown, t: (key: MessageKey) => string): string {
   const msg = err instanceof Error ? err.message : String(err);
   // apiFetch throws `API <status>: <body>` — try to surface the FR `detail`.
   const jsonStart = msg.indexOf("{");
@@ -48,9 +50,9 @@ function extractApiError(err: unknown): string {
       /* fall through */
     }
   }
-  if (msg.includes("402")) return "Quota de traduction dépassé.";
-  if (msg.includes("503")) return "Service de traduction temporairement indisponible.";
-  return "La traduction a échoué. Réessaie ou saisis le texte manuellement.";
+  if (msg.includes("402")) return t("common.translationQuota");
+  if (msg.includes("503")) return t("common.translationUnavailable");
+  return t("common.translationFailedManual");
 }
 
 export function MultilingualField({
@@ -65,6 +67,7 @@ export function MultilingualField({
   sourceLang = "fr",
   extraTranslateSources,
 }: MultilingualFieldProps) {
+  const t = useUiTranslate();
   const [active, setActive] = useState<Lang>("fr");
   const [translating, setTranslating] = useState<{ target: Lang; source: Lang } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function MultilingualField({
       const res = await translateText(source, targetLang, fromLang);
       setLang(targetLang, res.translated_text);
     } catch (err) {
-      setError(extractApiError(err));
+      setError(extractApiError(err, t));
     } finally {
       setTranslating(null);
     }
@@ -130,7 +133,7 @@ export function MultilingualField({
                   <span className="text-destructive">*</span>
                 )}
                 <span className="sr-only">
-                  {filled ? "rempli" : "à compléter"}
+                  {filled ? t("common.filled") : t("common.toComplete")}
                 </span>
               </TabsTrigger>
             );
@@ -161,8 +164,8 @@ export function MultilingualField({
                           className={cn(isActive && "animate-pulse")}
                         />
                         {isActive
-                          ? "Traduction…"
-                          : `Traduire depuis ${LANG_SHORT[fromLang]}`}
+                          ? t("common.translatingShort")
+                          : t("common.translateFrom", { lang: LANG_SHORT[fromLang] })}
                       </button>
                     );
                   })}
@@ -175,7 +178,9 @@ export function MultilingualField({
                   </p>
                 ) : (
                   <p className="text-sm italic text-muted-foreground">
-                    Aucun contenu en {LANG_LABELS[lang].toLowerCase()}.
+                    {t("common.noContentInLang", {
+                      lang: t(LANG_LABEL_KEYS[lang]).toLowerCase(),
+                    })}
                   </p>
                 )
               ) : kind === "input" ? (

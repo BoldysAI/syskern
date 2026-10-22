@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy, CircleNotch } from "@phosphor-icons/react";
 import { duplicateSimulation } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +22,8 @@ interface Props {
 }
 
 export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }: Props) {
-  const [label, setLabel] = useState(`${simLabel} (copie)`);
+  const t = useUiTranslate();
+  const [label, setLabel] = useState(() => t("simulator.duplicate.copyName", { name: simLabel }));
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +39,7 @@ export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }:
       const dup = await duplicateSimulation(simId, label.trim() || undefined);
       onDuplicated(dup.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Duplication échouée.");
+      setError(e instanceof Error ? e.message : t("simulator.duplicate.failed"));
     } finally {
       setRunning(false);
     }
@@ -49,18 +51,17 @@ export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }:
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle className="flex items-center gap-2">
             <Copy size={18} className="text-warm" />
-            Dupliquer la simulation
+            {t("simulator.duplicate.title")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3 p-5">
           <p className="text-sm text-muted-foreground">
-            Une copie en brouillon sera créée avec ses lignes (surcharges et derniers résultats
-            figés). Les offres associées ne sont pas copiées.
+            {t("simulator.duplicate.help")}
           </p>
           <div>
             <label htmlFor="duplicate-label" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-              Libellé de la copie
+              {t("simulator.duplicate.label")}
             </label>
             <input
               id="duplicate-label"
@@ -81,7 +82,7 @@ export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }:
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={close} disabled={running}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -90,7 +91,7 @@ export function DuplicateModal({ simId, simLabel, open, onClose, onDuplicated }:
             className="gap-2"
           >
             {running && <CircleNotch size={14} className="animate-spin" />}
-            Dupliquer
+            {t("simulator.detail.duplicate")}
           </Button>
         </DialogFooter>
       </DialogContent>

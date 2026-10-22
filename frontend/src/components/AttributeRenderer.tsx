@@ -1,9 +1,12 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useMemo } from "react";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import type { AttributeRegistry } from "@/lib/api";
+import { formatUiDate, formatUiNumber, translate } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
 export type AttributeRenderMode = "read" | "edit";
@@ -64,9 +67,10 @@ export function validateAttributeValue(attribute: AttributeRegistry, value: unkn
   }
 }
 
-function formatDateFr(iso: string): string {
+function formatAttributeDate(iso: string, locale: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+  if (!m) return iso;
+  return formatUiDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), locale);
 }
 
 /** Format an attribute value for compact display (catalog columns, recap). */
@@ -74,19 +78,20 @@ export function formatAttributeDisplayValue(
   attribute: AttributeRegistry,
   value: unknown,
   lang = "fr",
+  locale = "fr",
 ): string {
   if (isAttributeValueEmpty(value)) return "—";
 
   switch (attribute.data_type) {
     case "number": {
       const n = Number(value);
-      const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
+      const formatted = Number.isFinite(n) ? formatUiNumber(n, locale) : String(value);
       return attribute.unit ? `${formatted} ${attribute.unit}` : formatted;
     }
     case "boolean":
-      return value ? "Oui" : "Non";
+      return translate(value ? "common.yes" : "common.no", locale);
     case "date":
-      return formatDateFr(String(value));
+      return formatAttributeDate(String(value), locale);
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
       return opt ? localize(opt.label, lang) : String(value);
@@ -117,12 +122,14 @@ function ReadValue({
   value: unknown;
   lang: string;
 }) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   if (isAttributeValueEmpty(value)) return <span className="text-muted-foreground/50">—</span>;
 
   switch (attribute.data_type) {
     case "number": {
       const n = Number(value);
-      const formatted = Number.isFinite(n) ? n.toLocaleString("fr-FR") : String(value);
+      const formatted = Number.isFinite(n) ? formatUiNumber(n, displayLanguage) : String(value);
       return (
         <span className="font-medium text-foreground">
           {formatted}
@@ -138,11 +145,15 @@ function ReadValue({
             value ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground",
           )}
         >
-          {value ? "Oui" : "Non"}
+          {value ? t("common.yes") : t("common.no")}
         </span>
       );
     case "date":
-      return <span className="font-medium text-foreground">{formatDateFr(String(value))}</span>;
+      return (
+        <span className="font-medium text-foreground">
+          {formatAttributeDate(String(value), displayLanguage)}
+        </span>
+      );
     case "select": {
       const opt = (attribute.options ?? []).find((o) => o.value === value);
       return (
@@ -296,6 +307,7 @@ function SelectWidget({
   lang: string;
   onEmit: (v: unknown) => void;
 }) {
+  const t = useUiTranslate();
   const current = typeof value === "string" ? value : "";
   return (
     <Select.Root value={current || undefined} onValueChange={(v) => onEmit(v)}>
@@ -303,7 +315,7 @@ function SelectWidget({
         className={cn(inputCls, "flex items-center justify-between gap-2 text-left")}
         aria-label={localize(attribute.label, lang)}
       >
-        <Select.Value placeholder="Sélectionner…" />
+        <Select.Value placeholder={t("common.selectPlaceholder")} />
         <Select.Icon>
           <ChevronDown size={15} className="text-muted-foreground" />
         </Select.Icon>
@@ -345,6 +357,7 @@ function MultiSelectWidget({
   lang: string;
   onEmit: (v: unknown) => void;
 }) {
+  const t = useUiTranslate();
   const selected = Array.isArray(value) ? (value as string[]).map(String) : [];
   const options = attribute.options ?? [];
   const remaining = options.filter((o) => !selected.includes(o.value));
@@ -356,7 +369,7 @@ function MultiSelectWidget({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-1.5 min-h-[2.25rem] px-2 py-1.5 border border-border rounded-lg">
         {selected.length === 0 && (
-          <span className="text-sm text-muted-foreground/50 px-1 py-0.5">Aucune sélection</span>
+          <span className="text-sm text-muted-foreground/50 px-1 py-0.5">{t("common.noSelection")}</span>
         )}
         {selected.map((v) => {
           const opt = options.find((o) => o.value === v);
@@ -369,7 +382,7 @@ function MultiSelectWidget({
               <button
                 type="button"
                 onClick={() => remove(v)}
-                aria-label={`Retirer ${v}`}
+                aria-label={t("common.removeValue", { value: v })}
                 className="hover:text-brand-green"
               >
                 <X size={12} />
@@ -382,7 +395,7 @@ function MultiSelectWidget({
         <Select.Root value="" onValueChange={(v) => v && add(v)}>
           <Select.Trigger className="inline-flex items-center gap-1.5 self-start px-2.5 py-1.5 text-xs font-medium text-brand-green border border-dashed border-primary/40 rounded-lg hover:bg-accent/50">
             <Plus size={13} />
-            Ajouter
+            {t("common.add")}
           </Select.Trigger>
           <Select.Portal>
             <Select.Content

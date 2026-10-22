@@ -10,6 +10,7 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export function LibraryFiltersSidebar({
   onDeleteFilter,
   className,
 }: LibraryFiltersSidebarProps) {
+  const t = useUiTranslate();
   const patch = (p: Partial<LibraryFilters>) => onChange({ ...filters, ...p });
 
   const [saveName, setSaveName] = useState("");
@@ -51,7 +53,7 @@ export function LibraryFiltersSidebar({
     if (!name || isEmptyLibraryFilter(filters)) return;
     onSaveFilter(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
+    setSaveFeedback(t("library.filters.saved_feedback", { name }));
     window.setTimeout(() => setSaveFeedback(null), 4000);
   };
 
@@ -60,32 +62,40 @@ export function LibraryFiltersSidebar({
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
       <FilterSection
-        title="Catégorie"
+        title={t("library.category")}
         icon={FolderOpen}
         activeCount={filters.category?.length ?? 0}
       >
         <FilterCheckboxGroup
           idPrefix="lib-category"
-          options={CATEGORY_OPTIONS}
+          options={CATEGORY_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey),
+          }))}
           selected={filters.category ?? []}
           onChange={(v) => patch({ category: v.length ? v : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="Langue" icon={Translate} activeCount={filters.language?.length ?? 0}>
+      <FilterSection
+        title={t("library.language")}
+        icon={Translate}
+        activeCount={filters.language?.length ?? 0}
+      >
         <FilterCheckboxGroup
           idPrefix="lib-language"
-          options={LANGUAGE_OPTIONS}
+          options={LANGUAGE_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey),
+          }))}
           selected={filters.language ?? []}
           onChange={(v) => patch({ language: v.length ? v : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="Filtres enregistrés" icon={Bookmark}>
+      <FilterSection title={t("library.filters.saved")} icon={Bookmark}>
         {savedFilters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Enregistrez une combinaison de filtres pour la réutiliser rapidement.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("library.filters.saved_empty")}</p>
         ) : (
           <ul className="space-y-1">
             {savedFilters.map((sf) => (
@@ -106,7 +116,7 @@ export function LibraryFiltersSidebar({
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => onDeleteFilter(sf.id)}
-                  aria-label={`Supprimer ${sf.name}`}
+                  aria-label={t("library.filters.delete_aria", { name: sf.name })}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash size={14} />
@@ -120,7 +130,7 @@ export function LibraryFiltersSidebar({
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Nom du filtre…"
+            placeholder={t("library.filters.name_placeholder")}
             className="h-9 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) handleSave();
@@ -134,7 +144,7 @@ export function LibraryFiltersSidebar({
             onClick={handleSave}
           >
             <Faders size={14} />
-            Enregistrer les filtres actifs
+            {t("library.filters.save")}
           </Button>
           {saveFeedback && <p className="text-center text-xs text-brand-green">{saveFeedback}</p>}
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -17,6 +19,8 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import { OFFER_STATUS_OPTIONS } from "../_components/offer-filters";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, offerStatusVariant } from "@/components/StatusBadge";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -74,25 +78,17 @@ interface ClientLite {
   name: string;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon",
-  sent: "Envoyée",
-  won: "Gagnée",
-  lost: "Perdue",
-  expired: "Expirée",
-};
-
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
   const m = document.cookie.match(/csrftoken=([^;]+)/);
   return m ? m[1] : "";
 }
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, loadError: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(loadError);
   return res.json();
 }
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
+async function postJson<T>(url: string, body: unknown | undefined, serverError: string): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     credentials: "include",
@@ -101,11 +97,11 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const d = await res.json().catch(() => ({}));
-    throw new Error(d?.detail ?? "Erreur serveur");
+    throw new Error(d?.detail ?? serverError);
   }
   return res.json();
 }
-async function patchStatus(id: string, status: string) {
+async function patchStatus(id: string, status: string, denied: string) {
   const res = await fetch(`/api/offers/${id}/status/`, {
     method: "PATCH",
     credentials: "include",
@@ -114,10 +110,10 @@ async function patchStatus(id: string, status: string) {
   });
   if (!res.ok) {
     const d = await res.json().catch(() => ({}));
-    throw new Error(d?.detail ?? "Transition refusée");
+    throw new Error(d?.detail ?? denied);
   }
 }
-async function deleteOffer(id: string) {
+async function deleteOffer(id: string, failed: string) {
   const res = await fetch(`/api/offers/${id}/`, {
     method: "DELETE",
     credentials: "include",
@@ -125,7 +121,7 @@ async function deleteOffer(id: string) {
   });
   if (!res.ok) {
     const d = await res.json().catch(() => ({}));
-    throw new Error(d?.detail ?? "Suppression impossible.");
+    throw new Error(d?.detail ?? failed);
   }
 }
 
@@ -138,9 +134,11 @@ function daysUntil(date: string | null): number | null {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OfferDetailPage() {
+  const { displayLanguage } = useAuth();
   const id = String(useParams().id);
   const router = useRouter();
   const confirm = useConfirm();
+  const t = useUiTranslate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extendOpen, setExtendOpen] = useState(false);
@@ -150,13 +148,18 @@ export default function OfferDetailPage() {
     data: offer,
     mutate,
     isLoading,
-  } = useSWR<OfferDetail>(`offer:${id}`, () => getJson<OfferDetail>(`/api/offers/${id}/`));
+  } = useSWR<OfferDetail>(`offer:${id}`, () =>
+    getJson<OfferDetail>(`/api/offers/${id}/`, t("offers.errors.load")),
+  );
   const { data: versions } = useSWR<VersionRow[]>(
     offer?.offer_type === "project" ? `offer-versions:${id}` : null,
-    () => getJson<VersionRow[]>(`/api/offers/${id}/versions/`),
+    () => getJson<VersionRow[]>(`/api/offers/${id}/versions/`, t("offers.errors.load")),
   );
   const { data: clientsResp } = useSWR("clients:all", () =>
-    getJson<{ results?: ClientLite[] } | ClientLite[]>("/api/clients/?limit=1000"),
+    getJson<{ results?: ClientLite[] } | ClientLite[]>(
+      "/api/clients/?limit=1000",
+      t("offers.errors.load"),
+    ),
   );
   const clientName = (() => {
     const list = Array.isArray(clientsResp) ? clientsResp : (clientsResp?.results ?? []);
@@ -167,11 +170,11 @@ export default function OfferDetailPage() {
   const breadcrumbCrumbs = useMemo((): BreadcrumbCrumb[] | null => {
     if (!offer) return null;
     return [
-      { href: "/", label: "Tableau de bord" },
-      { href: "/offers", label: "Offres" },
+      { href: "/", label: t("offers.breadcrumb.dashboard") },
+      { href: "/offers", label: t("offers.title") },
       { label: offer.label },
     ];
-  }, [offer]);
+  }, [offer, t]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(offer));
 
@@ -200,6 +203,10 @@ export default function OfferDetailPage() {
   }
 
   const isProject = offer.offer_type === "project";
+  const statusLabel = (status: string) => {
+    const key = OFFER_STATUS_OPTIONS.find((opt) => opt.value === status)?.labelKey;
+    return key ? t(key) : status;
+  };
   const remaining = daysUntil(offer.valid_to);
   const total = offer.lines.reduce(
     (sum, l) => sum + Number(l.final_price) * (l.quantity ? Number(l.quantity) : 1),
@@ -213,7 +220,7 @@ export default function OfferDetailPage() {
       await fn();
       await mutate();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erreur");
+      setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setBusy(false);
     }
@@ -223,10 +230,14 @@ export default function OfferDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      const created = await postJson<{ id: string }>(`/api/offers/${id}/new-version/`);
+      const created = await postJson<{ id: string }>(
+        `/api/offers/${id}/new-version/`,
+        undefined,
+        t("offers.errors.server"),
+      );
       router.push(`/offers/${created.id}`);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erreur");
+      setError(e instanceof Error ? e.message : t("common.error"));
       setBusy(false);
     }
   };
@@ -234,28 +245,30 @@ export default function OfferDetailPage() {
   const extend = async () => {
     if (!extendDate) return;
     await run(async () => {
-      await postJson(`/api/offers/${id}/extend-expiration/`, { new_date: extendDate });
+      await postJson(
+        `/api/offers/${id}/extend-expiration/`,
+        { new_date: extendDate },
+        t("offers.errors.server"),
+      );
       setExtendOpen(false);
     });
   };
 
   const remove = async () => {
     const ok = await confirm({
-      title: "Supprimer cette offre ?",
-      description:
-        "Action irréversible. La simulation source n'est pas supprimée. " +
-        "Une offre en cours de génération ne peut pas être supprimée.",
-      confirmLabel: "Supprimer",
+      title: t("offers.detail.deleteTitle"),
+      description: t("offers.detail.deleteDescription"),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
     setBusy(true);
     setError(null);
     try {
-      await deleteOffer(id);
+      await deleteOffer(id, t("offers.detail.deleteFailed"));
       router.push("/offers");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Suppression impossible.");
+      setError(e instanceof Error ? e.message : t("offers.detail.deleteFailed"));
       setBusy(false);
     }
   };
@@ -267,7 +280,7 @@ export default function OfferDetailPage() {
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={15} />
-        Offres
+        {t("offers.title")}
       </Link>
 
       <PageHeader
@@ -276,10 +289,12 @@ export default function OfferDetailPage() {
         meta={
           <>
             <StatusBadge variant={offerStatusVariant(offer.status)}>
-              {STATUS_LABELS[offer.status] ?? offer.status}
+              {statusLabel(offer.status)}
             </StatusBadge>
             <StatusBadge variant={isProject ? "info" : "running"}>
-              {isProject ? "Projet" : "Tarif"} · V{offer.version_number}
+              {t(isProject ? "offers.detail.versionProject" : "offers.detail.versionTariff", {
+                version: offer.version_number,
+              })}
             </StatusBadge>
           </>
         }
@@ -293,15 +308,15 @@ export default function OfferDetailPage() {
 
       {/* Info cards */}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Info label="Simulation source">
+        <Info label={t("offers.detail.sourceSimulation")}>
           <Link
             href={`/simulator/${offer.simulation}`}
             className="text-brand-green hover:underline"
           >
-            Ouvrir
+            {t("offers.detail.open")}
           </Link>
         </Info>
-        <Info label="Expiration">
+        <Info label={t("offers.detail.expiration")}>
           {offer.valid_to ? (
             <span
               className={cn(
@@ -310,10 +325,12 @@ export default function OfferDetailPage() {
               )}
             >
               <Clock size={14} />
-              {new Date(offer.valid_to).toLocaleDateString("fr-FR")}
+              {new Date(offer.valid_to).toLocaleDateString(uiDateLocale(displayLanguage))}
               {remaining != null && (
                 <span className="text-xs">
-                  ({remaining < 0 ? "expirée" : `dans ${remaining} j`})
+                  {remaining < 0
+                    ? t("offers.detail.expired")
+                    : t("offers.detail.expiresIn", { count: remaining })}
                 </span>
               )}
             </span>
@@ -321,16 +338,18 @@ export default function OfferDetailPage() {
             "—"
           )}
         </Info>
-        <Info label="Total estimé">
+        <Info label={t("offers.detail.estimatedTotal")}>
           <span className="font-data">
-            {total.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} {offer.currency}
+            {total.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2 })} {offer.currency}
           </span>
         </Info>
       </div>
 
       {/* Files */}
       <Card className="mb-5 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Document</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
+          {t("offers.field.document")}
+        </h2>
         {isProject ? (
           offer.generation_status === "ready" && offer.generated_file_url ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -342,14 +361,14 @@ export default function OfferDetailPage() {
                 className={cn(buttonVariants(), "inline-flex gap-2")}
               >
                 <ArrowSquareOut size={14} weight="duotone" />
-                Voir le PDF
+                {t("offers.detail.viewPdf")}
               </a>
               <a
                 href={`/api/offers/${id}/download/`}
                 className={cn(buttonVariants({ variant: "outline" }), "inline-flex gap-2")}
               >
                 <DownloadSimple size={14} weight="duotone" />
-                Télécharger
+                {t("offers.detail.download")}
               </a>
               <a
                 href={offer.generated_file_url}
@@ -357,17 +376,17 @@ export default function OfferDetailPage() {
                 rel="noreferrer"
                 className={cn(buttonVariants({ variant: "ghost" }), "inline-flex gap-2")}
               >
-                Ouvrir dans Gamma
+                {t("offers.detail.openGamma")}
               </a>
             </div>
           ) : offer.generation_status === "error" ? (
             <span className="text-sm text-destructive">
-              Génération en erreur : {offer.generation_error}
+              {t("offers.detail.generationError", { error: offer.generation_error })}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <CircleNotch size={14} className="animate-spin" />
-              Génération en cours…
+              {t("offers.generation.inProgress")}
             </span>
           )
         ) : (
@@ -376,7 +395,7 @@ export default function OfferDetailPage() {
             className={cn(buttonVariants(), "inline-flex gap-2")}
           >
             <DownloadSimple size={14} weight="duotone" />
-            Télécharger l&apos;Excel
+            {t("offers.detail.downloadExcel")}
           </a>
         )}
       </Card>
@@ -386,7 +405,7 @@ export default function OfferDetailPage() {
         <Card className="mb-5 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
             <GitBranch size={15} />
-            Versions
+            {t("offers.detail.versions")}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             {versions.map((v, i) => (
@@ -402,7 +421,7 @@ export default function OfferDetailPage() {
                 >
                   V{v.version_number}
                   <span className="ml-1.5 text-xs text-muted-foreground/70">
-                    {STATUS_LABELS[v.status] ?? v.status}
+                    {statusLabel(v.status)}
                   </span>
                 </Link>
                 {i < versions.length - 1 && <span className="text-muted-foreground/40">→</span>}
@@ -415,16 +434,18 @@ export default function OfferDetailPage() {
       {/* Lines */}
       <Card className="mb-5 overflow-hidden py-0">
         <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-          Lignes ({offer.lines.length})
+          {t("offers.detail.lines", { count: offer.lines.length })}
         </h2>
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="px-4 py-2 text-left">SKU</th>
-              <th className="px-4 py-2 text-left">Désignation</th>
-              {isProject && <th className="px-4 py-2 text-right">Qté</th>}
-              <th className="px-4 py-2 text-right">PU ({offer.currency})</th>
-              {isProject && <th className="px-4 py-2 text-right">Total</th>}
+              <th className="px-4 py-2 text-left">{t("offers.column.sku")}</th>
+              <th className="px-4 py-2 text-left">{t("offers.detail.designation")}</th>
+              {isProject && <th className="px-4 py-2 text-right">{t("offers.detail.qtyShort")}</th>}
+              <th className="px-4 py-2 text-right">
+                {t("offers.detail.unitPrice", { currency: offer.currency })}
+              </th>
+              {isProject && <th className="px-4 py-2 text-right">{t("offers.detail.total")}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -457,7 +478,7 @@ export default function OfferDetailPage() {
                 className="px-4 py-2.5 text-sm font-semibold text-foreground"
                 colSpan={isProject ? 3 : 2}
               >
-                Total général
+                {t("offers.detail.grandTotal")}
               </td>
               {/* Colonne PU laissée vide en projet : le total va sous « Total ». */}
               {isProject && <td />}
@@ -472,9 +493,12 @@ export default function OfferDetailPage() {
       {/* Lifecycle actions */}
       <div className="flex flex-wrap gap-3">
         {offer.status === "draft" && (
-          <Button onClick={() => run(() => patchStatus(id, "sent"))} disabled={busy}>
+          <Button
+            onClick={() => run(() => patchStatus(id, "sent", t("offers.detail.transitionDenied")))}
+            disabled={busy}
+          >
             <PaperPlaneTilt size={15} weight="duotone" />
-            Marquer envoyée
+            {t("offers.detail.markSent")}
           </Button>
         )}
         {isProject && offer.status === "sent" && (
@@ -482,30 +506,30 @@ export default function OfferDetailPage() {
             <Button
               variant="default"
               className="bg-brand-green hover:bg-brand-green/90"
-              onClick={() => run(() => patchStatus(id, "won"))}
+              onClick={() => run(() => patchStatus(id, "won", t("offers.detail.transitionDenied")))}
               disabled={busy}
             >
               <Trophy size={15} weight="duotone" />
-              Gagnée
+              {t("offers.status.won")}
             </Button>
             <Button
               variant="destructive"
-              onClick={() => run(() => patchStatus(id, "lost"))}
+              onClick={() => run(() => patchStatus(id, "lost", t("offers.detail.transitionDenied")))}
               disabled={busy}
             >
               <ThumbsDown size={15} weight="duotone" />
-              Perdue
+              {t("offers.status.lost")}
             </Button>
           </>
         )}
         <Button variant="outline" onClick={() => setExtendOpen(true)} disabled={busy}>
           <Clock size={15} />
-          Prolonger l&apos;expiration
+          {t("offers.detail.extend")}
         </Button>
         {isProject && (
           <Button variant="outline" onClick={newVersion} disabled={busy}>
             <GitBranch size={15} />
-            Nouvelle version
+            {t("offers.detail.newVersion")}
           </Button>
         )}
         <Button
@@ -515,27 +539,25 @@ export default function OfferDetailPage() {
           className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash size={15} />
-          Supprimer
+          {t("common.delete")}
         </Button>
       </div>
 
       <Dialog open={extendOpen} onOpenChange={setExtendOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Prolonger l&apos;expiration</DialogTitle>
-            <DialogDescription>
-              Choisissez une nouvelle date d&apos;expiration (&gt; 7 jours).
-            </DialogDescription>
+            <DialogTitle>{t("offers.detail.extend")}</DialogTitle>
+            <DialogDescription>{t("offers.detail.extendHint")}</DialogDescription>
           </DialogHeader>
-          <FormField label="Nouvelle date" required>
+          <FormField label={t("offers.detail.newDate")} required>
             <Input type="date" value={extendDate} onChange={(e) => setExtendDate(e.target.value)} />
           </FormField>
           <DialogFooter>
             <Button variant="outline" onClick={() => setExtendOpen(false)}>
-              Annuler
+              {t("common.cancel")}
             </Button>
             <Button onClick={extend} disabled={!extendDate || busy}>
-              Valider
+              {t("offers.detail.validate")}
             </Button>
           </DialogFooter>
         </DialogContent>

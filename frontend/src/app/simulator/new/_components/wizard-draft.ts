@@ -1,4 +1,5 @@
 import { getProducts, type SimulationType } from "@/lib/api";
+import { translate, type MessageKey } from "@/lib/i18n";
 import {
   copperDraftPriceToRmb,
   copperRmbToDraft,
@@ -614,10 +615,9 @@ export function buildCalculationChain(draft: WizardDraft): Record<string, unknow
   return { purchase_chain: purchase, sale_chain: sale };
 }
 
-/** Returns a French error message when a transport leg is missing pallet_count. */
-export function validateTransportChains(draft: WizardDraft): string | null {
-  const palletIssue = collectWizardStep3Issues(draft).find((issue) => issue.includes("palettes"));
-  return palletIssue ?? null;
+/** Returns an error message when a transport leg is missing pallet_count. */
+export function validateTransportChains(draft: WizardDraft, locale = "fr"): string | null {
+  return collectStep3Issues(draft, locale).find((issue) => issue.pallet)?.message ?? null;
 }
 
 function isFilled(value: string | undefined | null): boolean {
@@ -629,19 +629,21 @@ function parsePositiveInt(value: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-const FX_PARAM_LABELS: Record<string, string> = {
-  fx_eur_usd: "EUR → USD",
-  fx_eur_rmb: "EUR → RMB",
-  fx_eur_jpy: "EUR → JPY",
-  fx_eur_gbp: "EUR → GBP",
+const FX_PARAM_KEYS: Record<string, MessageKey> = {
+  fx_eur_usd: "simulator.fx.eurUsd",
+  fx_eur_rmb: "simulator.fx.eurRmb",
+  fx_eur_jpy: "simulator.fx.eurJpy",
+  fx_eur_gbp: "simulator.fx.eurGbp",
 };
 
-function fxMissingMessage(paramKey: string): string {
-  const label = FX_PARAM_LABELS[paramKey];
-  if (label) {
-    return `Taux de change ${label} manquant dans les paramètres marché.`;
+function fxMissingMessage(paramKey: string, locale: string): string {
+  const labelKey = FX_PARAM_KEYS[paramKey];
+  if (labelKey) {
+    return translate("simulator.wizard.fxMissing", locale, {
+      label: translate(labelKey, locale),
+    });
   }
-  return `Taux de change manquant (${paramKey}) dans les paramètres marché.`;
+  return translate("simulator.wizard.fxMissingKey", locale, { paramKey });
 }
 
 function collectRequiredFxKeys(draft: WizardDraft): string[] {
@@ -672,52 +674,104 @@ function collectRequiredFxKeys(draft: WizardDraft): string[] {
   return [...keys].sort();
 }
 
-function collectTransportIssues(chainLabel: string, chain: ChainDraft): string[] {
+type Step3Category = "market" | "fx" | "purchase" | "sale";
+
+interface Step3Issue {
+  category: Step3Category;
+  pallet: boolean;
+  message: string;
+}
+
+function collectTransportIssues(
+  chainLabel: string,
+  chain: ChainDraft,
+  locale: string,
+  category: Step3Category,
+): Step3Issue[] {
   if (chain.transportPricingMode === "coefficient") {
     if (!normalizePaCoefficient(chain.transportCoefficient)) {
       return [
-        `${chainLabel} — renseignez un coefficient transport supérieur à 0 (ex. 1,05).`,
+        {
+          category,
+          pallet: false,
+          message: translate("simulator.wizard.transportCoefficient", locale, { chain: chainLabel }),
+        },
       ];
     }
     return [];
   }
 
-  const issues: string[] = [];
+  const issues: Step3Issue[] = [];
   chain.transports.forEach((transport, index) => {
     const leg = index + 1;
     if (!parsePositiveInt(transport.pallet_count)) {
-      issues.push(
-        `${chainLabel} — transport ${leg} : indiquez un nombre de palettes supérieur à 0.`,
-      );
+      issues.push({
+        category,
+        pallet: true,
+        message: translate("simulator.wizard.transportPallets", locale, {
+          chain: chainLabel,
+          leg,
+        }),
+      });
     }
   });
   return issues;
 }
 
-/** Tous les problèmes bloquants de l'étape 3 (affichage + confirmation à la création). */
-export function collectWizardStep3Issues(draft: WizardDraft): string[] {
-  const issues: string[] = [];
+function collectStep3Issues(draft: WizardDraft, locale: string): Step3Issue[] {
+  const issues: Step3Issue[] = [];
 
   if (draft.purchaseChain.copper_variation) {
     if (!isFilled(draft.marketParams.copper_base_price)) {
-      issues.push("Paramètres marché : renseignez le cours cuivre de base.");
+      issues.push({
+        category: "market",
+        pallet: false,
+        message: translate("simulator.wizard.copperBaseMissing", locale),
+      });
     }
     if (!isFilled(draft.marketParams.copper_current_price)) {
-      issues.push("Paramètres marché : renseignez le cours cuivre actuel.");
+      issues.push({
+        category: "market",
+        pallet: false,
+        message: translate("simulator.wizard.copperCurrentMissing", locale),
+      });
     }
   }
 
   const builtMarket = buildMarketParams(draft.marketParams);
   for (const key of collectRequiredFxKeys(draft)) {
     if (!isFilled(builtMarket[key])) {
-      issues.push(fxMissingMessage(key));
+      issues.push({
+        category: "fx",
+        pallet: false,
+        message: fxMissingMessage(key, locale),
+      });
     }
   }
 
-  issues.push(...collectTransportIssues("Chaîne PA (achat)", draft.purchaseChain));
-  issues.push(...collectTransportIssues("Chaîne PV (vente)", draft.saleChain));
+  issues.push(
+    ...collectTransportIssues(
+      translate("simulator.chain.purchase", locale),
+      draft.purchaseChain,
+      locale,
+      "purchase",
+    ),
+  );
+  issues.push(
+    ...collectTransportIssues(
+      translate("simulator.chain.sale", locale),
+      draft.saleChain,
+      locale,
+      "sale",
+    ),
+  );
 
   return issues;
+}
+
+/** Tous les problèmes bloquants de l'étape 3 (affichage + confirmation à la création). */
+export function collectWizardStep3Issues(draft: WizardDraft, locale = "fr"): string[] {
+  return collectStep3Issues(draft, locale).map((issue) => issue.message);
 }
 
 export type WizardWarningKind = "params" | "sku-empty" | "sku-not-found";
@@ -729,24 +783,26 @@ export interface WizardCreateWarning {
   message: string;
 }
 
-function paramsWarningTitle(message: string): string {
-  if (message.startsWith("Paramètres marché")) return "Marché";
-  if (message.startsWith("Taux de change")) return "Taux de change";
-  if (message.includes("Chaîne PA")) return "Transport achat";
-  if (message.includes("Chaîne PV")) return "Transport vente";
-  return "Paramètres";
-}
+const STEP3_TITLE_KEYS: Record<Step3Category, MessageKey> = {
+  market: "simulator.wizard.categoryMarket",
+  fx: "simulator.wizard.categoryFx",
+  purchase: "simulator.wizard.categoryPurchaseTransport",
+  sale: "simulator.wizard.categorySaleTransport",
+};
 
 /** Avertissements structurés avant création (modale de confirmation). */
-export function collectWizardCreateWarnings(draft: WizardDraft): WizardCreateWarning[] {
+export function collectWizardCreateWarnings(
+  draft: WizardDraft,
+  locale = "fr",
+): WizardCreateWarning[] {
   const warnings: WizardCreateWarning[] = [];
 
-  for (const message of collectWizardStep3Issues(draft)) {
+  for (const issue of collectStep3Issues(draft, locale)) {
     warnings.push({
-      id: `params-${warnings.length}-${message}`,
+      id: `params-${warnings.length}-${issue.message}`,
       kind: "params",
-      title: paramsWarningTitle(message),
-      message,
+      title: translate(STEP3_TITLE_KEYS[issue.category], locale),
+      message: issue.message,
     });
   }
 
@@ -754,20 +810,31 @@ export function collectWizardCreateWarnings(draft: WizardDraft): WizardCreateWar
     warnings.push({
       id: "sku-empty",
       kind: "sku-empty",
-      title: "Sélection produits",
-      message: "Aucun SKU sélectionné — la simulation sera créée sans lignes produit.",
+      title: translate("simulator.wizard.skuEmptyTitle", locale),
+      message: translate("simulator.wizard.skuEmpty", locale),
     });
   }
 
   if (draft.notFoundSkus.length > 0) {
     const preview = draft.notFoundSkus.slice(0, 8).join(", ");
     const suffix =
-      draft.notFoundSkus.length > 8 ? `… et ${draft.notFoundSkus.length - 8} autre(s)` : "";
+      draft.notFoundSkus.length > 8
+        ? translate("simulator.wizard.notFoundMore", locale, {
+            count: draft.notFoundSkus.length - 8,
+          })
+        : "";
+    const list = `${preview}${suffix}`;
     warnings.push({
       id: "sku-not-found",
       kind: "sku-not-found",
-      title: "Import fichier",
-      message: `${draft.notFoundSkus.length} SKU importé${draft.notFoundSkus.length > 1 ? "s" : ""} introuvable${draft.notFoundSkus.length > 1 ? "s" : ""} dans le catalogue (${preview}${suffix}) — ils ne seront pas ajoutés.`,
+      title: translate("simulator.wizard.importTitle", locale),
+      message: translate(
+        draft.notFoundSkus.length > 1
+          ? "simulator.wizard.notFoundOther"
+          : "simulator.wizard.notFoundOne",
+        locale,
+        { count: draft.notFoundSkus.length, list },
+      ),
     });
   }
 

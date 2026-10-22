@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.accounts.ui_locale import translate_request
 from apps.clients.models import Client
 from apps.core.models import Currency, Language
 
@@ -13,7 +14,7 @@ from .models import (
     OfferStatus,
     OfferType,
 )
-from .services.excel import validate_columns
+from .services.excel import available_columns
 
 
 class OfferLineSerializer(serializers.ModelSerializer):
@@ -104,13 +105,14 @@ class OfferWriteSerializer(serializers.ModelSerializer):
     def validate(self, attrs: dict) -> dict:
         offer_type = attrs.get("offer_type", getattr(self.instance, "offer_type", None))
         client_ids = attrs.get("client_ids", getattr(self.instance, "client_ids", []) or [])
+        request = self.context.get("request")
         if offer_type == OfferType.PROJECT and len(client_ids) != 1:
             raise serializers.ValidationError(
-                {"client_ids": "Project offers target exactly one client."}
+                {"client_ids": translate_request(request, "offers.project_one_client")}
             )
         if offer_type == OfferType.TARIFF and not client_ids:
             raise serializers.ValidationError(
-                {"client_ids": "Tariff offers require at least one client."}
+                {"client_ids": translate_request(request, "offers.tariff_needs_client")}
             )
         simulation = attrs.get("simulation")
         if simulation and self.instance is None and not attrs.get("incoterm"):
@@ -151,18 +153,32 @@ class GenerateTariffOffersSerializer(serializers.Serializer):
     )
 
     def validate_columns(self, value: list[str]) -> list[str]:
-        if value:
-            try:
-                validate_columns(value)
-            except ValueError as exc:
-                raise serializers.ValidationError(str(exc)) from exc
+        if not value:
+            return value
+        valid = sorted(col["key"] for col in available_columns())
+        unknown = [col for col in value if col not in valid]
+        if unknown:
+            raise serializers.ValidationError(
+                translate_request(
+                    self.context.get("request"),
+                    "offers.unknown_columns",
+                    unknown=unknown,
+                    valid=valid,
+                )
+            )
         return value
 
     def validate_client_ids(self, value: list) -> list:
         existing = set(Client.objects.filter(id__in=value).values_list("id", flat=True))
         missing = [str(v) for v in value if v not in existing]
         if missing:
-            raise serializers.ValidationError(f"Clients introuvables : {missing}")
+            raise serializers.ValidationError(
+                translate_request(
+                    self.context.get("request"),
+                    "offers.clients_not_found",
+                    missing=missing,
+                )
+            )
         return value
 
 
@@ -202,10 +218,16 @@ class GenerateProjectOfferSerializer(serializers.Serializer):
 
     def validate_client_id(self, value):
         if not Client.objects.filter(id=value).exists():
-            raise serializers.ValidationError(f"Client introuvable : {value}")
+            raise serializers.ValidationError(
+                translate_request(
+                    self.context.get("request"), "offers.client_not_found", value=value
+                )
+            )
         return value
 
     def validate_quantities(self, value: dict) -> dict:
         if any(q <= 0 for q in value.values()):
-            raise serializers.ValidationError("Les quantités doivent être strictement positives.")
+            raise serializers.ValidationError(
+                translate_request(self.context.get("request"), "offers.quantities_positive")
+            )
         return value

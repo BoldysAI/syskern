@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bookmark, BookmarkSimple, Calculator, Faders, Stack, Trash } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { FilterSection } from "@/components/FilterSection";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
@@ -36,6 +37,7 @@ export function ComparisonFiltersSidebar({
   onDeleteFilter,
   className,
 }: ComparisonFiltersSidebarProps) {
+  const t = useUiTranslate();
   const patch = (p: Partial<ComparisonFilters>) => onChange({ ...filters, ...p });
 
   const [saveName, setSaveName] = useState("");
@@ -46,7 +48,7 @@ export function ComparisonFiltersSidebar({
     if (!name || isEmptyComparisonFilter(filters)) return;
     onSaveFilter(name);
     setSaveName("");
-    setSaveFeedback(`Filtre « ${name} » enregistré.`);
+    setSaveFeedback(t("comparator.filters.savedFeedback", { name }));
     window.setTimeout(() => setSaveFeedback(null), 4000);
   };
 
@@ -55,13 +57,19 @@ export function ComparisonFiltersSidebar({
   return (
     <div className={cn("flex flex-col gap-1 p-4", className)}>
       <FilterSection
-        title="Type de comparaison"
+        title={t("comparator.filters.structure")}
         icon={Stack}
         activeCount={filters.has_recalculations ? 1 : 0}
       >
         <FilterCheckboxGroup
           idPrefix="cmp-structure"
-          options={STRUCTURE_OPTIONS}
+          options={STRUCTURE_OPTIONS.map((option) => ({
+            value: option.value,
+            label:
+              option.value === "true"
+                ? t("comparator.filters.withRecalcs")
+                : t("comparator.filters.simsOnly"),
+          }))}
           selected={filters.has_recalculations ? [filters.has_recalculations] : []}
           // Single-select via checkboxes: last toggled wins, unchecking clears.
           onChange={(v) =>
@@ -73,23 +81,27 @@ export function ComparisonFiltersSidebar({
       </FilterSection>
 
       <FilterSection
-        title="Simulations comparées"
+        title={t("comparator.filters.compared")}
         icon={Calculator}
         activeCount={filters.sim_type?.length ?? 0}
       >
         <FilterCheckboxGroup
           idPrefix="cmp-simtype"
-          options={SIM_TYPE_OPTIONS}
+          options={SIM_TYPE_OPTIONS.map((option) => ({
+            value: option.value,
+            label:
+              option.value === "tariff"
+                ? t("comparator.type.tariff")
+                : t("comparator.type.project"),
+          }))}
           selected={filters.sim_type ?? []}
           onChange={(v) => patch({ sim_type: v.length ? (v as ComparisonSimType[]) : undefined })}
         />
       </FilterSection>
 
-      <FilterSection title="Filtres enregistrés" icon={Bookmark}>
+      <FilterSection title={t("comparator.filters.saved")} icon={Bookmark}>
         {savedFilters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Enregistrez une combinaison de filtres pour la réutiliser rapidement.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("comparator.filters.savedEmpty")}</p>
         ) : (
           <ul className="space-y-1">
             {savedFilters.map((sf) => (
@@ -110,7 +122,7 @@ export function ComparisonFiltersSidebar({
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => onDeleteFilter(sf.id)}
-                  aria-label={`Supprimer ${sf.name}`}
+                  aria-label={t("comparator.filters.deleteSaved", { name: sf.name })}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash size={14} />
@@ -124,7 +136,7 @@ export function ComparisonFiltersSidebar({
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Nom du filtre…"
+            placeholder={t("comparator.filters.saveName")}
             className="h-9 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) handleSave();
@@ -138,7 +150,7 @@ export function ComparisonFiltersSidebar({
             onClick={handleSave}
           >
             <Faders size={14} />
-            Enregistrer les filtres actifs
+            {t("comparator.filters.saveActive")}
           </Button>
           {saveFeedback && <p className="text-center text-xs text-brand-green">{saveFeedback}</p>}
         </div>

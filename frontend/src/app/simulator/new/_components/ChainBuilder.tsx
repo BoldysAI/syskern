@@ -26,6 +26,7 @@ import type { TransportMode } from "@/lib/api";
 import { listTransportPresets } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { localizeLabel } from "@/lib/transport-modes";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   canSaveTransportAsPreset,
   presetToTransportDraft,
@@ -65,6 +66,7 @@ function SortableTransport({
   onRemove: () => void;
   onSaveAsPreset?: () => void;
 }) {
+  const t = useUiTranslate();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: transport.uid,
   });
@@ -86,7 +88,7 @@ function SortableTransport({
         {...attributes}
         {...listeners}
         className="touch-none text-muted-foreground/60 hover:text-muted-foreground cursor-grab active:cursor-grabbing"
-        aria-label="Réordonner ce transport"
+        aria-label={t("simulator.transport.reorder")}
       >
         <DotsSixVertical size={18} />
       </button>
@@ -106,7 +108,7 @@ function SortableTransport({
                   : transport.pallet_count),
             });
           }}
-          placeholder="Mode…"
+          placeholder={t("simulator.transport.modePlaceholder")}
           options={modes.map((m) => ({
             value: m.code,
             label: localizeLabel(m.label, m.code),
@@ -118,15 +120,15 @@ function SortableTransport({
           <input
             value={transport.global_cost}
             onChange={(e) => set({ global_cost: e.target.value })}
-            placeholder="Coût global"
+            placeholder={t("simulator.transport.globalCost")}
             inputMode="decimal"
             className={fieldCls}
-            aria-label="Coût global"
+            aria-label={t("simulator.transport.globalCost")}
           />
           <FilterSelect
             value={transport.currency}
             onChange={(currency) => set({ currency })}
-            placeholder="Devise"
+            placeholder={t("simulator.transport.currency")}
             options={CURRENCIES.map((c) => ({ value: c, label: c }))}
             compact
             className="w-full"
@@ -134,25 +136,25 @@ function SortableTransport({
           <input
             value={transport.pallet_count}
             onChange={(e) => set({ pallet_count: e.target.value })}
-            placeholder="Palettes"
+            placeholder={t("simulator.transport.pallets")}
             inputMode="numeric"
             className={cn(fieldCls, "col-span-2 sm:col-span-1")}
-            aria-label="Nombre de palettes"
+            aria-label={t("simulator.transport.palletCount")}
           />
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <LocationSelectField
             value={transport.from_location}
             onChange={(from_location) => set({ from_location })}
-            ariaLabel="Origine"
-            emptyLabel="De"
+            ariaLabel={t("simulator.transport.origin")}
+            emptyLabel={t("simulator.transport.from")}
             inputClassName={fieldCls}
           />
           <LocationSelectField
             value={transport.to_location}
             onChange={(to_location) => set({ to_location })}
-            ariaLabel="Destination"
-            emptyLabel="À"
+            ariaLabel={t("simulator.transport.destination")}
+            emptyLabel={t("simulator.transport.to")}
             inputClassName={fieldCls}
           />
         </div>
@@ -164,8 +166,8 @@ function SortableTransport({
             type="button"
             onClick={onSaveAsPreset}
             className="text-muted-foreground hover:text-primary p-1"
-            aria-label="Enregistrer comme preset"
-            title="Enregistrer comme preset"
+            aria-label={t("simulator.preset.save")}
+            title={t("simulator.preset.save")}
           >
             <BookmarkSimple size={16} />
           </button>
@@ -174,7 +176,7 @@ function SortableTransport({
           type="button"
           onClick={onRemove}
           className="text-muted-foreground hover:text-red-500 p-1"
-          aria-label="Supprimer ce transport"
+          aria-label={t("simulator.transport.delete")}
         >
           <Trash size={16} />
         </button>
@@ -184,6 +186,7 @@ function SortableTransport({
 }
 
 export function ChainBuilder({ title, chain, isPurchase, transportModes, onChange }: Props) {
+  const t = useUiTranslate();
   const [presetPick, setPresetPick] = useState("");
   const [savePresetTransport, setSavePresetTransport] = useState<TransportDraft | null>(null);
   const { data: presets = [] } = useSWR(["transport-presets"], () =>
@@ -252,7 +255,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
               onChange={(e) => onChange({ ...chain, copper_variation: e.target.checked })}
               className="w-4 h-4 rounded border-border accent-primary"
             />
-            Variation cuivre
+            {t("simulator.transport.copper")}
           </label>
           <label className="flex items-center gap-2 text-sm text-foreground">
             <input
@@ -261,14 +264,14 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
               onChange={(e) => onChange({ ...chain, currency_conversion: e.target.checked })}
               className="w-4 h-4 rounded border-border accent-primary"
             />
-            Conversion en EUR
+            {t("simulator.transport.toEur")}
           </label>
         </div>
       )}
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Transport
+          {t("simulator.module.transport")}
         </span>
         <div className="flex flex-wrap gap-2">
           {(["detailed", "coefficient"] as const).map((mode) => (
@@ -288,7 +291,9 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
                   : "border-border text-muted-foreground hover:bg-muted",
               )}
             >
-              {mode === "detailed" ? "Modules détaillés" : "Coefficient"}
+              {mode === "detailed"
+                ? t("simulator.transport.detailed")
+                : t("simulator.transport.coefficient")}
             </button>
           ))}
         </div>
@@ -296,29 +301,32 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
         {chain.transportPricingMode === "coefficient" ? (
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">
-              Coefficient multiplicateur (×)
+              {t("simulator.transport.coefficientLabel")}
             </label>
             <input
               value={chain.transportCoefficient}
               onChange={(e) => onChange({ ...chain, transportCoefficient: e.target.value })}
-              placeholder="ex. 1,05"
+              placeholder={t("simulator.transport.coefficientPlaceholder")}
               inputMode="decimal"
               className={fieldCls}
-              aria-label="Coefficient transport"
+              aria-label={t("simulator.transport.coefficientAria")}
             />
             <p className="mt-2 text-xs text-muted-foreground">
-              Alternative aux transports détaillés : le prix est multiplié par ce coefficient dans
-              la chaîne {isPurchase ? "PA" : "PV"}.
+              {isPurchase
+                ? t("simulator.transport.coefficientHelpPa")
+                : t("simulator.transport.coefficientHelpPv")}
             </p>
           </div>
         ) : (
           <>
             <span className="text-xs text-muted-foreground">
-              Transports {chain.transports.length > 0 && `(${chain.transports.length})`}
+              {chain.transports.length > 0
+                ? t("simulator.transport.count", { count: chain.transports.length })
+                : t("simulator.transport.countPlain")}
             </span>
             {chain.transports.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aucun transport. Ajoutez-en si nécessaire.
+                {t("simulator.transport.none")}
               </p>
             ) : (
               <DndContext
@@ -352,7 +360,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
                 className="flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 <Plus size={15} />
-                Ajouter un transport
+                {t("simulator.transport.add")}
               </button>
               {presets.length > 0 && (
                 <FilterSelect
@@ -361,7 +369,7 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
                     setPresetPick(value);
                     if (value) applyPreset(value);
                   }}
-                  placeholder="Preset transport…"
+                  placeholder={t("simulator.preset.placeholder")}
                   options={presets.map((p) => ({ value: p.id, label: p.name }))}
                   compact
                   className="min-w-[12rem] flex-1 sm:flex-none"
@@ -382,25 +390,25 @@ export function ChainBuilder({ title, chain, isPurchase, transportModes, onChang
             }
             className="w-4 h-4 rounded border-border accent-primary"
           />
-          Douane
+          {t("simulator.transport.customs")}
         </label>
         {chain.customs.enabled && (
           <div className="pl-6">
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">
-              Taux de douane (%)
+              {t("simulator.transport.customsRate")}
             </label>
             <input
               value={chain.customs.rate_pct}
               onChange={(e) =>
                 onChange({ ...chain, customs: { ...chain.customs, rate_pct: e.target.value } })
               }
-              placeholder="Ex. 5 pour +5 %"
+              placeholder={t("simulator.transport.customsPlaceholder")}
               inputMode="decimal"
               className={fieldCls}
-              aria-label="Taux de douane en pourcentage"
+              aria-label={t("simulator.transport.customsAria")}
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Majoration en pourcentage sur le prix d&apos;entrée (ex. 5 % → prix × 1,05).
+              {t("simulator.transport.customsHelp")}
             </p>
           </div>
         )}

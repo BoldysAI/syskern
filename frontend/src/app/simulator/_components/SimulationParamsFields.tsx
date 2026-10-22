@@ -25,6 +25,7 @@ import {
 import type { TransportMode } from "@/lib/api";
 import { listTransportModes } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 const labelCls = "block text-xs font-semibold text-muted-foreground mb-1.5";
 const inputCls =
@@ -72,6 +73,7 @@ export function SimulationParamsFields({
   showImportPreset = false,
   nestedMarketModal = false,
 }: SimulationParamsFieldsProps) {
+  const t = useUiTranslate();
   const [marketOpen, setMarketOpen] = useState(false);
   const { request: requestPrefill, modal: prefillModal } = useIncotermPrefillConfirm();
 
@@ -86,8 +88,8 @@ export function SimulationParamsFields({
   const applySaleIncoterm = (code: string) => {
     requestPrefill(
       chainDraftHasContent(draft.saleChain),
-      `Chaîne PV pour ${code}`,
-      `Proposer une structure de chaîne PV adaptée à l'incoterm ${code} ? Les montants restent à saisir manuellement.`,
+      t("simulator.chain.pvFor", { code }),
+      t("simulator.chain.suggestPv", { code }),
       () => update({ saleIncoterm: code, saleChain: suggestSaleChainDraft(code) }),
     );
   };
@@ -96,8 +98,8 @@ export function SimulationParamsFields({
     const dominant = dominantPurchaseIncoterm(supplierLines);
     requestPrefill(
       chainDraftHasContent(draft.purchaseChain),
-      `Chaîne PA pour ${dominant}`,
-      `Proposer une structure PA adaptée à l'incoterm achat majoritaire (${dominant}) ? Les montants restent à saisir.`,
+      t("simulator.chain.paFor", { code: dominant }),
+      t("simulator.chain.suggestPa", { code: dominant }),
       () => update({ purchaseChain: suggestPurchaseChainDraft(dominant) }),
     );
   };
@@ -129,7 +131,7 @@ export function SimulationParamsFields({
               className="flex items-center gap-2 rounded-lg border border-primary/40 px-3 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/50"
             >
               <MagicWand size={15} />
-              Preset « Standard import Chine »
+              {t("simulator.preset.importChine")}
             </button>
           )}
         </div>
@@ -138,7 +140,7 @@ export function SimulationParamsFields({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Marché</h3>
+            <h3 className="text-sm font-bold text-foreground">{t("simulator.market.section")}</h3>
             {!readOnly && (
               <button
                 type="button"
@@ -146,27 +148,31 @@ export function SimulationParamsFields({
                 className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:text-warm"
               >
                 <PencilSimple size={13} />
-                Modifier
+                {t("common.edit")}
               </button>
             )}
           </div>
           <MarketValue
-            label={`Cuivre base (${draft.marketParams.copper_currency ?? "RMB"})`}
+            label={t("simulator.market.copperBase", {
+              currency: draft.marketParams.copper_currency ?? "RMB",
+            })}
             value={draft.marketParams.copper_base_price}
           />
           <MarketValue
-            label={`Cuivre actuel (${draft.marketParams.copper_currency ?? "RMB"})`}
+            label={t("simulator.market.copperCurrent", {
+              currency: draft.marketParams.copper_currency ?? "RMB",
+            })}
             value={draft.marketParams.copper_current_price}
           />
-          <MarketValue label="FX EUR→RMB" value={draft.marketParams.fx_eur_rmb} />
-          <MarketValue label="FX EUR→USD" value={draft.marketParams.fx_eur_usd} />
+          <MarketValue label={t("simulator.fx.eurToRmb")} value={draft.marketParams.fx_eur_rmb} />
+          <MarketValue label={t("simulator.fx.eurToUsd")} value={draft.marketParams.fx_eur_usd} />
         </div>
 
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-bold text-foreground">Paramètres globaux</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("simulator.params.global")}</h3>
 
           <StockPurchaseMixSlider
-            title="Mix stock / achat global"
+            title={t("simulator.params.mixGlobal")}
             value={draft.mixPct}
             disabled={readOnly}
             onChange={(mixPct) => update({ mixPct })}
@@ -174,7 +180,7 @@ export function SimulationParamsFields({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>Marge Symea (%)</label>
+              <label className={labelCls}>{t("simulator.params.symeaPct")}</label>
               <input
                 type="number"
                 min={0}
@@ -187,7 +193,7 @@ export function SimulationParamsFields({
               />
             </div>
             <div>
-              <label className={labelCls}>Marge Syskern (%)</label>
+              <label className={labelCls}>{t("simulator.params.syskernPct")}</label>
               <input
                 type="number"
                 min={0}
@@ -202,7 +208,7 @@ export function SimulationParamsFields({
           </div>
 
           <div>
-            <label className={labelCls}>Position marge Symea</label>
+            <label className={labelCls}>{t("simulator.params.symeaPosition")}</label>
             <div className="flex gap-2">
               {(["after_transports", "before_transports"] as SymeaPosition[]).map((pos) => (
                 <button
@@ -217,7 +223,9 @@ export function SimulationParamsFields({
                       : "border-border text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {pos === "after_transports" ? "Après transports" : "Avant transports"}
+                  {pos === "after_transports"
+                    ? t("simulator.position.after")
+                    : t("simulator.position.before")}
                 </button>
               ))}
             </div>
@@ -226,7 +234,7 @@ export function SimulationParamsFields({
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold text-foreground">Incoterm de vente</h3>
+        <h3 className="mb-3 text-sm font-bold text-foreground">{t("simulator.params.saleIncoterm")}</h3>
         <SaleIncotermFields
           incoterm={draft.saleIncoterm}
           location={draft.saleIncotermLocation}
@@ -242,20 +250,20 @@ export function SimulationParamsFields({
           onClick={applyPurchaseFromSuppliers}
           className="self-start text-xs font-medium text-warm underline-offset-2 hover:text-accent-foreground hover:underline"
         >
-          Adapter la chaîne PA depuis les fournisseurs
+          {t("simulator.params.adaptPurchase")}
         </button>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChainBuilder
-          title="Chaîne PA (achat)"
+          title={t("simulator.chain.purchase")}
           chain={draft.purchaseChain}
           isPurchase
           transportModes={transportModes}
           onChange={(v) => update({ purchaseChain: v })}
         />
         <ChainBuilder
-          title="Chaîne PV (vente)"
+          title={t("simulator.chain.sale")}
           chain={draft.saleChain}
           isPurchase={false}
           transportModes={transportModes}

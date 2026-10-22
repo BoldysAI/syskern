@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useMemo, useState, Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -43,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEdit } from "@/lib/auth";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useBreadcrumbOverride } from "@/components/layout/BreadcrumbContext";
 import { buildProductBreadcrumbs, parseProductNavigationContext } from "@/lib/product-navigation";
@@ -114,6 +116,8 @@ function KeyInfoCard({
   product: ProductDetail;
   latestPvSource: CatalogPvSource | null;
 }) {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const pamp = parseDec(product.pamp_eur);
   const stock = parseDec(product.stock_quantity);
   const hierarchy = [product.universe, product.family, product.range, product.sub_range]
@@ -130,7 +134,7 @@ function KeyInfoCard({
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <h1 className="font-mono text-lg font-bold text-primary">{product.sku_code}</h1>
           <StatusBadge variant={product.is_active ? "success" : "draft"}>
-            {product.is_active ? "Actif" : "Inactif"}
+            {product.is_active ? t("catalog.column.active") : t("catalog.product.inactive")}
           </StatusBadge>
         </div>
         <p className="text-sm text-muted-foreground mb-4">{product.name}</p>
@@ -142,28 +146,31 @@ function KeyInfoCard({
         )}
 
         <InfoLine
-          label="Arborescence"
+          label={t("catalog.field.hierarchy")}
           value={hierarchy || <span className="text-muted-foreground/50">—</span>}
         />
         <InfoLine
-          label="Marque"
+          label={t("catalog.column.brand")}
           value={product.brand || <span className="text-muted-foreground/50">—</span>}
         />
-        <InfoLine label="Stock" value={`${Math.round(stock)} ${productUnitLabel(product)}`} />
+        <InfoLine
+          label={t("catalog.column.stock")}
+          value={`${Math.round(stock)} ${productUnitLabel(product)}`}
+        />
 
         <div className="mt-4 grid grid-cols-1 gap-2">
           <KpiCard
-            label="PAMP"
+            label={t("catalog.column.pamp")}
             accent="green"
             value={
               pamp > 0
-                ? `${pamp.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                ? `${pamp.toLocaleString(uiDateLocale(displayLanguage), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
                 : "—"
             }
           />
           <div>
             <KpiCard
-              label="Prix de vente actuel"
+              label={t("catalog.product.currentPv")}
               accent="green"
               value={<CatalogPvDisplay pv={latestPvSource?.pv ?? null} layout="stack" size="md" />}
             />
@@ -189,6 +196,7 @@ function SaveIndicator({
   status: "idle" | "saving" | "saved" | "error";
   error: string | null;
 }) {
+  const t = useUiTranslate();
   if (error) {
     return (
       <span
@@ -196,7 +204,7 @@ function SaveIndicator({
         title={error}
       >
         <WarningCircle size={15} weight="duotone" />
-        Erreur de sauvegarde
+        {t("catalog.product.saveError")}
       </span>
     );
   }
@@ -204,7 +212,7 @@ function SaveIndicator({
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-green">
         <ArrowsClockwise size={15} className="animate-spin" />
-        Modifications en cours…
+        {t("catalog.product.saving")}
       </span>
     );
   }
@@ -212,7 +220,7 @@ function SaveIndicator({
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-green">
         <Check size={15} weight="bold" />
-        Enregistré
+        {t("catalog.product.saved")}
       </span>
     );
   }
@@ -220,13 +228,13 @@ function SaveIndicator({
 }
 
 const TABS = [
-  { id: "general", label: "Général" },
-  { id: "technical", label: "Technique" },
-  { id: "marketing", label: "Marketing" },
-  { id: "logistics", label: "Logistique" },
-  { id: "commercial", label: "Commercial" },
-  { id: "media", label: "Médias" },
-];
+  { id: "general", labelKey: "catalog.tab.general" },
+  { id: "technical", labelKey: "catalog.tab.technical" },
+  { id: "marketing", labelKey: "catalog.tab.marketing" },
+  { id: "logistics", labelKey: "catalog.tab.logistics" },
+  { id: "commercial", labelKey: "catalog.tab.commercial" },
+  { id: "media", labelKey: "catalog.tab.media" },
+] as const;
 
 export default function ProductPage() {
   return (
@@ -252,6 +260,7 @@ function ProductPageContent() {
   const searchParams = useSearchParams();
   const decodedSku = decodeURIComponent(params?.sku ?? "");
   const { role } = useAuth();
+  const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
   const productKey = useMemo(() => (decodedSku ? ["product", decodedSku] : null), [decodedSku]);
@@ -273,8 +282,12 @@ function ProductPageContent() {
     getPriceHistory(decodedSku, "6m"),
   );
   const latestPvSource = useMemo(
-    () => latestPvSourceFromHistory(collapsePriceHistoryByDay(history6m?.points ?? [])),
-    [history6m?.points],
+    () =>
+      latestPvSourceFromHistory(
+        collapsePriceHistoryByDay(history6m?.points ?? []),
+        t("catalog.pv.simulationFallback"),
+      ),
+    [history6m?.points, t],
   );
 
   const wantEdit = searchParams.get("edit") === "1" || searchParams.get("edit") === "true";
@@ -293,12 +306,16 @@ function ProductPageContent() {
   const editing = manualEditing ?? (wantEdit && userCanEdit && Boolean(product));
 
   const breadcrumbCrumbs = useMemo(() => {
-    const navContext = parseProductNavigationContext(searchParams);
-    return buildProductBreadcrumbs(navContext, {
-      productLabel: product?.name || decodedSku,
-      universe: product?.universe,
-    });
-  }, [searchParams, product, decodedSku]);
+    const navContext = parseProductNavigationContext(searchParams, t);
+    return buildProductBreadcrumbs(
+      navContext,
+      {
+        productLabel: product?.name || decodedSku,
+        universe: product?.universe,
+      },
+      t,
+    );
+  }, [searchParams, product, decodedSku, t]);
 
   useBreadcrumbOverride(breadcrumbCrumbs, Boolean(decodedSku));
 
@@ -417,7 +434,7 @@ function ProductPageContent() {
       }
     } catch (e) {
       // Rollback: discard pending edits and refetch server truth (CDC §4.3).
-      setSaveError(e instanceof Error ? e.message : "Erreur de sauvegarde");
+      setSaveError(e instanceof Error ? e.message : t("catalog.product.saveError"));
       setCoreDraft({});
       setAttrDraft({});
       setFieldValidity({});
@@ -425,7 +442,7 @@ function ProductPageContent() {
       void mutate(attrsKey);
       throw e;
     }
-  }, [product, coreDraft, attrDraft, attrMap, fieldValidity, mutate, productKey, attrsKey]);
+  }, [product, coreDraft, attrDraft, attrMap, fieldValidity, mutate, productKey, attrsKey, t]);
 
   const { status, error: autosaveError } = useAutosave(draft, persist, {
     enabled: !!product,
@@ -438,7 +455,7 @@ function ProductPageContent() {
       const updated = await refreshPamp(decodedSku);
       await mutate(productKey, updated, { revalidate: false });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec du recalcul du PAMP");
+      toast.error(e instanceof Error ? e.message : t("catalog.product.pampRecalcFailed"));
     } finally {
       setRecalcing(false);
     }
@@ -448,9 +465,9 @@ function ProductPageContent() {
     if (!product || !decodedSku) return;
     const label = product.sku_code || decodedSku;
     const ok = await confirm({
-      title: "Supprimer le produit",
-      description: `Supprimer le produit « ${label} » ? Le produit sera désactivé (soft delete) : il reste en base pour l'historique des simulations, mais n'est plus actif.`,
-      confirmLabel: "Supprimer",
+      title: t("catalog.product.deleteTitle"),
+      description: t("catalog.product.deleteDescription", { label }),
+      confirmLabel: t("common.delete"),
       destructive: true,
     });
     if (!ok) return;
@@ -459,7 +476,7 @@ function ProductPageContent() {
       await deleteProduct(decodedSku);
       router.push("/catalog");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec de la suppression");
+      toast.error(e instanceof Error ? e.message : t("catalog.product.deleteFailed"));
     } finally {
       setDeleting(false);
     }
@@ -498,26 +515,26 @@ function ProductPageContent() {
   const handleDuplicate = useCallback(() => {
     if (!product) return;
     seedProductDraft(buildDuplicateDraft(product, attrsData ?? []));
-    toast.success("Produit dupliqué — renseignez un nouveau SKU pour l'enregistrer.");
+    toast.success(t("catalog.duplicate.toast"));
     router.push("/catalog/new");
-  }, [product, attrsData, router]);
+  }, [product, attrsData, router, t]);
 
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-muted-foreground">
         <WarningCircle size={40} weight="duotone" className="text-destructive/60" />
-        <p className="font-medium text-foreground">Produit introuvable</p>
+        <p className="font-medium text-foreground">{t("catalog.product.notFound")}</p>
         <p className="text-sm">{error?.message}</p>
         <div className="mt-2 flex items-center gap-3">
           <Button onClick={() => mutate(productKey)}>
             <ArrowsClockwise size={14} />
-            Réessayer
+            {t("catalog.action.retry")}
           </Button>
           <Link
             href="/catalog"
             className="text-sm font-medium text-brand-green hover:text-accent-foreground"
           >
-            Retour au catalogue
+            {t("catalog.product.backToCatalog")}
           </Link>
         </div>
       </div>
@@ -557,10 +574,10 @@ function ProductPageContent() {
                     size="sm"
                     onClick={handleRecalc}
                     disabled={recalcing}
-                    title="Recharger le PAMP et le stock depuis Odoo"
+                    title={t("catalog.product.refreshPamp")}
                   >
                     <ArrowsClockwise size={14} className={cn(recalcing && "animate-spin")} />
-                    {recalcing ? "Recalcul…" : "Recalculer PAMP"}
+                    {recalcing ? t("catalog.product.recalcBusy") : t("catalog.product.recalc")}
                   </Button>
                   {userCanEdit && (
                     <>
@@ -570,7 +587,7 @@ function ProductPageContent() {
                         onClick={() => setManualEditing(editing ? false : true)}
                       >
                         {editing ? <Check size={14} weight="bold" /> : <PencilSimple size={14} />}
-                        {editing ? "Terminer" : "Modifier"}
+                        {editing ? t("catalog.product.doneEditing") : t("common.edit")}
                       </Button>
                       <Button
                         variant="outline"
@@ -579,11 +596,13 @@ function ProductPageContent() {
                         disabled={deleting || !product.is_active}
                         className="border-destructive/30 text-destructive hover:bg-destructive/10"
                         title={
-                          product.is_active ? "Désactiver ce produit" : "Produit déjà désactivé"
+                          product.is_active
+                            ? t("catalog.product.deactivate")
+                            : t("catalog.product.alreadyInactive")
                         }
                       >
                         <Trash size={14} />
-                        {deleting ? "Suppression…" : "Supprimer"}
+                        {deleting ? t("catalog.product.deleting") : t("common.delete")}
                       </Button>
                     </>
                   )}
@@ -595,7 +614,7 @@ function ProductPageContent() {
                 <TabsList className="h-auto w-full flex-wrap justify-start overflow-x-auto">
                   {TABS.map((tab) => (
                     <TabsTrigger key={tab.id} value={tab.id} className="flex-shrink-0 px-4 py-2">
-                      {tab.label}
+                      {t(tab.labelKey)}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -632,7 +651,7 @@ function ProductPageContent() {
                     render={<a href={odooUrl} target="_blank" rel="noopener noreferrer" />}
                   >
                     <ArrowSquareOut size={14} />
-                    Voir dans Odoo
+                    {t("catalog.product.viewInOdoo")}
                   </Button>
                 ) : (
                   <Button
@@ -641,12 +660,12 @@ function ProductPageContent() {
                     disabled
                     title={
                       ODOO_BASE_URL
-                        ? "Ce produit n'a pas d'identifiant Odoo."
-                        : "URL Odoo non configurée (NEXT_PUBLIC_ODOO_BASE_URL)."
+                        ? t("catalog.product.noOdooId")
+                        : t("catalog.product.odooUrlMissing")
                     }
                   >
                     <ArrowSquareOut size={14} />
-                    Voir dans Odoo
+                    {t("catalog.product.viewInOdoo")}
                   </Button>
                 )}
 
@@ -659,22 +678,22 @@ function ProductPageContent() {
                 >
                   <Button size="sm">
                     <Plus size={14} weight="bold" />
-                    Ajouter à une simulation
+                    {t("catalog.action.addToASimulation")}
                   </Button>
                 </AddToSimulationDialog>
 
                 {userCanEdit ? (
                   <Button variant="outline" size="sm" onClick={handleDuplicate}>
                     <Copy size={14} />
-                    Dupliquer
+                    {t("catalog.action.duplicate")}
                   </Button>
                 ) : null}
 
-                <Button variant="outline" size="sm" disabled title="Disponible en MVP2">
+                <Button variant="outline" size="sm" disabled title={t("catalog.media.mvp2")}>
                   <ClockCounterClockwise size={14} />
-                  Historique des modifications
+                  {t("catalog.product.history")}
                   <StatusBadge variant="warning" className="ml-1 px-1.5 py-0 text-[10px]">
-                    MVP2
+                    {t("catalog.mvp2.badge")}
                   </StatusBadge>
                 </Button>
               </div>

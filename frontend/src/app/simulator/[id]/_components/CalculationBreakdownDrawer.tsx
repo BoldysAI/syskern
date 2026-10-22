@@ -17,6 +17,9 @@ import { transportModeLabelMap } from "@/lib/transport-modes";
 import { cn } from "@/lib/utils";
 import { decToPct, diagnosticTextClass, fmtEur, fmtPrice, formatBreakdownStepDetails, isStaleSaleMarginBreakdown, lineDiagnostics, mpStr, parseLineBreakdown, prChainSteps, stepModuleLabel, type BreakdownStep } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 
 interface Props {
   line: SimulationLine | null;
@@ -24,14 +27,15 @@ interface Props {
   onClose: () => void;
 }
 
-const STEPS = [
-  { id: "summary", label: "Synthèse" },
-  { id: "purchase", label: "Chaîne PA" },
-  { id: "pr", label: "Chaîne PR" },
-  { id: "sale", label: "Chaîne PV" },
-] as const;
+const STEPS: { id: "summary" | "purchase" | "pr" | "sale"; label: MessageKey }[] = [
+  { id: "summary", label: "simulator.breakdown.summary" },
+  { id: "purchase", label: "simulator.chain.pa" },
+  { id: "pr", label: "simulator.chain.pr" },
+  { id: "sale", label: "simulator.chain.pv" },
+];
 
 function StepBadge({ applied }: { applied: boolean }) {
+  const t = useUiTranslate();
   return (
     <span
       className={cn(
@@ -39,7 +43,7 @@ function StepBadge({ applied }: { applied: boolean }) {
         applied ? "border border-primary/20 bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
       )}
     >
-      {applied ? "Appliqué" : "Ignoré"}
+      {applied ? t("simulator.breakdown.applied") : t("simulator.breakdown.ignored")}
     </span>
   );
 }
@@ -47,11 +51,13 @@ function StepBadge({ applied }: { applied: boolean }) {
 function StepDetailBlock({
   step,
   transportLabels,
+  locale,
 }: {
   step: BreakdownStep;
   transportLabels: Record<string, string>;
+  locale: string;
 }) {
-  const details = formatBreakdownStepDetails(step, { transportLabels });
+  const details = formatBreakdownStepDetails(step, { transportLabels, locale });
   if (details.length === 0) return null;
   return (
     <div className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted px-3 py-2.5">
@@ -68,15 +74,18 @@ function ChainSteps({
   steps,
   chainLabel,
   transportLabels,
+  locale,
 }: {
   steps: BreakdownStep[];
   chainLabel: string;
   transportLabels: Record<string, string>;
+  locale: string;
 }) {
+  const t = useUiTranslate();
   if (steps.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Aucune étape enregistrée pour la chaîne {chainLabel}.
+        {t("simulator.breakdown.noSteps", { chain: chainLabel })}
       </p>
     );
   }
@@ -93,24 +102,24 @@ function ChainSteps({
               {step.order ?? idx + 1}
             </span>
             <span className="text-sm font-semibold text-foreground">
-              {stepModuleLabel(step)}
+              {stepModuleLabel(step, locale)}
             </span>
             <StepBadge applied={step.applied} />
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <div className="rounded border border-border bg-card px-2 py-1">
-              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Entrée</span>
-              <p className="tabular-nums text-foreground">{fmtPrice(step.input_price)}</p>
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">{t("simulator.breakdown.input")}</span>
+              <p className="tabular-nums text-foreground">{fmtPrice(step.input_price, locale)}</p>
             </div>
             <CaretRight size={16} className="shrink-0 text-muted-foreground/60" />
             <div className="rounded border border-warm/30 bg-warm/10/50 px-2 py-1">
-              <span className="text-[10px] font-semibold uppercase text-warm">Sortie</span>
-              <p className="font-medium tabular-nums text-foreground">{fmtPrice(step.output_price)}</p>
+              <span className="text-[10px] font-semibold uppercase text-warm">{t("simulator.breakdown.output")}</span>
+              <p className="font-medium tabular-nums text-foreground">{fmtPrice(step.output_price, locale)}</p>
             </div>
           </div>
 
-          <StepDetailBlock step={step} transportLabels={transportLabels} />
+          <StepDetailBlock step={step} transportLabels={transportLabels} locale={locale} />
 
           {step.warnings.length > 0 && (
             <ul className="mt-3 space-y-1.5">
@@ -135,6 +144,8 @@ function ChainSteps({
 }
 
 export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const [stepIdx, setStepIdx] = useState(0);
   const { data: transportModes } = useSWR(
     open ? "transport-modes-breakdown" : null,
@@ -174,7 +185,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
       <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
         <div className="shrink-0 border-b border-border px-5 py-4">
           <DialogHeader className="gap-1 p-0">
-            <DialogTitle>Détail du calcul</DialogTitle>
+            <DialogTitle>{t("simulator.breakdown.title")}</DialogTitle>
             <DialogDescription className="truncate font-mono text-sm text-warm">
               {line.product_sku}
             </DialogDescription>
@@ -197,7 +208,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 )}
               >
                 <span className="font-bold">{i + 1}</span>
-                {s.label}
+                {t(s.label)}
               </button>
             ))}
           </div>
@@ -207,9 +218,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {staleSaleMargin && (
               <div className="mb-4 rounded-lg border border-warm/40 bg-warm/10 px-4 py-3 text-sm text-foreground">
                 <p className={diagnosticTextClass}>
-                  Ce détail de calcul date d&apos;avant la correction « marge Syskern avant transport
-                  PV ». Les montants affichés peuvent être incorrects — recalculez la simulation
-                  (bouton Recalculer) pour mettre à jour le PV et la chaîne PV.
+                  {t("simulator.breakdown.stale")}
                 </p>
               </div>
             )}
@@ -234,15 +243,15 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
               <div className="space-y-4">
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Résultats figés
+                    {t("simulator.breakdown.frozen")}
                   </h3>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <SummaryCell label="PA net" value={fmtEur(line.pa_net_eur)} />
-                    <SummaryCell label="PAMP prévisionnel" value={fmtEur(line.pamp_predictive_eur)} />
-                    <SummaryCell label="PR" value={fmtEur(line.pr_eur)} highlight />
-                    <SummaryCell label="PV" value={fmtEur(line.pv_eur)} highlight />
+                    <SummaryCell label={t("simulator.column.paNet")} value={fmtEur(line.pa_net_eur, displayLanguage)} />
+                    <SummaryCell label={t("simulator.module.pamp")} value={fmtEur(line.pamp_predictive_eur, displayLanguage)} />
+                    <SummaryCell label={t("simulator.column.pr")} value={fmtEur(line.pr_eur, displayLanguage)} highlight />
+                    <SummaryCell label={t("simulator.column.pv")} value={fmtEur(line.pv_eur, displayLanguage)} highlight />
                     <SummaryCell
-                      label="Marge Syskern eff."
+                      label={t("simulator.breakdown.syskernEffective")}
                       value={
                         line.effective_margin_rate
                           ? `${decToPct(line.effective_margin_rate)} %`
@@ -250,8 +259,8 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       }
                     />
                     <SummaryCell
-                      label="Mix stock / achat"
-                      value={`${purchasePct} % achat · ${mixPct} % stock`}
+                      label={t("simulator.breakdown.mixStock")}
+                      value={t("simulator.breakdown.mixValue", { purchase: purchasePct, stock: mixPct })}
                     />
                   </div>
                 </section>
@@ -259,15 +268,21 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 {Object.keys(mpSnap).length > 0 && (
                   <section className="rounded-lg border border-border bg-muted px-4 py-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Paramètres marché utilisés au calcul
+                      {t("simulator.market.usedAtCalc")}
                     </h3>
                     <ul className="mt-2 space-y-1 text-sm text-foreground">
                       <li>
-                        Cuivre base / actuel : {mpStr(mpSnap, "copper_base_price_rmb")} /{" "}
-                        {mpStr(mpSnap, "copper_current_price_rmb")} RMB
+                        {t("simulator.market.copperLine", {
+                          base: mpStr(mpSnap, "copper_base_price_rmb"),
+                          current: mpStr(mpSnap, "copper_current_price_rmb"),
+                        })}
                       </li>
-                      <li>Change EUR→RMB : {mpStr(mpSnap, "fx_eur_rmb")}</li>
-                      <li>Change EUR→USD : {mpStr(mpSnap, "fx_eur_usd")}</li>
+                      <li>
+                        {t("simulator.fx.changeEurRmb")} : {mpStr(mpSnap, "fx_eur_rmb")}
+                      </li>
+                      <li>
+                        {t("simulator.fx.changeEurUsd")} : {mpStr(mpSnap, "fx_eur_usd")}
+                      </li>
                     </ul>
                   </section>
                 )}
@@ -275,12 +290,12 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                 {(incSnap.sale_incoterm || incSnap.purchase_incoterm) && (
                   <section className="rounded-lg border border-border bg-muted px-4 py-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Incoterms au calcul
+                      {t("simulator.diag.incoterms")}
                     </h3>
                     <ul className="mt-2 space-y-1 text-sm text-foreground">
                       {incSnap.sale_incoterm && (
                         <li>
-                          Vente :{" "}
+                          {t("simulator.diag.sale")}{" "}
                           {formatIncotermDisplay(
                             String(incSnap.sale_incoterm),
                             incSnap.sale_incoterm_location as string | undefined
@@ -289,7 +304,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       )}
                       {incSnap.purchase_incoterm && (
                         <li>
-                          Achat (fournisseur actif) :{" "}
+                          {t("simulator.diag.purchaseActive")}{" "}
                           {formatIncotermDisplay(
                             String(incSnap.purchase_incoterm),
                             incSnap.purchase_incoterm_location as string | undefined
@@ -298,51 +313,50 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                       )}
                     </ul>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Le PR ne dépend pas directement de l&apos;incoterm — il combine PA net et
-                      PAMP via le mix. L&apos;incoterm achat contextualise la chaîne PA ; l&apos;incoterm
-                      vente la chaîne PV.
+                      {t("simulator.breakdown.prExplain")}
                     </p>
                   </section>
                 )}
 
                 <section className="rounded-lg border border-border bg-muted px-4 py-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Formule PR
+                    {t("simulator.breakdown.prFormulaTitle")}
                   </h3>
                   <p className="mt-2 text-sm text-foreground">
-                    PR = ({purchasePct} % × PA net) + ({mixPct} % × PAMP prév.)
+                    {t("simulator.breakdown.prFormulaDisplay", { purchase: purchasePct, stock: mixPct })}
                   </p>
                   <p className="mt-1 text-sm tabular-nums text-foreground">
                     = ({purchasePct / 100} × {line.pa_net_eur ?? "?"}) + ({mixPct / 100} ×{" "}
                     {line.pamp_predictive_eur ?? "?"})
                     {" → "}
-                    <span className="font-semibold">{fmtEur(line.pr_eur)}</span>
+                    <span className="font-semibold">{fmtEur(line.pr_eur, displayLanguage)}</span>
                   </p>
                 </section>
 
                 {saleSteps.length > 0 && (
                   <section className="rounded-lg border border-border bg-muted px-4 py-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Chaîne PV
+                      {t("simulator.chain.pv")}
                     </h3>
                     <p className="mt-2 text-sm text-foreground">
-                      Ordre d&apos;application :{" "}
-                      {saleSteps.map((s) => stepModuleLabel(s)).join(" → ")}
+                      {t("simulator.breakdown.applyOrder")}{" "}
+                      {saleSteps.map((s) => stepModuleLabel(s, displayLanguage)).join(" → ")}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      La marge Syskern est appliquée sur le PR avant les transports et la douane
-                      (position fixe, non déplaçable).
+                      {t("simulator.breakdown.syskernFixed")}
                     </p>
                     <p className="mt-2 text-sm tabular-nums text-foreground">
-                      PR {fmtEur(line.pr_eur)}
+                      {t("simulator.breakdown.prPrefix", { value: fmtEur(line.pr_eur, displayLanguage) })}
                       {saleSteps.map((s) => (
                         <span key={`${s.module}-${s.order}`}>
                           {" → "}
-                          {stepModuleLabel(s)} {fmtPrice(s.output_price)}
+                          {stepModuleLabel(s, displayLanguage)} {fmtPrice(s.output_price, displayLanguage)}
                         </span>
                       ))}
                       {" → "}
-                      <span className="font-semibold">PV {fmtEur(line.pv_eur)}</span>
+                      <span className="font-semibold">
+                        {t("simulator.breakdown.pvPrefix", { value: fmtEur(line.pv_eur, displayLanguage) })}
+                      </span>
                     </p>
                   </section>
                 )}
@@ -351,7 +365,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                   <section>
                     <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warm">
                       <Warning size={14} weight="fill" />
-                      Avertissements ({warnings.length})
+                      {t("simulator.diag.warnings", { count: warnings.length })}
                     </h3>
                     <ul className="space-y-1.5">
                       {warnings.map((w, i) => (
@@ -374,59 +388,83 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
             {currentStep === "purchase" && (
               <div>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Chaîne d&apos;achat : du prix PO fournisseur au PA net en EUR.
+                  {t("simulator.breakdown.purchaseIntro")}
                   {breakdown.purchase?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">
-                      Résultat :{" "}
-                      {fmtPrice({
-                        amount: breakdown.purchase.final_amount,
-                        currency: breakdown.purchase.final_currency ?? "EUR",
+                      {t("simulator.breakdown.result", {
+                        price: fmtPrice(
+                          {
+                            amount: breakdown.purchase.final_amount,
+                            currency: breakdown.purchase.final_currency ?? "EUR",
+                          },
+                          displayLanguage,
+                        ),
                       })}
                     </span>
                   )}
                 </p>
-                <ChainSteps steps={purchaseSteps} chainLabel="PA" transportLabels={transportLabels} />
+                <ChainSteps
+                  steps={purchaseSteps}
+                  chainLabel="PA"
+                  transportLabels={transportLabels}
+                  locale={displayLanguage}
+                />
               </div>
             )}
 
             {currentStep === "pr" && (
               <div>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Chaîne PR : du PA net et du PAMP prévisionnel au prix de revient en EUR.
+                  {t("simulator.breakdown.prIntro")}
                   {(breakdown.pr?.final_amount ?? line.pr_eur) && (
                     <span className="ml-1 font-medium text-foreground">
-                      Résultat :{" "}
-                      {fmtPrice(
-                        breakdown.pr?.final_amount
-                          ? {
-                              amount: breakdown.pr.final_amount,
-                              currency: breakdown.pr.final_currency ?? "EUR",
-                            }
-                          : { amount: line.pr_eur!, currency: "EUR" },
-                      )}
+                      {t("simulator.breakdown.result", {
+                        price: fmtPrice(
+                          breakdown.pr?.final_amount
+                            ? {
+                                amount: breakdown.pr.final_amount,
+                                currency: breakdown.pr.final_currency ?? "EUR",
+                              }
+                            : { amount: line.pr_eur!, currency: "EUR" },
+                          displayLanguage,
+                        ),
+                      })}
                     </span>
                   )}
                 </p>
-                <ChainSteps steps={prSteps} chainLabel="PR" transportLabels={transportLabels} />
+                <ChainSteps
+                  steps={prSteps}
+                  chainLabel="PR"
+                  transportLabels={transportLabels}
+                  locale={displayLanguage}
+                />
               </div>
             )}
 
             {currentStep === "sale" && (
               <div>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Chaîne de vente : du PR au PV final en EUR. La marge Syskern est appliquée en
-                  premier sur le PR, puis les transports et la douane.
+                  {t("simulator.breakdown.saleIntro")}
                   {breakdown.sale?.final_amount && (
                     <span className="ml-1 font-medium text-foreground">
-                      Résultat :{" "}
-                      {fmtPrice({
-                        amount: breakdown.sale.final_amount,
-                        currency: breakdown.sale.final_currency ?? "EUR",
+                      {t("simulator.breakdown.result", {
+                        price: fmtPrice(
+                          {
+                            amount: breakdown.sale.final_amount,
+                            currency: breakdown.sale.final_currency ?? "EUR",
+                          },
+                          displayLanguage,
+                        ),
                       })}
                     </span>
                   )}
                 </p>
-                <ChainSteps steps={saleSteps} chainLabel="PV" transportLabels={transportLabels} />
+                <ChainSteps
+                  steps={saleSteps}
+                  chainLabel="PV"
+                  transportLabels={transportLabels}
+                  locale={displayLanguage}
+                />
               </div>
             )}
           </div>
@@ -434,13 +472,13 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
         <div className="flex shrink-0 items-center justify-between border-t border-border px-5 py-3">
           <Button type="button" variant="outline" size="sm" onClick={goPrev} disabled={stepIdx === 0} className="gap-1.5">
             <ArrowLeft size={14} />
-            Précédent
+            {t("simulator.wizard.previous")}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Étape {stepIdx + 1} / {STEPS.length}
+            {t("simulator.breakdown.step", { current: stepIdx + 1, total: STEPS.length })}
           </span>
           <Button type="button" size="sm" onClick={goNext} disabled={stepIdx >= STEPS.length - 1} className="gap-1.5">
-            Suivant
+            {t("simulator.wizard.next")}
             <ArrowRight size={14} />
           </Button>
         </div>

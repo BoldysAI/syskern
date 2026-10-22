@@ -10,6 +10,8 @@ from pathlib import Path
 from celery import shared_task
 from django.utils import timezone
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
+
 from .exports import build_simulation_xlsx
 from .models import RecalculationTrigger, Simulation
 from .serializers import SimulationDetailSerializer
@@ -38,6 +40,7 @@ def recalculate_task(
     scope: str = "params_only",
     market_params: dict | None = None,
     note: str = "",
+    locale: str | None = None,
 ) -> dict:
     """Recalculate every line of a simulation in a worker (CDC §6.9.4).
 
@@ -55,16 +58,17 @@ def recalculate_task(
     Returns the fresh `SimulationDetailSerializer` payload (plus an optional
     `odoo_refresh_error` key when the refresh degraded).
     """
+    locale = locale or resolve_ui_locale(None)
     try:
         sim = Simulation.objects.get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:
-        raise _TaskError("Simulation introuvable.") from e
+        raise _TaskError(translate("simulations.not_found", locale)) from e
 
     if sim.status == "finalized":
-        raise _TaskError("Une simulation finalisée ne peut pas être recalculée.")
+        raise _TaskError(translate("simulations.finalized_no_recalc", locale))
 
     if scope not in _SCOPE_TRIGGER:
-        raise _TaskError("Périmètre de recalcul invalide.")
+        raise _TaskError(translate("simulations.recalc_scope_invalid", locale))
 
     # Market params from the client (sidebar) are persisted before recalc (any scope).
     if market_params:
@@ -85,7 +89,8 @@ def recalculate_task(
     effective_note = note
     if odoo_error:
         prefix = f"{note} " if note else ""
-        effective_note = f"{prefix}[Rafraîchissement Odoo indisponible : {odoo_error}]"
+        detail = translate("simulations.odoo_refresh_note", locale).format(error=odoo_error)
+        effective_note = f"{prefix}[{detail}]"
 
     run_simulation(
         sim,
@@ -98,7 +103,8 @@ def recalculate_task(
     fresh = Simulation.objects.prefetch_related("lines").get(pk=sim.pk)
     data = SimulationDetailSerializer(fresh).data
     if odoo_error:
-        data["odoo_refresh_error"] = odoo_error
+        # The raw Odoo exception stays in the log and the recalc note, not in the toast.
+        data["odoo_refresh_error"] = translate("simulations.odoo_unreachable", locale)
     return data
 
 
@@ -109,20 +115,21 @@ def _slugify_label(label: str) -> str:
 
 
 @shared_task(name="simulations.export_simulation_task", bind=True)
-def export_simulation_task(self, simulation_pk: str) -> dict:
+def export_simulation_task(self, simulation_pk: str, locale: str | None = None) -> dict:
     """Build the simulation Excel workbook and store it on disk (CDC §6.9).
 
     Returns `{"file_url", "filename", "size_bytes"}` — the client polls the
     polling endpoint, then downloads the file via the URL.
     """
+    locale = locale or resolve_ui_locale(None)
     try:
         sim = Simulation.objects.prefetch_related("lines__product").get(pk=simulation_pk)
     except Simulation.DoesNotExist as e:
-        raise _TaskError("Simulation introuvable.") from e
+        raise _TaskError(translate("simulations.not_found", locale)) from e
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"
-    file_path.write_bytes(build_simulation_xlsx(sim))
+    file_path.write_bytes(build_simulation_xlsx(sim, locale=locale))
 
     timestamp = timezone.now().strftime("%Y%m%d")
     return {

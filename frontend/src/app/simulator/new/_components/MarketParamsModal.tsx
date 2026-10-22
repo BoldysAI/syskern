@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { OptionSelect } from "@/components/OptionSelect";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import type { MarketParamsDraft } from "./wizard-draft";
 import {
   convertCopperDraftPrice,
@@ -36,10 +37,7 @@ const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30";
 const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
 
-const COPPER_MARKET_OPTIONS = [
-  { value: "LME", label: "LME (London)" },
-  { value: "SHE", label: "SHE (Shanghai)" },
-] as const;
+const COPPER_MARKET_OPTIONS = ["LME", "SHE"] as const;
 
 const COPPER_CURRENCY_OPTIONS = [
   { value: "RMB", label: "RMB" },
@@ -66,6 +64,7 @@ function MarketParamsPanel({
   onSave: () => void;
   className?: string;
 }) {
+  const t = useUiTranslate();
   const set = (patch: Partial<MarketParamsDraft>) => setDraft((d) => ({ ...d, ...patch }));
   const currency = draft.copper_currency ?? "RMB";
 
@@ -87,12 +86,12 @@ function MarketParamsPanel({
   return (
     <div className={cn("flex flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10", className)}>
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="font-heading text-base font-medium text-foreground">Paramètres marché</h2>
+        <h2 className="font-heading text-base font-medium text-foreground">{t("simulator.market.title")}</h2>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Fermer"
+          aria-label={t("common.close")}
         >
           <X size={18} />
         </button>
@@ -101,15 +100,18 @@ function MarketParamsPanel({
       <div className="flex flex-col gap-4 p-5">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>Marché cuivre</label>
+            <label className={labelCls}>{t("simulator.market.copperMarket")}</label>
             <OptionSelect
               value={draft.copper_market ?? "LME"}
               onValueChange={(v) => set({ copper_market: v as "LME" | "SHE" })}
-              options={COPPER_MARKET_OPTIONS}
+              options={COPPER_MARKET_OPTIONS.map((value) => ({
+                value,
+                label: value === "LME" ? t("simulator.market.lme") : t("simulator.market.she"),
+              }))}
             />
           </div>
           <div>
-            <label className={labelCls}>Devise cuivre</label>
+            <label className={labelCls}>{t("simulator.market.copperCurrency")}</label>
             <OptionSelect
               value={currency}
               onValueChange={(v) => onCurrencyChange(v as CopperCurrency)}
@@ -130,13 +132,13 @@ function MarketParamsPanel({
           ) : (
             <Database size={15} />
           )}
-          Pré-remplir depuis les paramètres actifs
+          {t("simulator.market.prefill")}
         </Button>
         {note && <p className="text-xs text-muted-foreground">{note}</p>}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelCls}>Cuivre base ({currency})</label>
+            <label className={labelCls}>{t("simulator.market.copperBase", { currency })}</label>
             <input
               value={draft.copper_base_price}
               onChange={(e) => set({ copper_base_price: e.target.value })}
@@ -146,7 +148,7 @@ function MarketParamsPanel({
             />
           </div>
           <div>
-            <label className={labelCls}>Cuivre actuel ({currency})</label>
+            <label className={labelCls}>{t("simulator.market.copperCurrent", { currency })}</label>
             <input
               value={draft.copper_current_price}
               onChange={(e) => set({ copper_current_price: e.target.value })}
@@ -156,7 +158,7 @@ function MarketParamsPanel({
             />
           </div>
           <div>
-            <label className={labelCls}>FX EUR→RMB</label>
+            <label className={labelCls}>{t("simulator.fx.eurToRmb")}</label>
             <input
               value={draft.fx_eur_rmb}
               onChange={(e) => set({ fx_eur_rmb: e.target.value })}
@@ -166,7 +168,7 @@ function MarketParamsPanel({
             />
           </div>
           <div>
-            <label className={labelCls}>FX EUR→USD</label>
+            <label className={labelCls}>{t("simulator.fx.eurToUsd")}</label>
             <input
               value={draft.fx_eur_usd}
               onChange={(e) => set({ fx_eur_usd: e.target.value })}
@@ -180,10 +182,10 @@ function MarketParamsPanel({
 
       <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border p-4 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button type="button" onClick={onSave}>
-          Enregistrer
+          {t("common.save")}
         </Button>
       </div>
     </div>
@@ -191,6 +193,7 @@ function MarketParamsPanel({
 }
 
 export function MarketParamsModal({ open, onOpenChange, value, onSave, nested = false }: Props) {
+  const t = useUiTranslate();
   const [draft, setDraft] = useState<MarketParamsDraft>(value);
   const [prefilling, setPrefilling] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -279,8 +282,8 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave, nested = 
     setPrefilling(false);
     setNote(
       fieldsFilled > 0
-        ? `Valeurs pré-remplies (${market}, ${next.copper_currency}).`
-        : `Aucun paramètre cuivre ${market} trouvé dans les paramètres marché.`,
+        ? t("simulator.market.prefilled", { market, currency: next.copper_currency })
+        : t("simulator.market.none", { market }),
     );
   };
 
@@ -308,7 +311,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave, nested = 
         <button
           type="button"
           className="absolute inset-0 bg-black/50 backdrop-blur-md"
-          aria-label="Fermer"
+          aria-label={t("common.close")}
           onClick={() => handleOpenChange(false)}
         />
         <div
@@ -319,7 +322,7 @@ export function MarketParamsModal({ open, onOpenChange, value, onSave, nested = 
           onClick={(e) => e.stopPropagation()}
         >
           <span id="market-params-nested-title" className="sr-only">
-            Paramètres marché
+            {t("simulator.market.title")}
           </span>
           {panel}
         </div>

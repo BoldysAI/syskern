@@ -23,6 +23,8 @@ from rest_framework import parsers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.accounts.ui_locale import translate_request
+
 from .filters import DocumentLibraryFilter
 from .models import DocumentLibrary
 from .serializers import DocumentLibrarySerializer
@@ -75,11 +77,12 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
         file = request.FILES.get("file")
         if not file:
             return Response(
-                {"detail": "Un fichier est requis."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": translate_request(request, "documents.file_required")},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         if file.size > MAX_UPLOAD_BYTES:
             return Response(
-                {"detail": "Fichier trop volumineux (max 20 Mo)."},
+                {"detail": translate_request(request, "documents.file_too_large")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -87,7 +90,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
         ext = os.path.splitext(file.name)[1].lower()
         if mime not in ALLOWED_MIME and ext not in ALLOWED_EXT:
             return Response(
-                {"detail": "Format non accepté (PDF, JPG, PNG, DOCX, XLSX)."},
+                {"detail": translate_request(request, "documents.bad_format")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -146,7 +149,7 @@ class DocumentLibraryViewSet(viewsets.ModelViewSet):
         """
         doc = self.get_object()
         if not doc.file_url or not default_storage.exists(doc.file_url):
-            raise Http404("Fichier introuvable ou purgé.")
+            raise Http404(translate_request(request, "documents.file_missing"))
         inline = request.query_params.get("inline") in ("1", "true")
         return FileResponse(
             default_storage.open(doc.file_url, "rb"),

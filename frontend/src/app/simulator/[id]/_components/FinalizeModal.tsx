@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Warning, CheckCircle, CircleNotch, Lock } from "@phosphor-icons/react";
 import { finalizeSimulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,15 +23,15 @@ interface Props {
   onDone: () => void;
 }
 
-const CONSEQUENCES = [
-  "La simulation passe en lecture seule : plus aucune modification possible.",
-  "Le recalcul est désactivé.",
-  "Elle reste consultable et peut servir de base aux offres commerciales.",
-  "Action irréversible (vous pourrez seulement l'archiver).",
+const CONSEQUENCE_KEYS: MessageKey[] = [
+  "simulator.finalize.readonly",
+  "simulator.finalize.recalcOff",
+  "simulator.finalize.stillUsable",
+  "simulator.finalize.irreversible",
 ];
 
-function parseFinalizeError(e: unknown): { detail: string; errors: string[] } {
-  const fallback = { detail: "Finalisation échouée.", errors: [] as string[] };
+function parseFinalizeError(e: unknown, fallbackDetail: string): { detail: string; errors: string[] } {
+  const fallback = { detail: fallbackDetail, errors: [] as string[] };
   if (!(e instanceof Error)) return fallback;
   const idx = e.message.indexOf("{");
   if (idx === -1) return { detail: e.message, errors: [] };
@@ -45,6 +47,7 @@ function parseFinalizeError(e: unknown): { detail: string; errors: string[] } {
 }
 
 export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props) {
+  const t = useUiTranslate();
   const [confirmText, setConfirmText] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<{ detail: string; errors: string[] } | null>(null);
@@ -68,7 +71,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
       setConfirmText("");
       onClose();
     } catch (e) {
-      setError(parseFinalizeError(e));
+      setError(parseFinalizeError(e, t("simulator.finalize.failed")));
     } finally {
       setRunning(false);
     }
@@ -80,7 +83,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle className="flex items-center gap-2">
             <Lock size={18} className="text-primary" />
-            Finaliser la simulation
+            {t("simulator.finalize.title")}
           </DialogTitle>
         </DialogHeader>
 
@@ -88,13 +91,13 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
           <div className="rounded-xl border border-warm/30 bg-warm/10 p-3">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-warm">
               <Warning size={15} weight="fill" />
-              Conséquences de la finalisation
+              {t("simulator.finalize.consequences")}
             </p>
             <ul className="mt-2 flex flex-col gap-1.5">
-              {CONSEQUENCES.map((c) => (
-                <li key={c} className="flex items-start gap-2 text-xs text-foreground">
+              {CONSEQUENCE_KEYS.map((key) => (
+                <li key={key} className="flex items-start gap-2 text-xs text-foreground">
                   <CheckCircle size={13} className="mt-0.5 shrink-0 text-primary" />
-                  {c}
+                  {t(key)}
                 </li>
               ))}
             </ul>
@@ -102,7 +105,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
 
           <div>
             <label htmlFor="finalize-confirm" className="block text-xs font-semibold text-muted-foreground">
-              Pour confirmer, saisissez le libellé de la simulation :
+              {t("simulator.finalize.confirmLabel")}
             </label>
             <p className="mt-1 select-none text-sm font-semibold text-foreground">{simLabel}</p>
             <input
@@ -113,7 +116,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
               onKeyDown={(e) => {
                 if (e.key === "Enter" && canConfirm) handleFinalize();
               }}
-              placeholder="Recopiez le libellé exact"
+              placeholder={t("simulator.finalize.placeholder")}
               autoComplete="off"
               className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
@@ -135,7 +138,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={close} disabled={running}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -147,7 +150,7 @@ export function FinalizeModal({ simId, simLabel, open, onClose, onDone }: Props)
             )}
           >
             {running && <CircleNotch size={14} className="animate-spin" />}
-            Finaliser
+            {t("simulator.detail.finalize")}
           </Button>
         </DialogFooter>
       </DialogContent>

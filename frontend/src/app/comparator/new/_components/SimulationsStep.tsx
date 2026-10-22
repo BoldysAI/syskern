@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { getSimulations, type Simulation } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/SearchInput";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function SimulationsStep({ draft, onChange }: Props) {
+  const t = useUiTranslate();
   const [query, setQuery] = useState("");
   const { data: simulations, isLoading } = useSWR<Simulation[]>("simulations", () =>
     getSimulations(),
@@ -47,17 +49,17 @@ export function SimulationsStep({ draft, onChange }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-border bg-card">
         <div className="border-b border-border p-4">
-          <h2 className="text-lg font-semibold text-foreground">Simulations à comparer</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t("comparator.new.simsTitle")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sélectionnez entre 2 et {MAX_COMPARE_COLUMNS} colonnes. La première colonne (lettre{" "}
-            <span className="font-semibold text-brand-green">A</span>) est la référence pour tous
-            les écarts.
+            {t("comparator.new.simsIntroBefore", { max: MAX_COMPARE_COLUMNS })}{" "}
+            <span className="font-semibold text-brand-green">A</span>
+            {t("comparator.new.simsIntroAfter")}
           </p>
           <div className="mt-3 flex items-center justify-between gap-3">
             <SearchInput
               value={query}
               onChange={setQuery}
-              placeholder="Rechercher une simulation…"
+              placeholder={t("comparator.new.searchSim")}
               className="flex-1"
             />
             <span className="shrink-0 text-xs font-medium text-muted-foreground">
@@ -82,24 +84,26 @@ export function SimulationsStep({ draft, onChange }: Props) {
 
         {draft.recalculationIds.length > 0 && draft.simulationIds.length === 0 && (
           <div className="border-b border-border bg-violet-50 px-4 py-2.5 text-xs text-violet-800">
-            {draft.recalculationIds.length} snapshot{draft.recalculationIds.length !== 1 ? "s" : ""}{" "}
-            de recalcul inclus — ajoutez au moins une simulation de référence.
+            {draft.recalculationIds.length === 1
+              ? t("comparator.new.snapshotOne", { count: draft.recalculationIds.length })
+              : t("comparator.new.snapshotOther", { count: draft.recalculationIds.length })}
           </div>
         )}
 
         {draft.recalculationIds.length > 0 && draft.simulationIds.length > 0 && (
           <div className="border-b border-border bg-violet-50 px-4 py-2 text-xs text-violet-800">
-            {slotsLeft} place{slotsLeft !== 1 ? "s" : ""} simulation disponible
-            {slotsLeft !== 1 ? "s" : ""} (snapshots recalcul déjà comptés).
+            {slotsLeft === 1
+              ? t("comparator.new.slotsOne", { count: slotsLeft })
+              : t("comparator.new.slotsOther", { count: slotsLeft })}
           </div>
         )}
 
         <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
           {isLoading ? (
-            <li className="p-6 text-center text-sm text-muted-foreground">Chargement…</li>
+            <li className="p-6 text-center text-sm text-muted-foreground">{t("common.loading")}</li>
           ) : filtered.length === 0 ? (
             <li className="p-6 text-center text-sm text-muted-foreground">
-              Aucune simulation trouvée.
+              {t("comparator.new.noSimulation")}
             </li>
           ) : (
             filtered.map((sim) => {
@@ -143,16 +147,20 @@ export function SimulationsStep({ draft, onChange }: Props) {
                           }
                         >
                           {sim.status === "finalized"
-                            ? "Finalisé"
+                            ? t("comparator.new.statusFinalized")
                             : sim.status === "archived"
-                              ? "Archivé"
-                              : "Brouillon"}
+                              ? t("comparator.new.statusArchived")
+                              : t("comparator.new.statusDraft")}
                         </StatusBadge>
                       </span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{sim.simulation_type === "tariff" ? "Tarif" : "Projet"}</span>
+                        <span>
+                          {sim.simulation_type === "tariff"
+                            ? t("comparator.type.tariff")
+                            : t("comparator.type.project")}
+                        </span>
                         <span>·</span>
-                        <span>{sim.line_count} lignes</span>
+                        <span>{t("comparator.lineCount", { count: sim.line_count })}</span>
                         {sim.project_name && (
                           <>
                             <span>·</span>
@@ -171,10 +179,10 @@ export function SimulationsStep({ draft, onChange }: Props) {
                         </span>
                         {isRef ? (
                           <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">
-                            Référence
+                            {t("comparator.reference")}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground">vs réf.</span>
+                          <span className="text-[10px] text-muted-foreground">{t("comparator.vsRef")}</span>
                         )}
                       </span>
                     )}
@@ -190,7 +198,7 @@ export function SimulationsStep({ draft, onChange }: Props) {
         <div className="sticky top-4 space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <MagnifyingGlass size={16} />
-            Aperçu SKU
+            {t("comparator.new.skuPreview")}
           </h3>
           <SkuOverlapPreview simulationIds={draft.simulationIds} simulations={simulations ?? []} />
         </div>

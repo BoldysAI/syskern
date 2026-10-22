@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { DotsSixVertical } from "@phosphor-icons/react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { DataTableSortIcon } from "./DataTableSortIcon";
 import type { DataTableColumnDef, DataTableSortState } from "./types";
@@ -41,6 +42,7 @@ function HeaderInner<T>({
   resizingKey,
   dragHandle,
 }: Omit<HeaderCellProps<T>, "width" | "reorderable"> & { dragHandle: React.ReactNode }) {
+  const t = useUiTranslate();
   const sortable = !!col.sortField;
   const isActive = sortable && sort.field === col.sortField && !isDefaultSort(sort, defaultSort);
   const showDefaultActive =
@@ -62,7 +64,7 @@ function HeaderInner<T>({
             "transition-colors hover:text-foreground",
             showSortState && "text-foreground",
           )}
-          title="Trier : croissant, décroissant, puis défaut"
+          title={t("common.sortCycle")}
         >
           <span className="truncate">{col.label}</span>
           <DataTableSortIcon
@@ -86,7 +88,7 @@ function HeaderInner<T>({
         <span
           role="separator"
           aria-orientation="vertical"
-          aria-label={`Redimensionner la colonne ${col.label}`}
+          aria-label={t("common.resizeColumn", { label: col.label })}
           onMouseDown={(e) => startResize(col.key, e)}
           className={cn(
             "relative z-20 flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center",
@@ -121,6 +123,7 @@ function StaticHeaderCell<T>(props: HeaderCellProps<T>) {
 
 function SortableHeaderCell<T>(props: HeaderCellProps<T>) {
   const { col, width } = props;
+  const t = useUiTranslate();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: col.key,
   });
@@ -136,7 +139,7 @@ function SortableHeaderCell<T>(props: HeaderCellProps<T>) {
     <span
       {...attributes}
       {...listeners}
-      aria-label={`Déplacer la colonne ${col.label}`}
+      aria-label={t("common.moveColumn", { label: col.label })}
       className="flex w-4 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
     >
       <DotsSixVertical size={13} weight="bold" />

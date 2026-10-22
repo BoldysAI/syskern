@@ -4,8 +4,14 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
+from apps.accounts.ui_locale import translate_request
+
 from .models import Incoterm, MarketParameter, MarketParameterType, TransportMode, TransportPreset
-from .serializers import MarketParameterSerializer, TransportModeSerializer, TransportPresetSerializer
+from .serializers import (
+    MarketParameterSerializer,
+    TransportModeSerializer,
+    TransportPresetSerializer,
+)
 
 
 class TransportModeViewSet(viewsets.ModelViewSet):
@@ -38,7 +44,7 @@ class MarketParameterViewSet(viewsets.ModelViewSet):
         parameter_type = request.query_params.get("parameter_type")
         if parameter_type not in MarketParameterType.values:
             return Response(
-                {"detail": "parameter_type requis : copper_price ou fx_rate."},
+                {"detail": translate_request(request, "market.parameter_type_required")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -52,9 +58,7 @@ class MarketParameterViewSet(viewsets.ModelViewSet):
             if not fx_from or not fx_to:
                 return Response(
                     {
-                        "detail": (
-                            "fx_from_currency et fx_to_currency requis pour fx_rate."
-                        )
+                        "detail": translate_request(request, "market.fx_pair_required"),
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -67,7 +71,7 @@ class MarketParameterViewSet(viewsets.ModelViewSet):
         param = qs.order_by("-valid_from").first()
         if param is None:
             return Response(
-                {"detail": "Aucun paramètre actif trouvé."},
+                {"detail": translate_request(request, "market.none_active")},
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response(MarketParameterSerializer(param).data)

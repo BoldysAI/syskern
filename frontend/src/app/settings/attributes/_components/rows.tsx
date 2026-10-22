@@ -8,6 +8,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import type { AttributeRegistry } from "@/lib/api";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { CATEGORY_LABELS, DATA_TYPE_LABELS } from "./constants";
 
@@ -18,22 +19,23 @@ interface RowProps {
 }
 
 function DataCells({ attribute, onEdit, onDelete }: RowProps) {
+  const t = useUiTranslate();
   return (
     <>
       <td className="px-4 py-2.5 font-mono text-sm font-semibold text-foreground">{attribute.code}</td>
       <td className="px-4 py-2.5 text-sm text-muted-foreground">{localize(attribute.label)}</td>
       <td className="px-4 py-2.5 text-sm text-muted-foreground">
-        {CATEGORY_LABELS[attribute.category]}
+        {t(CATEGORY_LABELS[attribute.category])}
       </td>
       <td className="px-4 py-2.5 text-sm text-muted-foreground">
-        {DATA_TYPE_LABELS[attribute.data_type]}
+        {t(DATA_TYPE_LABELS[attribute.data_type])}
         {attribute.unit && <span className="text-muted-foreground/70"> ({attribute.unit})</span>}
       </td>
       <td className="px-4 py-2.5">
         {attribute.is_required ? (
-          <StatusBadge variant="success">Oui</StatusBadge>
+          <StatusBadge variant="success">{t("common.yes")}</StatusBadge>
         ) : (
-          <span className="text-sm text-muted-foreground">Non</span>
+          <span className="text-sm text-muted-foreground">{t("common.no")}</span>
         )}
       </td>
       <td className="px-4 py-2.5 text-sm tabular-nums text-muted-foreground">
@@ -45,8 +47,8 @@ function DataCells({ attribute, onEdit, onDelete }: RowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={() => onEdit(attribute)}
-            title="Modifier"
-            aria-label={`Modifier ${attribute.code}`}
+            title={t("common.edit")}
+            aria-label={t("settings.attributes.editNamed", { code: attribute.code })}
           >
             <AppIcon icon={PencilSimple} size="sm" />
           </Button>
@@ -54,8 +56,8 @@ function DataCells({ attribute, onEdit, onDelete }: RowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={() => onDelete(attribute)}
-            title="Supprimer"
-            aria-label={`Supprimer ${attribute.code}`}
+            title={t("common.delete")}
+            aria-label={t("settings.attributes.deleteNamed", { code: attribute.code })}
           >
             <AppIcon icon={Trash} size="sm" className="text-muted-foreground" />
           </Button>
@@ -67,11 +69,12 @@ function DataCells({ attribute, onEdit, onDelete }: RowProps) {
 
 /** Static row used when no single category is isolated (drag disabled). */
 export function AttributeRow(props: RowProps) {
+  const t = useUiTranslate();
   return (
     <tr className="hover:bg-muted/30">
       <td
         className="w-10 px-3 py-2.5 text-muted-foreground/30"
-        title="Filtrez par une catégorie pour réordonner"
+        title={t("settings.attributes.reorderHint")}
       >
         <AppIcon icon={DotsSixVertical} size="sm" />
       </td>
@@ -82,6 +85,7 @@ export function AttributeRow(props: RowProps) {
 
 /** Draggable row (within a single category) backed by @dnd-kit/sortable. */
 export function SortableAttributeRow(props: RowProps) {
+  const t = useUiTranslate();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.attribute.id,
   });
@@ -97,7 +101,7 @@ export function SortableAttributeRow(props: RowProps) {
         <button
           {...attributes}
           {...listeners}
-          aria-label={`Réordonner ${props.attribute.code}`}
+          aria-label={t("settings.attributes.reorderNamed", { code: props.attribute.code })}
           className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
         >
           <AppIcon icon={DotsSixVertical} size="sm" />

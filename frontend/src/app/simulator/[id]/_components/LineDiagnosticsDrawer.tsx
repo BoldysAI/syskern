@@ -12,8 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { diagnosticTextClass, lineDiagnostics, LINE_STATUS, productEditHref, type ProductEditFromSimulation } from "./sim-format";
+import { diagnosticTextClass, lineDiagnostics, LINE_STATUS, lineStatusLabel, productEditHref, type ProductEditFromSimulation } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface Props {
   line: SimulationLine | null;
@@ -23,6 +25,8 @@ interface Props {
 }
 
 export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   if (!line) return null;
 
   const st = LINE_STATUS[line.status] ?? LINE_STATUS.pending;
@@ -43,7 +47,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
-          <DialogTitle>Diagnostic de calcul</DialogTitle>
+          <DialogTitle>{t("simulator.diag.title")}</DialogTitle>
           <DialogDescription className="truncate font-mono text-sm text-warm">
             {line.product_sku}
           </DialogDescription>
@@ -55,25 +59,25 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
         <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-5 py-4">
           <div className="flex items-center gap-2">
             <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-medium", st.badge)}>
-              {st.label}
+              {lineStatusLabel(line.status, displayLanguage)}
             </span>
           </div>
 
           {(incCtx?.sale_incoterm || incCtx?.purchase_incoterm) && (
             <section className="rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Incoterms au calcul
+                {t("simulator.diag.incoterms")}
               </h3>
               <ul className="mt-1.5 space-y-1">
                 {incCtx.sale_incoterm && (
                   <li>
-                    Vente :{" "}
+                    {t("simulator.diag.sale")}{" "}
                     {formatIncotermDisplay(incCtx.sale_incoterm, incCtx.sale_incoterm_location)}
                   </li>
                 )}
                 {incCtx.purchase_incoterm && (
                   <li>
-                    Achat :{" "}
+                    {t("simulator.diag.purchase")}{" "}
                     {formatIncotermDisplay(
                       incCtx.purchase_incoterm,
                       incCtx.purchase_incoterm_location
@@ -88,7 +92,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
             <section>
               <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-destructive">
                 <Warning size={14} weight="fill" />
-                Erreurs ({errors.length})
+                {t("simulator.diag.errors", { count: errors.length })}
               </h3>
               <ul className="space-y-2">
                 {errors.map((msg, i) => (
@@ -110,7 +114,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
             <section>
               <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warm">
                 <Warning size={14} weight="fill" />
-                Avertissements ({warnings.length})
+                {t("simulator.diag.warnings", { count: warnings.length })}
               </h3>
               <ul className="space-y-2">
                 {warnings.map((msg, i) => (
@@ -131,7 +135,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
           {!hasIssues && (
             <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-3 text-sm text-foreground">
               <CheckCircle size={18} className="mt-0.5 shrink-0 text-primary" weight="fill" />
-              <p>Aucune erreur ni avertissement sur cette ligne.</p>
+              <p>{t("simulator.diag.clean")}</p>
             </div>
           )}
         </div>
@@ -142,7 +146,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <PencilSimple size={14} />
-            Modifier le produit
+            {t("simulator.diag.editProduct")}
           </Link>
         </DialogFooter>
       </DialogContent>

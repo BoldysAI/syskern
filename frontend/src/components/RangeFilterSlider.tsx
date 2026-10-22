@@ -1,6 +1,9 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { formatUiNumber } from "@/lib/i18n";
 import { useMemo } from "react";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -20,8 +23,6 @@ interface RangeFilterSliderProps {
   className?: string;
 }
 
-const defaultFormat = (n: number) => n.toLocaleString("fr-FR");
-
 export function RangeFilterSlider({
   label,
   min,
@@ -31,10 +32,13 @@ export function RangeFilterSlider({
   minValue,
   maxValue = null,
   onChange,
-  formatValue = defaultFormat,
+  formatValue,
   unit,
   className,
 }: RangeFilterSliderProps) {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
+  const format = formatValue ?? ((n: number) => formatUiNumber(n, displayLanguage));
   const effectiveMin = minValue ?? min;
   const effectiveMax = maxValue ?? max;
 
@@ -45,8 +49,8 @@ export function RangeFilterSlider({
   const sliderValue = dual ? [effectiveMin, effectiveMax] : [effectiveMin];
 
   const summary = useMemo(() => {
-    const fmt = (n: number) => `${formatValue(n)}${unit ? ` ${unit}` : ""}`;
-    if (!isActive) return "Toutes les valeurs";
+    const fmt = (n: number) => `${format(n)}${unit ? ` ${unit}` : ""}`;
+    if (!isActive) return t("common.allValues");
     if (dual) {
       if (effectiveMin > min && effectiveMax < max) {
         return `${fmt(effectiveMin)} — ${fmt(effectiveMax)}`;
@@ -55,7 +59,7 @@ export function RangeFilterSlider({
       return `≤ ${fmt(effectiveMax)}`;
     }
     return `≥ ${fmt(effectiveMin)}`;
-  }, [dual, effectiveMin, effectiveMax, formatValue, isActive, min, max, unit]);
+  }, [dual, effectiveMin, effectiveMax, format, isActive, min, max, unit, t]);
 
   const handleSlider = (val: number | readonly number[]) => {
     const values = Array.isArray(val) ? [...val] : [val];
@@ -82,7 +86,7 @@ export function RangeFilterSlider({
         </div>
         {isActive && (
           <Button type="button" variant="ghost" size="xs" onClick={reset}>
-            Réinitialiser
+            {t("common.reset")}
           </Button>
         )}
       </div>
@@ -98,11 +102,11 @@ export function RangeFilterSlider({
 
       <div className="flex justify-between text-[11px] tabular-nums text-muted-foreground">
         <span>
-          {formatValue(min)}
+          {format(min)}
           {unit ? ` ${unit}` : ""}
         </span>
         <span>
-          {formatValue(max)}
+          {format(max)}
           {unit ? ` ${unit}` : ""}
         </span>
       </div>

@@ -13,29 +13,32 @@ import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from apps.accounts.ui_locale import translate
+
 if TYPE_CHECKING:
     from django.db.models import QuerySet
 
     from .models import Product
 
 # ─── Column registry ───────────────────────────────────────────────────────────
-# key → (header label, attribute accessor, column width). The accessor
-# `__active_supplier__` is resolved specially. Keep this list in sync with the
-# frontend column picker (frontend/src/app/catalog/page.tsx).
+# key → (header catalog key, attribute accessor, column width). The accessor
+# `__active_supplier__` is resolved specially. Cell values are product data and
+# stay as stored. Keep this list in sync with the frontend column picker
+# (frontend/src/app/catalog/page.tsx).
 _COLUMN_REGISTRY: dict[str, tuple[str, str, int]] = {
-    "sku_code": ("SKU", "sku_code", 20),
-    "name": ("Nom", "name", 40),
-    "universe": ("Univers", "universe", 20),
-    "family": ("Famille", "family", 20),
-    "range": ("Gamme", "range", 20),
-    "sub_range": ("Sous-gamme", "sub_range", 20),
-    "brand": ("Marque", "brand", 16),
-    "active_supplier": ("Fournisseur actif", "__active_supplier__", 24),
-    "factory_code": ("Code usine", "factory_code", 14),
-    "stock_quantity": ("Stock (unités)", "stock_quantity", 16),
-    "pamp_eur": ("PAMP (EUR)", "pamp_eur", 14),
-    "is_copper_indexed": ("Indexé cuivre", "is_copper_indexed", 14),
-    "is_active": ("Actif", "is_active", 10),
+    "sku_code": ("exports.catalog.col.sku", "sku_code", 20),
+    "name": ("exports.catalog.col.name", "name", 40),
+    "universe": ("exports.catalog.col.universe", "universe", 20),
+    "family": ("exports.catalog.col.family", "family", 20),
+    "range": ("exports.catalog.col.range", "range", 20),
+    "sub_range": ("exports.catalog.col.sub_range", "sub_range", 20),
+    "brand": ("exports.catalog.col.brand", "brand", 16),
+    "active_supplier": ("exports.catalog.col.active_supplier", "__active_supplier__", 24),
+    "factory_code": ("exports.catalog.col.factory_code", "factory_code", 14),
+    "stock_quantity": ("exports.catalog.col.stock", "stock_quantity", 16),
+    "pamp_eur": ("exports.catalog.col.pamp", "pamp_eur", 14),
+    "is_copper_indexed": ("exports.catalog.col.copper", "is_copper_indexed", 14),
+    "is_active": ("exports.catalog.col.active", "is_active", 10),
 }
 
 # Ordered default column set when the caller does not specify `columns`.
@@ -76,21 +79,28 @@ def _active_supplier_name(product: Product) -> str:
     return ""
 
 
-def build_products_xlsx(queryset: QuerySet[Product], columns: list[str] | None = None) -> bytes:
+def build_products_xlsx(
+    queryset: QuerySet[Product],
+    columns: list[str] | None = None,
+    locale: str = "fr",
+) -> bytes:
     """Build an Excel workbook from *queryset* and return the raw bytes.
 
     The queryset should already have `prefetch_related("suppliers")` applied
     for efficient supplier name resolution. *columns* is an optional ordered
     list of column keys (see `_COLUMN_REGISTRY`); defaults to `DEFAULT_COLUMNS`.
+    *locale* selects structural headers only (the downloader's UI language).
     """
     keys = _resolve_columns(columns)
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Catalogue produits"
+    ws.title = translate("exports.catalog.sheet", locale)[:31]
+    yes = translate("exports.yes", locale)
+    no = translate("exports.no", locale)
 
     for col_idx, key in enumerate(keys, start=1):
-        label, _, width = _COLUMN_REGISTRY[key]
-        cell = ws.cell(row=1, column=col_idx, value=label)
+        label_key, _, width = _COLUMN_REGISTRY[key]
+        cell = ws.cell(row=1, column=col_idx, value=translate(label_key, locale))
         cell.fill = _HEADER_FILL
         cell.font = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -105,7 +115,7 @@ def build_products_xlsx(queryset: QuerySet[Product], columns: list[str] | None =
             if attr == "__active_supplier__":
                 value = _active_supplier_name(product)
             elif key in _BOOL_COLUMNS:
-                value = "Oui" if getattr(product, attr) else "Non"
+                value = yes if getattr(product, attr) else no
             else:
                 raw = getattr(product, attr, None)
                 value = str(raw) if raw is not None else ""

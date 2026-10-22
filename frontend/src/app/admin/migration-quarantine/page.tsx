@@ -1,5 +1,7 @@
 "use client";
 
+import { getApiLocale } from "@/lib/api";
+import { translate, uiDateLocale } from "@/lib/i18n";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import {
@@ -15,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -40,7 +43,7 @@ import {
   buildQuarantineQuery,
   countActiveQuarantineFilters,
   normalizeQuarantineFilters,
-  REASON_LABELS,
+  reasonLabel,
   type QuarantineFilters,
 } from "./_components/quarantine-filters";
 import {
@@ -53,12 +56,6 @@ const PAGE_SIZE = 25;
 const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
 
 type ResolutionAction = "ignore" | "create" | "delete";
-
-const ACTION_LABELS: Record<ResolutionAction, string> = {
-  ignore: "Ne rien faire",
-  create: "Créer le produit",
-  delete: "Supprimer",
-};
 
 interface UnmatchedRow {
   id: string;
@@ -157,7 +154,7 @@ function getCsrfToken(): string {
 
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(translate("common.loadError", getApiLocale()));
   return res.json();
 }
 
@@ -168,7 +165,7 @@ interface ResolvePayload {
   product?: { sku_code: string; name?: string };
 }
 
-async function resolveRow(id: string, payload: ResolvePayload) {
+async function resolveRow(id: string, payload: ResolvePayload, fallbackMessage: string) {
   const res = await fetch(`/api/migration/unmatched/${id}/resolve/`, {
     method: "POST",
     credentials: "include",
@@ -182,7 +179,7 @@ async function resolveRow(id: string, payload: ResolvePayload) {
         data?.product?.sku_code?.[0] ??
         data?.resolved_by?.[0] ??
         data?.detail ??
-        "Erreur serveur",
+        fallbackMessage,
     );
   }
   return res.json();
@@ -199,6 +196,8 @@ function DetailModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const guess = useMemo(() => guessProduct(row.raw_data), [row.raw_data]);
   const [action, setAction] = useState<ResolutionAction>("ignore");
   const [sku, setSku] = useState(guess.sku);
@@ -220,14 +219,14 @@ function DetailModal({
       if (action === "create") {
         payload.product = { sku_code: sku.trim().toUpperCase(), name: name.trim() || undefined };
       }
-      await resolveRow(row.id, payload);
+      await resolveRow(row.id, payload, t("admin.quarantine.serverError"));
       await Promise.all([
         mutate((k) => typeof k === "string" && k.startsWith("quarantine:")),
         mutate("quarantine-facets"),
       ]);
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -235,10 +234,16 @@ function DetailModal({
 
   const primaryLabel =
     action === "create"
-      ? "Créer et résoudre"
+      ? t("admin.quarantine.createAndResolve")
       : action === "delete"
-        ? "Supprimer la ligne"
-        : "Ignorer la ligne";
+        ? t("admin.quarantine.deleteRow")
+        : t("admin.quarantine.ignoreRow");
+  const actionLabel = (value: string) => {
+    if (value === "ignore") return t("admin.quarantine.actionIgnore");
+    if (value === "create") return t("admin.quarantine.actionCreate");
+    if (value === "delete") return t("common.delete");
+    return value;
+  };
   const primaryDisabled = loading || (action === "create" && !sku.trim());
 
   return (
@@ -247,19 +252,22 @@ function DetailModal({
       onOpenChange={(v) => !v && onClose()}
       title={
         row.source_row_number != null
-          ? `${row.source_file} · ligne ${row.source_row_number}`
+          ? t("admin.quarantine.detailTitle", {
+              file: row.source_file,
+              row: row.source_row_number,
+            })
           : row.source_file
       }
       size="2xl"
       footer={
         isResolved ? (
           <Button type="button" onClick={onClose}>
-            Fermer
+            {t("common.close")}
           </Button>
         ) : (
           <>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-              Annuler
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -269,17 +277,17 @@ function DetailModal({
               className="gap-2"
             >
               {loading && <AppIcon icon={CircleNotch} size="sm" className="animate-spin" />}
-              {loading ? "Enregistrement…" : primaryLabel}
+              {loading ? t("admin.quarantine.saving") : primaryLabel}
             </Button>
           </>
         )
       }
     >
       <div className="mb-4">
-        <StatusBadge variant="warning">{REASON_LABELS[row.reason] ?? row.reason}</StatusBadge>
+        <StatusBadge variant="warning">{reasonLabel(row.reason, t)}</StatusBadge>
       </div>
 
-      <FormField label="Données de la ligne">
+      <FormField label={t("admin.quarantine.rowData")}>
         <dl className="grid max-h-[min(38vh,300px)] grid-cols-[minmax(0,180px)_1fr] gap-x-3 gap-y-1.5 overflow-auto rounded-lg border border-border bg-muted/30 p-3 text-sm">
           {Object.entries(row.raw_data).map(([k, v]) => (
             <Fragment key={k}>
@@ -298,16 +306,16 @@ function DetailModal({
         <div className="mt-4 rounded-lg border border-brand-green/30 bg-brand-green/10 p-4 text-sm">
           <div className="mb-1 flex items-center gap-2 font-medium text-brand-green">
             <AppIcon icon={CheckCircle} size="sm" />
-            Résolue
+            {t("admin.quarantine.resolved")}
             {row.resolution_action && (
-              <span className="text-muted-foreground">
-                ·{" "}
-                {ACTION_LABELS[row.resolution_action as ResolutionAction] ?? row.resolution_action}
-              </span>
+              <span className="text-muted-foreground">· {actionLabel(row.resolution_action)}</span>
             )}
           </div>
           <div className="text-muted-foreground">
-            Par {row.resolved_by} le {new Date(row.resolved_at!).toLocaleString("fr-FR")}
+            {t("admin.quarantine.resolvedBy", {
+              name: row.resolved_by,
+              date: new Date(row.resolved_at!).toLocaleString(uiDateLocale(displayLanguage)),
+            })}
           </div>
           {row.resolution_notes && (
             <div className="mt-2 whitespace-pre-wrap text-muted-foreground">
@@ -317,7 +325,7 @@ function DetailModal({
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          <FormField label="Action">
+          <FormField label={t("admin.quarantine.action")}>
             <div className="flex flex-wrap gap-2">
               {(["ignore", "create", "delete"] as const).map((a) => (
                 <button
@@ -331,7 +339,7 @@ function DetailModal({
                       : "border-border text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {ACTION_LABELS[a]}
+                  {actionLabel(a)}
                 </button>
               ))}
             </div>
@@ -339,25 +347,22 @@ function DetailModal({
 
           {action === "create" && (
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Code SKU" required>
+              <FormField label={t("admin.quarantine.skuCode")} required>
                 <Input
                   value={sku}
                   onChange={(e) => setSku(e.target.value)}
                   className="font-mono uppercase"
-                  placeholder="KCFF…-21"
+                  placeholder={t("admin.quarantine.skuPlaceholder")}
                 />
               </FormField>
-              <FormField label="Désignation">
+              <FormField label={t("admin.quarantine.designation")}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </FormField>
             </div>
           )}
 
           {action === "delete" && (
-            <p className="text-xs text-muted-foreground">
-              La ligne sera marquée résolue et écartée (conservée pour l’audit, pas de suppression
-              physique).
-            </p>
+            <p className="text-xs text-muted-foreground">{t("admin.quarantine.deleteHint")}</p>
           )}
 
           {error && (
@@ -366,12 +371,12 @@ function DetailModal({
             </div>
           )}
 
-          <FormField label="Note (optionnel)">
+          <FormField label={t("admin.quarantine.noteOptional")}>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              placeholder="Précision facultative sur l’arbitrage."
+              placeholder={t("admin.quarantine.notePlaceholder")}
             />
           </FormField>
         </div>
@@ -381,6 +386,7 @@ function DetailModal({
 }
 
 export default function MigrationQuarantinePage() {
+  const t = useUiTranslate();
   const { isLoading: authLoading, allowed } = useRequireAdmin();
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -446,29 +452,29 @@ export default function MigrationQuarantinePage() {
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("admin.quarantine.deleteFavoriteTitle"),
+        description: t("admin.quarantine.deleteFavoriteDescription", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
   );
 
   const columns = useMemo<DataTableColumnDef<UnmatchedRow>[]>(
     () => [
       {
         key: "source_file",
-        label: "Fichier source",
+        label: t("admin.quarantine.sourceFile"),
         width: 220,
         sortField: "source_file",
         render: (r) => <span className="text-sm text-foreground">{r.source_file}</span>,
       },
       {
         key: "row",
-        label: "Ligne",
+        label: t("admin.quarantine.columnRow"),
         width: 80,
         sortField: "source_row_number",
         render: (r) => (
@@ -477,38 +483,37 @@ export default function MigrationQuarantinePage() {
       },
       {
         key: "reason",
-        label: "Raison",
+        label: t("admin.quarantine.columnReason"),
         width: 200,
         sortField: "reason",
-        render: (r) => (
-          <StatusBadge variant="warning">{REASON_LABELS[r.reason] ?? r.reason}</StatusBadge>
-        ),
+        render: (r) => <StatusBadge variant="warning">{reasonLabel(r.reason, t)}</StatusBadge>,
       },
       {
         key: "status",
-        label: "Statut",
+        label: t("admin.quarantine.status"),
         width: 140,
         sortField: "resolved_at",
         render: (r) =>
           r.resolved_at ? (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-green">
               <AppIcon icon={CheckCircle} size="sm" />
-              Résolue
+              {t("admin.quarantine.resolved")}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-warm">
-              <AppIcon icon={Warning} size="sm" />À traiter
+              <AppIcon icon={Warning} size="sm" />
+              {t("admin.quarantine.toProcess")}
             </span>
           ),
       },
     ],
-    [],
+    [t],
   );
 
   if (authLoading || !allowed) {
     return (
       <div className="p-6">
-        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
       </div>
     );
   }
@@ -526,8 +531,8 @@ export default function MigrationQuarantinePage() {
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("admin.quarantine.showFilters")}
+            title={t("admin.quarantine.filters")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -544,17 +549,24 @@ export default function MigrationQuarantinePage() {
         >
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">
+                {t("admin.quarantine.filters")}
+              </span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {t(
+                    activeFilterCount > 1
+                      ? "admin.quarantine.activeCriteriaOther"
+                      : "admin.quarantine.activeCriteriaOne",
+                    { count: activeFilterCount },
+                  )}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  Tout effacer
+                  {t("admin.quarantine.clearAll")}
                 </Button>
               )}
               <Button
@@ -562,8 +574,8 @@ export default function MigrationQuarantinePage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("admin.quarantine.hideFilters")}
+                title={t("admin.quarantine.hideFilters")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -583,7 +595,7 @@ export default function MigrationQuarantinePage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("admin.quarantine.resizeFilters")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -606,10 +618,10 @@ export default function MigrationQuarantinePage() {
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 <ShieldWarning size={22} weight="duotone" className="shrink-0 text-primary" />
-                Quarantaine de migration
+                {t("admin.quarantine.title")}
               </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Lignes non matchables lors de l’import initial.
+                {t("admin.quarantine.subtitle")}
               </p>
             </div>
           </div>
@@ -637,9 +649,17 @@ export default function MigrationQuarantinePage() {
         {facets && (
           <div className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6">
             <div className="grid max-w-xl grid-cols-3 gap-3">
-              <KpiCard label="Total" value={facets.total} />
-              <KpiCard label="À traiter" value={facets.unresolved} accent="warm" />
-              <KpiCard label="Résolues" value={facets.resolved} accent="green" />
+              <KpiCard label={t("admin.quarantine.kpiTotal")} value={facets.total} />
+              <KpiCard
+                label={t("admin.quarantine.toProcess")}
+                value={facets.unresolved}
+                accent="warm"
+              />
+              <KpiCard
+                label={t("admin.quarantine.resolvedPlural")}
+                value={facets.resolved}
+                accent="green"
+              />
             </div>
           </div>
         )}
@@ -656,7 +676,7 @@ export default function MigrationQuarantinePage() {
           trailingWidth={140}
           renderTrailingCell={(r) => (
             <Button variant="ghost" size="sm" onClick={() => setDetailRow(r)}>
-              {r.resolved_at ? "Voir" : "Voir / Résoudre"}
+              {r.resolved_at ? t("admin.quarantine.view") : t("admin.quarantine.viewResolve")}
             </Button>
           )}
           pagination={
@@ -666,7 +686,7 @@ export default function MigrationQuarantinePage() {
                   totalPages,
                   totalCount: data.count,
                   pageSize: PAGE_SIZE,
-                  itemLabel: "ligne",
+                  itemLabel: t("admin.quarantine.itemLabel"),
                   onPageChange: (p) => setOffset((p - 1) * PAGE_SIZE),
                 }
               : undefined
@@ -675,19 +695,19 @@ export default function MigrationQuarantinePage() {
             error ? (
               <EmptyState
                 icon={<AppIcon icon={WarningCircle} size="lg" />}
-                title="Impossible de charger la quarantaine"
+                title={t("admin.quarantine.loadError")}
               />
             ) : undefined
           }
           emptyState={
             <EmptyState
               icon={<AppIcon icon={FileX} size="lg" />}
-              title="Aucune ligne en quarantaine pour ces filtres"
-              description={activeFilterCount > 0 ? "Essayez d’élargir vos filtres." : undefined}
+              title={t("admin.quarantine.empty")}
+              description={activeFilterCount > 0 ? t("admin.quarantine.emptyHint") : undefined}
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Réinitialiser les filtres
+                    {t("admin.quarantine.resetFilters")}
                   </Button>
                 ) : undefined
               }

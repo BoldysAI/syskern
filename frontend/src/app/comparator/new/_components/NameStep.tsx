@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ComparisonWizardDraft } from "./wizard-draft";
@@ -10,24 +11,23 @@ interface Props {
 }
 
 export function NameStep({ draft, onChange }: Props) {
+  const t = useUiTranslate();
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Nom de la comparaison</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Donnez un nom explicite pour retrouver cette comparaison dans la liste.
-        </p>
+        <h2 className="text-lg font-semibold text-foreground">{t("comparator.new.nameTitle")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("comparator.new.nameHint")}</p>
       </div>
 
       <div>
         <label htmlFor="comparison-label" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-          Nom *
+          {t("comparator.new.nameLabel")}
         </label>
         <Input
           id="comparison-label"
           value={draft.label}
           onChange={(e) => onChange({ label: e.target.value })}
-          placeholder="Ex. Tarif Q2 vs Q3 — gamme cuivre"
+          placeholder={t("comparator.new.namePlaceholder")}
           autoComplete="off"
           autoFocus
         />
@@ -35,14 +35,14 @@ export function NameStep({ draft, onChange }: Props) {
 
       <div>
         <label htmlFor="comparison-note" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-          Note (optionnel)
+          {t("comparator.new.noteLabel")}
         </label>
         <Textarea
           id="comparison-note"
           value={draft.note}
           onChange={(e) => onChange({ note: e.target.value })}
           rows={3}
-          placeholder="Contexte, hypothèses, objectif de la comparaison…"
+          placeholder={t("comparator.new.notePlaceholder")}
         />
       </div>
     </div>

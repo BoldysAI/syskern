@@ -1,5 +1,7 @@
 // Offer list filters — mirrors the simulations module (CDC §7.5).
 
+import type { MessageKey } from "@/lib/i18n";
+
 export type OfferType = "tariff" | "project";
 export type OfferStatus = "draft" | "sent" | "won" | "lost" | "expired";
 export type OfferGeneration = "pending" | "generating" | "ready" | "error";
@@ -11,25 +13,25 @@ export interface OfferFilters {
   generation_status?: OfferGeneration[];
 }
 
-export const OFFER_TYPE_OPTIONS: { value: OfferType; label: string }[] = [
-  { value: "tariff", label: "Tarif" },
-  { value: "project", label: "Projet" },
-];
+export const OFFER_TYPE_OPTIONS = [
+  { value: "tariff", labelKey: "offers.type.tariff" },
+  { value: "project", labelKey: "offers.type.project" },
+] as const satisfies readonly { value: OfferType; labelKey: MessageKey }[];
 
-export const OFFER_STATUS_OPTIONS: { value: OfferStatus; label: string }[] = [
-  { value: "draft", label: "Brouillon" },
-  { value: "sent", label: "Envoyée" },
-  { value: "won", label: "Gagnée" },
-  { value: "lost", label: "Perdue" },
-  { value: "expired", label: "Expirée" },
-];
+export const OFFER_STATUS_OPTIONS = [
+  { value: "draft", labelKey: "offers.status.draft" },
+  { value: "sent", labelKey: "offers.status.sent" },
+  { value: "won", labelKey: "offers.status.won" },
+  { value: "lost", labelKey: "offers.status.lost" },
+  { value: "expired", labelKey: "offers.status.expired" },
+] as const satisfies readonly { value: OfferStatus; labelKey: MessageKey }[];
 
-export const OFFER_GENERATION_OPTIONS: { value: OfferGeneration; label: string }[] = [
-  { value: "ready", label: "Prête" },
-  { value: "generating", label: "En génération" },
-  { value: "pending", label: "En attente" },
-  { value: "error", label: "En erreur" },
-];
+export const OFFER_GENERATION_OPTIONS = [
+  { value: "ready", labelKey: "offers.generation.ready" },
+  { value: "generating", labelKey: "offers.generation.generating" },
+  { value: "pending", labelKey: "offers.generation.waiting" },
+  { value: "error", labelKey: "offers.generation.error" },
+] as const satisfies readonly { value: OfferGeneration; labelKey: MessageKey }[];
 
 export function countActiveOfferFilters(filters: OfferFilters): number {
   let n = 0;
@@ -67,33 +69,42 @@ export interface OfferFilterChip {
   label: string;
 }
 
+type UiTranslate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
 function labelsFor<T extends string>(
   values: T[] | undefined,
-  options: { value: T; label: string }[],
+  options: readonly { value: T; labelKey: MessageKey }[],
+  t: UiTranslate,
 ): string {
-  return (values ?? []).map((v) => options.find((o) => o.value === v)?.label ?? v).join(", ");
+  return (values ?? [])
+    .map((v) => {
+      const opt = options.find((o) => o.value === v);
+      return opt ? t(opt.labelKey) : v;
+    })
+    .join(", ");
 }
 
-export function buildOfferFilterChips(filters: OfferFilters): OfferFilterChip[] {
+export function buildOfferFilterChips(filters: OfferFilters, t: UiTranslate): OfferFilterChip[] {
   const chips: OfferFilterChip[] = [];
-  if (filters.q?.trim()) chips.push({ id: "q", category: "Recherche", label: filters.q.trim() });
+  if (filters.q?.trim())
+    chips.push({ id: "q", category: t("offers.filters.chip.search"), label: filters.q.trim() });
   if (filters.offer_type?.length)
     chips.push({
       id: "offer_type",
-      category: "Type",
-      label: labelsFor(filters.offer_type, OFFER_TYPE_OPTIONS),
+      category: t("offers.field.type"),
+      label: labelsFor(filters.offer_type, OFFER_TYPE_OPTIONS, t),
     });
   if (filters.status?.length)
     chips.push({
       id: "status",
-      category: "Statut",
-      label: labelsFor(filters.status, OFFER_STATUS_OPTIONS),
+      category: t("offers.field.status"),
+      label: labelsFor(filters.status, OFFER_STATUS_OPTIONS, t),
     });
   if (filters.generation_status?.length)
     chips.push({
       id: "generation_status",
-      category: "Document",
-      label: labelsFor(filters.generation_status, OFFER_GENERATION_OPTIONS),
+      category: t("offers.field.document"),
+      label: labelsFor(filters.generation_status, OFFER_GENERATION_OPTIONS, t),
     });
   return chips;
 }

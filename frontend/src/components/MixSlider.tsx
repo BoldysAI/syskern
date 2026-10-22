@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 
@@ -16,20 +17,25 @@ export function MixSlider({
   value,
   onChange,
   disabled,
-  title = "Mix stock / achat",
+  title,
   className,
 }: MixSliderProps) {
+  const t = useUiTranslate();
   const stockPct = value;
   const purchasePct = 100 - value;
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <label className="text-xs font-semibold text-foreground">{title}</label>
+        <label className="text-xs font-semibold text-foreground">{title ?? t("common.mixTitle")}</label>
         <span className="text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{purchasePct}% achat</span>
+          <span className="font-semibold text-foreground">
+            {t("common.mixPurchasePct", { pct: purchasePct })}
+          </span>
           {" · "}
-          <span className="font-semibold text-primary">{stockPct}% stock</span>
+          <span className="font-semibold text-primary">
+            {t("common.mixStockPct", { pct: stockPct })}
+          </span>
         </span>
       </div>
 
@@ -53,17 +59,17 @@ export function MixSlider({
         value={[value]}
         disabled={disabled}
         onValueChange={(val) => onChange(Array.isArray(val) ? (val[0] ?? 0) : val)}
-        aria-valuetext={`${purchasePct} pour cent achat, ${stockPct} pour cent stock`}
+        aria-valuetext={t("common.mixAria", { purchase: purchasePct, stock: stockPct })}
       />
 
       <div className="flex justify-between text-xs font-medium">
         <span className="flex flex-col items-start text-muted-foreground">
-          <span>Achat (PA)</span>
-          <span className="font-normal text-muted-foreground/80">100% achat à gauche</span>
+          <span>{t("common.mixPurchase")}</span>
+          <span className="font-normal text-muted-foreground/80">{t("common.mixPurchaseLeft")}</span>
         </span>
         <span className="flex flex-col items-end text-primary">
-          <span>Stock (PAMP)</span>
-          <span className="font-normal text-muted-foreground/80">100% stock à droite</span>
+          <span>{t("common.mixStock")}</span>
+          <span className="font-normal text-muted-foreground/80">{t("common.mixStockRight")}</span>
         </span>
       </div>
     </div>

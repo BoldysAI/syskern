@@ -1,16 +1,17 @@
+"use client";
+
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 const LOGOS = {
   syskern: {
     src: "/syskern-logo.png",
-    alt: "Syskern — Pricing Platform",
     width: 304,
     height: 166,
   },
   unnikkern: {
     src: "/unnikkern-logo.png",
-    alt: "Unikkern",
     width: 150,
     height: 40,
   },
@@ -26,28 +27,21 @@ interface BrandLogoProps {
 }
 
 export function BrandLogo({ variant, className, compact }: BrandLogoProps) {
+  const t = useUiTranslate();
   const logo = LOGOS[variant];
-
-  if (compact && variant === "syskern") {
-    return (
-      <Image
-        src={logo.src}
-        alt="Syskern"
-        width={logo.width}
-        height={logo.height}
-        className={cn("object-contain", className)}
-        priority
-      />
-    );
-  }
+  const alt = compact && variant === "syskern"
+    ? t("brand.syskern")
+    : variant === "unnikkern"
+      ? t("brand.unnikkern")
+      : t("brand.syskernPlatform");
 
   return (
     <Image
       src={logo.src}
-      alt={logo.alt}
+      alt={alt}
       width={logo.width}
       height={logo.height}
-      className={cn("object-contain object-center", className)}
+      className={cn("object-contain", compact ? undefined : "object-center", className)}
       priority
     />
   );

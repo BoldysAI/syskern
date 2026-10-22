@@ -6,19 +6,29 @@ otherwise should not block a request thread.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from celery import shared_task
 from django.utils import timezone
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.odoo_sync.adapters.factory import get_odoo_adapter
-from apps.offers.services.translation import DeepLClient
+from apps.offers.services.translation import (
+    DeepLClient,
+    TranslationError,
+    TranslationInputError,
+    TranslationQuotaError,
+    TranslationUnavailableError,
+)
 
 from .exports import build_products_xlsx
 from .filters import ProductFilter
 from .models import Product
 from .serializers import ProductDetailSerializer
+
+logger = logging.getLogger(__name__)
 
 EXPORT_DIR = Path("/tmp/syskern_exports")
 
@@ -28,30 +38,32 @@ class _TaskError(RuntimeError):
 
 
 @shared_task(name="products.refresh_pamp_task")
-def refresh_pamp_task(product_pk: str) -> dict:
+def refresh_pamp_task(product_pk: str, locale: str | None = None) -> dict:
     """Re-pull PAMP + stock from Odoo for a single product (read-only Odoo).
 
     Returns the updated `ProductDetailSerializer` payload. Raises on any
-    Odoo failure so the polling endpoint surfaces the error.
+    Odoo failure so the polling endpoint surfaces the error, in `locale`.
     """
+    locale = locale or resolve_ui_locale(None)
     try:
         product = Product.objects.get(pk=product_pk)
     except Product.DoesNotExist as e:
-        raise _TaskError("Produit introuvable.") from e
+        raise _TaskError(translate("products.not_found", locale)) from e
 
     if not product.odoo_id:
-        raise _TaskError("Produit non lié à Odoo — PAMP non recalculable.")
+        raise _TaskError(translate("products.pamp_not_linked", locale))
 
     try:
         adapter = get_odoo_adapter()
         adapter.authenticate()
         stock_map = adapter.get_stock_quantities([product.odoo_id])
     except Exception as exc:  # noqa: BLE001
-        raise _TaskError(f"Odoo indisponible : {exc}") from exc
+        message = translate("products.odoo_unavailable", locale).format(error=exc)
+        raise _TaskError(message) from exc
 
     stock = stock_map.get(product.odoo_id)
     if stock is None:
-        raise _TaskError("Produit introuvable dans Odoo.")
+        raise _TaskError(translate("products.not_in_odoo", locale))
 
     now = timezone.now()
     update_fields = {
@@ -73,6 +85,7 @@ def export_products_task(
     filters: dict | None = None,
     columns: list[str] | None = None,
     ids: list[str] | None = None,
+    locale: str | None = None,
 ) -> dict:
     """Build a filtered catalog Excel workbook and store it on disk (CDC §4.1.1).
 
@@ -83,6 +96,7 @@ def export_products_task(
     Returns `{"file_url": ..., "filename": ...}` — the client polls the
     polling endpoint, then downloads the file via the URL.
     """
+    locale = locale or resolve_ui_locale(None)
     qs = Product.objects.all().prefetch_related("suppliers")
     if filters:
         filterset = ProductFilter(data=filters, queryset=qs)
@@ -92,7 +106,7 @@ def export_products_task(
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     file_path = EXPORT_DIR / f"{self.request.id}.xlsx"
-    file_path.write_bytes(build_products_xlsx(qs, columns=columns))
+    file_path.write_bytes(build_products_xlsx(qs, columns=columns, locale=locale))
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
     return {
@@ -108,6 +122,18 @@ _FIELD_MAP = {
 }
 
 
+def _translation_failure(exc: TranslationError, locale: str) -> str:
+    """Catalog message for a DeepL failure. The raw DeepL text stays in the log."""
+    logger.warning("DeepL translation failed: %s", exc)
+    if isinstance(exc, TranslationQuotaError):
+        return translate("products.translation_quota", locale)
+    if isinstance(exc, TranslationUnavailableError):
+        return translate("products.translation_unavailable", locale)
+    if isinstance(exc, TranslationInputError):
+        return translate("products.translation_too_long", locale)
+    return translate("products.translation_failed", locale)
+
+
 @shared_task(
     name="products.bulk_translate_products_task",
     bind=True,
@@ -120,20 +146,17 @@ def bulk_translate_products_task(
     source_lang: str = "fr",
     target_langs: list[str] | None = None,
     fields: list[str] | None = None,
+    locale: str | None = None,
 ) -> dict:
     """Translate several products' descriptions via DeepL + cache (CDC §10.3.2).
 
     Only empty target-language slots are filled (existing translations are kept).
     Reports `{current, total}` progress so the UI can show a progress bar. Aborts
-    on quota / service-unavailable so the user gets a clear message.
+    on any DeepL failure but an over-long text, with a message in the caller's `locale`.
     """
     from apps.i18n.services import translate_cached
-    from apps.offers.services.translation import (
-        TranslationInputError,
-        TranslationQuotaError,
-        TranslationUnavailableError,
-    )
 
+    locale = locale or resolve_ui_locale(None)
     source = source_lang.lower()
     targets = [lang.lower() for lang in (target_langs or ["en", "es"]) if lang.lower() != source]
     selected = [_FIELD_MAP[f] for f in (fields or ["marketing", "technical"]) if f in _FIELD_MAP]
@@ -162,12 +185,13 @@ def bulk_translate_products_task(
                     continue  # never overwrite an existing translation
                 try:
                     translated, _ = translate_cached(source_text, source, lang)
-                except (TranslationQuotaError, TranslationUnavailableError) as exc:
-                    # Non-recoverable for the rest of the batch — fail loudly.
-                    raise _TaskError(str(exc)) from exc
                 except TranslationInputError as exc:
-                    skipped.append(f"{product.sku_code} ({attr}/{lang}) : {exc}")
+                    reason = _translation_failure(exc, locale)
+                    skipped.append(f"{product.sku_code} ({attr}/{lang}) : {reason}")
                     continue
+                except TranslationError as exc:
+                    # Non-recoverable for the rest of the batch — fail loudly.
+                    raise _TaskError(_translation_failure(exc, locale)) from exc
                 if translated:
                     data[lang] = translated
                     changed_attrs.add(attr)
@@ -189,38 +213,42 @@ def bulk_translate_products_task(
 
 
 @shared_task(name="products.translate_product_task")
-def translate_product_task(product_pk: str, target_lang: str) -> dict:
+def translate_product_task(product_pk: str, target_lang: str, locale: str | None = None) -> dict:
     """Translate the FR descriptions to EN/ES via DeepL and cache them.
 
     Returns the updated `ProductDetailSerializer` payload. Raises on DeepL
     failure (missing key, quota, network) — Celery FAILURE surfaces the
-    message to the polling endpoint.
+    message to the polling endpoint. Task errors use the caller's `locale`.
     """
+    locale = locale or resolve_ui_locale(None)
     target = target_lang.lower()
     if target not in {"en", "es"}:
-        raise _TaskError("Langue cible invalide (attendu : en ou es).")
+        raise _TaskError(translate("products.target_lang_invalid", locale))
 
     try:
         product = Product.objects.get(pk=product_pk)
     except Product.DoesNotExist as e:
-        raise _TaskError("Produit introuvable.") from e
+        raise _TaskError(translate("products.not_found", locale)) from e
 
     marketing_fr = (product.description_marketing or {}).get("fr", "")
     technical_fr = (product.description_technical or {}).get("fr", "")
     if not marketing_fr and not technical_fr:
-        raise _TaskError("Aucune description française à traduire.")
+        raise _TaskError(translate("products.no_french_description", locale))
 
     client = DeepLClient()
-    marketing_tr = (
-        client.translate(source_text=marketing_fr, source_lang="fr", target_lang=target)
-        if marketing_fr
-        else ""
-    )
-    technical_tr = (
-        client.translate(source_text=technical_fr, source_lang="fr", target_lang=target)
-        if technical_fr
-        else ""
-    )
+    try:
+        marketing_tr = (
+            client.translate(source_text=marketing_fr, source_lang="fr", target_lang=target)
+            if marketing_fr
+            else ""
+        )
+        technical_tr = (
+            client.translate(source_text=technical_fr, source_lang="fr", target_lang=target)
+            if technical_fr
+            else ""
+        )
+    except TranslationError as exc:
+        raise _TaskError(_translation_failure(exc, locale)) from exc
 
     marketing = dict(product.description_marketing or {})
     technical = dict(product.description_technical or {})

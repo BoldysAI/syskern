@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
@@ -16,6 +18,7 @@ import {
   SidebarSimple,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { usePersistedBoolean } from "@/hooks/usePersistedBoolean";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
@@ -36,6 +39,7 @@ import {
   buildOfferQuery,
   countActiveOfferFilters,
   normalizeOfferFilters,
+  OFFER_STATUS_OPTIONS,
   type OfferFilters,
 } from "./_components/offer-filters";
 import {
@@ -77,14 +81,6 @@ interface Dashboard {
   won_total: string | null;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon",
-  sent: "Envoyée",
-  won: "Gagnée",
-  lost: "Perdue",
-  expired: "Expirée",
-};
-
 const DEFAULT_SORT: DataTableSortState = { field: "created_at", dir: "desc" };
 const COLUMN_WIDTHS_KEY = "offers-list";
 const PAGE_SIZE = 50;
@@ -94,24 +90,25 @@ function getCsrfToken(): string {
   const m = document.cookie.match(/csrftoken=([^;]+)/);
   return m ? m[1] : "";
 }
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, loadError: string): Promise<T> {
   const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Erreur de chargement");
+  if (!res.ok) throw new Error(loadError);
   return res.json();
 }
-async function postJson(url: string) {
+async function postJson(url: string, serverError: string) {
   const res = await fetch(url, {
     method: "POST",
     credentials: "include",
     headers: { "X-CSRFToken": getCsrfToken() },
   });
-  if (!res.ok) throw new Error("Erreur serveur");
+  if (!res.ok) throw new Error(serverError);
   return res.json();
 }
 
 // ── Document cell / row action ────────────────────────────────────────────────
 
 function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => void }) {
+  const t = useUiTranslate();
   if (offer.offer_type === "tariff") {
     return (
       <a
@@ -120,7 +117,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         onClick={(e) => e.stopPropagation()}
       >
         <DownloadSimple size={14} weight="duotone" />
-        Excel
+        {t("offers.format.excel")}
       </a>
     );
   }
@@ -128,7 +125,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
     return (
       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <CircleNotch size={14} className="animate-spin" />
-        Génération…
+        {t("offers.generation.pending")}
       </span>
     );
   }
@@ -146,7 +143,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         className="h-auto px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
       >
         <ArrowsClockwise size={14} />
-        Réessayer
+        {t("offers.generation.retry")}
       </Button>
     );
   }
@@ -161,7 +158,7 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
         onClick={(e) => e.stopPropagation()}
       >
         <ArrowSquareOut size={14} weight="duotone" />
-        PDF
+        {t("offers.format.pdf")}
       </a>
     );
   }
@@ -171,8 +168,10 @@ function GenerationCell({ offer, onRetry }: { offer: OfferRow; onRetry: () => vo
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
+  const { displayLanguage } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
+  const t = useUiTranslate();
 
   const [filters, setFilters] = useState<OfferFilters>({});
   const [searchInput, setSearchInput] = useState("");
@@ -218,7 +217,7 @@ export default function OffersPage() {
 
   const { data, isLoading, error } = useSWR<Paginated<OfferRow>>(
     `offers:${query}`,
-    () => getJson(`/api/offers/?${query}`),
+    () => getJson(`/api/offers/?${query}`, t("offers.errors.load")),
     {
       // Poll only while a generation is actually running (B1 fix).
       refreshInterval: (d) =>
@@ -226,10 +225,10 @@ export default function OffersPage() {
     },
   );
   const { data: dash, isLoading: dashLoading } = useSWR<Dashboard>("offers-dashboard", () =>
-    getJson<Dashboard>("/api/offers/dashboard"),
+    getJson<Dashboard>("/api/offers/dashboard", t("offers.errors.load")),
   );
   const { data: clientsResp } = useSWR("clients:all", () =>
-    getJson<Paginated<ClientLite> | ClientLite[]>("/api/clients/?limit=1000"),
+    getJson<Paginated<ClientLite> | ClientLite[]>("/api/clients/?limit=1000", t("offers.errors.load")),
   );
   const clientName = useMemo(() => {
     const list = Array.isArray(clientsResp) ? clientsResp : (clientsResp?.results ?? []);
@@ -240,12 +239,12 @@ export default function OffersPage() {
   const retry = useCallback(
     async (id: string) => {
       try {
-        await postJson(`/api/offers/${id}/regenerate/`);
+        await postJson(`/api/offers/${id}/regenerate/`, t("offers.errors.server"));
       } finally {
         mutate(`offers:${query}`);
       }
     },
-    [query],
+    [query, t],
   );
 
   const offers = data?.results ?? [];
@@ -277,76 +276,85 @@ export default function OffersPage() {
       const sf = savedFilters.find((f) => f.id === id);
       if (!sf) return;
       const ok = await confirm({
-        title: "Supprimer le filtre favori",
-        description: `Supprimer « ${sf.name} » de vos filtres sauvegardés ?`,
-        confirmLabel: "Supprimer",
+        title: t("offers.list.deleteFilterTitle"),
+        description: t("offers.list.deleteFilterDescription", { name: sf.name }),
+        confirmLabel: t("common.delete"),
         destructive: true,
       });
       if (!ok) return;
       setSavedFilters((prev) => prev.filter((f) => f.id !== id));
     },
-    [confirm, savedFilters],
+    [confirm, savedFilters, t],
+  );
+
+  const statusLabel = useCallback(
+    (status: string) => {
+      const key = OFFER_STATUS_OPTIONS.find((opt) => opt.value === status)?.labelKey;
+      return key ? t(key) : status;
+    },
+    [t],
   );
 
   const columns = useMemo<DataTableColumnDef<OfferRow>[]>(
     () => [
       {
         key: "label",
-        label: "Offre",
+        label: t("offers.list.column.offer"),
         width: 240,
         sortField: "label",
         render: (o) => (
           <div>
             <span className="text-sm font-medium text-foreground">{o.label}</span>
             <div className="text-xs text-muted-foreground">
-              <span className="font-data">{o.line_count}</span> ligne(s) · {o.currency}
+              <span className="font-data">{o.line_count}</span>{" "}
+              {t("offers.list.linesCurrency", { currency: o.currency })}
             </div>
           </div>
         ),
       },
       {
         key: "offer_type",
-        label: "Type",
+        label: t("offers.field.type"),
         width: 100,
         render: (o) => (
           <StatusBadge variant={o.offer_type === "project" ? "info" : "running"}>
-            {o.offer_type === "project" ? "Projet" : "Tarif"}
+            {o.offer_type === "project" ? t("offers.type.project") : t("offers.type.tariff")}
           </StatusBadge>
         ),
       },
       {
         key: "clients",
-        label: "Client(s)",
+        label: t("offers.list.column.clients"),
         width: 180,
         cellClassName: "text-sm text-muted-foreground truncate",
         render: (o) => clientName(o.client_ids),
       },
       {
         key: "status",
-        label: "Statut",
+        label: t("offers.field.status"),
         width: 110,
         render: (o) => (
           <StatusBadge variant={offerStatusVariant(o.status)}>
-            {STATUS_LABELS[o.status] ?? o.status}
+            {statusLabel(o.status)}
           </StatusBadge>
         ),
       },
       {
         key: "valid_to",
-        label: "Validité",
+        label: t("offers.list.column.validity"),
         width: 120,
         sortField: "valid_to",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (o) => (o.valid_to ? new Date(o.valid_to).toLocaleDateString("fr-FR") : "—"),
+        render: (o) => (o.valid_to ? new Date(o.valid_to).toLocaleDateString(uiDateLocale(displayLanguage)) : "—"),
       },
       {
         key: "document",
-        label: "Document",
+        label: t("offers.field.document"),
         width: 130,
         render: (o) => <GenerationCell offer={o} onRetry={() => retry(o.id)} />,
       },
     ],
-    [clientName, retry],
+    [clientName, retry, statusLabel, t, displayLanguage],
   );
 
   return (
@@ -357,8 +365,8 @@ export default function OffersPage() {
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("offers.list.showFilters")}
+            title={t("offers.filters.title")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -375,17 +383,19 @@ export default function OffersPage() {
         >
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-4">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("offers.filters.title")}</span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {activeFilterCount > 1
+                    ? t("offers.filters.criteriaOther", { count: activeFilterCount })
+                    : t("offers.filters.criteriaOne", { count: activeFilterCount })}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                  Tout effacer
+                  {t("offers.filters.clearAll")}
                 </Button>
               )}
               <Button
@@ -393,8 +403,8 @@ export default function OffersPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("offers.list.hideFilters")}
+                title={t("offers.list.hideFilters")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -413,7 +423,7 @@ export default function OffersPage() {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("offers.list.resizeFilters")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors",
@@ -436,11 +446,13 @@ export default function OffersPage() {
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 <FileText size={22} weight="duotone" className="shrink-0 text-primary" />
-                Offres
+                {t("offers.title")}
               </h1>
               {!isLoading && (
                 <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-                  {total.toLocaleString("fr-FR")} offre{total !== 1 ? "s" : ""}
+                  {total !== 1
+                    ? t("offers.list.countOther", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })
+                    : t("offers.list.countOne", { count: total.toLocaleString(uiDateLocale(displayLanguage)) })}
                 </p>
               )}
             </div>
@@ -448,13 +460,13 @@ export default function OffersPage() {
               className="ml-2 hidden w-72 lg:block lg:w-80"
               value={searchInput}
               onChange={onSearchChange}
-              placeholder="Recherche offre, projet…"
+              placeholder={t("offers.list.searchPlaceholder")}
             />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button onClick={() => setShowNew(true)}>
               <Plus size={16} weight="bold" />
-              <span className="hidden sm:inline">Nouvelle offre</span>
+              <span className="hidden sm:inline">{t("offers.list.new")}</span>
             </Button>
           </div>
         </div>
@@ -478,7 +490,11 @@ export default function OffersPage() {
         />
 
         <div className="border-b border-border bg-card px-4 py-3 md:hidden">
-          <SearchInput value={searchInput} onChange={onSearchChange} placeholder="Rechercher…" />
+          <SearchInput
+            value={searchInput}
+            onChange={onSearchChange}
+            placeholder={t("offers.list.searchShort")}
+          />
         </div>
 
         <div className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-6">
@@ -489,11 +505,19 @@ export default function OffersPage() {
               ))
             ) : dash ? (
               <>
-                <KpiCard label="Brouillons" value={dash.status_counts.draft ?? 0} />
-                <KpiCard label="Envoyées" value={dash.status_counts.sent ?? 0} accent="blue" />
-                <KpiCard label="Tarifs actifs" value={dash.tariff_active} accent="green" />
+                <KpiCard label={t("offers.list.kpi.drafts")} value={dash.status_counts.draft ?? 0} />
                 <KpiCard
-                  label="Conversion projets"
+                  label={t("offers.list.kpi.sent")}
+                  value={dash.status_counts.sent ?? 0}
+                  accent="blue"
+                />
+                <KpiCard
+                  label={t("offers.list.kpi.activeTariffs")}
+                  value={dash.tariff_active}
+                  accent="green"
+                />
+                <KpiCard
+                  label={t("offers.list.kpi.conversion")}
                   accent="green"
                   value={
                     dash.project_conversion_pct != null
@@ -502,11 +526,11 @@ export default function OffersPage() {
                   }
                 />
                 <KpiCard
-                  label="CA gagné (€)"
+                  label={t("offers.list.kpi.wonRevenue")}
                   accent="green"
                   value={
                     dash.won_total != null
-                      ? Number(dash.won_total).toLocaleString("fr-FR", {
+                      ? Number(dash.won_total).toLocaleString(uiDateLocale(displayLanguage), {
                           maximumFractionDigits: 0,
                         })
                       : "—"
@@ -535,7 +559,7 @@ export default function OffersPage() {
               <EmptyState
                 className="border-none bg-transparent py-16 shadow-none"
                 icon={<FileText size={28} weight="duotone" />}
-                title="Impossible de charger les offres"
+                title={t("offers.list.loadError")}
               />
             ) : undefined
           }
@@ -543,21 +567,21 @@ export default function OffersPage() {
             <EmptyState
               className="border-none bg-transparent py-16 shadow-none"
               icon={<FilePlus size={28} weight="duotone" />}
-              title="Aucune offre"
+              title={t("offers.list.empty")}
               description={
                 activeFilterCount > 0
-                  ? "Essayez d'élargir vos filtres ou de modifier la recherche."
-                  : "Cliquez « Nouvelle offre » pour en générer une."
+                  ? t("offers.list.emptyFiltered")
+                  : t("offers.list.emptyHint")
               }
               action={
                 activeFilterCount > 0 ? (
                   <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Réinitialiser les filtres
+                    {t("offers.list.resetFilters")}
                   </Button>
                 ) : (
                   <Button onClick={() => setShowNew(true)}>
                     <Plus size={16} weight="bold" />
-                    Nouvelle offre
+                    {t("offers.list.new")}
                   </Button>
                 )
               }
@@ -571,9 +595,9 @@ export default function OffersPage() {
                   totalCount: total,
                   pageSize: PAGE_SIZE,
                   onPageChange: setPage,
-                  itemLabel: "offre",
+                  itemLabel: t("offers.list.itemLabel"),
                   jumpInputId: "offers-page-jump",
-                  ariaLabel: "Pagination des offres",
+                  ariaLabel: t("offers.list.pagination"),
                 }
               : undefined
           }

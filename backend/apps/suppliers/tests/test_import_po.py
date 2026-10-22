@@ -215,6 +215,25 @@ class TestApplyTask:
         report_path = IMPORT_DIR / f"{eager.id}_report.xlsx"
         assert report_path.is_file()
 
+    def test_english_report_headers_keep_file_values(self, tmp_path, product, supplier):
+        path = _write_xlsx(tmp_path, [["SKU", "PO"], ["NOPE", "2"]])
+        eager = import_po_apply_task.apply(
+            args=[str(path), {"sku": 0, "po": 1}, str(supplier.id), 1],
+            kwargs={"locale": "en"},
+        )
+        wb = openpyxl.load_workbook(IMPORT_DIR / f"{eager.id}_report.xlsx")
+        ws = wb.active
+        assert ws.title == "Rejected rows"
+        assert [cell.value for cell in ws[1]] == [
+            "Row",
+            "SKU",
+            "Supplier",
+            "PO",
+            "Rejection reason",
+        ]
+        assert ws.cell(row=2, column=2).value == "NOPE"
+        assert ws.cell(row=2, column=5).value == "SKU not found in the database"
+
 
 class TestEndpoints:
     def _analyze(self, client, path, header_row=1):

@@ -129,9 +129,13 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# Languages supported for product content (UI itself is FR-only in MVP1).
+# Product content (DeepL, offers). Independent from the interface language.
 SUPPORTED_CONTENT_LANGUAGES = ["fr", "en", "es"]
 DEFAULT_CONTENT_LANGUAGE = "fr"
+
+# Interface language of this deployment when the user has no locale.
+# France: fr. A future Singapore deployment: en. One value per server.
+DEFAULT_UI_LOCALE = env("DEFAULT_UI_LOCALE", default="fr")
 
 # ─── Static / Media ───────────────────────────────────────────────────────────
 

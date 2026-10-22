@@ -3,37 +3,46 @@
 import Link from "next/link";
 import { ArrowRight, Calculator, ChartLineUp, FileText } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
-const STEPS = [
+const STEPS: {
+  step: number;
+  titleKey: MessageKey;
+  descriptionKey: MessageKey;
+  href: string;
+  icon: typeof Calculator;
+}[] = [
   {
     step: 1,
-    title: "Explorer le catalogue",
-    description: "Parcourez les SKU et vérifiez les données produit.",
+    titleKey: "dashboard.stepCatalog",
+    descriptionKey: "dashboard.stepCatalogDesc",
     href: "/catalog",
     icon: Calculator,
   },
   {
     step: 2,
-    title: "Créer une simulation",
-    description: "Sélectionnez des produits et lancez le calcul de pricing.",
+    titleKey: "dashboard.stepSimulation",
+    descriptionKey: "dashboard.stepSimulationDesc",
     href: "/simulator/new",
     icon: ChartLineUp,
   },
   {
     step: 3,
-    title: "Générer une offre",
-    description: "Finalisez une simulation puis créez une offre tarif ou projet.",
+    titleKey: "dashboard.stepOffer",
+    descriptionKey: "dashboard.stepOfferDesc",
     href: "/offers",
     icon: FileText,
   },
-] as const;
+];
 
 export function DashboardOnboarding() {
+  const t = useUiTranslate();
   return (
     <section className="rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-card p-6 shadow-[var(--shadow-soft)]">
-      <h2 className="text-lg font-semibold text-foreground">Bienvenue sur Syskern</h2>
+      <h2 className="text-lg font-semibold text-foreground">{t("dashboard.welcome")}</h2>
       <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-        Commencez par ces trois étapes pour prendre en main la plateforme de pricing.
+        {t("dashboard.welcomeLead")}
       </p>
       <ol className="mt-5 grid gap-3 sm:grid-cols-3">
         {STEPS.map((s) => (
@@ -45,8 +54,8 @@ export function DashboardOnboarding() {
               {s.step}
             </span>
             <s.icon size={22} className="mt-3 text-primary" weight="duotone" />
-            <p className="mt-2 text-sm font-semibold text-foreground">{s.title}</p>
-            <p className="mt-1 flex-1 text-xs text-muted-foreground">{s.description}</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{t(s.titleKey)}</p>
+            <p className="mt-1 flex-1 text-xs text-muted-foreground">{t(s.descriptionKey)}</p>
             <Button
               variant="outline"
               size="sm"
@@ -54,7 +63,7 @@ export function DashboardOnboarding() {
               nativeButton={false}
               render={<Link href={s.href} />}
             >
-              Commencer
+              {t("dashboard.start")}
               <ArrowRight size={14} />
             </Button>
           </li>

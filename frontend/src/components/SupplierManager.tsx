@@ -13,8 +13,11 @@ import {
   type ProductSupplier,
   type ProductSupplierInput,
 } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { localizeIncotermLabel } from "@/lib/incoterms";
+import type { MessageKey } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 /** Incoterms 2020 — loaded from API with static fallback. */
 const INCOTERMS_FALLBACK = [
@@ -122,10 +125,10 @@ function isValid(data: ProductSupplierInput): boolean {
 
 type CopperMode = "inherit" | "indexed" | "not_indexed";
 
-const COPPER_MODES: { id: CopperMode; label: string }[] = [
-  { id: "inherit", label: "Hériter du produit" },
-  { id: "indexed", label: "Indexé" },
-  { id: "not_indexed", label: "Non indexé" },
+const COPPER_MODES: { id: CopperMode; labelKey: MessageKey }[] = [
+  { id: "inherit", labelKey: "common.copperInherit" },
+  { id: "indexed", labelKey: "common.copperIndexed" },
+  { id: "not_indexed", labelKey: "common.copperNotIndexed" },
 ];
 
 function copperMode(data: ProductSupplierInput): CopperMode {
@@ -183,10 +186,11 @@ function SupplierFields({
   onSelectExisting?: (name: string) => void;
   loadingTemplate?: boolean;
 }) {
+  const t = useUiTranslate();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs font-medium text-muted-foreground">Nom du fournisseur *</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.supplierName")}</span>
         {nameMode === "existing" && existingNames && existingNames.length > 0 ? (
           <div className="relative">
             <Select.Root
@@ -200,7 +204,7 @@ function SupplierFields({
                   "flex items-center justify-between gap-2 text-left disabled:opacity-50",
                 )}
               >
-                <Select.Value placeholder="Choisir un fournisseur existant…" />
+                <Select.Value placeholder={t("common.chooseExistingSupplier")} />
                 <Select.Icon>
                   {loadingTemplate ? (
                     <Loader2 size={15} className="animate-spin text-muted-foreground" />
@@ -239,13 +243,13 @@ function SupplierFields({
             disabled={disabled}
             onChange={(e) => onChange({ supplier_name: e.target.value })}
             className={inputCls}
-            placeholder="ex. Symea Shanghai"
+            placeholder={t("common.exampleSupplier")}
           />
         )}
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">Code usine</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.factoryCode")}</span>
         <input
           value={value.factory_code ?? ""}
           disabled={disabled}
@@ -255,9 +259,9 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">PO base</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.poBase")}</span>
         <span className="text-[11px] leading-tight text-muted-foreground">
-          Prix d&apos;achat fournisseur (devise d&apos;origine) — point de départ du calcul PA
+          {t("common.poBaseHint")}
         </span>
         <input
           type="number"
@@ -268,12 +272,12 @@ function SupplierFields({
             onChange({ po_base_price: e.target.value === "" ? null : e.target.value })
           }
           className={inputCls}
-          placeholder="ex. 2350"
+          placeholder={t("common.examplePrice")}
         />
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">Devise PO</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.poCurrency")}</span>
         <CurrencySelect
           value={value.po_currency ?? "RMB"}
           disabled={disabled}
@@ -282,7 +286,7 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">Incoterm</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.incoterm")}</span>
         <IncotermSelect
           value={value.incoterm ?? ""}
           disabled={disabled}
@@ -291,13 +295,13 @@ function SupplierFields({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">Localisation incoterm</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.incotermLocation")}</span>
         <input
           value={value.incoterm_location ?? ""}
           disabled={disabled}
           onChange={(e) => onChange({ incoterm_location: e.target.value })}
           className={inputCls}
-          placeholder="ex. Shanghai"
+          placeholder={t("common.examplePlace")}
         />
       </label>
 
@@ -305,10 +309,10 @@ function SupplierFields({
           peuvent déclarer un poids cuivre différent. « Hériter » = la valeur du
           produit s'applique — c'est le défaut, et ce que fait tout lien existant. */}
       <div className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs font-medium text-muted-foreground">Indexation cuivre</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.copperIndexation")}</span>
         <div
           role="radiogroup"
-          aria-label="Indexation cuivre"
+          aria-label={t("common.copperIndexation")}
           className="inline-flex w-full rounded-md bg-muted p-0.5"
         >
           {COPPER_MODES.map((mode) => {
@@ -328,7 +332,7 @@ function SupplierFields({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {mode.label}
+                {t(mode.labelKey)}
               </button>
             );
           })}
@@ -339,7 +343,7 @@ function SupplierFields({
         <>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">
-              Poids cuivre / unité (kg)
+              {t("common.copperWeight")}
             </span>
             <input
               type="number"
@@ -352,11 +356,11 @@ function SupplierFields({
                 })
               }
               className={inputCls}
-              placeholder="hérite du produit si vide"
+              placeholder={t("common.copperInheritIfEmpty")}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Base cuivre</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("common.copperBase")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -372,7 +376,7 @@ function SupplierFields({
       )}
 
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs font-medium text-muted-foreground">Notes</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("common.notes")}</span>
         <textarea
           value={value.notes ?? ""}
           disabled={disabled}
@@ -442,6 +446,7 @@ function IncotermSelect({
   onChange: (i: string) => void;
   disabled?: boolean;
 }) {
+  const { displayLanguage } = useAuth();
   const { data: incoterms } = useSWR("incoterms-supplier", listIncoterms);
   const codes = incoterms?.map((i) => i.code) ?? [...INCOTERMS_FALLBACK];
 
@@ -467,7 +472,7 @@ function IncotermSelect({
           <Select.Viewport className="p-1">
             {codes.map((code) => {
               const ref = incoterms?.find((i) => i.code === code);
-              const label = ref ? localizeIncotermLabel(ref.label, code) : code;
+              const label = ref ? localizeIncotermLabel(ref.label, code, displayLanguage) : code;
               return (
                 <Select.Item
                   key={code}
@@ -505,6 +510,7 @@ function SupplierCard({
   onActivate: (id: string) => Promise<void> | void;
   readOnly?: boolean;
 }) {
+  const t = useUiTranslate();
   const [draft, setDraft] = useState<ProductSupplierInput>(() => toInput(supplier));
   const [busy, setBusy] = useState(false);
 
@@ -540,7 +546,7 @@ function SupplierCard({
           )}
         >
           {supplier.is_active && <Star size={12} className="fill-brand-green text-brand-green" />}
-          {supplier.is_active ? "Source active" : "Inactive"}
+          {supplier.is_active ? t("common.activeSource") : t("common.inactive")}
         </span>
         {!readOnly && (
           <div className="flex items-center gap-2">
@@ -552,11 +558,11 @@ function SupplierCard({
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-brand-green border border-primary/40 rounded-lg hover:bg-accent/50 disabled:opacity-50"
               >
                 <Star size={13} />
-                Définir comme active
+                {t("common.setActive")}
               </button>
             )}
             <DeleteSupplierButton
-              label={supplier.supplier_name || "ce fournisseur"}
+              label={supplier.supplier_name || t("common.thisSupplier")}
               disabled={busy}
               onConfirm={() => run(() => onDelete(supplier.id))}
             />
@@ -578,7 +584,7 @@ function SupplierCard({
             onClick={() => setDraft(toInput(supplier))}
             className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted text-muted-foreground disabled:opacity-50"
           >
-            Annuler
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -587,7 +593,7 @@ function SupplierCard({
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            Enregistrer
+            {t("common.save")}
           </button>
         </div>
       )}
@@ -604,6 +610,7 @@ function DeleteSupplierButton({
   onConfirm: () => Promise<void> | void;
   disabled?: boolean;
 }) {
+  const t = useUiTranslate();
   const [open, setOpen] = useState(false);
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -611,7 +618,7 @@ function DeleteSupplierButton({
         <button
           type="button"
           disabled={disabled}
-          aria-label="Supprimer le fournisseur"
+          aria-label={t("common.deleteSupplier")}
           className="inline-flex items-center justify-center h-8 w-8 text-muted-foreground border border-border rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         >
           <Trash2 size={14} />
@@ -621,16 +628,16 @@ function DeleteSupplierButton({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-popover p-5 shadow-xl focus:outline-none">
           <Dialog.Title className="text-base font-semibold text-foreground">
-            Supprimer le fournisseur
+            {t("common.deleteSupplier")}
           </Dialog.Title>
           <Dialog.Description className="mt-2 text-sm text-muted-foreground">
-            Confirmez-vous la suppression de{" "}
-            <span className="font-medium text-foreground">{label}</span> ? Cette action est
-            irréversible.
+            {t("common.deleteSupplierLead")}{" "}
+            <span className="font-medium text-foreground">{label}</span>
+            {t("common.deleteSupplierTail")}
           </Dialog.Description>
           <div className="flex justify-end gap-3 mt-5">
             <Dialog.Close className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted text-muted-foreground">
-              Annuler
+              {t("common.cancel")}
             </Dialog.Close>
             <button
               type="button"
@@ -640,7 +647,7 @@ function DeleteSupplierButton({
               }}
               className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
             >
-              Supprimer
+              {t("common.delete")}
             </button>
           </div>
         </Dialog.Content>
@@ -660,6 +667,7 @@ export function SupplierManager({
   readOnly,
   maxSuppliers,
 }: SupplierManagerProps) {
+  const t = useUiTranslate();
   const [adding, setAdding] = useState(false);
   const [newSupplier, setNewSupplier] = useState<ProductSupplierInput>(() =>
     emptySupplier(suppliers.length === 0),
@@ -708,7 +716,7 @@ export function SupplierManager({
   return (
     <div className="flex flex-col gap-4">
       {suppliers.length === 0 && !adding && (
-        <p className="text-sm text-muted-foreground">Aucun fournisseur enregistré.</p>
+        <p className="text-sm text-muted-foreground">{t("common.noSuppliers")}</p>
       )}
 
       {suppliers.map((s) => (
@@ -725,10 +733,10 @@ export function SupplierManager({
       {adding && !readOnly && (
         <div className="rounded-xl border border-dashed border-primary/40 p-4 bg-[#FFFBF5]">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-foreground">Nouveau fournisseur</h4>
+            <h4 className="text-sm font-semibold text-foreground">{t("common.newSupplier")}</h4>
             <button
               type="button"
-              aria-label="Annuler l'ajout"
+              aria-label={t("common.cancelAdd")}
               onClick={() => {
                 setAdding(false);
                 setNewSupplier(emptySupplier(suppliers.length === 0));
@@ -757,7 +765,7 @@ export function SupplierManager({
                       : "border-border text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {mode === "existing" ? "Fournisseur existant" : "Nouveau fournisseur"}
+                  {mode === "existing" ? t("common.existingSupplier") : t("common.newSupplier")}
                 </button>
               ))}
             </div>
@@ -779,7 +787,7 @@ export function SupplierManager({
               className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
-              Ajouter le fournisseur
+              {t("common.addTheSupplier")}
             </button>
           </div>
         </div>
@@ -792,7 +800,7 @@ export function SupplierManager({
           className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm font-medium text-brand-green border border-dashed border-primary/40 rounded-lg hover:bg-accent/50"
         >
           <Plus size={15} />
-          Ajouter un fournisseur
+          {t("common.addASupplier")}
         </button>
       )}
     </div>

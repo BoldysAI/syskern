@@ -111,7 +111,7 @@ syskern/
    - **Marge Syskern** : défaut **20 %**, formule `PV = X / (1 - marge)`. Position **fixe** : appliquée sur le PR **avant** les transports/douane vente (CDC Feedback 1 — cf. `pricing-chain.md`, `decisions.md` 2026-07-14).
    - **Paramètres marché (cuivre, FX) saisis manuellement** et historisés. Pas de fetch auto de cours en MVP1.
 8. **Performance DB** : `select_related` / `prefetch_related` systématiques. Pas de N+1.
-9. **Messages API destinés à l'utilisateur en français.**
+9. **Messages API destinés à l'utilisateur** : français source, langue résolue par `resolve_ui_locale` (repli français par libellé). Détail → `i18n.md`.
 10. **Migrations** : après tout changement de modèle, `makemigrations` puis **commit** les fichiers `apps/*/migrations/`.
 
 ---

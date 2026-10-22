@@ -13,7 +13,10 @@ import {
   availableSimulationColumns,
   DEFAULT_VISIBLE_SIMULATION_COLUMNS,
   ensureLockedSimulationColumns,
+  simulationColumnLabel,
 } from "./simulation-column-storage";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 interface SimulationColumnsDialogProps {
   isProject: boolean;
@@ -26,6 +29,8 @@ export function SimulationColumnsDialog({
   visibleKeys,
   onApply,
 }: SimulationColumnsDialogProps) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(visibleKeys);
 
@@ -68,12 +73,12 @@ export function SimulationColumnsDialog({
         type="button"
         variant="outline"
         size="sm"
-        title="Choisir les colonnes"
+        title={t("simulator.lines.chooseColumns")}
         className="gap-1.5"
         onClick={openDialog}
       >
         <Columns size={15} />
-        <span className="hidden sm:inline">Colonnes</span>
+        <span className="hidden sm:inline">{t("simulator.lines.columns")}</span>
         {selectedCount > 0 && (
           <span className="text-xs text-muted-foreground">({selectedCount})</span>
         )}
@@ -82,20 +87,20 @@ export function SimulationColumnsDialog({
       <AppModal
         open={open}
         onOpenChange={handleOpenChange}
-        title="Colonnes de la simulation"
-        description="Cochez les colonnes à afficher dans le tableau. Le SKU reste toujours visible."
+        title={t("simulator.lines.columnsTitle")}
+        description={t("simulator.lines.columnsHelp")}
         size="lg"
         footer={
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
-              Réinitialiser
+              {t("simulator.lines.resetColumns")}
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button type="button" onClick={handleApply}>
-                Appliquer
+                {t("simulator.lines.apply")}
               </Button>
             </div>
           </div>
@@ -118,9 +123,11 @@ export function SimulationColumnsDialog({
                     disabled={col.locked}
                     onCheckedChange={() => toggle(col.key, col.locked)}
                   />
-                  <span className="text-sm text-foreground">{col.label}</span>
+                  <span className="text-sm text-foreground">
+                    {simulationColumnLabel(col.key, displayLanguage)}
+                  </span>
                   {col.locked && (
-                    <span className="text-xs text-muted-foreground">(toujours affiché)</span>
+                    <span className="text-xs text-muted-foreground">{t("simulator.lines.alwaysShown")}</span>
                   )}
                 </label>
               </li>

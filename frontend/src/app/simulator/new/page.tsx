@@ -6,6 +6,9 @@ import Link from "next/link";
 import { CaretLeft, CaretRight, CircleNotch } from "@phosphor-icons/react";
 import { addSimulationLines, createSimulation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
+import type { MessageKey } from "@/lib/i18n";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ParamsStep } from "./_components/ParamsStep";
@@ -31,15 +34,16 @@ import {
   type WizardDraft,
 } from "./_components/wizard-draft";
 
-const STEPS = [
-  { id: 1, label: "Type et contexte" },
-  { id: 2, label: "Sélection des SKU" },
-  { id: 3, label: "Paramètres et chaîne" },
-] as const;
+const STEPS: { id: number; label: MessageKey }[] = [
+  { id: 1, label: "simulator.wizard.stepType" },
+  { id: 2, label: "simulator.wizard.stepSku" },
+  { id: 3, label: "simulator.wizard.stepParams" },
+];
 
 export default function NewSimulationPage() {
+  const t = useUiTranslate();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <NewSimulationPageContent />
     </Suspense>
   );
@@ -47,6 +51,8 @@ export default function NewSimulationPage() {
 
 function NewSimulationPageContent() {
   const router = useRouter();
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const searchParams = useSearchParams();
   const fromCatalog = searchParams.get("from") === "catalog";
   const catalogProductIds = searchParams.get("product_ids") ?? "";
@@ -76,9 +82,7 @@ function NewSimulationPageContent() {
 
         if (!productIds.length) {
           if (!cancelled) {
-            setSeedError(
-              "Aucun produit catalogue à pré-remplir. Réessayez depuis le catalogue.",
-            );
+            setSeedError(t("simulator.wizard.noCatalogSeed"));
             setDraft(emptyDraft());
             setReady(true);
           }
@@ -102,18 +106,14 @@ function NewSimulationPageContent() {
           );
           if (cancelled) return;
           if (selectedSkus.length === 0) {
-            setSeedError(
-              "Les produits sélectionnés n'ont pas pu être chargés. Réessayez depuis le catalogue.",
-            );
+            setSeedError(t("simulator.wizard.catalogLoadFailed"));
             setDraft(emptyDraft());
           } else {
             setDraft(catalogDraft(selectedSkus.map(withSelectedSkuDefaults)));
           }
         } catch {
           if (cancelled) return;
-          setSeedError(
-            "Les produits sélectionnés n'ont pas pu être chargés. Réessayez depuis le catalogue.",
-          );
+          setSeedError(t("simulator.wizard.catalogLoadFailed"));
           setDraft(emptyDraft());
         } finally {
           if (!cancelled) setReady(true);
@@ -131,7 +131,7 @@ function NewSimulationPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fromCatalog, catalogProductIds]);
+  }, [fromCatalog, catalogProductIds, t]);
 
   useEffect(() => {
     if (!ready || fromCatalog) return;
@@ -141,7 +141,10 @@ function NewSimulationPageContent() {
   const update = (patch: Partial<WizardDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const step1Ok = step1Valid(draft);
-  const step3Issues = useMemo(() => collectWizardStep3Issues(draft), [draft]);
+  const step3Issues = useMemo(
+    () => collectWizardStep3Issues(draft, displayLanguage),
+    [draft, displayLanguage],
+  );
   const catalogSkuCount = fromCatalog ? draft.selectedSkus.length : 0;
 
   const canSubmit = step1Ok && !saving && ready;
@@ -165,7 +168,7 @@ function NewSimulationPageContent() {
       if (fromCatalog) clearCatalogSeed();
       router.push(`/simulator/${sim.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Création de la simulation échouée.");
+      setError(e instanceof Error ? e.message : t("simulator.wizard.createFailed"));
       setSaving(false);
     }
   };
@@ -173,7 +176,7 @@ function NewSimulationPageContent() {
   const goNext = async () => {
     if (step === 1 && !step1Ok) return;
     if (step === 3) {
-      const warnings = collectWizardCreateWarnings(draft);
+      const warnings = collectWizardCreateWarnings(draft, displayLanguage);
       if (warnings.length > 0) {
         setCreateWarnings(warnings);
         return;
@@ -188,7 +191,7 @@ function NewSimulationPageContent() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6 text-sm text-muted-foreground">
         <CircleNotch size={20} className="mr-2 animate-spin" />
-        Préparation du wizard…
+        {t("simulator.wizard.preparing")}
       </div>
     );
   }
@@ -206,16 +209,16 @@ function NewSimulationPageContent() {
           className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <CaretLeft size={16} />
-          Retour aux simulations
+          {t("simulator.wizard.backToList")}
         </Link>
 
-        {step !== 2 && <PageHeader title="Nouvelle simulation" className="mb-6" />}
+        {step !== 2 && <PageHeader title={t("simulator.list.new")} className="mb-6" />}
 
         {catalogSkuCount > 0 && (
           <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">
-            {catalogSkuCount} produit{catalogSkuCount > 1 ? "s" : ""} pré-sélectionné
-            {catalogSkuCount > 1 ? "s" : ""} depuis le catalogue — complétez le type et les paramètres
-            ci-dessous.
+            {catalogSkuCount > 1
+              ? t("simulator.wizard.catalogSeedOther", { count: catalogSkuCount })
+              : t("simulator.wizard.catalogSeedOne", { count: catalogSkuCount })}
           </div>
         )}
 
@@ -255,7 +258,7 @@ function NewSimulationPageContent() {
                     active ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  {s.label}
+                  {t(s.label)}
                 </span>
               </button>
               {i < STEPS.length - 1 && (
@@ -348,7 +351,7 @@ function NewSimulationPageContent() {
           variant="outline"
           onClick={() => (step > 1 ? setStep((s) => s - 1) : router.push("/simulator"))}
         >
-          {step > 1 ? "Précédent" : "Annuler"}
+          {step > 1 ? t("simulator.wizard.previous") : t("common.cancel")}
         </Button>
 
         <Button
@@ -360,13 +363,13 @@ function NewSimulationPageContent() {
           {saving && <CircleNotch size={15} className="animate-spin" />}
           {step < 3 ? (
             <>
-              Suivant
+              {t("simulator.wizard.next")}
               <CaretRight size={16} />
             </>
           ) : saving ? (
-            "Création…"
+            t("simulator.wizard.creating")
           ) : (
-            "Créer la simulation"
+            t("simulator.wizard.create")
           )}
         </Button>
       </div>

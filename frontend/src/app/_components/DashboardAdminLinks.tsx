@@ -13,11 +13,14 @@ import {
 import { AppIconCircle } from "@/components/AppIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { uiDateLocale } from "@/lib/i18n";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
-function formatSyncDateTime(value?: string | null): string | null {
+function formatSyncDateTime(value: string | null | undefined, locale: string): string | null {
   if (!value) return null;
-  return new Date(value).toLocaleString("fr-FR", {
+  return new Date(value).toLocaleString(uiDateLocale(locale), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -29,23 +32,25 @@ function formatSyncDateTime(value?: string | null): string | null {
 function syncDescription(
   syncStatus: Awaited<ReturnType<typeof getSyncStatus>> | undefined,
   running: boolean,
+  t: ReturnType<typeof useUiTranslate>,
+  locale: string,
 ): string {
   if (running && syncStatus?.running) {
-    const started = formatSyncDateTime(syncStatus.running.started_at);
-    return started ? `Démarrée le ${started}` : "Synchronisation en cours…";
+    const started = formatSyncDateTime(syncStatus.running.started_at, locale);
+    return started ? t("dashboard.syncStarted", { date: started }) : t("dashboard.syncInProgress");
   }
   const last = syncStatus?.last;
-  if (!last) return "Aucune synchronisation enregistrée";
-  const at = formatSyncDateTime(last.completed_at ?? last.started_at);
-  return at ? `Dernière synchronisation le ${at}` : "Dernière synchronisation";
+  if (!last) return t("dashboard.noSync");
+  const at = formatSyncDateTime(last.completed_at ?? last.started_at, locale);
+  return at ? t("dashboard.lastSyncAt", { date: at }) : t("dashboard.lastSync");
 }
 
-function syncStatusPresentation(status: SyncLog["status"]) {
+function syncStatusPresentation(status: SyncLog["status"], t: ReturnType<typeof useUiTranslate>) {
   const map = {
-    success: { variant: "success" as const, label: "Succès" },
-    failed: { variant: "failed" as const, label: "Échec" },
-    partial_failure: { variant: "warning" as const, label: "Partiel" },
-    running: { variant: "running" as const, label: "En cours" },
+    success: { variant: "success" as const, label: t("dashboard.syncSuccess") },
+    failed: { variant: "failed" as const, label: t("dashboard.syncFailed") },
+    partial_failure: { variant: "warning" as const, label: t("dashboard.syncPartial") },
+    running: { variant: "running" as const, label: t("dashboard.syncRunning") },
   };
   return map[status] ?? map.running;
 }
@@ -83,6 +88,8 @@ function AdminLinkRow({ href, icon, tone, title, description, badge }: AdminLink
 }
 
 export function DashboardAdminLinks() {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const { data: syncStatus, isLoading: syncLoading } = useSWR("odoo-sync-status", getSyncStatus, {
     refreshInterval: 60_000,
   });
@@ -98,9 +105,9 @@ export function DashboardAdminLinks() {
   const lastStatus = syncStatus?.running?.status ?? syncStatus?.last?.status;
 
   const syncBadge = running
-    ? { label: "En cours", variant: "running" as const }
+    ? { label: t("dashboard.syncRunning"), variant: "running" as const }
     : lastStatus
-      ? syncStatusPresentation(lastStatus)
+      ? syncStatusPresentation(lastStatus, t)
       : undefined;
 
   const unresolved = quarantine?.unresolved ?? 0;
@@ -110,7 +117,7 @@ export function DashboardAdminLinks() {
   if (loading) {
     return (
       <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Administration</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t("nav.admin")}</h2>
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-16 rounded-lg" />
@@ -122,19 +129,21 @@ export function DashboardAdminLinks() {
 
   return (
     <section className="rounded-xl border bg-card p-4 shadow-[var(--shadow-soft)]">
-      <h2 className="mb-1 text-sm font-semibold text-foreground">Administration</h2>
-      <p className="mb-3 text-xs text-muted-foreground">Outils et supervision plateforme</p>
+      <h2 className="mb-1 text-sm font-semibold text-foreground">{t("nav.admin")}</h2>
+      <p className="mb-3 text-xs text-muted-foreground">{t("dashboard.adminTools")}</p>
 
       <div className="divide-y divide-border rounded-lg border bg-muted/20">
         <AdminLinkRow
           href="/admin/migration-quarantine"
           icon={Warning}
           tone="warm"
-          title="Quarantaine migration"
+          title={t("nav.quarantine")}
           description={
             unresolved === 0
-              ? "Aucun élément en attente"
-              : `${unresolved} élément${unresolved > 1 ? "s" : ""} à traiter`
+              ? t("dashboard.quarantineNone")
+              : t(unresolved > 1 ? "dashboard.quarantineCountOther" : "dashboard.quarantineCountOne", {
+                  count: unresolved,
+                })
           }
           badge={
             unresolved > 0
@@ -146,19 +155,19 @@ export function DashboardAdminLinks() {
           href="/settings?tab=odoo"
           icon={ArrowsClockwise}
           tone="blue"
-          title="Sync Odoo"
-          description={syncDescription(syncStatus, running)}
+          title={t("dashboard.syncOdoo")}
+          description={syncDescription(syncStatus, running, t, displayLanguage)}
           badge={syncBadge}
         />
         <AdminLinkRow
           href="/admin/users"
           icon={Users}
           tone="navy"
-          title="Utilisateurs"
+          title={t("nav.users")}
           description={
             userCount === 0
-              ? "Aucun compte"
-              : `${userCount} compte${userCount > 1 ? "s" : ""} · ${activeUsers} actif${activeUsers > 1 ? "s" : ""}`
+              ? t("dashboard.noAccounts")
+              : `${t(userCount > 1 ? "dashboard.accountOther" : "dashboard.accountOne", { count: userCount })} · ${t(activeUsers > 1 ? "dashboard.activeOther" : "dashboard.activeOne", { count: activeUsers })}`
           }
           badge={
             userCount > 0

@@ -1,3 +1,5 @@
+import { translate, type UiLocale } from "@/lib/i18n";
+
 export type Role = "admin" | "commercial" | "viewer";
 
 export interface AuthUser {
@@ -6,11 +8,14 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   role: Role;
+  locale: string;
+  display_language: UiLocale;
 }
 
 export interface SessionResponse {
   authenticated: boolean;
   user: AuthUser | null;
+  display_language: UiLocale;
 }
 
 function getCsrfToken(): string {
@@ -27,16 +32,25 @@ export async function getSession(): Promise<SessionResponse> {
       credentials: "include",
       signal: controller.signal,
     });
-    if (!res.ok) return { authenticated: false, user: null };
-    return res.json();
+    if (!res.ok) return { authenticated: false, user: null, display_language: "fr" };
+    const data = await res.json();
+    return {
+      authenticated: Boolean(data.authenticated),
+      user: data.user ?? null,
+      display_language: data.display_language === "en" ? "en" : "fr",
+    };
   } catch {
-    return { authenticated: false, user: null };
+    return { authenticated: false, user: null, display_language: "fr" };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function loginApi(email: string, password: string): Promise<AuthUser> {
+export async function loginApi(
+  email: string,
+  password: string,
+  locale: UiLocale = "fr",
+): Promise<AuthUser> {
   const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,7 +59,26 @@ export async function loginApi(email: string, password: string): Promise<AuthUse
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data?.detail ?? "Identifiants incorrects.");
+    throw new Error(data?.detail ?? translate("login.invalidCredentials", locale));
+  }
+  const data = await res.json();
+  return data.user as AuthUser;
+}
+
+export async function updateLocaleApi(locale: string): Promise<AuthUser> {
+  const res = await fetch("/api/auth/locale", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    credentials: "include",
+    body: JSON.stringify({ locale }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const localeError = Array.isArray(data?.locale) ? data.locale[0] : undefined;
+    throw new Error(data?.detail ?? localeError ?? "");
   }
   const data = await res.json();
   return data.user as AuthUser;

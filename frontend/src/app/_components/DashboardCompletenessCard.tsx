@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import Link from "next/link";
 import useSWR from "swr";
 import { ArrowRight, ClipboardText } from "@phosphor-icons/react";
@@ -9,6 +10,7 @@ import { isAdmin } from "@/lib/auth";
 import { AppIcon } from "@/components/AppIcon";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 function barColor(pct: number): string {
   if (pct < 40) return "bg-destructive";
@@ -21,7 +23,8 @@ function barColor(pct: number): string {
  * the least-complete fields, linking to the detail table on /settings/attributes.
  */
 export function DashboardCompletenessCard() {
-  const { user } = useAuth();
+  const { user, displayLanguage } = useAuth();
+  const t = useUiTranslate();
   const { data, isLoading } = useSWR("attribute-completeness", getAttributeCompleteness);
   const userIsAdmin = isAdmin(user?.role);
 
@@ -33,11 +36,11 @@ export function DashboardCompletenessCard() {
   return (
     <section>
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Complétude du catalogue
+        {t("dashboard.catalogCompleteness")}
       </h2>
       <Card className="p-4">
         {isLoading || !data ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : (
           <>
             <div className="flex items-start justify-between">
@@ -46,7 +49,9 @@ export function DashboardCompletenessCard() {
                   {data.average_percent}%
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  moyenne · {data.total_products.toLocaleString("fr-FR")} produits
+                  {t("dashboard.completenessAverage", {
+                    count: data.total_products.toLocaleString(uiDateLocale(displayLanguage)),
+                  })}
                 </div>
               </div>
               <AppIcon icon={ClipboardText} size="xl" className="text-muted-foreground/30" />
@@ -55,7 +60,7 @@ export function DashboardCompletenessCard() {
             {worst.length > 0 ? (
               <div className="mt-4 space-y-2">
                 <div className="text-xs font-medium text-muted-foreground">
-                  Champs les moins complets
+                  {t("dashboard.leastComplete")}
                 </div>
                 {worst.map((f) => (
                   <div key={f.key} className="flex items-center gap-2">
@@ -76,7 +81,7 @@ export function DashboardCompletenessCard() {
               </div>
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">
-                Tous les champs suivis sont complets. 🎉
+                {t("dashboard.allFieldsComplete")}
               </p>
             )}
 
@@ -85,7 +90,7 @@ export function DashboardCompletenessCard() {
                 href="/settings/attributes#completude"
                 className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               >
-                Voir le détail par champ
+                {t("dashboard.seeFieldDetail")}
                 <AppIcon icon={ArrowRight} size="sm" />
               </Link>
             ) : null}

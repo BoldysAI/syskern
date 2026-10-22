@@ -1257,3 +1257,42 @@ Y compris un test bout-en-bout qui fait traverser `sync_task` aux kwargs réels.
 ⚠️ **Dette connexe non traitée** : un échec de tâche planifiée reste invisible dans l'UI tant qu'il
 survient avant la création du `SyncLog`. Créer la ligne `SyncLog` **en tête** de `sync()` (statut
 `running`, puis `failed` sur exception) rendrait toute panne future visible. À arbitrer.
+
+## 2026-10-08 · [P] Langue d'interface par déploiement, pas par entité en base
+
+Story 7.1. Le login et l'écran Utilisateurs suivent la langue du compte, sinon
+`DEFAULT_UI_LOCALE` (une valeur par serveur), sinon `fr`.
+
+- `Profile.locale` optionnel (`fr` / `en` / vide). Pas de clé `entity` sur les modèles :
+  un déploiement = une entité = une langue de repli.
+- Messages API de ces écrans : français source, anglais par clé, repli français si la
+  clé manque. Écarte « messages API toujours en français » pour ces chaînes
+  (`AGENTS.md` §5.9, `apps/accounts/ui_locale.py`).
+- DeepL / contenus produit inchangés. Pas de catalogue chinois.
+- ~~Le reste des écrans MVP1 reste en français en dur.~~ Remplacé par l'entrée 2026-10-20.
+
+## 2026-10-20 · [P] Interface FR/EN complète — écart au CDC MVP1 §10.1
+
+Le CDC MVP1 §10.1 limite le multilingue au contenu produit et aux sorties commerciales, et
+garde l'interface en français (§10.1, rappel « UI mono-langue FR »). L'épique Notion
+« Épique — Internationalisation de l'interface (FR/EN) » (MVP2 Amplify Group, stories 7.1-7.10)
+acte l'inverse : **toute l'interface existe en français et en anglais** pour les équipes de
+Shanghai. Les sections que cite l'épique renvoient aux documents MVP2, absents du dépôt ; elles
+ne correspondent pas aux §7.4 / §2.2 du CDC MVP1 versionné ici.
+
+- Langue résolue par `resolve_ui_locale` : `Profile.locale`, sinon `DEFAULT_UI_LOCALE`, sinon `fr`.
+  Repli français par clé.
+- Écrans, messages API, erreurs de tâches Celery et documents générés (exports, rapport de
+  rejets PO) suivent la langue d'interface de l'utilisateur. Une tâche lancée par un utilisateur
+  reçoit sa langue au `delay()`. Une tâche planifiée sans utilisateur (beat, ex.
+  `reap_stuck_generations`), ou appelée sans langue, écrit dans la langue du déploiement.
+- Échecs de services externes (Gamma, OpenAI, DeepL, Odoo en recalcul dégradé) : l'utilisateur
+  lit une phrase du catalogue ; le texte brut du service reste dans les logs du worker (et dans
+  la note de l'historique pour le recalcul). Taux de change manquant à la génération d'offre
+  tarif : clé `offers.fx_missing` ; le moteur garde son message français pour ses propres
+  diagnostics de ligne.
+- Offres (Excel, Gamma) : langue de l'offre (`fr`/`en`/`es`), pas la langue d'interface.
+- Login non authentifié : erreurs toujours dans la langue du déploiement, que l'e-mail existe ou
+  non. Lire la langue du compte avant authentification révélerait qu'il existe.
+- Inchangé : DeepL / contenus produit (`apps/i18n`), `Client.preferred_language`, parsing des
+  documents entrants. Pas de chinois.

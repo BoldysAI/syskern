@@ -5,16 +5,18 @@ import { HelpGuideEmbed } from "@/components/help/HelpGuideEmbed";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { HELP_NOTION_PUBLIC_URL } from "@/lib/help";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 
 export default function HelpPage() {
+  const t = useUiTranslate();
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-border bg-card/60 px-6 py-4 backdrop-blur-sm">
         <PageHeader
           variant="dense"
           className="mb-0"
-          title="Guide utilisateur"
-          description="Documentation et tutoriels Syskern — catalogue, simulations, comparaisons et offres."
+          title={t("help.title")}
+          description={t("help.description")}
           actions={
             <Button
               variant="outline"
@@ -29,7 +31,7 @@ export default function HelpPage() {
                 />
               }
             >
-              Ouvrir dans Notion
+              {t("help.openNotion")}
               <ArrowSquareOut size={14} />
             </Button>
           }

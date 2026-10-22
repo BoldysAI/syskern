@@ -1,5 +1,6 @@
 "use client";
 
+import { uiDateLocale } from "@/lib/i18n";
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -50,6 +51,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/SearchInput";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   decToPct,
   fmtEur,
@@ -57,6 +60,7 @@ import {
   lineDiagnostics,
   LINE_STATUS,
   lineRowClassName,
+  lineStatusLabel,
   productEditHref,
 } from "./sim-format";
 import { formatIncotermDisplay } from "@/lib/incoterms";
@@ -170,6 +174,7 @@ function MixCell({
   onCommitOverride: (raw: string) => void;
   onToggleManual: (forceManual: boolean) => void;
 }) {
+  const t = useUiTranslate();
   const autoMode = isProject && !line.force_manual_mix;
   if (autoMode) {
     return (
@@ -184,10 +189,10 @@ function MixCell({
           type="button"
           disabled={disabled}
           onClick={() => onToggleManual(true)}
-          title="Mix calculé depuis la quantité — cliquer pour forcer le mix manuel"
+          title={t("simulator.lines.mixAutoTitle")}
           className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground hover:bg-accent/80 disabled:opacity-40"
         >
-          auto
+          {t("simulator.lines.auto")}
         </button>
       </div>
     );
@@ -206,10 +211,10 @@ function MixCell({
           type="button"
           disabled={disabled}
           onClick={() => onToggleManual(false)}
-          title="Repasser en mix automatique (piloté par la quantité)"
+          title={t("simulator.lines.mixManualTitle")}
           className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40"
         >
-          manuel
+          {t("simulator.lines.manual")}
         </button>
       )}
     </div>
@@ -231,6 +236,7 @@ function RowMenu({
   onShowBreakdown: () => void;
   onRemove: () => void;
 }) {
+  const t = useUiTranslate();
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -239,7 +245,7 @@ function RowMenu({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         disabled={disabled}
         className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-        aria-label="Actions de la ligne"
+        aria-label={t("simulator.lines.actions")}
       >
         <DotsThreeVertical size={16} />
       </button>
@@ -254,7 +260,7 @@ function RowMenu({
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
           >
             <Calculator size={14} />
-            Détail du calcul
+            {t("simulator.lines.breakdown")}
           </button>
           <button
             onMouseDown={(e) => {
@@ -266,7 +272,7 @@ function RowMenu({
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ArrowsClockwise size={14} />
-            Recalculer cette ligne
+            {t("simulator.lines.recalcLine")}
           </button>
           <button
             onMouseDown={(e) => {
@@ -278,7 +284,7 @@ function RowMenu({
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ArrowCounterClockwise size={14} />
-            Réinitialiser surcharges
+            {t("simulator.lines.resetOverrides")}
           </button>
           <button
             onMouseDown={(e) => {
@@ -290,7 +296,7 @@ function RowMenu({
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash size={14} />
-            Retirer de la simulation
+            {t("simulator.lines.remove")}
           </button>
         </div>
       )}
@@ -309,6 +315,8 @@ export function SimulationTable({
   onChanged,
   onRecalcDone,
 }: Props) {
+  const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const confirm = useConfirm();
   const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>({});
   const [searchInput, setSearchInput] = useState("");
@@ -428,9 +436,9 @@ export function SimulationTable({
 
   const removeLines = async (lineIds: string[], label: string) => {
     const ok = await confirm({
-      title: "Retirer de la simulation",
+      title: t("simulator.lines.removeTitle"),
       description: label,
-      confirmLabel: "Retirer",
+      confirmLabel: t("simulator.lines.removeAction"),
       destructive: true,
     });
     if (!ok) return;
@@ -451,11 +459,11 @@ export function SimulationTable({
       onChanged();
       toast.success(
         lineIds.length === 1
-          ? "Produit retiré de la simulation."
-          : `${lineIds.length} produits retirés de la simulation.`,
+          ? t("simulator.lines.removedOne")
+          : t("simulator.lines.removedOther", { count: lineIds.length }),
       );
     } catch (e) {
-      toast.error(humanizeApiError(e, "Suppression échouée"));
+      toast.error(humanizeApiError(e, t("simulator.lines.removeFailed")));
     } finally {
       setRemoving(false);
     }
@@ -463,9 +471,9 @@ export function SimulationTable({
 
   const resetSelectedOverrides = async () => {
     const ok = await confirm({
-      title: "Réinitialiser les surcharges",
-      description: `Réinitialiser la marge et le mix surchargés de ${selected.size} ligne(s) ?`,
-      confirmLabel: "Réinitialiser",
+      title: t("simulator.lines.resetTitle"),
+      description: t("simulator.lines.resetDescription", { count: selected.size }),
+      confirmLabel: t("simulator.lines.resetAction"),
     });
     if (!ok) return;
 
@@ -476,11 +484,11 @@ export function SimulationTable({
       onChanged();
       toast.success(
         selected.size === 1
-          ? "Surcharges réinitialisées."
-          : `Surcharges réinitialisées sur ${selected.size} lignes.`,
+          ? t("simulator.lines.resetDoneOne")
+          : t("simulator.lines.resetDoneOther", { count: selected.size }),
       );
     } catch (e) {
-      toast.error(humanizeApiError(e, "Réinitialisation échouée"));
+      toast.error(humanizeApiError(e, t("simulator.lines.resetFailed")));
     } finally {
       setResetting(false);
     }
@@ -488,9 +496,9 @@ export function SimulationTable({
 
   const recalculateSelection = async () => {
     const ok = await confirm({
-      title: "Recalculer la sélection",
-      description: `Recalculer ${selected.size} ligne(s) avec les paramètres actuels de la simulation ?`,
-      confirmLabel: "Recalculer",
+      title: t("simulator.lines.recalcTitle"),
+      description: t("simulator.lines.recalcDescription", { count: selected.size }),
+      confirmLabel: t("simulator.recalc.button"),
     });
     if (!ok) return;
 
@@ -509,10 +517,19 @@ export function SimulationTable({
       await mutate();
       onChanged();
       if (failed === 0) {
-        toast.success(succeeded === 1 ? "1 ligne recalculée." : `${succeeded} lignes recalculées.`);
+        toast.success(
+          succeeded === 1
+            ? t("simulator.recalc.lineDoneOne")
+            : t("simulator.recalc.lineDoneOther", { count: succeeded }),
+        );
       } else {
         toast.warning(
-          `${succeeded} ligne${succeeded !== 1 ? "s" : ""} recalculée${succeeded !== 1 ? "s" : ""}, ${failed} échec${failed !== 1 ? "s" : ""}.`,
+          t("simulator.recalc.linePartial", {
+            ok: succeeded,
+            okSuffix: succeeded !== 1 ? "s" : "",
+            failed,
+            failedSuffix: failed !== 1 ? "s" : "",
+          }),
         );
       }
     } finally {
@@ -541,12 +558,12 @@ export function SimulationTable({
         await mutate();
         onChanged();
       } catch (e) {
-        toast.error(humanizeApiError(e, "Modification échouée"));
+        toast.error(humanizeApiError(e, t("simulator.lines.editFailed")));
       } finally {
         setBusyLine(null);
       }
     },
-    [mutate, onChanged],
+    [mutate, onChanged, t],
   );
 
   const recalcLine = async (lineId: string) => {
@@ -556,7 +573,7 @@ export function SimulationTable({
       await mutate();
       onChanged();
     } catch (e) {
-      toast.error(humanizeApiError(e, "Recalcul de ligne échoué"));
+      toast.error(humanizeApiError(e, t("simulator.recalc.lineFailed")));
     } finally {
       setBusyLine(null);
     }
@@ -565,7 +582,7 @@ export function SimulationTable({
   const handleExport = async () => {
     setExporting(true);
     try {
-      await onExportWrap(onExport);
+      await onExportWrap(onExport, t("simulator.lines.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -585,7 +602,7 @@ export function SimulationTable({
     () => [
       {
         key: "product_sku",
-        label: "SKU",
+        label: t("simulator.column.sku"),
         sortField: "product__sku_code",
         width: 160,
         render: (line) => {
@@ -597,14 +614,14 @@ export function SimulationTable({
               <Link
                 href={productEditHref(line.product_sku, [], fromSimulation)}
                 className="font-mono text-sm font-semibold text-warm hover:text-warm/80 hover:underline"
-                title="Modifier le produit"
+                title={t("simulator.lines.editProduct")}
                 onClick={(e) => e.stopPropagation()}
               >
                 {line.product_sku}
               </Link>
               {overridden && (
                 <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
-                  surchargé
+                  {t("simulator.lines.overridden")}
                 </span>
               )}
             </div>
@@ -613,7 +630,7 @@ export function SimulationTable({
       },
       {
         key: "designation",
-        label: "Désignation",
+        label: t("simulator.column.designation"),
         width: 280,
         cellClassName: "text-sm text-foreground truncate",
         render: (line) => (
@@ -624,7 +641,7 @@ export function SimulationTable({
       },
       {
         key: "product_range",
-        label: "Gamme",
+        label: t("simulator.column.range"),
         sortField: "product__range",
         width: 140,
         cellClassName: "text-sm text-muted-foreground",
@@ -632,33 +649,33 @@ export function SimulationTable({
       },
       {
         key: "product_stock",
-        label: "Stock",
+        label: t("simulator.column.stock"),
         width: 100,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtNum(line.product_stock),
+        render: (line) => fmtNum(line.product_stock, displayLanguage),
       },
       {
         key: "product_pamp_eur",
-        label: "PAMP",
+        label: t("simulator.column.pamp"),
         width: 110,
         align: "right",
         cellClassName: "text-sm font-medium text-foreground font-data",
-        render: (line) => fmtEur(line.product_pamp_eur),
+        render: (line) => fmtEur(line.product_pamp_eur, displayLanguage),
       },
       {
         key: "pamp_predictive_eur",
-        label: "PAMP prév.",
+        label: t("simulator.column.pampPredictiveShort"),
         width: 120,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pamp_predictive_eur),
+        render: (line) => fmtEur(line.pamp_predictive_eur, displayLanguage),
       },
       ...(isProject
         ? [
             {
               key: "quantity",
-              label: "Quantité",
+              label: t("simulator.column.quantity"),
               width: 110,
               align: "right" as const,
               render: (line: SimulationLine) => (
@@ -678,7 +695,7 @@ export function SimulationTable({
         : []),
       {
         key: "mix",
-        label: "Mix eff.",
+        label: t("simulator.column.mixEffective"),
         width: isProject ? 130 : 100,
         align: "right",
         render: (line) => (
@@ -703,25 +720,25 @@ export function SimulationTable({
       },
       {
         key: "pa_net_eur",
-        label: "PA net",
+        label: t("simulator.column.paNet"),
         sortField: "pa_net_eur",
         width: 110,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pa_net_eur),
+        render: (line) => fmtEur(line.pa_net_eur, displayLanguage),
       },
       {
         key: "pr_eur",
-        label: "PR",
+        label: t("simulator.column.pr"),
         sortField: "pr_eur",
         width: 100,
         align: "right",
         cellClassName: "text-sm text-foreground font-data",
-        render: (line) => fmtEur(line.pr_eur),
+        render: (line) => fmtEur(line.pr_eur, displayLanguage),
       },
       {
         key: "margin",
-        label: "Marge eff.",
+        label: t("simulator.column.marginEffective"),
         width: 110,
         align: "right",
         render: (line) => (
@@ -740,37 +757,37 @@ export function SimulationTable({
       },
       {
         key: "previous_pv_eur",
-        label: "Dernier PV",
+        label: t("simulator.column.previousPv"),
         sortField: "previous_pv_eur",
         width: 110,
         align: "right",
         cellClassName: "text-sm text-muted-foreground font-data",
-        render: (line) => fmtEur(line.previous_pv_eur),
+        render: (line) => fmtEur(line.previous_pv_eur, displayLanguage),
       },
       {
         key: "pv_eur",
-        label: "PV",
+        label: t("simulator.column.pv"),
         sortField: "pv_eur",
         width: 110,
         align: "right",
         cellClassName: "text-sm font-semibold text-foreground font-data",
-        render: (line) => fmtEur(line.pv_eur),
+        render: (line) => fmtEur(line.pv_eur, displayLanguage),
       },
       ...(isProject
         ? [
             {
               key: "pv_total_eur",
-              label: "Prix total",
+              label: t("simulator.column.totalPrice"),
               width: 120,
               align: "right" as const,
               cellClassName: "text-sm font-semibold text-foreground font-data",
-              render: (line: SimulationLine) => fmtEur(line.pv_total_eur),
+              render: (line: SimulationLine) => fmtEur(line.pv_total_eur, displayLanguage),
             },
           ]
         : []),
       {
         key: "status",
-        label: "Statut",
+        label: t("simulator.column.status"),
         sortField: "status",
         width: 320,
         render: (line) => {
@@ -784,7 +801,7 @@ export function SimulationTable({
                 setDiagnosticsLine(line);
               }}
               className="flex min-w-0 flex-col items-start gap-1 rounded px-1 py-0.5 text-left hover:bg-muted/80"
-              title="Voir le détail des diagnostics"
+              title={t("simulator.lines.diagnostics")}
             >
               <span
                 className={cn(
@@ -792,7 +809,7 @@ export function SimulationTable({
                   st.badge,
                 )}
               >
-                {st.label}
+                {lineStatusLabel(line.status, displayLanguage)}
               </span>
               {errors.length > 0 && (
                 <ul className="flex w-full min-w-0 flex-col gap-0.5">
@@ -823,7 +840,7 @@ export function SimulationTable({
         },
       },
     ],
-    [readOnly, busyLine, patchLine, fromSimulation, isProject],
+    [readOnly, busyLine, patchLine, fromSimulation, isProject, t, displayLanguage],
   );
 
   const columns = useMemo(
@@ -839,8 +856,8 @@ export function SimulationTable({
             type="button"
             onClick={() => setFiltersCollapsed(false)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Afficher les filtres"
-            title="Filtres"
+            aria-label={t("simulator.filters.show")}
+            title={t("simulator.filters.title")}
           >
             <Faders size={18} weight="duotone" />
             {activeFilterCount > 0 && (
@@ -857,17 +874,19 @@ export function SimulationTable({
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0">
-              <span className="text-sm font-bold text-foreground">Filtres</span>
+              <span className="text-sm font-bold text-foreground">{t("simulator.filters.title")}</span>
               {activeFilterCount > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeFilterCount} critère{activeFilterCount > 1 ? "s actifs" : " actif"}
+                  {activeFilterCount > 1
+                    ? t("simulator.filters.activeOther", { count: activeFilterCount })
+                    : t("simulator.filters.activeOne", { count: activeFilterCount })}
                 </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {activeFilterCount > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={resetCatalogFilters}>
-                  Effacer
+                  {t("simulator.filters.clear")}
                 </Button>
               )}
               <Button
@@ -875,8 +894,8 @@ export function SimulationTable({
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setFiltersCollapsed(true)}
-                aria-label="Masquer les filtres"
-                title="Masquer les filtres"
+                aria-label={t("simulator.filters.hide")}
+                title={t("simulator.filters.hide")}
               >
                 <SidebarSimple size={18} />
               </Button>
@@ -896,7 +915,7 @@ export function SimulationTable({
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Redimensionner le panneau des filtres"
+            aria-label={t("simulator.filters.resize")}
             onMouseDown={startFilterResize}
             className={cn(
               "absolute right-0 top-0 z-20 flex h-full w-1.5 cursor-col-resize touch-none items-center justify-center transition-colors hover:bg-primary/20",
@@ -913,27 +932,27 @@ export function SimulationTable({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
             <ContextItem
-              label="Dernier calcul"
+              label={t("simulator.column.lastCalc")}
               value={
                 sim.last_calculated_at
-                  ? new Date(sim.last_calculated_at).toLocaleString("fr-FR")
-                  : "Jamais"
+                  ? new Date(sim.last_calculated_at).toLocaleString(uiDateLocale(displayLanguage))
+                  : t("simulator.lines.never")
               }
             />
             <ContextItem
-              label="Cuivre (base / actuel)"
+              label={t("simulator.market.copperPairParen")}
               value={`${mp(sim, "copper_base_price_rmb")} / ${mp(sim, "copper_current_price_rmb")} RMB`}
             />
-            <ContextItem label="FX EUR→RMB" value={mp(sim, "fx_eur_rmb")} />
-            <ContextItem label="FX EUR→USD" value={mp(sim, "fx_eur_usd")} />
+            <ContextItem label={t("simulator.fx.eurToRmb")} value={mp(sim, "fx_eur_rmb")} />
+            <ContextItem label={t("simulator.fx.eurToUsd")} value={mp(sim, "fx_eur_usd")} />
             <ContextItem
-              label="Incoterm vente"
+              label={t("simulator.params.saleIncotermShort")}
               value={formatIncotermDisplay(sim.sale_incoterm ?? "EXW", sim.sale_incoterm_location)}
             />
             <ContextItem
-              label="Snapshot Odoo"
+              label={t("simulator.history.snapshotOdoo")}
               value={
-                sim.odoo_snapshot_at ? new Date(sim.odoo_snapshot_at).toLocaleString("fr-FR") : "—"
+                sim.odoo_snapshot_at ? new Date(sim.odoo_snapshot_at).toLocaleString(uiDateLocale(displayLanguage)) : "—"
               }
             />
           </div>
@@ -953,7 +972,7 @@ export function SimulationTable({
               className="gap-1.5"
             >
               <Plus size={15} weight="bold" />
-              Ajouter des produits
+              {t("simulator.lines.addProducts")}
             </Button>
             <Button
               onClick={() => onBulkEdit({ filter: activeBulkFilter })}
@@ -961,7 +980,7 @@ export function SimulationTable({
               variant="outline"
               size="sm"
             >
-              Édition groupée
+              {t("simulator.lines.bulkEdit")}
             </Button>
             <Button
               onClick={handleExport}
@@ -975,10 +994,10 @@ export function SimulationTable({
               ) : (
                 <DownloadSimple size={15} />
               )}
-              Exporter Excel
+              {t("simulator.lines.exportExcel")}
             </Button>
             <Button onClick={onHistory} variant="outline" size="sm">
-              Historique
+              {t("simulator.lines.history")}
             </Button>
             <SimulationColumnsDialog
               isProject={isProject}
@@ -998,10 +1017,12 @@ export function SimulationTable({
             className="w-full min-w-[200px] flex-1 sm:max-w-sm"
             value={searchInput}
             onChange={onSearchChange}
-            placeholder="Recherche SKU, nom, description…"
+            placeholder={t("simulator.lines.search")}
           />
           <span className="text-xs text-muted-foreground">
-            {total} ligne{total !== 1 ? "s" : ""}
+            {total !== 1
+              ? t("simulator.lines.countOther", { count: total })
+              : t("simulator.lines.countOne", { count: total })}
           </span>
         </div>
 
@@ -1015,7 +1036,7 @@ export function SimulationTable({
           onSaveFilter={() => {}}
           onApplyFilter={() => {}}
           onDeleteFilter={() => {}}
-          title="Filtres lignes"
+          title={t("simulator.filters.linesTitle")}
           prependContent={
             <SimulationLineStatusFilterSection
               statusIn={statusIn}
@@ -1037,7 +1058,9 @@ export function SimulationTable({
       {selected.size > 0 && !readOnly && (
         <div className="flex shrink-0 items-center justify-between border-b border-primary/20 bg-primary/5 px-5 py-2.5">
           <span className="text-sm font-semibold text-foreground">
-            {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+            {selected.size > 1
+              ? t("simulator.list.selectedOther", { count: selected.size })
+              : t("simulator.list.selectedOne", { count: selected.size })}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -1046,7 +1069,7 @@ export function SimulationTable({
               disabled={removing || resetting || recalculating}
               onClick={() => onBulkEdit({ lineIds: selectedIds })}
             >
-              Modifier la sélection
+              {t("simulator.lines.editSelection")}
             </Button>
             <Button
               size="sm"
@@ -1060,7 +1083,7 @@ export function SimulationTable({
               ) : (
                 <ArrowCounterClockwise size={14} />
               )}
-              Réinitialiser surcharges
+              {t("simulator.lines.resetOverrides")}
             </Button>
             <Button
               size="sm"
@@ -1074,7 +1097,7 @@ export function SimulationTable({
               ) : (
                 <ArrowsClockwise size={14} />
               )}
-              Recalculer la sélection
+              {t("simulator.lines.recalcTitle")}
             </Button>
             <Button
               size="sm"
@@ -1084,19 +1107,21 @@ export function SimulationTable({
               onClick={() =>
                 removeLines(
                   selectedIds,
-                  `Retirer ${selected.size} produit${selected.size > 1 ? "s" : ""} de cette simulation ?`,
+                  selected.size > 1
+                    ? t("simulator.lines.removeConfirmOther", { count: selected.size })
+                    : t("simulator.lines.removeConfirmOne", { count: selected.size }),
                 )
               }
             >
               {removing ? <CircleNotch size={14} className="animate-spin" /> : <Trash size={14} />}
-              Retirer la sélection
+              {t("simulator.lines.removeSelection")}
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => setSelected(new Set())}
-              title="Vider la sélection"
-              aria-label="Vider la sélection"
+              title={t("simulator.list.clearSelection")}
+              aria-label={t("simulator.list.clearSelection")}
             >
               <X size={16} weight="bold" />
             </Button>
@@ -1135,7 +1160,7 @@ export function SimulationTable({
             <Checkbox
               checked={allPageSelected}
               onCheckedChange={() => toggleSelectPage()}
-              aria-label="Tout sélectionner sur la page"
+              aria-label={t("simulator.list.selectPage")}
               disabled={lines.length === 0}
             />
           ) : null
@@ -1145,7 +1170,7 @@ export function SimulationTable({
             <Checkbox
               checked={selected.has(line.id)}
               onCheckedChange={() => toggleRow(line.id)}
-              aria-label={`Sélectionner ${line.product_sku}`}
+              aria-label={t("simulator.list.selectRow", { name: line.product_sku })}
               onClick={(e) => e.stopPropagation()}
             />
           ) : null
@@ -1153,7 +1178,7 @@ export function SimulationTable({
         emptyState={
           <div className="text-muted-foreground">
             <Table size={36} weight="duotone" className="mx-auto mb-3 text-muted-foreground/40" />
-            <p className="text-sm">Aucune ligne à afficher.</p>
+            <p className="text-sm">{t("simulator.lines.empty")}</p>
           </div>
         }
         rowClassName={(line) => lineRowClassName(line.status)}
@@ -1171,7 +1196,7 @@ export function SimulationTable({
               })
             }
             onRemove={() =>
-              removeLines([line.id], `Retirer ${line.product_sku} de cette simulation ?`)
+              removeLines([line.id], t("simulator.lines.removeSku", { sku: line.product_sku }))
             }
           />
         )}
@@ -1181,9 +1206,9 @@ export function SimulationTable({
           totalCount: total,
           pageSize: PAGE_SIZE,
           onPageChange: setPage,
-          itemLabel: "ligne",
+          itemLabel: t("simulator.lines.itemLabel"),
           jumpInputId: "simulation-page-jump",
-          ariaLabel: "Pagination des lignes de simulation",
+          ariaLabel: t("simulator.lines.pagination"),
         }}
       />
       </div>
@@ -1191,11 +1216,11 @@ export function SimulationTable({
   );
 }
 
-async function onExportWrap(fn: () => void | Promise<void>): Promise<void> {
+async function onExportWrap(fn: () => void | Promise<void>, fallback: string): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    toast.error(humanizeApiError(e, "Export échoué"));
+    toast.error(humanizeApiError(e, fallback));
   }
 }
 

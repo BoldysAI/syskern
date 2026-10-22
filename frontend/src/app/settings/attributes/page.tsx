@@ -28,6 +28,7 @@ import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import { AppIcon } from "@/components/AppIcon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import SettingsNav, { SettingsNavFallback } from "../_components/SettingsNav";
@@ -38,11 +39,21 @@ import { CATEGORIES } from "./_components/constants";
 import { AttributeRow, SortableAttributeRow } from "./_components/rows";
 
 const SWR_KEY = "attributes-registry";
-const COLUMNS = ["", "Code", "Label FR", "Catégorie", "Type", "Obligatoire", "Ordre", ""];
+const COLUMN_KEYS = [
+  "",
+  "settings.code",
+  "settings.attributes.column.labelFr",
+  "settings.category",
+  "settings.type",
+  "settings.attributes.required",
+  "settings.attributes.column.order",
+  "",
+] as const;
 
 type CategoryFilter = AttributeCategory | "all";
 
 export default function AttributesAdminPage() {
+  const t = useUiTranslate();
   const { isLoading: authLoading, allowed, denied } = useRequireAdmin();
 
   const { data, isLoading, error } = useSWR<AttributeRegistry[]>(SWR_KEY, listAttributes);
@@ -67,7 +78,7 @@ export default function AttributesAdminPage() {
   if (authLoading) {
     return (
       <div className="p-6">
-        <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
       </div>
     );
   }
@@ -76,7 +87,7 @@ export default function AttributesAdminPage() {
     return (
       <div className="p-6">
         <div className="py-12 text-center text-sm text-muted-foreground">
-          Accès réservé aux administrateurs.
+          {t("settings.adminOnly")}
         </div>
       </div>
     );
@@ -109,7 +120,7 @@ export default function AttributesAdminPage() {
       await reorderAttributes(reordered.map((a) => a.id));
       globalMutate(SWR_KEY);
     } catch (err) {
-      setReorderError(err instanceof Error ? err.message : "Réordonnancement échoué.");
+      setReorderError(err instanceof Error ? err.message : t("settings.attributes.reorderFailed"));
       globalMutate(SWR_KEY);
     }
   };
@@ -119,10 +130,8 @@ export default function AttributesAdminPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-foreground">Paramètres</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Configuration de la plateforme — réservé aux administrateurs.
-        </p>
+        <h1 className="text-xl font-semibold text-foreground">{t("settings.title")}</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <Suspense fallback={<SettingsNavFallback />}>
@@ -130,24 +139,21 @@ export default function AttributesAdminPage() {
       </Suspense>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Registre des attributs dynamiques du PIM. Ajoutez des champs sans migration ; réordonnez
-          au sein d&apos;une catégorie en filtrant puis en glissant les lignes.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.attributes.intro")}</p>
         <Button onClick={() => setEditing("new")} className="shrink-0">
           <AppIcon icon={Plus} size="sm" />
-          Nouvel attribut
+          {t("settings.attributes.new")}
         </Button>
       </div>
 
       {/* Category filter chips */}
       <div className="flex flex-wrap gap-1.5 mb-4">
         <Chip active={selectedCat === "all"} onClick={() => setSelectedCat("all")}>
-          Toutes
+          {t("settings.attributes.all")}
         </Chip>
         {CATEGORIES.map((c) => (
           <Chip key={c.id} active={selectedCat === c.id} onClick={() => setSelectedCat(c.id)}>
-            {c.label}
+            {t(c.labelKey)}
           </Chip>
         ))}
       </div>
@@ -161,14 +167,14 @@ export default function AttributesAdminPage() {
       <Card className="overflow-hidden py-0">
         {error ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
-            Impossible de charger les attributs.
+            {t("settings.attributes.loadError")}
           </div>
         ) : isLoading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">Chargement…</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <AppIcon icon={Tag} size="xl" className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Aucun attribut dans cette catégorie. Créez-en un.</p>
+            <p className="text-sm">{t("settings.attributes.empty")}</p>
           </div>
         ) : (
           <AttributesTable
@@ -219,16 +225,17 @@ function AttributesTable({
   onEdit: (a: AttributeRegistry) => void;
   onDelete: (a: AttributeRegistry) => void;
 }) {
+  const t = useUiTranslate();
   const table = (
     <table className="w-full">
       <thead className="border-b border-border bg-muted/50">
         <tr>
-          {COLUMNS.map((h, i) => (
+          {COLUMN_KEYS.map((key, i) => (
             <th
               key={i}
               className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             >
-              {h}
+              {key ? t(key) : ""}
             </th>
           ))}
         </tr>
