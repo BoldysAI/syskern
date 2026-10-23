@@ -77,6 +77,28 @@ def test_dynamic_attribute_fill_rate():
     assert row["percent"] == pytest.approx(33.3)
 
 
+def test_labels_follow_ui_locale():
+    Product.objects.create(sku_code="L1", name="a")
+    attr = AttributeRegistry.objects.create(
+        code="lead_time",
+        label={"fr": "Délai de livraison", "en": "Lead time"},
+        category=AttributeCategory.TECHNICAL,
+        data_type=AttributeDataType.NUMBER,
+    )
+    french = _by_key(build_attribute_completeness("fr"))
+    english = _by_key(build_attribute_completeness("en"))
+    assert french["factory_code"]["label"] == "Code usine"
+    assert french["parent_reference"]["label"] == "Référence parent"
+    assert french["unit_weight_kg"]["label"] == "Poids unitaire"
+    assert french["primary_packaging_qty"]["label"] == "Colisage primaire"
+    assert french[f"attr:{attr.id}"]["label"] == "Délai de livraison"
+    assert english["factory_code"]["label"] == "Factory code"
+    assert english["parent_reference"]["label"] == "Parent reference"
+    assert english["unit_weight_kg"]["label"] == "Unit weight"
+    assert english["primary_packaging_qty"]["label"] == "Primary packaging"
+    assert english[f"attr:{attr.id}"]["label"] == "Lead time"
+
+
 def test_fields_sorted_least_complete_first():
     Product.objects.create(sku_code="S1", name="a", brand="X", gtin="1")
     Product.objects.create(sku_code="S2", name="b", brand="Y")

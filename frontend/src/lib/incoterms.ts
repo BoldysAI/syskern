@@ -124,9 +124,15 @@ export function saleIncotermExpectsNoTransport(incoterm: string): boolean {
   return NO_SALE_TRANSPORT.has(incoterm) || NO_MAIN_SALE_TRANSPORT.has(incoterm);
 }
 
-export function formatIncotermDisplay(code: string, location?: string | null): string {
+export function formatIncotermDisplay(
+  code: string,
+  location?: string | null,
+  translate?: (key: MessageKey) => string,
+): string {
   const loc = location?.trim();
-  return loc ? `${code} ${loc}` : code;
+  if (!loc) return code;
+  const shown = translate ? saleIncotermLocationLabel(loc, translate) : loc;
+  return `${code} ${shown}`;
 }
 
 /** Lieux prédéfinis pour l'incoterm de vente (simulation / offre). */
@@ -143,6 +149,32 @@ export const SALE_INCOTERM_LOCATIONS = [
   "Entrepôt Réau",
   "Entrepôt Le Havre",
 ] as const;
+
+const SALE_INCOTERM_LOCATION_KEYS: Record<
+  (typeof SALE_INCOTERM_LOCATIONS)[number],
+  MessageKey
+> = {
+  "Port du Havre": "places.leHavrePort",
+  "Port de Rotterdam": "places.rotterdamPort",
+  "Port de Shanghai": "places.shanghaiPort",
+  "Port de Ningbo": "places.ningboPort",
+  "Port de Mersin": "places.mersinPort",
+  "Usine Shanghai": "places.shanghaiFactory",
+  "Usine Turquie": "places.turkeyFactory",
+  "Usine Chine": "places.chinaFactory",
+  "Entrepôt Paris": "places.parisWarehouse",
+  "Entrepôt Réau": "places.reauWarehouse",
+  "Entrepôt Le Havre": "places.leHavreWarehouse",
+};
+
+/** Display name for a stored place. Unknown free text stays as saved. */
+export function saleIncotermLocationLabel(
+  location: string,
+  translate: (key: MessageKey) => string,
+): string {
+  const key = SALE_INCOTERM_LOCATION_KEYS[location.trim() as (typeof SALE_INCOTERM_LOCATIONS)[number]];
+  return key ? translate(key) : location;
+}
 
 export const SALE_INCOTERM_LOCATION_NONE = "__none__";
 export const SALE_INCOTERM_LOCATION_OTHER = "__other__";

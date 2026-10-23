@@ -23,6 +23,8 @@ import {
   type TransportMode,
   type TransportPreset,
 } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { localizeLabel } from "@/lib/transport-modes";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { toast } from "sonner";
 
@@ -77,6 +79,7 @@ function TransportPresetModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
 
   const activeModes = transportModes.filter((m) => m.is_active);
 
@@ -155,7 +158,7 @@ function TransportPresetModal({
               onValueChange={onModeChange}
               options={activeModes.map((m) => ({
                 value: m.code,
-                label: m.label?.fr ? `${m.code} — ${m.label.fr}` : m.code,
+                label: `${m.code} — ${localizeLabel(m.label, m.code, displayLanguage)}`,
               }))}
               placeholder={t("settings.selectPlaceholder")}
             />

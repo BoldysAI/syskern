@@ -3,11 +3,14 @@
 import useSWR from "swr";
 import { getAttributeCompleteness, type CompletenessField } from "@/lib/api";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
 /** SWR key shared with the dashboard widget (same endpoint, one cache entry). */
-export const COMPLETENESS_KEY = "attribute-completeness";
+export function completenessKey(locale: string): [string, string] {
+  return ["attribute-completeness", locale];
+}
 
 function barColor(pct: number): string {
   if (pct < 40) return "bg-destructive";
@@ -21,7 +24,11 @@ function barColor(pct: number): string {
  */
 export default function CompletenessPanel() {
   const t = useUiTranslate();
-  const { data, isLoading, error } = useSWR(COMPLETENESS_KEY, getAttributeCompleteness);
+  const { displayLanguage } = useAuth();
+  const { data, isLoading, error } = useSWR(
+    completenessKey(displayLanguage),
+    getAttributeCompleteness,
+  );
 
   return (
     <section className="mt-8" id="completude">

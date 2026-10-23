@@ -79,7 +79,7 @@ function RecalcDetailBody({ recalc: r }: { recalc: Recalculation }) {
         <Row label={t("simulator.fx.eurToUsd")} value={mpStr(mp, "fx_eur_usd")} />
         <Row label={t("simulator.breakdown.mixStockShort")} value={`${r.stock_purchase_mix_pct} %`} />
         <Row label={t("simulator.history.marginsSymea")} value={`${decToPct(r.syskern_margin_rate) || "—"} % / ${decToPct(r.symea_margin_rate) || "—"} %`} />
-        <Row label={t("simulator.params.saleIncotermShort")} value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)} />
+        <Row label={t("simulator.params.saleIncotermShort")} value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location, t)} />
         {r.odoo_snapshot_at && (
           <Row label={t("simulator.history.snapshotOdoo")} value={new Date(r.odoo_snapshot_at).toLocaleString(uiDateLocale(displayLanguage))} />
         )}

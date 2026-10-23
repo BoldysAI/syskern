@@ -9,7 +9,7 @@ import type { ProductNavigationContext } from "@/lib/product-navigation";
 import { buildProductHref } from "@/lib/product-navigation";
 import { cn } from "@/lib/utils";
 import { StatusBadge, universeBadgeVariant } from "@/components/StatusBadge";
-import { formatAttributeDisplayValue } from "@/components/AttributeRenderer";
+import { formatAttributeDisplayValue, localize } from "@/components/AttributeRenderer";
 import type { AttributeRegistry, Product } from "@/lib/api";
 import type { DataTableColumnDef } from "@/components/data-table";
 import { attrColumnKey, attrSortField, CATALOG_COLUMN_ORDER } from "./catalog-column-registry";
@@ -314,12 +314,17 @@ export function useCatalogColumns({
         if (!attr) continue;
         cols.push({
           key,
-          label: attr.label.fr || attr.label.en || attr.code,
+          label: localize(attr.label, displayLanguage) || attr.code,
           sortField: attrSortField(code),
           width: 140,
           cellClassName: "text-sm text-muted-foreground truncate",
           render: (product) =>
-            formatAttributeDisplayValue(attr, product.attribute_values?.[code], "fr", displayLanguage),
+            formatAttributeDisplayValue(
+              attr,
+              product.attribute_values?.[code],
+              displayLanguage,
+              displayLanguage,
+            ),
         });
         continue;
       }

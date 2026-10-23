@@ -52,6 +52,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/SearchInput";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { localize } from "@/components/AttributeRenderer";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   decToPct,
@@ -361,10 +362,10 @@ export function SimulationTable({
   const attrLabels = useMemo(() => {
     const labels: Record<string, string> = {};
     for (const attr of filterableAttrs ?? []) {
-      labels[attr.code] = attr.label.fr || attr.label.en || attr.code;
+      labels[attr.code] = localize(attr.label, displayLanguage) || attr.code;
     }
     return labels;
-  }, [filterableAttrs]);
+  }, [filterableAttrs, displayLanguage]);
 
   const onSearchChange = (value: string) => {
     setSearchInput(value);
@@ -947,7 +948,7 @@ export function SimulationTable({
             <ContextItem label={t("simulator.fx.eurToUsd")} value={mp(sim, "fx_eur_usd")} />
             <ContextItem
               label={t("simulator.params.saleIncotermShort")}
-              value={formatIncotermDisplay(sim.sale_incoterm ?? "EXW", sim.sale_incoterm_location)}
+              value={formatIncotermDisplay(sim.sale_incoterm ?? "EXW", sim.sale_incoterm_location, t)}
             />
             <ContextItem
               label={t("simulator.history.snapshotOdoo")}
