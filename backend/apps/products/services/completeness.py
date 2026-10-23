@@ -23,41 +23,62 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce, Least
 
+from apps.accounts.ui_locale import resolve_ui_locale, translate
 from apps.attributes.models import AttributeRegistry, ProductAttributeValue
 from apps.products.models import Product
 
-# Core columns worth tracking for enrichment: (field, FR label, kind, group).
+# Core columns worth tracking for enrichment: (field, message key, kind, group).
 # Excludes always-required fields (``sku_code``/``name``), system/computed
 # columns (Odoo ids, PAMP, stock, sync status, search vector) and booleans
 # (which always carry a value, so completeness is meaningless).
 _CORE_FIELDS: list[tuple[str, str, str, str]] = [
-    ("item_code", "Code article", "char", "identification"),
-    ("parent_reference", "Référence parent", "char", "identification"),
-    ("factory_code", "Code usine", "char", "identification"),
-    ("brand", "Marque", "char", "identification"),
-    ("universe", "Univers", "char", "hierarchy"),
-    ("family", "Famille", "char", "hierarchy"),
-    ("range", "Gamme", "char", "hierarchy"),
-    ("sub_range", "Sous-gamme", "char", "hierarchy"),
-    ("description_marketing", "Description marketing (FR)", "json_fr", "marketing"),
-    ("description_technical", "Description technique (FR)", "json_fr", "technical"),
-    ("hs_code", "Code HS", "char", "identification"),
-    ("gtin", "GTIN", "char", "identification"),
-    ("dop_number", "Numéro DoP", "char", "identification"),
-    ("uom", "Unité réelle (Odoo)", "char", "logistic"),
-    ("unit_weight_kg", "Poids unitaire", "num", "technical"),
-    ("copper_weight_kg_per_unit", "Poids cuivre / unité", "num", "technical"),
-    ("primary_packaging_qty", "Colisage primaire", "num", "logistic"),
-    ("secondary_packaging_qty", "Colisage secondaire", "num", "logistic"),
-    ("tertiary_packaging_qty", "Colisage tertiaire", "num", "logistic"),
-    ("pallet_qty", "Qté palette", "num", "logistic"),
+    ("item_code", "products.completeness.item_code", "char", "identification"),
+    ("parent_reference", "products.completeness.parent_reference", "char", "identification"),
+    ("factory_code", "products.completeness.factory_code", "char", "identification"),
+    ("brand", "products.completeness.brand", "char", "identification"),
+    ("universe", "products.completeness.universe", "char", "hierarchy"),
+    ("family", "products.completeness.family", "char", "hierarchy"),
+    ("range", "products.completeness.range", "char", "hierarchy"),
+    ("sub_range", "products.completeness.sub_range", "char", "hierarchy"),
+    (
+        "description_marketing",
+        "products.completeness.description_marketing",
+        "json_fr",
+        "marketing",
+    ),
+    (
+        "description_technical",
+        "products.completeness.description_technical",
+        "json_fr",
+        "technical",
+    ),
+    ("hs_code", "products.completeness.hs_code", "char", "identification"),
+    ("gtin", "products.completeness.gtin", "char", "identification"),
+    ("dop_number", "products.completeness.dop_number", "char", "identification"),
+    ("uom", "products.completeness.uom", "char", "logistic"),
+    ("unit_weight_kg", "products.completeness.unit_weight_kg", "num", "technical"),
+    (
+        "copper_weight_kg_per_unit",
+        "products.completeness.copper_weight_kg_per_unit",
+        "num",
+        "technical",
+    ),
+    ("primary_packaging_qty", "products.completeness.primary_packaging_qty", "num", "logistic"),
+    ("secondary_packaging_qty", "products.completeness.secondary_packaging_qty", "num", "logistic"),
+    ("tertiary_packaging_qty", "products.completeness.tertiary_packaging_qty", "num", "logistic"),
+    ("pallet_qty", "products.completeness.pallet_qty", "num", "logistic"),
 ]
 
 
-def _localize(label: Any) -> str:
-    """FR label from a multilingual JSON field, with graceful fallback."""
+def _localize(label: Any, locale: str) -> str:
+    """Label in the UI language, then French, then any stored language."""
     if isinstance(label, dict):
-        return label.get("fr") or label.get("en") or next(iter(label.values()), "")
+        return (
+            label.get(locale)
+            or label.get("fr")
+            or label.get("en")
+            or next(iter(label.values()), "")
+        )
     return str(label or "")
 
 
@@ -74,13 +95,14 @@ def _row(key: str, label: str, kind: str, group: str, filled: int, total: int) -
     }
 
 
-def build_attribute_completeness() -> dict[str, Any]:
+def build_attribute_completeness(locale: str | None = None) -> dict[str, Any]:
     """Return ``{total_products, average_percent, fields[]}`` sorted worst-first.
 
     Each ``fields`` entry: ``{key, label, kind, group, filled, missing, percent}``.
     ``kind`` is ``core`` or ``attribute``; the frontend links ``attr:<id>`` keys
     back to the registry.
     """
+    locale = locale if locale in {"fr", "en"} else resolve_ui_locale(None)
     products = Product.objects.filter(is_active=True)
     total = products.count()
     if total == 0:
@@ -101,8 +123,8 @@ def build_attribute_completeness() -> dict[str, Any]:
     agg = products.aggregate(**aggregates)
 
     fields: list[dict[str, Any]] = [
-        _row(field, label, "core", group, agg.get(field, 0), total)
-        for field, label, _kind, group in _CORE_FIELDS
+        _row(field, translate(label_key, locale), "core", group, agg.get(field, 0), total)
+        for field, label_key, _kind, group in _CORE_FIELDS
     ]
 
     # Dynamic attributes — one grouped query over non-empty values.
@@ -119,7 +141,7 @@ def build_attribute_completeness() -> dict[str, Any]:
         fields.append(
             _row(
                 f"attr:{attr.id}",
-                _localize(attr.label),
+                _localize(attr.label, locale),
                 "attribute",
                 attr.category,
                 counts_by_attr.get(attr.id, 0),

@@ -151,7 +151,7 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
     open ? "transport-modes-breakdown" : null,
     () => listTransportModes(true)
   );
-  const transportLabels = transportModeLabelMap(transportModes ?? []);
+  const transportLabels = transportModeLabelMap(transportModes ?? [], displayLanguage);
 
   if (!line) return null;
 
@@ -298,7 +298,8 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                           {t("simulator.diag.sale")}{" "}
                           {formatIncotermDisplay(
                             String(incSnap.sale_incoterm),
-                            incSnap.sale_incoterm_location as string | undefined
+                            incSnap.sale_incoterm_location as string | undefined,
+                            t,
                           )}
                         </li>
                       )}
@@ -307,7 +308,8 @@ export function CalculationBreakdownDrawer({ line, open, onClose }: Props) {
                           {t("simulator.diag.purchaseActive")}{" "}
                           {formatIncotermDisplay(
                             String(incSnap.purchase_incoterm),
-                            incSnap.purchase_incoterm_location as string | undefined
+                            incSnap.purchase_incoterm_location as string | undefined,
+                            t,
                           )}
                         </li>
                       )}

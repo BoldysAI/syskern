@@ -72,7 +72,7 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
                 {incCtx.sale_incoterm && (
                   <li>
                     {t("simulator.diag.sale")}{" "}
-                    {formatIncotermDisplay(incCtx.sale_incoterm, incCtx.sale_incoterm_location)}
+                    {formatIncotermDisplay(incCtx.sale_incoterm, incCtx.sale_incoterm_location, t)}
                   </li>
                 )}
                 {incCtx.purchase_incoterm && (
@@ -80,7 +80,8 @@ export function LineDiagnosticsDrawer({ line, fromSimulation, open, onClose }: P
                     {t("simulator.diag.purchase")}{" "}
                     {formatIncotermDisplay(
                       incCtx.purchase_incoterm,
-                      incCtx.purchase_incoterm_location
+                      incCtx.purchase_incoterm_location,
+                      t,
                     )}
                   </li>
                 )}

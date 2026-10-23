@@ -841,8 +841,10 @@ Historique = side panel `Sheet`. Édition gardée par `canEdit`. API `lib/api.ts
 - Entrée header : `HelpPopover` (icône `?`) → popover « Aide Syskern » → CTA **Ouvrir le guide**
   vers `/help`. Aussi dans le menu profil (sidebar) : « Guide utilisateur ».
 - Page `app/help/` : iframe Notion plein écran utile (`HelpGuideEmbed`) + lien « Ouvrir dans Notion ».
-- URL embed : `lib/help.ts` (`HELP_NOTION_EMBED_URL` / `HELP_NOTION_PUBLIC_URL`). Ne pas hardcoder
-  ailleurs.
+- URL embed : `lib/help.ts` (`helpNotionUrls(locale)`, `HELP_NOTION_PAGE_IDS`). Ne pas hardcoder
+  ailleurs. La page propose Français / English et embarque la page Notion correspondante
+  (guide français, ou « Delivery & User guide — Syskern Platform »). Si un id est vide,
+  l'écran affiche `help.englishMissing` et un retour vers le français.
 
 **Page d'accueil** (`/`, `app/(home)/page.tsx`) : tableau de bord post-login (plus `/catalog`).
 

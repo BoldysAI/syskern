@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { localize } from "@/components/AttributeRenderer";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { FilterCheckboxGroup } from "@/components/FilterCheckboxGroup";
@@ -8,10 +10,6 @@ import { Label } from "@/components/ui/label";
 import { RangeFilterSlider } from "@/components/RangeFilterSlider";
 import type { AttributeRegistry } from "@/lib/api";
 import { boundsToSliderConfig } from "@/app/catalog/_components/slider-bounds";
-
-function localize(label: Record<string, string>): string {
-  return label.fr || label.en || label.es || Object.values(label)[0] || "";
-}
 
 interface CatalogAttributeFilterProps {
   attribute: AttributeRegistry;
@@ -26,7 +24,8 @@ export function CatalogAttributeFilter({
   numberBounds,
 }: CatalogAttributeFilterProps) {
   const t = useUiTranslate();
-  const label = localize(attribute.label);
+  const { displayLanguage } = useAuth();
+  const label = localize(attribute.label, displayLanguage);
 
   if (attribute.data_type === "boolean") {
     const tri = (value as string) ?? "";
@@ -62,7 +61,7 @@ export function CatalogAttributeFilter({
     const selected = Array.isArray(value) ? value : value ? [value as string] : [];
     const opts = (attribute.options ?? []).map((o) => ({
       value: o.value,
-      label: localize(o.label),
+      label: localize(o.label, displayLanguage),
     }));
 
     return (

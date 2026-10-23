@@ -259,7 +259,7 @@ function ProductPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const decodedSku = decodeURIComponent(params?.sku ?? "");
-  const { role } = useAuth();
+  const { role, displayLanguage } = useAuth();
   const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
@@ -486,7 +486,7 @@ function ProductPageContent() {
     if (!product) return null;
     return {
       mode: editing ? "edit" : "read",
-      lang: "fr",
+      lang: displayLanguage,
       product,
       coreValue,
       setCore,
@@ -498,6 +498,7 @@ function ProductPageContent() {
     };
   }, [
     product,
+    displayLanguage,
     editing,
     coreValue,
     setCore,

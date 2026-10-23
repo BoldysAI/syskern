@@ -10,6 +10,7 @@ import {
   SALE_INCOTERM_LOCATIONS,
   isPresetSaleIncotermLocation,
   resolveSaleIncotermLocationUi,
+  saleIncotermLocationLabel,
 } from "@/lib/incoterms";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 
@@ -54,6 +55,13 @@ export function LocationSelectField({
     showCustom: showCustomLocation,
     displayLabel: locationLabel,
   } = resolveSaleIncotermLocationUi(value, otherExplicit, resolvedEmpty);
+  const placeLabel = (place: string) => saleIncotermLocationLabel(place, t);
+  const shownLabel =
+    locationSelect === SALE_INCOTERM_LOCATION_OTHER
+      ? t("common.otherEllipsis")
+      : locationSelect === SALE_INCOTERM_LOCATION_NONE
+        ? locationLabel
+        : placeLabel(locationLabel);
 
   const handleSelect = (selected: string) => {
     if (selected === SALE_INCOTERM_LOCATION_NONE) {
@@ -76,7 +84,7 @@ export function LocationSelectField({
     <div className="flex flex-col gap-1">
       <Select.Root value={locationSelect} onValueChange={handleSelect} disabled={disabled}>
         <Select.Trigger
-          aria-label={t("common.ariaLabelValue", { label: ariaLabel, value: locationLabel })}
+          aria-label={t("common.ariaLabelValue", { label: ariaLabel, value: shownLabel })}
           className={cn(
             triggerCls,
             "flex items-center justify-between gap-2 text-left disabled:opacity-50",
@@ -88,7 +96,7 @@ export function LocationSelectField({
               locationSelect === SALE_INCOTERM_LOCATION_NONE && "text-muted-foreground",
             )}
           >
-            {locationLabel}
+            {shownLabel}
           </span>
           <Select.Icon>
             <ChevronDown size={15} className="text-muted-foreground shrink-0" />
@@ -109,7 +117,7 @@ export function LocationSelectField({
               </Select.Item>
               {SALE_INCOTERM_LOCATIONS.map((place) => (
                 <Select.Item key={place} value={place} className={selectItemCls}>
-                  <Select.ItemText>{place}</Select.ItemText>
+                  <Select.ItemText>{placeLabel(place)}</Select.ItemText>
                   <Select.ItemIndicator>
                     <Check size={14} className="text-brand-green" />
                   </Select.ItemIndicator>

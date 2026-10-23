@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -262,20 +263,22 @@ function Sidebar({
               {user?.email}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t("users.locale")}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={localeValue}
-              onValueChange={(next) => {
-                if (!next || next === localeValue) return;
-                void setLocale(next === "deployment" ? "" : next);
-              }}
-            >
-              <DropdownMenuRadioItem value="fr">{t("users.localeFr")}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="en">{t("users.localeEn")}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="deployment">
-                {t("users.localeDeployment")}
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{t("users.locale")}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={localeValue}
+                onValueChange={(next) => {
+                  if (!next || next === localeValue) return;
+                  void setLocale(next === "deployment" ? "" : next);
+                }}
+              >
+                <DropdownMenuRadioItem value="fr">{t("users.localeFr")}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="en">{t("users.localeEn")}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="deployment">
+                  {t("users.localeDeployment")}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem render={<Link href="/help" />}>
               <BookOpenText size={16} />

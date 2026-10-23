@@ -224,7 +224,7 @@ export function formatBreakdownStepDetails(
   const lines: string[] = [];
   const labelTransport = (code: unknown) => {
     const c = String(code ?? "");
-    return options?.transportLabels?.[c] ?? defaultTransportModeLabel(c);
+    return options?.transportLabels?.[c] ?? defaultTransportModeLabel(c, undefined, locale);
   };
 
   if (!step.applied) {

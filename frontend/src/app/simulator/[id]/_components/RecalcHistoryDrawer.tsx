@@ -147,7 +147,7 @@ function RecalcEntry({
         <ParamRow label={t("simulator.fx.eurToUsd")} value={mpStr(mp, "fx_eur_usd")} />
         <ParamRow
           label={t("simulator.params.saleIncotermShort")}
-          value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location)}
+          value={formatIncotermDisplay(r.sale_incoterm ?? "EXW", r.sale_incoterm_location, t)}
         />
         <ParamRow label={t("simulator.breakdown.mixStockShort")} value={`${r.stock_purchase_mix_pct} %`} />
         <ParamRow

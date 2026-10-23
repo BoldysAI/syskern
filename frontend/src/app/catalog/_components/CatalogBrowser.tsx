@@ -23,6 +23,7 @@ import {
   type PaginatedProducts,
   type Product,
 } from "@/lib/api";
+import { localize } from "@/components/AttributeRenderer";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -207,10 +208,10 @@ export function CatalogBrowser({
   const attrLabels = useMemo(() => {
     const m: Record<string, string> = {};
     for (const a of filterableAttrs ?? []) {
-      m[a.code] = a.label.fr || a.label.en || a.code;
+      m[a.code] = localize(a.label, displayLanguage) || a.code;
     }
     return m;
-  }, [filterableAttrs]);
+  }, [filterableAttrs, displayLanguage]);
 
   const onSearchChange = (v: string) => {
     setSearchInput(v);

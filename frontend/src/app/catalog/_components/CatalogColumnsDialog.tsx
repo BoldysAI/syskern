@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Columns } from "@phosphor-icons/react";
 import type { AttributeRegistry } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { localize } from "@/components/AttributeRenderer";
 import { AppModal } from "@/components/AppModal";
@@ -33,6 +34,7 @@ export function CatalogColumnsDialog({
   disabled,
 }: CatalogColumnsDialogProps) {
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(visibleKeys);
 
@@ -163,7 +165,9 @@ export function CatalogColumnsDialog({
                           checked={checked}
                           onCheckedChange={() => toggle(key)}
                         />
-                        <span className="text-sm text-foreground">{localize(attr.label)}</span>
+                        <span className="text-sm text-foreground">
+                          {localize(attr.label, displayLanguage)}
+                        </span>
                       </Label>
                     </li>
                   );

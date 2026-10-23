@@ -26,6 +26,7 @@ import type { TransportMode } from "@/lib/api";
 import { listTransportPresets } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { localizeLabel } from "@/lib/transport-modes";
+import { useAuth } from "@/contexts/AuthContext";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import {
   canSaveTransportAsPreset,
@@ -67,6 +68,7 @@ function SortableTransport({
   onSaveAsPreset?: () => void;
 }) {
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: transport.uid,
   });
@@ -111,7 +113,7 @@ function SortableTransport({
           placeholder={t("simulator.transport.modePlaceholder")}
           options={modes.map((m) => ({
             value: m.code,
-            label: localizeLabel(m.label, m.code),
+            label: localizeLabel(m.label, m.code, displayLanguage),
           }))}
           compact
           className="w-full"

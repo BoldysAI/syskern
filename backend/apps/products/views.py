@@ -215,7 +215,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         dynamic attributes), sorted least-complete first. Powers the completeness
         table on ``/settings/attributes`` and the dashboard widget.
         """
-        return Response(build_attribute_completeness())
+        return Response(build_attribute_completeness(resolve_request_locale(request)))
 
     # ── /api/products/{id}/price-history ─────────────────────────────────────
 

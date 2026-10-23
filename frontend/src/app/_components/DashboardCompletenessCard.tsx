@@ -25,7 +25,10 @@ function barColor(pct: number): string {
 export function DashboardCompletenessCard() {
   const { user, displayLanguage } = useAuth();
   const t = useUiTranslate();
-  const { data, isLoading } = useSWR("attribute-completeness", getAttributeCompleteness);
+  const { data, isLoading } = useSWR(
+    ["attribute-completeness", displayLanguage],
+    getAttributeCompleteness,
+  );
   const userIsAdmin = isAdmin(user?.role);
 
   // Nothing to show on an empty catalog.

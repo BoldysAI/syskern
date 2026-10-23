@@ -59,6 +59,7 @@ import {
   type SyncStatus,
   type OfferAlertSettings,
 } from "@/lib/api";
+import { localizeLabel } from "@/lib/transport-modes";
 import { useUiTranslate } from "@/lib/use-ui-translate";
 import { cn } from "@/lib/utils";
 
@@ -605,6 +606,7 @@ function TransportModeModal({ mode, onClose }: { mode?: TransportMode; onClose: 
 
 function TabTransport() {
   const t = useUiTranslate();
+  const { displayLanguage } = useAuth();
   const confirm = useConfirm();
   const { data, isLoading, error } = useSWR<TransportMode[]>("transport-modes", () =>
     listTransportModes(),
@@ -670,7 +672,7 @@ function TabTransport() {
                     {m.code}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
-                    {m.label?.fr ?? "—"}
+                    {m.label ? localizeLabel(m.label, m.code, displayLanguage) : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-muted-foreground">
                     {transportCategoryLabel(m.category, t)}

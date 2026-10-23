@@ -3,21 +3,23 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useUiTranslate } from "@/lib/use-ui-translate";
-import { HELP_NOTION_EMBED_URL } from "@/lib/help";
 
 interface HelpGuideEmbedProps {
   className?: string;
   /** Accessible title for the iframe. */
   title?: string;
+  src: string;
 }
 
 /** Full-bleed Notion guide embed with a soft loading state. */
 export function HelpGuideEmbed({
   className,
   title,
+  src,
 }: HelpGuideEmbedProps) {
   const t = useUiTranslate();
-  const [loaded, setLoaded] = useState(false);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = loadedSrc === src;
 
   return (
     <div className={cn("relative overflow-hidden bg-card", className)}>
@@ -31,7 +33,7 @@ export function HelpGuideEmbed({
         </div>
       )}
       <iframe
-        src={HELP_NOTION_EMBED_URL}
+        src={src}
         title={title ?? t("help.embedTitle")}
         className={cn(
           "h-full w-full border-0 transition-opacity duration-300",
@@ -40,7 +42,7 @@ export function HelpGuideEmbed({
         allowFullScreen
         loading="lazy"
         referrerPolicy="strict-origin-when-cross-origin"
-        onLoad={() => setLoaded(true)}
+        onLoad={() => setLoadedSrc(src)}
       />
     </div>
   );
