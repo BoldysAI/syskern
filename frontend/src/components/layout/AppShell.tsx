@@ -136,8 +136,8 @@ function Sidebar({
   collapsed?: boolean;
   onClose?: () => void;
 }) {
-  const { user, role, logout, setLocale } = useAuth();
-  const localeValue = user?.locale === "fr" || user?.locale === "en" ? user.locale : "deployment";
+  const { user, role, displayLanguage, logout, setLocale } = useAuth();
+  const localeValue = user?.locale === "fr" || user?.locale === "en" ? user.locale : displayLanguage;
   const t = useUiTranslate();
   const displayName =
     user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email;
@@ -268,15 +268,13 @@ function Sidebar({
               <DropdownMenuRadioGroup
                 value={localeValue}
                 onValueChange={(next) => {
-                  if (!next || next === localeValue) return;
-                  void setLocale(next === "deployment" ? "" : next);
+                  if (next !== "fr" && next !== "en") return;
+                  if (next === localeValue) return;
+                  void setLocale(next);
                 }}
               >
                 <DropdownMenuRadioItem value="fr">{t("users.localeFr")}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="en">{t("users.localeEn")}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="deployment">
-                  {t("users.localeDeployment")}
-                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
