@@ -252,7 +252,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 export default function NewProductPage() {
   const router = useRouter();
-  const { role, isLoading: authLoading } = useAuth();
+  const { role, isLoading: authLoading, displayLanguage } = useAuth();
   const t = useUiTranslate();
   const userCanEdit = canEdit(role);
 
@@ -573,6 +573,7 @@ export default function NewProductPage() {
               attribute={a}
               value={attrValue(a)}
               mode="edit"
+              lang={displayLanguage}
               onChange={(v) => {
                 setAttrs((d) => ({ ...d, [a.id]: v }));
                 setAttrValidity((d) => ({ ...d, [a.id]: validateAttributeValue(a, v) }));
